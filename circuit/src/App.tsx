@@ -1,13 +1,27 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card } from "@/components/ui/card"
 import { DeveloperTab } from "@/components/DeveloperTab"
-import { Store, Wrench, Package } from 'lucide-react'
+import { TestFixTab } from "@/components/TestFixTab"
+import { Store, Wrench, Package, Zap } from 'lucide-react'
+import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
 import './App.css'
 
-type Page = 'marketplace' | 'installed' | 'developer'
+type Page = 'marketplace' | 'installed' | 'developer' | 'testfix'
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('developer')
+
+  // Phase 0: .circuit/ 설정 읽기 시도
+  useEffect(() => {
+    const checkCircuitConfig = async () => {
+      // TODO: 실제 프로젝트 경로 가져오기 (나중에 Electron main에서)
+      const dummyPath = '/Users/williamjung/test-project'
+      const config = await readCircuitConfig(dummyPath)
+      logCircuitStatus(config)
+    }
+
+    checkCircuitConfig()
+  }, [])
 
   return (
     <div className="h-screen flex bg-background">
@@ -32,6 +46,12 @@ function App() {
             label="Installed"
             isActive={currentPage === 'installed'}
             onClick={() => setCurrentPage('installed')}
+          />
+          <SidebarButton
+            icon={<Zap className="h-4 w-4" />}
+            label="Test-Fix"
+            isActive={currentPage === 'testfix'}
+            onClick={() => setCurrentPage('testfix')}
           />
           <SidebarButton
             icon={<Wrench className="h-4 w-4" />}
@@ -90,6 +110,12 @@ function App() {
                   Manage your installed MCP servers.
                 </p>
               </Card>
+            </div>
+          )}
+
+          {currentPage === 'testfix' && (
+            <div className="max-w-7xl">
+              <TestFixTab />
             </div>
           )}
 
