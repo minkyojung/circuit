@@ -243,6 +243,154 @@
       margin-bottom: 16px;
     }
 
+    /* Developer Tab */
+    .dev-controls {
+      background: #252526;
+      border: 1px solid #3e3e3e;
+      border-radius: 6px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .dev-control-row {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .dev-control-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .dev-control-row label {
+      font-size: 12px;
+      color: #888;
+      min-width: 100px;
+    }
+
+    .dev-control-row select {
+      flex: 1;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      border: 1px solid #3e3e3e;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+
+    .dev-control-row select:focus {
+      outline: none;
+      border-color: #0e639c;
+    }
+
+    .dev-messages {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow: auto;
+    }
+
+    .dev-message {
+      background: #252526;
+      border: 1px solid #3e3e3e;
+      border-radius: 6px;
+      padding: 16px;
+    }
+
+    .dev-message-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .dev-message-type {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+
+    .dev-message-type.request {
+      background: #1a3a52;
+      color: #4ec9b0;
+    }
+
+    .dev-message-type.response {
+      background: #3a2d1a;
+      color: #dcdcaa;
+    }
+
+    .dev-message-type.error {
+      background: #5a1a1a;
+      color: #f48771;
+    }
+
+    .dev-message-type.system {
+      background: #2a2a2a;
+      color: #888;
+    }
+
+    .dev-message-time {
+      font-size: 11px;
+      color: #888;
+    }
+
+    .dev-message-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .dev-message-expand-btn,
+    .dev-message-copy-btn {
+      background: none;
+      border: none;
+      color: #888;
+      cursor: pointer;
+      padding: 4px 8px;
+      font-size: 11px;
+      border-radius: 4px;
+    }
+
+    .dev-message-expand-btn:hover,
+    .dev-message-copy-btn:hover {
+      background: #3e3e3e;
+      color: #d4d4d4;
+    }
+
+    .dev-message-content {
+      background: #1e1e1e;
+      border: 1px solid #3e3e3e;
+      border-radius: 4px;
+      padding: 12px;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 12px;
+      line-height: 1.5;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .dev-message-content.collapsed {
+      max-height: 100px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .dev-message-content.collapsed::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 40px;
+      background: linear-gradient(transparent, #1e1e1e);
+    }
+
     /* Modal */
     .modal {
       display: none;
@@ -371,10 +519,29 @@
 
     <!-- Developer Tab -->
     <div class="tab-content" id="developer">
-      <div class="empty-state">
-        <div class="empty-state-icon">🔧</div>
-        <div>Developer tools coming soon!</div>
-        <div style="margin-top: 8px; font-size: 12px;">Build and debug your own MCP servers.</div>
+      <div class="dev-controls">
+        <div class="dev-control-row">
+          <label for="devServerSelect">Test Server:</label>
+          <select id="devServerSelect">
+            <option value="echo">Echo Server (Test)</option>
+            <option value="weather">Weather Server (Example)</option>
+            <option value="github">GitHub Server</option>
+          </select>
+        </div>
+
+        <div class="dev-control-row">
+          <button id="devStartBtn">▶ Start Server</button>
+          <button id="devStopBtn" class="secondary" disabled>⏹ Stop</button>
+          <button id="devClearBtn" class="secondary">🗑 Clear Messages</button>
+          <button id="devSendBtn" class="secondary">📤 Send Request</button>
+        </div>
+      </div>
+
+      <div class="dev-messages" id="devMessages">
+        <div class="empty-state">
+          <div class="empty-state-icon">🔍</div>
+          <div>No messages yet. Start a server to see JSON-RPC communication.</div>
+        </div>
       </div>
     </div>
   </main>

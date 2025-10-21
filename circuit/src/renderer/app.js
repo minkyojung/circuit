@@ -416,3 +416,218 @@ document.getElementById('searchInput').addEventListener('input', (e) => {
 installedServers = loadInstalledServers();
 renderMarketplace();
 renderInstalled();
+
+// ============================================
+// DEVELOPER TAB
+// ============================================
+
+const { spawn } = require('child_process');
+
+let mcpProcess = null;
+const devMessages = [];
+
+// Add message to Developer tab
+function addDevMessage(type, content) {
+  const timestamp = new Date().toLocaleTimeString();
+  const message = { type, content, timestamp };
+  devMessages.push(message);
+
+  const messagesContainer = document.getElementById('devMessages');
+
+  if (devMessages.length === 1) {
+    messagesContainer.innerHTML = '';
+  }
+
+  const messageEl = document.createElement('div');
+  messageEl.className = 'dev-message';
+
+  const jsonString = JSON.stringify(content, null, 2);
+  const lineCount = jsonString.split('\n').length;
+  const shouldCollapse = lineCount > 5;
+
+  const messageId = `devmsg-${Date.now()}-${Math.random()}`;
+
+  messageEl.innerHTML = `
+    <div class="dev-message-header">
+      <span class="dev-message-type ${type}">${type}</span>
+      <div class="dev-message-actions">
+        ${shouldCollapse ? `<button class="dev-message-expand-btn" data-msg-id="${messageId}">▼ Expand (${lineCount} lines)</button>` : ''}
+        <button class="dev-message-copy-btn" data-content="${escapeHtml(jsonString).replace(/"/g, '&quot;')}">📋 Copy</button>
+        <span class="dev-message-time">${timestamp}</span>
+      </div>
+    </div>
+    <div class="dev-message-content ${shouldCollapse ? 'collapsed' : ''}" id="${messageId}">${escapeHtml(jsonString)}</div>
+  `;
+
+  messagesContainer.appendChild(messageEl);
+
+  // Add event listeners
+  if (shouldCollapse) {
+    const expandBtn = messageEl.querySelector('.dev-message-expand-btn');
+    expandBtn.addEventListener('click', () => {
+      const contentEl = document.getElementById(messageId);
+      const isCollapsed = contentEl.classList.contains('collapsed');
+
+      if (isCollapsed) {
+        contentEl.classList.remove('collapsed');
+        expandBtn.textContent = `▲ Collapse`;
+      } else {
+        contentEl.classList.add('collapsed');
+        expandBtn.textContent = `▼ Expand (${lineCount} lines)`;
+      }
+    });
+  }
+
+  const copyBtn = messageEl.querySelector('.dev-message-copy-btn');
+  copyBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(jsonString);
+    copyBtn.textContent = '✓ Copied!';
+    setTimeout(() => {
+      copyBtn.textContent = '📋 Copy';
+    }, 2000);
+  });
+
+  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Start MCP Server
+document.getElementById('devStartBtn').addEventListener('click', () => {
+  if (mcpProcess) {
+    addDevMessage('system', { error: 'Server already running' });
+    return;
+  }
+
+  const serverType = document.getElementById('devServerSelect').value;
+  let command, args, env;
+
+  if (serverType === 'echo') {
+    // Echo server
+    const serverPath = path.join(__dirname, '../../examples/echo-server.js');
+    command = 'node';
+    args = [serverPath];
+    env = process.env;
+    addDevMessage('system', { status: 'Starting Echo MCP server...', path: serverPath });
+  } else if (serverType === 'weather') {
+    // Weather server
+    const serverPath = path.join(__dirname, '../../examples/weather-server.js');
+    command = 'node';
+    args = [serverPath];
+    env = process.env;
+    addDevMessage('system', { status: 'Starting Weather MCP server...', path: serverPath });
+  } else if (serverType === 'github') {
+    // GitHub server
+    const config = loadInstalledServers().find(s => s.id === 'github');
+    if (!config || !config.env || !config.env.GITHUB_TOKEN) {
+      addDevMessage('system', { error: 'GitHub server not installed or token missing. Install it from the Marketplace first.' });
+      return;
+    }
+
+    command = 'npx';
+    args = ['-y', '@modelcontextprotocol/server-github'];
+    env = { ...process.env, ...config.env };
+    addDevMessage('system', { status: 'Starting GitHub MCP server...' });
+  }
+
+  mcpProcess = spawn(command, args, { env });
+
+  let buffer = '';
+
+  mcpProcess.stdout.on('data', (data) => {
+    buffer += data.toString();
+
+    // Try to parse complete JSON messages
+    const lines = buffer.split('\n');
+    buffer = lines.pop(); // Keep incomplete line in buffer
+
+    lines.forEach(line => {
+      if (line.trim()) {
+        try {
+          const message = JSON.parse(line);
+          addDevMessage('response', message);
+        } catch (e) {
+          addDevMessage('response', { raw: line });
+        }
+      }
+    });
+  });
+
+  mcpProcess.stderr.on('data', (data) => {
+    const stderrText = data.toString();
+    // Most MCP servers use stderr for logging, not actual errors
+    // Only treat it as error if it contains error keywords
+    const isActualError = /error|failed|exception|fatal/i.test(stderrText);
+    addDevMessage(isActualError ? 'error' : 'system', { stderr: stderrText });
+  });
+
+  mcpProcess.on('close', (code) => {
+    addDevMessage('system', { status: 'Server stopped', exitCode: code });
+    mcpProcess = null;
+    document.getElementById('devStartBtn').disabled = false;
+    document.getElementById('devStopBtn').disabled = true;
+  });
+
+  // Update buttons
+  document.getElementById('devStartBtn').disabled = true;
+  document.getElementById('devStopBtn').disabled = false;
+
+  // Send a test request
+  setTimeout(() => {
+    if (mcpProcess) {
+      const testRequest = {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/list',
+        params: {}
+      };
+
+      addDevMessage('request', testRequest);
+      mcpProcess.stdin.write(JSON.stringify(testRequest) + '\n');
+    }
+  }, 1000);
+});
+
+// Stop server
+document.getElementById('devStopBtn').addEventListener('click', () => {
+  if (mcpProcess) {
+    mcpProcess.kill();
+    mcpProcess = null;
+    document.getElementById('devStartBtn').disabled = false;
+    document.getElementById('devStopBtn').disabled = true;
+  }
+});
+
+// Clear messages
+document.getElementById('devClearBtn').addEventListener('click', () => {
+  devMessages.length = 0;
+  document.getElementById('devMessages').innerHTML = `
+    <div class="empty-state">
+      <div class="empty-state-icon">🔍</div>
+      <div>No messages yet. Start a server to see JSON-RPC communication.</div>
+    </div>
+  `;
+});
+
+// Send Request (TODO: implement modal)
+document.getElementById('devSendBtn').addEventListener('click', () => {
+  if (!mcpProcess) {
+    alert('No server running. Start a server first.');
+    return;
+  }
+
+  // For now, just send a simple request
+  const request = {
+    jsonrpc: '2.0',
+    id: Date.now(),
+    method: 'tools/list',
+    params: {}
+  };
+
+  addDevMessage('request', request);
+  mcpProcess.stdin.write(JSON.stringify(request) + '\n');
+});
