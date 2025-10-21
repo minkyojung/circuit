@@ -1,12 +1,13 @@
 /**
- * Phase 2: Test-Fix Loop Tab with Project Detection
+ * Phase 3: Test-Fix Loop Tab with File Change Detection
  */
 
 import { useState, useEffect } from 'react'
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Rocket, CheckCircle, AlertCircle, Sparkles } from 'lucide-react'
+import { Rocket, CheckCircle, AlertCircle, Sparkles, Eye, EyeOff } from 'lucide-react'
 import { detectProjectType, getProjectTypeName, getConfidenceMessage, type DetectionResult, type ProjectType } from '@/core/detector'
+import { formatEvent, type FileChangeEvent } from '@/core/watcher'
 
 // Electron IPC
 const { ipcRenderer } = window.require('electron')
@@ -17,9 +18,27 @@ export function TestFixTab() {
   const [isInitializing, setIsInitializing] = useState(false)
   const [initResult, setInitResult] = useState<{ success: boolean; message?: string; error?: string } | null>(null)
 
+  // Phase 3: File watching
+  const [isWatching, setIsWatching] = useState(false)
+  const [fileChanges, setFileChanges] = useState<FileChangeEvent[]>([])
+
   // Phase 2: Auto-detect on mount
   useEffect(() => {
     handleDetect()
+  }, [])
+
+  // Phase 3: Set up file change listener
+  useEffect(() => {
+    const handleFileChange = (_event: any, changeEvent: FileChangeEvent) => {
+      console.log('[Circuit] File change received:', changeEvent)
+      setFileChanges(prev => [changeEvent, ...prev].slice(0, 10)) // Keep last 10
+    }
+
+    ipcRenderer.on('circuit:file-changed', handleFileChange)
+
+    return () => {
+      ipcRenderer.removeListener('circuit:file-changed', handleFileChange)
+    }
   }, [])
 
   const handleDetect = async () => {
@@ -87,6 +106,24 @@ export function TestFixTab() {
       })
     } finally {
       setIsInitializing(false)
+    }
+  }
+
+  // Phase 3: Toggle file watching
+  const handleToggleWatch = async () => {
+    const projectPath = '/Users/williamjung/test-project'
+
+    if (isWatching) {
+      // Stop watching
+      const result = await ipcRenderer.invoke('circuit:watch-stop', projectPath)
+      console.log('[Circuit] Watch stopped:', result)
+      setIsWatching(false)
+      setFileChanges([])
+    } else {
+      // Start watching
+      const result = await ipcRenderer.invoke('circuit:watch-start', projectPath)
+      console.log('[Circuit] Watch started:', result)
+      setIsWatching(true)
     }
   }
 
@@ -218,6 +255,75 @@ export function TestFixTab() {
               💡 Phase 2: 프로젝트 타입 자동 감지
               <br />
               package.json을 분석해서 React/Next.js/Node API를 자동으로 감지합니다.
+            </p>
+          </div>
+        </div>
+      </Card>
+
+      {/* Phase 3: File Change Detection */}
+      <Card className="p-6 border-border">
+        <div className="space-y-4">
+          <div className="flex items-start gap-4">
+            {isWatching ? (
+              <Eye className="h-6 w-6 text-primary mt-1" />
+            ) : (
+              <EyeOff className="h-6 w-6 text-muted-foreground mt-1" />
+            )}
+            <div className="flex-1">
+              <h3 className="font-semibold mb-2">파일 변경 감지</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                프로젝트의 파일 변경을 실시간으로 감지합니다.
+                <br />
+                <span className="text-xs">
+                  (.ts, .tsx, .js, .jsx 파일만 감지, node_modules 제외)
+                </span>
+              </p>
+
+              <Button
+                onClick={handleToggleWatch}
+                variant={isWatching ? "destructive" : "default"}
+                className="gap-2"
+              >
+                {isWatching ? (
+                  <>
+                    <EyeOff className="h-4 w-4" />
+                    Stop Watching
+                  </>
+                ) : (
+                  <>
+                    <Eye className="h-4 w-4" />
+                    Start Watching
+                  </>
+                )}
+              </Button>
+
+              {/* File Changes Log */}
+              {isWatching && (
+                <div className="mt-4">
+                  <h4 className="text-sm font-medium mb-2">변경 이력 (최근 10개)</h4>
+                  {fileChanges.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      파일을 수정하면 여기에 표시됩니다...
+                    </p>
+                  ) : (
+                    <div className="space-y-1 font-mono text-xs bg-muted p-3 rounded max-h-60 overflow-y-auto">
+                      {fileChanges.map((change, i) => (
+                        <div key={i} className="text-muted-foreground">
+                          {formatEvent(change)}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="border-t border-border pt-4 mt-4">
+            <p className="text-xs text-muted-foreground">
+              💡 Phase 3: 파일 변경 감지 (로그만 출력)
+              <br />
+              chokidar로 실시간 파일 변경을 감지합니다. 아직 테스트는 실행하지 않습니다.
             </p>
           </div>
         </div>
