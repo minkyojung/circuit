@@ -1,0 +1,102 @@
+import { useState } from 'react'
+import { Card } from "@/components/ui/card"
+import { DeveloperTab } from "@/components/DeveloperTab"
+import { Store, Wrench, Package } from 'lucide-react'
+import './App.css'
+
+type Page = 'marketplace' | 'installed' | 'developer'
+
+function App() {
+  const [currentPage, setCurrentPage] = useState<Page>('developer')
+
+  return (
+    <div className="h-screen flex bg-background">
+      {/* Sidebar */}
+      <aside className="w-56 bg-sidebar border-r border-sidebar-border flex flex-col">
+        <nav className="flex-1 py-4">
+          <SidebarButton
+            icon={<Store className="h-4 w-4" />}
+            label="Marketplace"
+            isActive={currentPage === 'marketplace'}
+            onClick={() => setCurrentPage('marketplace')}
+          />
+          <SidebarButton
+            icon={<Package className="h-4 w-4" />}
+            label="Installed"
+            isActive={currentPage === 'installed'}
+            onClick={() => setCurrentPage('installed')}
+          />
+          <SidebarButton
+            icon={<Wrench className="h-4 w-4" />}
+            label="Developer"
+            isActive={currentPage === 'developer'}
+            onClick={() => setCurrentPage('developer')}
+          />
+        </nav>
+      </aside>
+
+      {/* Main Content */}
+      <main className="flex-1 overflow-hidden">
+        <div className="h-full overflow-auto p-8">
+          {currentPage === 'marketplace' && (
+            <div className="max-w-4xl">
+              <Card className="p-6 border-border">
+                <h2 className="text-lg font-semibold mb-2">MCP Server Marketplace</h2>
+                <p className="text-sm text-muted-foreground">
+                  Discover and install MCP servers from the community.
+                </p>
+              </Card>
+            </div>
+          )}
+
+          {currentPage === 'installed' && (
+            <div className="max-w-4xl">
+              <Card className="p-6 border-border">
+                <h2 className="text-lg font-semibold mb-2">Installed Servers</h2>
+                <p className="text-sm text-muted-foreground">
+                  Manage your installed MCP servers.
+                </p>
+              </Card>
+            </div>
+          )}
+
+          {currentPage === 'developer' && (
+            <div className="max-w-7xl">
+              <DeveloperTab />
+            </div>
+          )}
+        </div>
+      </main>
+    </div>
+  )
+}
+
+function SidebarButton({
+  icon,
+  label,
+  isActive,
+  onClick
+}: {
+  icon: React.ReactNode
+  label: string
+  isActive: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`
+        w-full px-4 py-2.5 flex items-center gap-3 text-sm font-medium transition-colors
+        ${isActive
+          ? 'bg-sidebar-accent text-sidebar-accent-foreground border-l-2 border-sidebar-primary'
+          : 'text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
+        }
+      `}
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
+  )
+}
+
+export default App
