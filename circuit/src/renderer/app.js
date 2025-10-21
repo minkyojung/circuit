@@ -426,6 +426,134 @@ const { spawn } = require('child_process');
 let mcpProcess = null;
 const devMessages = [];
 
+// Request templates for different methods
+const REQUEST_TEMPLATES = {
+  'tools/list': {},
+  'tools/call': {
+    name: 'example_tool',
+    arguments: {
+      param1: 'value1'
+    }
+  },
+  'prompts/list': {},
+  'prompts/get': {
+    name: 'example_prompt',
+    arguments: {
+      arg1: 'value1'
+    }
+  },
+  'resources/list': {},
+  'resources/read': {
+    uri: 'file:///path/to/resource'
+  }
+};
+
+// Store request-response mapping
+const requestMap = new Map(); // id -> request message
+
+// Generate human-readable description for messages
+function getMessageDescription(type, content) {
+  if (type === 'request') {
+    const method = content.method || 'unknown';
+    const id = content.id;
+
+    // Store request for later matching
+    if (id) {
+      requestMap.set(id, content);
+    }
+
+    if (method === 'tools/list') {
+      return '→ 사용 가능한 도구 목록 요청';
+    } else if (method === 'tools/call') {
+      const toolName = content.params?.name || 'unknown';
+      return `→ "${toolName}" 도구 실행 요청`;
+    } else if (method === 'prompts/list') {
+      return '→ 사용 가능한 프롬프트 목록 요청';
+    } else if (method === 'prompts/get') {
+      const promptName = content.params?.name || 'unknown';
+      return `→ "${promptName}" 프롬프트 조회 요청`;
+    } else if (method === 'resources/list') {
+      return '→ 사용 가능한 리소스 목록 요청';
+    } else if (method === 'resources/read') {
+      return '→ 리소스 읽기 요청';
+    } else {
+      return `→ ${method} 요청`;
+    }
+  } else if (type === 'response') {
+    const id = content.id;
+    const result = content.result;
+    const error = content.error;
+
+    // Try to match with request
+    let matchedRequest = null;
+    if (id && requestMap.has(id)) {
+      matchedRequest = requestMap.get(id);
+    }
+
+    if (error) {
+      return `← 에러: ${error.message || JSON.stringify(error)}`;
+    }
+
+    if (matchedRequest) {
+      const method = matchedRequest.method;
+
+      if (method === 'tools/list') {
+        const count = result?.tools?.length || 0;
+        return `← ${count}개의 도구 응답`;
+      } else if (method === 'tools/call') {
+        return '← 도구 실행 결과';
+      } else if (method === 'prompts/list') {
+        const count = result?.prompts?.length || 0;
+        return `← ${count}개의 프롬프트 응답`;
+      } else if (method === 'resources/list') {
+        const count = result?.resources?.length || 0;
+        return `← ${count}개의 리소스 응답`;
+      }
+    }
+
+    return '← 응답 수신';
+  } else if (type === 'error') {
+    return '⚠️ 에러 발생';
+  } else if (type === 'system') {
+    if (content.status) {
+      return `ℹ️ ${content.status}`;
+    } else if (content.error) {
+      return `⚠️ ${content.error}`;
+    } else if (content.stderr) {
+      return 'ℹ️ 서버 로그';
+    }
+    return 'ℹ️ 시스템 메시지';
+  }
+
+  return type;
+}
+
+// Get summary preview for JSON
+function getJsonSummary(content) {
+  if (content.method) {
+    // Request
+    return `Method: ${content.method}`;
+  } else if (content.result) {
+    // Response with result
+    const result = content.result;
+    if (result.tools) {
+      return `Tools: ${result.tools.map(t => t.name).join(', ')}`;
+    } else if (result.prompts) {
+      return `Prompts: ${result.prompts.map(p => p.name).join(', ')}`;
+    } else if (result.resources) {
+      return `Resources: ${result.resources.length} items`;
+    } else if (result.content) {
+      return 'Content returned';
+    } else {
+      return 'Result: ' + JSON.stringify(result).substring(0, 50) + '...';
+    }
+  } else if (content.error) {
+    return `Error: ${content.error.message || content.error.code}`;
+  }
+
+  return '';
+}
+
 // Add message to Developer tab
 function addDevMessage(type, content) {
   const timestamp = new Date().toLocaleTimeString();
@@ -447,11 +575,29 @@ function addDevMessage(type, content) {
 
   const messageId = `devmsg-${Date.now()}-${Math.random()}`;
 
+  // Get human-readable description
+  const description = getMessageDescription(type, content);
+  const summary = getJsonSummary(content);
+
+  // Check if this is a response and find matching request
+  let requestInfo = '';
+  if (type === 'response' && content.id && requestMap.has(content.id)) {
+    const req = requestMap.get(content.id);
+    requestInfo = `<div style="font-size: 11px; color: #888; margin-top: 4px;">↩️ Response to: ${req.method}</div>`;
+  }
+
   messageEl.innerHTML = `
     <div class="dev-message-header">
-      <span class="dev-message-type ${type}">${type}</span>
+      <div style="display: flex; flex-direction: column; gap: 4px; flex: 1;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="dev-message-type ${type}">${type}</span>
+          <span style="font-size: 13px; font-weight: 500; color: #d4d4d4;">${description}</span>
+        </div>
+        ${summary ? `<div style="font-size: 12px; color: #888;">${summary}</div>` : ''}
+        ${requestInfo}
+      </div>
       <div class="dev-message-actions">
-        ${shouldCollapse ? `<button class="dev-message-expand-btn" data-msg-id="${messageId}">▼ Expand (${lineCount} lines)</button>` : ''}
+        ${shouldCollapse ? `<button class="dev-message-expand-btn" data-msg-id="${messageId}">▼ Show JSON (${lineCount} lines)</button>` : ''}
         <button class="dev-message-copy-btn" data-content="${escapeHtml(jsonString).replace(/"/g, '&quot;')}">📋 Copy</button>
         <span class="dev-message-time">${timestamp}</span>
       </div>
@@ -470,10 +616,10 @@ function addDevMessage(type, content) {
 
       if (isCollapsed) {
         contentEl.classList.remove('collapsed');
-        expandBtn.textContent = `▲ Collapse`;
+        expandBtn.textContent = `▲ Hide JSON`;
       } else {
         contentEl.classList.add('collapsed');
-        expandBtn.textContent = `▼ Expand (${lineCount} lines)`;
+        expandBtn.textContent = `▼ Show JSON (${lineCount} lines)`;
       }
     });
   }
@@ -495,6 +641,16 @@ function escapeHtml(text) {
   div.textContent = text;
   return div.innerHTML;
 }
+
+// Custom Server toggle
+document.getElementById('devServerSelect').addEventListener('change', (e) => {
+  const customConfig = document.getElementById('customServerConfig');
+  if (e.target.value === 'custom') {
+    customConfig.style.display = 'block';
+  } else {
+    customConfig.style.display = 'none';
+  }
+});
 
 // Start MCP Server
 document.getElementById('devStartBtn').addEventListener('click', () => {
@@ -532,6 +688,32 @@ document.getElementById('devStartBtn').addEventListener('click', () => {
     args = ['-y', '@modelcontextprotocol/server-github'];
     env = { ...process.env, ...config.env };
     addDevMessage('system', { status: 'Starting GitHub MCP server...' });
+  } else if (serverType === 'custom') {
+    // Custom server
+    const customCommand = document.getElementById('customCommand').value.trim();
+    if (!customCommand) {
+      addDevMessage('system', { error: 'Please enter a command for the custom server' });
+      return;
+    }
+
+    // Parse command (split by space, handle quotes)
+    const commandParts = customCommand.match(/(?:[^\s"]+|"[^"]*")+/g).map(part => part.replace(/"/g, ''));
+    command = commandParts[0];
+    args = commandParts.slice(1);
+
+    // Parse environment variables
+    env = { ...process.env };
+    const customEnv = document.getElementById('customEnv').value.trim();
+    if (customEnv) {
+      customEnv.split(',').forEach(pair => {
+        const [key, value] = pair.split('=').map(s => s.trim());
+        if (key && value) {
+          env[key] = value;
+        }
+      });
+    }
+
+    addDevMessage('system', { status: 'Starting custom MCP server...', command: customCommand, env: customEnv || 'none' });
   }
 
   mcpProcess = spawn(command, args, { env });
@@ -613,21 +795,64 @@ document.getElementById('devClearBtn').addEventListener('click', () => {
   `;
 });
 
-// Send Request (TODO: implement modal)
+// Send Request - Open modal
 document.getElementById('devSendBtn').addEventListener('click', () => {
   if (!mcpProcess) {
     alert('No server running. Start a server first.');
     return;
   }
 
-  // For now, just send a simple request
+  // Open request modal
+  const modal = document.getElementById('requestModal');
+  modal.classList.add('active');
+
+  // Reset to default
+  document.getElementById('requestMethod').value = 'tools/list';
+  document.getElementById('requestParams').value = '';
+});
+
+// Request modal - Method change (populate template)
+document.getElementById('requestMethod').addEventListener('change', (e) => {
+  const method = e.target.value;
+  const template = REQUEST_TEMPLATES[method];
+  document.getElementById('requestParams').value = JSON.stringify(template, null, 2);
+});
+
+// Request modal - Cancel
+document.getElementById('requestCancel').addEventListener('click', () => {
+  document.getElementById('requestModal').classList.remove('active');
+});
+
+// Request modal - Send
+document.getElementById('requestSend').addEventListener('click', () => {
+  if (!mcpProcess) {
+    alert('Server stopped while modal was open');
+    return;
+  }
+
+  const method = document.getElementById('requestMethod').value;
+  const paramsText = document.getElementById('requestParams').value.trim();
+
+  let params = {};
+  if (paramsText) {
+    try {
+      params = JSON.parse(paramsText);
+    } catch (e) {
+      alert('Invalid JSON in parameters field:\n' + e.message);
+      return;
+    }
+  }
+
   const request = {
     jsonrpc: '2.0',
     id: Date.now(),
-    method: 'tools/list',
-    params: {}
+    method,
+    params
   };
 
   addDevMessage('request', request);
   mcpProcess.stdin.write(JSON.stringify(request) + '\n');
+
+  // Close modal
+  document.getElementById('requestModal').classList.remove('active');
 });

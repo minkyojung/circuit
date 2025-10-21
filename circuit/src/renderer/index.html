@@ -302,8 +302,9 @@
     .dev-message-header {
       display: flex;
       justify-content: space-between;
-      align-items: center;
+      align-items: flex-start;
       margin-bottom: 12px;
+      gap: 12px;
     }
 
     .dev-message-type {
@@ -461,6 +462,11 @@
       border-color: #0e639c;
     }
 
+    textarea.form-input {
+      font-family: 'Monaco', 'Courier New', monospace;
+      resize: vertical;
+    }
+
     .checkbox-group {
       display: flex;
       flex-direction: column;
@@ -526,7 +532,20 @@
             <option value="echo">Echo Server (Test)</option>
             <option value="weather">Weather Server (Example)</option>
             <option value="github">GitHub Server</option>
+            <option value="custom">Custom Server...</option>
           </select>
+        </div>
+
+        <!-- Custom Server Config (hidden by default) -->
+        <div id="customServerConfig" style="display: none;">
+          <div class="dev-control-row">
+            <label for="customCommand">Command:</label>
+            <input type="text" id="customCommand" class="form-input" placeholder="node /path/to/server.js or npx my-server">
+          </div>
+          <div class="dev-control-row">
+            <label for="customEnv">Env Variables:</label>
+            <input type="text" id="customEnv" class="form-input" placeholder="KEY1=value1,KEY2=value2 (optional)">
+          </div>
         </div>
 
         <div class="dev-control-row">
@@ -561,6 +580,41 @@
       <div class="modal-actions">
         <button class="secondary" id="modalCancel">Cancel</button>
         <button id="modalInstall">Install</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Request Builder Modal -->
+  <div class="modal" id="requestModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title">Send MCP Request</div>
+        <div class="modal-subtitle">Test your MCP server with custom requests</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Method</label>
+        <select id="requestMethod" class="form-input">
+          <option value="tools/list">tools/list - List available tools</option>
+          <option value="tools/call">tools/call - Call a specific tool</option>
+          <option value="prompts/list">prompts/list - List available prompts</option>
+          <option value="prompts/get">prompts/get - Get a specific prompt</option>
+          <option value="resources/list">resources/list - List available resources</option>
+          <option value="resources/read">resources/read - Read a resource</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Parameters (JSON)</label>
+        <textarea id="requestParams" class="form-input" rows="10" placeholder='{\n  "name": "example",\n  "arguments": {}\n}'></textarea>
+        <div style="font-size: 11px; color: #888; margin-top: 4px;">
+          💡 Tip: Use the method dropdown to see example parameters
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="secondary" id="requestCancel">Cancel</button>
+        <button id="requestSend">Send Request</button>
       </div>
     </div>
   </div>
