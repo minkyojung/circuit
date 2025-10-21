@@ -13,6 +13,18 @@ function App() {
     <div className="h-screen flex bg-background">
       {/* Sidebar */}
       <aside className="w-56 bg-sidebar border-r border-sidebar-border flex flex-col">
+        {/* Sidebar Top - Traffic Lights Area (Fully Draggable) */}
+        <div
+          className="h-[60px] flex items-center px-4 border-b border-sidebar-border"
+          style={{ WebkitAppRegion: 'drag' } as any}
+        >
+          {/* Traffic lights positioned by Electron */}
+          <div className="pl-[60px] text-sm font-semibold text-sidebar-foreground">
+            Circuit
+          </div>
+        </div>
+
+        {/* Sidebar Navigation */}
         <nav className="flex-1 py-4">
           <SidebarButton
             icon={<Store className="h-4 w-4" />}
@@ -36,8 +48,34 @@ function App() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-hidden">
-        <div className="h-full overflow-auto p-8">
+      <main className="flex-1 overflow-hidden flex flex-col">
+        {/* Main Header (Empty spaces draggable, interactive elements not) */}
+        <header
+          className="h-[60px] bg-background border-b border-border flex items-center px-4 gap-4"
+          style={{ WebkitAppRegion: 'drag' } as any}
+        >
+          {/* Left side - could add branch selector or other controls */}
+          <div
+            className="flex items-center gap-2"
+            style={{ WebkitAppRegion: 'no-drag' } as any}
+          >
+            {/* Placeholder for future controls */}
+          </div>
+
+          {/* Center - Empty space for dragging */}
+          <div className="flex-1" />
+
+          {/* Right side - could add buttons */}
+          <div
+            className="flex items-center gap-2"
+            style={{ WebkitAppRegion: 'no-drag' } as any}
+          >
+            {/* Placeholder for future buttons */}
+          </div>
+        </header>
+
+        {/* Main Content Area */}
+        <div className="flex-1 overflow-auto p-8">
           {currentPage === 'marketplace' && (
             <div className="max-w-4xl">
               <Card className="p-6 border-border">
@@ -92,6 +130,7 @@ function SidebarButton({
           : 'text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
         }
       `}
+      style={{ WebkitAppRegion: 'no-drag' } as any}
     >
       {icon}
       <span>{label}</span>

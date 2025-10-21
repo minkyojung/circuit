@@ -1,10 +1,22 @@
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
 
+// macOS traffic light button positioning
+const HEADER_HEIGHT = 60;
+const TRAFFIC_LIGHTS_HEIGHT = 14;
+const TRAFFIC_LIGHTS_MARGIN = 20;
+
 function createWindow() {
   const mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
+    titleBarStyle: process.platform === 'darwin' ? 'hidden' : 'default',
+    ...(process.platform === 'darwin' && {
+      trafficLightPosition: {
+        x: TRAFFIC_LIGHTS_MARGIN,
+        y: (HEADER_HEIGHT - TRAFFIC_LIGHTS_HEIGHT) / 2
+      }
+    }),
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
