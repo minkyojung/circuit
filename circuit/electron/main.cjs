@@ -743,7 +743,7 @@ ipcMain.handle('circuit:get-ai-fix', async (event, fixRequest) => {
     }
 
     // 2. Build prompt
-    const { testError, testCode, sourceCode, projectType } = fixRequest;
+    const { testError, testCode, sourceCode, projectType, testFilePath } = fixRequest;
 
     const prompt = `You are helping fix a failing test in a ${projectType} project.
 
@@ -752,7 +752,7 @@ ipcMain.handle('circuit:get-ai-fix', async (event, fixRequest) => {
 ${testError}
 \`\`\`
 
-${testCode ? `**Test Code:**
+${testCode ? `**Test Code (${testFilePath || 'test file'}):**
 \`\`\`javascript
 ${testCode}
 \`\`\`
@@ -764,13 +764,23 @@ ${sourceCode}
 \`\`\`
 ` : ''}
 
-Please analyze the error and suggest a fix. Provide:
+Please analyze the error and suggest a fix.
 
-1. **Root Cause**: What's causing the test to fail?
-2. **Fix**: The exact code changes needed
-3. **Explanation**: Why this fix works
+**Response Format:**
+Provide your response in this EXACT format:
 
-Be concise and actionable.`;
+## Root Cause
+[Brief explanation of what's causing the test to fail]
+
+## Fixed Code
+\`\`\`javascript
+[Complete fixed version of the test file]
+\`\`\`
+
+## Explanation
+[Brief explanation of why this fix works]
+
+IMPORTANT: In the "Fixed Code" section, provide the COMPLETE corrected file content, not just the changed lines.`;
 
     // 3. Prepare Claude CLI subprocess
     const claude = spawn(CLAUDE_CLI_PATH, [
@@ -855,6 +865,59 @@ Be concise and actionable.`;
     });
   } catch (error) {
     console.error('[Circuit] Get AI fix error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+// ============================================================================
+// Circuit Test-Fix Loop - Phase 6: Apply AI Fix
+// ============================================================================
+
+/**
+ * Phase 6: Apply AI-suggested fix to file
+ */
+ipcMain.handle('circuit:apply-fix', async (event, applyRequest) => {
+  try {
+    const { filePath, fixedCode } = applyRequest;
+
+    console.log('[Circuit] Applying fix to:', filePath);
+    console.log('[Circuit] Fixed code length:', fixedCode.length);
+
+    // 1. Verify file exists
+    try {
+      await fs.access(filePath);
+    } catch (error) {
+      return {
+        success: false,
+        error: `File not found: ${filePath}`
+      };
+    }
+
+    // 2. Create backup (optional but recommended)
+    const backupPath = `${filePath}.backup`;
+    try {
+      const originalContent = await fs.readFile(filePath, 'utf-8');
+      await fs.writeFile(backupPath, originalContent, 'utf-8');
+      console.log('[Circuit] Backup created:', backupPath);
+    } catch (backupError) {
+      console.warn('[Circuit] Could not create backup:', backupError);
+      // Continue anyway - backup is optional
+    }
+
+    // 3. Write fixed code to file
+    await fs.writeFile(filePath, fixedCode, 'utf-8');
+    console.log('[Circuit] Fix applied successfully!');
+
+    return {
+      success: true,
+      message: 'Fix applied successfully',
+      backupPath
+    };
+  } catch (error) {
+    console.error('[Circuit] Apply fix error:', error);
     return {
       success: false,
       error: error.message

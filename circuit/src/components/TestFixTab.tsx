@@ -1,15 +1,16 @@
 /**
- * Phase 5: Test-Fix Loop Tab with AI Fix Suggestions
+ * Phase 6: Test-Fix Loop Tab with AI Fix Application
  */
 
 import { useState, useEffect } from 'react'
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Rocket, CheckCircle, AlertCircle, Sparkles, Eye, EyeOff, Play, Loader2, Wand2 } from 'lucide-react'
+import { Rocket, CheckCircle, AlertCircle, Sparkles, Eye, EyeOff, Play, Loader2, Wand2, Check } from 'lucide-react'
 import { detectProjectType, getProjectTypeName, getConfidenceMessage, type DetectionResult, type ProjectType } from '@/core/detector'
 import { formatEvent, type FileChangeEvent } from '@/core/watcher'
 import { type TestResult } from '@/core/test-runner'
+import { parseAiFix, type ParsedFix } from '@/core/claude-cli'
 
 // Electron IPC
 const { ipcRenderer } = window.require('electron')
@@ -30,9 +31,11 @@ export function TestFixTab() {
   const [testResult, setTestResult] = useState<TestResult | null>(null)
   const [autoTest, setAutoTest] = useState(false)
 
-  // Phase 5: AI fix
+  // Phase 5-6: AI fix
   const [isGettingFix, setIsGettingFix] = useState(false)
   const [aiFix, setAiFix] = useState<string | null>(null)
+  const [parsedFix, setParsedFix] = useState<ParsedFix | null>(null)
+  const [isApplyingFix, setIsApplyingFix] = useState(false)
 
   // Phase 2: Auto-detect on mount
   useEffect(() => {
@@ -165,19 +168,34 @@ export function TestFixTab() {
     }
   }
 
-  // Phase 5: Get AI fix suggestion
+  // Phase 5-6: Get AI fix suggestion
   const handleGetAiFix = async () => {
     if (!testResult || testResult.success) return
 
     setIsGettingFix(true)
     setAiFix(null)
+    setParsedFix(null)
 
     try {
       console.log('[Circuit] Requesting AI fix...')
 
+      // Read test file content
+      const testFilePath = `${projectPath}/test.js`
+      const fs = window.require('fs')
+      let testCode = ''
+
+      try {
+        testCode = fs.readFileSync(testFilePath, 'utf-8')
+        console.log('[Circuit] Test file loaded, length:', testCode.length)
+      } catch (readError) {
+        console.warn('[Circuit] Could not read test file:', readError)
+      }
+
       const fixRequest = {
         testError: testResult.errors.join('\n') || testResult.output,
-        projectType: detection?.type || 'unknown'
+        testCode,
+        projectType: detection?.type || 'unknown',
+        testFilePath
       }
 
       const result = await ipcRenderer.invoke('circuit:get-ai-fix', fixRequest)
@@ -186,6 +204,15 @@ export function TestFixTab() {
 
       if (result.success) {
         setAiFix(result.fix)
+
+        // Phase 6: Parse the fix to extract code
+        const parsed = parseAiFix(result.fix)
+        if (parsed) {
+          setParsedFix(parsed)
+          console.log('[Circuit] Parsed fix:', parsed)
+        } else {
+          console.warn('[Circuit] Could not parse AI fix - Apply button will be hidden')
+        }
       } else {
         setAiFix(`❌ Error: ${result.error}`)
       }
@@ -194,6 +221,39 @@ export function TestFixTab() {
       setAiFix(`❌ Error: ${String(error)}`)
     } finally {
       setIsGettingFix(false)
+    }
+  }
+
+  // Phase 6: Apply AI fix to file
+  const handleApplyFix = async () => {
+    if (!parsedFix) return
+
+    setIsApplyingFix(true)
+
+    try {
+      console.log('[Circuit] Applying fix...')
+
+      const testFilePath = `${projectPath}/test.js`
+
+      const result = await ipcRenderer.invoke('circuit:apply-fix', {
+        filePath: testFilePath,
+        fixedCode: parsedFix.fixedCode
+      })
+
+      console.log('[Circuit] Apply fix result:', result)
+
+      if (result.success) {
+        // Auto-rerun tests after applying fix
+        console.log('[Circuit] Fix applied! Auto-running tests...')
+        await handleRunTest()
+      } else {
+        alert(`Failed to apply fix: ${result.error}`)
+      }
+    } catch (error) {
+      console.error('[Circuit] Apply fix error:', error)
+      alert(`Error applying fix: ${String(error)}`)
+    } finally {
+      setIsApplyingFix(false)
     }
   }
 
@@ -532,7 +592,7 @@ export function TestFixTab() {
                     </div>
                   </div>
 
-                  {/* Phase 5: AI Fix Display */}
+                  {/* Phase 5-6: AI Fix Display */}
                   {aiFix && (
                     <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-md">
                       <div className="flex items-start gap-2">
@@ -544,6 +604,33 @@ export function TestFixTab() {
                           <div className="text-xs text-blue-800 dark:text-blue-200 whitespace-pre-wrap">
                             {aiFix}
                           </div>
+
+                          {/* Phase 6: Apply Fix Button */}
+                          {parsedFix && (
+                            <div className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-800">
+                              <Button
+                                onClick={handleApplyFix}
+                                disabled={isApplyingFix}
+                                size="sm"
+                                className="gap-2 bg-blue-600 hover:bg-blue-700"
+                              >
+                                {isApplyingFix ? (
+                                  <>
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    Applying Fix...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Check className="h-4 w-4" />
+                                    Apply Fix & Re-test
+                                  </>
+                                )}
+                              </Button>
+                              <p className="text-xs text-blue-700 dark:text-blue-300 mt-2">
+                                This will update test.js and automatically re-run tests
+                              </p>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -555,9 +642,9 @@ export function TestFixTab() {
 
           <div className="border-t border-border pt-4 mt-4">
             <p className="text-xs text-muted-foreground">
-              💡 Phase 5: AI-Powered Test-Fix Loop (Conductor-style)
+              💡 Phase 6: Fully Automated Test-Fix Loop (Conductor-style)
               <br />
-              테스트 실행 → 실패 시 "Get AI Fix" → Claude가 수정 제안 → 완성!
+              테스트 실행 → 실패 시 "Get AI Fix" → AI 제안 확인 → "Apply Fix & Re-test" → 자동 수정 & 재테스트 → 완성! 🎉
               <br />
               <span className="text-primary font-medium">
                 Requires: Claude Code installed at ~/.claude/local/claude
