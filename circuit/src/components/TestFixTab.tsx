@@ -1,13 +1,14 @@
 /**
- * Phase 3: Test-Fix Loop Tab with File Change Detection
+ * Phase 4: Test-Fix Loop Tab with Test Execution
  */
 
 import { useState, useEffect } from 'react'
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Rocket, CheckCircle, AlertCircle, Sparkles, Eye, EyeOff } from 'lucide-react'
+import { Rocket, CheckCircle, AlertCircle, Sparkles, Eye, EyeOff, Play, Loader2 } from 'lucide-react'
 import { detectProjectType, getProjectTypeName, getConfidenceMessage, type DetectionResult, type ProjectType } from '@/core/detector'
 import { formatEvent, type FileChangeEvent } from '@/core/watcher'
+import { type TestResult } from '@/core/test-runner'
 
 // Electron IPC
 const { ipcRenderer } = window.require('electron')
@@ -22,6 +23,11 @@ export function TestFixTab() {
   const [isWatching, setIsWatching] = useState(false)
   const [fileChanges, setFileChanges] = useState<FileChangeEvent[]>([])
 
+  // Phase 4: Test execution
+  const [isRunningTest, setIsRunningTest] = useState(false)
+  const [testResult, setTestResult] = useState<TestResult | null>(null)
+  const [autoTest, setAutoTest] = useState(false)
+
   // Phase 2: Auto-detect on mount
   useEffect(() => {
     handleDetect()
@@ -32,6 +38,12 @@ export function TestFixTab() {
     const handleFileChange = (_event: any, changeEvent: FileChangeEvent) => {
       console.log('[Circuit] File change received:', changeEvent)
       setFileChanges(prev => [changeEvent, ...prev].slice(0, 10)) // Keep last 10
+
+      // Phase 4: Auto-run tests on file change
+      if (autoTest && !isRunningTest) {
+        console.log('[Circuit] Auto-running tests due to file change')
+        handleRunTest()
+      }
     }
 
     ipcRenderer.on('circuit:file-changed', handleFileChange)
@@ -39,7 +51,7 @@ export function TestFixTab() {
     return () => {
       ipcRenderer.removeListener('circuit:file-changed', handleFileChange)
     }
-  }, [])
+  }, [autoTest, isRunningTest])
 
   const handleDetect = async () => {
     setIsDetecting(true)
@@ -124,6 +136,34 @@ export function TestFixTab() {
       const result = await ipcRenderer.invoke('circuit:watch-start', projectPath)
       console.log('[Circuit] Watch started:', result)
       setIsWatching(true)
+    }
+  }
+
+  // Phase 4: Run tests
+  const handleRunTest = async () => {
+    const projectPath = '/Users/williamjung/test-project'
+
+    setIsRunningTest(true)
+    setTestResult(null)
+
+    try {
+      console.log('[Circuit] Running tests...')
+      const result = await ipcRenderer.invoke('circuit:run-test', projectPath)
+      console.log('[Circuit] Test result:', result)
+      setTestResult(result)
+    } catch (error) {
+      console.error('[Circuit] Test error:', error)
+      setTestResult({
+        success: false,
+        passed: 0,
+        failed: 0,
+        total: 0,
+        duration: 0,
+        output: '',
+        errors: [String(error)]
+      })
+    } finally {
+      setIsRunningTest(false)
     }
   }
 
@@ -321,9 +361,114 @@ export function TestFixTab() {
 
           <div className="border-t border-border pt-4 mt-4">
             <p className="text-xs text-muted-foreground">
-              💡 Phase 3: 파일 변경 감지 (로그만 출력)
+              💡 Phase 3: 파일 변경 감지
               <br />
-              chokidar로 실시간 파일 변경을 감지합니다. 아직 테스트는 실행하지 않습니다.
+              chokidar로 실시간 파일 변경을 감지합니다.
+            </p>
+          </div>
+        </div>
+      </Card>
+
+      {/* Phase 4: Test Execution */}
+      <Card className="p-6 border-border">
+        <div className="space-y-4">
+          <div className="flex items-start gap-4">
+            <Play className="h-6 w-6 text-primary mt-1" />
+            <div className="flex-1">
+              <h3 className="font-semibold mb-2">테스트 실행</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                프로젝트의 테스트를 실행하고 결과를 확인합니다.
+                <br />
+                <span className="text-xs">
+                  (npm test 실행)
+                </span>
+              </p>
+
+              <div className="flex gap-2 items-center mb-4">
+                <Button
+                  onClick={handleRunTest}
+                  disabled={isRunningTest}
+                  className="gap-2"
+                >
+                  {isRunningTest ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Running Tests...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="h-4 w-4" />
+                      Run Tests
+                    </>
+                  )}
+                </Button>
+
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={autoTest}
+                    onChange={(e) => setAutoTest(e.target.checked)}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-muted-foreground">Auto-run on file change</span>
+                </label>
+              </div>
+
+              {/* Test Result Display */}
+              {testResult && (
+                <div className={`mt-4 p-4 rounded-md border ${
+                  testResult.success
+                    ? 'bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800'
+                    : 'bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800'
+                }`}>
+                  <div className="flex items-start gap-3">
+                    {testResult.success ? (
+                      <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400 mt-0.5" />
+                    ) : (
+                      <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-400 mt-0.5" />
+                    )}
+                    <div className="flex-1">
+                      <p className={`text-sm font-semibold ${
+                        testResult.success
+                          ? 'text-green-900 dark:text-green-100'
+                          : 'text-red-900 dark:text-red-100'
+                      }`}>
+                        {testResult.success ? '✅ All Tests Passed' : '❌ Tests Failed'}
+                      </p>
+                      <p className={`text-xs mt-1 ${
+                        testResult.success
+                          ? 'text-green-700 dark:text-green-300'
+                          : 'text-red-700 dark:text-red-300'
+                      }`}>
+                        {testResult.passed}/{testResult.total} tests passed
+                        {testResult.duration > 0 && ` • ${(testResult.duration / 1000).toFixed(2)}s`}
+                      </p>
+
+                      {/* Error Messages */}
+                      {testResult.errors && testResult.errors.length > 0 && (
+                        <div className="mt-3 space-y-1">
+                          <p className="text-xs font-medium text-red-900 dark:text-red-100">Errors:</p>
+                          <div className="font-mono text-xs bg-red-100 dark:bg-red-900/50 p-2 rounded max-h-40 overflow-y-auto">
+                            {testResult.errors.map((error, i) => (
+                              <div key={i} className="text-red-800 dark:text-red-200">
+                                {error}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="border-t border-border pt-4 mt-4">
+            <p className="text-xs text-muted-foreground">
+              💡 Phase 4: 테스트 실행
+              <br />
+              npm test를 실행하고 결과를 UI에 표시합니다. Auto-run을 켜면 파일 변경 시 자동으로 테스트가 실행됩니다.
             </p>
           </div>
         </div>

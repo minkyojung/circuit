@@ -612,3 +612,107 @@ ipcMain.handle('circuit:watch-stop', async (event, projectPath) => {
     };
   }
 });
+
+// ============================================================================
+// Circuit Test-Fix Loop - Phase 4: Test Execution
+// ============================================================================
+
+/**
+ * Phase 4: Run tests in project directory
+ */
+ipcMain.handle('circuit:run-test', async (event, projectPath) => {
+  try {
+    console.log('[Circuit] Running tests in:', projectPath);
+
+    const startTime = Date.now();
+
+    return new Promise((resolve) => {
+      // Run npm test
+      const testProcess = spawn('npm', ['test'], {
+        cwd: projectPath,
+        shell: true,
+        env: { ...process.env, CI: 'true' } // Prevent interactive mode
+      });
+
+      let stdout = '';
+      let stderr = '';
+
+      testProcess.stdout.on('data', (data) => {
+        const chunk = data.toString();
+        stdout += chunk;
+        console.log('[Circuit Test]', chunk);
+      });
+
+      testProcess.stderr.on('data', (data) => {
+        const chunk = data.toString();
+        stderr += chunk;
+        console.error('[Circuit Test Error]', chunk);
+      });
+
+      testProcess.on('close', (code) => {
+        const duration = Date.now() - startTime;
+
+        console.log('[Circuit] Test process exited with code:', code);
+        console.log('[Circuit] Test duration:', duration, 'ms');
+
+        // Parse output
+        const output = stdout + '\n' + stderr;
+
+        // Simple parsing (Jest/Vitest format)
+        let passed = 0;
+        let failed = 0;
+        let total = 0;
+
+        // Jest/Vitest: "Tests: 1 failed, 2 passed, 3 total"
+        const testSummaryMatch = output.match(/Tests?:\s+(?:(\d+)\s+failed?,?\s*)?(?:(\d+)\s+passed?,?\s*)?(\d+)\s+total/i);
+        if (testSummaryMatch) {
+          failed = parseInt(testSummaryMatch[1] || '0');
+          passed = parseInt(testSummaryMatch[2] || '0');
+          total = parseInt(testSummaryMatch[3] || '0');
+        }
+
+        // Extract error lines
+        const errorLines = output.split('\n').filter(line =>
+          line.includes('FAIL') ||
+          line.includes('Error:') ||
+          line.includes('Expected') ||
+          line.includes('Received')
+        );
+
+        resolve({
+          success: code === 0,
+          passed,
+          failed,
+          total,
+          duration,
+          output: output.slice(0, 10000), // Limit to 10KB
+          errors: errorLines.slice(0, 10) // First 10 errors
+        });
+      });
+
+      testProcess.on('error', (error) => {
+        console.error('[Circuit] Test spawn error:', error);
+        resolve({
+          success: false,
+          passed: 0,
+          failed: 0,
+          total: 0,
+          duration: Date.now() - startTime,
+          output: '',
+          errors: [error.message]
+        });
+      });
+    });
+  } catch (error) {
+    console.error('[Circuit] Run test error:', error);
+    return {
+      success: false,
+      passed: 0,
+      failed: 0,
+      total: 0,
+      duration: 0,
+      output: '',
+      errors: [error.message]
+    };
+  }
+});
