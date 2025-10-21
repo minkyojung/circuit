@@ -403,12 +403,42 @@ ipcMain.handle('mcp:get-server-status', async (event, serverId) => {
 });
 
 // ============================================================================
-// Circuit Test-Fix Loop - Phase 1 Step 2
+// Circuit Test-Fix Loop - Phase 2
 // ============================================================================
 
-ipcMain.handle('circuit:init', async (event, projectPath) => {
+/**
+ * Phase 2: Detect project type from package.json
+ */
+ipcMain.handle('circuit:detect-project', async (event, projectPath) => {
+  try {
+    console.log('[Circuit] Detecting project type:', projectPath);
+
+    const packageJsonPath = path.join(projectPath, 'package.json');
+    const packageJsonContent = await fs.readFile(packageJsonPath, 'utf-8');
+    const packageJson = JSON.parse(packageJsonContent);
+
+    console.log('[Circuit] package.json loaded');
+
+    return {
+      success: true,
+      packageJson
+    };
+  } catch (error) {
+    console.error('[Circuit] Detection error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+/**
+ * Phase 2: Initialize with detected strategy
+ */
+ipcMain.handle('circuit:init', async (event, projectPath, strategy = 'react') => {
   try {
     console.log('[Circuit] Initializing project:', projectPath);
+    console.log('[Circuit] Using strategy:', strategy);
 
     // 1. Create .circuit/ directory structure
     const circuitDir = path.join(projectPath, '.circuit');
@@ -425,9 +455,10 @@ ipcMain.handle('circuit:init', async (event, projectPath) => {
 
     console.log('[Circuit] Created directory structure');
 
-    // 2. Copy react.md template
-    const templatePath = path.join(__dirname, '../templates/react.md');
-    const strategyPath = path.join(strategiesDir, 'react.md');
+    // 2. Copy template (use detected strategy)
+    const templateFilename = `${strategy}.md`;
+    const templatePath = path.join(__dirname, '../templates', templateFilename);
+    const strategyPath = path.join(strategiesDir, templateFilename);
 
     const templateContent = await fs.readFile(templatePath, 'utf-8');
     await fs.writeFile(strategyPath, templateContent);
@@ -438,7 +469,7 @@ ipcMain.handle('circuit:init', async (event, projectPath) => {
     const configContent = `# Circuit Configuration
 
 ## Project Info
-- Strategy: react
+- Strategy: ${strategy}
 - Auto-detected: true
 - Initialized: ${new Date().toISOString()}
 
