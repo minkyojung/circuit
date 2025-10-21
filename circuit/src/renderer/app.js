@@ -458,6 +458,16 @@ const REQUEST_TEMPLATES = {
 
 // Store request-response mapping
 const requestMap = new Map(); // id -> request message
+const requestTimestamps = new Map(); // id -> timestamp (ms)
+
+// Performance tracking
+const performanceStats = {
+  totalRequests: 0,
+  totalLatency: 0,
+  fastestLatency: Infinity,
+  slowestLatency: 0,
+  latencies: []
+};
 
 // Generate human-readable description for messages
 function getMessageDescription(type, content) {
@@ -468,6 +478,7 @@ function getMessageDescription(type, content) {
     // Store request for later matching
     if (id) {
       requestMap.set(id, content);
+      requestTimestamps.set(id, Date.now());
     }
 
     if (method === 'tools/list') {
@@ -573,6 +584,9 @@ function discoverServerCapabilities() {
   explorerData.prompts = [];
   explorerData.resources = [];
   exploringRequestIds.clear();
+
+  // Reset performance stats
+  resetPerformanceStats();
 
   // Show explorer (initially in loading state)
   document.getElementById('devExplorer').style.display = 'block';
@@ -773,11 +787,96 @@ document.getElementById('explorerToggle').addEventListener('click', () => {
   }
 });
 
+// Update performance summary display
+function updatePerformanceSummary() {
+  const summaryEl = document.getElementById('perfSummary');
+
+  if (performanceStats.totalRequests === 0) {
+    summaryEl.style.display = 'none';
+    return;
+  }
+
+  summaryEl.style.display = 'block';
+
+  const avgLatency = Math.round(performanceStats.totalLatency / performanceStats.totalRequests);
+
+  document.getElementById('perfTotal').textContent = performanceStats.totalRequests;
+  document.getElementById('perfAvg').textContent = avgLatency + 'ms';
+  document.getElementById('perfFastest').textContent = performanceStats.fastestLatency === Infinity ? '-' : performanceStats.fastestLatency + 'ms';
+  document.getElementById('perfSlowest').textContent = performanceStats.slowestLatency === 0 ? '-' : performanceStats.slowestLatency + 'ms';
+}
+
+// Reset performance stats
+function resetPerformanceStats() {
+  performanceStats.totalRequests = 0;
+  performanceStats.totalLatency = 0;
+  performanceStats.fastestLatency = Infinity;
+  performanceStats.slowestLatency = 0;
+  performanceStats.latencies = [];
+  updatePerformanceSummary();
+}
+
+// Calculate latency and update performance stats
+function calculateLatency(responseContent) {
+  const id = responseContent.id;
+  if (!id || !requestTimestamps.has(id)) return null;
+
+  const requestTime = requestTimestamps.get(id);
+  const responseTime = Date.now();
+  const latency = responseTime - requestTime;
+
+  // Update performance stats
+  performanceStats.totalRequests++;
+  performanceStats.totalLatency += latency;
+  performanceStats.latencies.push(latency);
+  performanceStats.fastestLatency = Math.min(performanceStats.fastestLatency, latency);
+  performanceStats.slowestLatency = Math.max(performanceStats.slowestLatency, latency);
+
+  // Clean up
+  requestTimestamps.delete(id);
+
+  return latency;
+}
+
+// Get latency badge HTML
+function getLatencyBadge(latency) {
+  if (latency === null || latency === undefined) return '';
+
+  let color, icon, label;
+
+  if (latency < 100) {
+    color = '#28a745';
+    icon = '✅';
+    label = '';
+  } else if (latency < 500) {
+    color = '#ffc107';
+    icon = '💛';
+    label = '';
+  } else if (latency < 1000) {
+    color = '#ff9800';
+    icon = '🧡';
+    label = '';
+  } else {
+    color = '#dc3545';
+    icon = '⚠️';
+    label = 'SLOW';
+  }
+
+  return `<span style="background: ${color}20; color: ${color}; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; margin-left: 8px;">${icon} ${latency}ms ${label}</span>`;
+}
+
 // Add message to Developer tab
 function addDevMessage(type, content) {
   const timestamp = new Date().toLocaleTimeString();
   const message = { type, content, timestamp };
   devMessages.push(message);
+
+  // Calculate latency for responses
+  let latency = null;
+  if (type === 'response' && content.id) {
+    latency = calculateLatency(content);
+    updatePerformanceSummary();
+  }
 
   // Check if this is a discovery response
   if (type === 'response' && content.id && exploringRequestIds.has(content.id)) {
@@ -814,6 +913,7 @@ function addDevMessage(type, content) {
   // Get human-readable description
   const description = getMessageDescription(type, content);
   const summary = getJsonSummary(content);
+  const latencyBadge = getLatencyBadge(latency);
 
   // Check if this is a response and find matching request
   let requestInfo = '';
@@ -825,9 +925,10 @@ function addDevMessage(type, content) {
   messageEl.innerHTML = `
     <div class="dev-message-header">
       <div style="display: flex; flex-direction: column; gap: 4px; flex: 1;">
-        <div style="display: flex; align-items: center; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
           <span class="dev-message-type ${type}">${type}</span>
           <span style="font-size: 13px; font-weight: 500; color: #d4d4d4;">${description}</span>
+          ${latencyBadge}
         </div>
         ${summary ? `<div style="font-size: 12px; color: #888;">${summary}</div>` : ''}
         ${requestInfo}
@@ -989,8 +1090,9 @@ document.getElementById('devStartBtn').addEventListener('click', () => {
     document.getElementById('devStartBtn').disabled = false;
     document.getElementById('devStopBtn').disabled = true;
 
-    // Hide explorer when server stops
+    // Hide explorer and performance summary when server stops
     document.getElementById('devExplorer').style.display = 'none';
+    document.getElementById('perfSummary').style.display = 'none';
   });
 
   // Update buttons
@@ -1009,8 +1111,9 @@ document.getElementById('devStopBtn').addEventListener('click', () => {
     document.getElementById('devStartBtn').disabled = false;
     document.getElementById('devStopBtn').disabled = true;
 
-    // Hide explorer
+    // Hide explorer and performance summary
     document.getElementById('devExplorer').style.display = 'none';
+    document.getElementById('perfSummary').style.display = 'none';
   }
 });
 

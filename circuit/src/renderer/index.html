@@ -711,6 +711,33 @@
         </div>
       </div>
 
+      <!-- Performance Summary -->
+      <div id="perfSummary" style="display: none;">
+        <div style="background: #252526; border: 1px solid #3e3e3e; border-radius: 6px; padding: 12px; margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 14px; font-weight: 600;">📊 Performance Metrics</span>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-top: 12px;">
+            <div>
+              <div style="font-size: 11px; color: #888;">Total Requests</div>
+              <div id="perfTotal" style="font-size: 16px; font-weight: 600; color: #4ec9b0;">0</div>
+            </div>
+            <div>
+              <div style="font-size: 11px; color: #888;">Avg Response</div>
+              <div id="perfAvg" style="font-size: 16px; font-weight: 600; color: #4ec9b0;">0ms</div>
+            </div>
+            <div>
+              <div style="font-size: 11px; color: #888;">Fastest</div>
+              <div id="perfFastest" style="font-size: 16px; font-weight: 600; color: #28a745;">-</div>
+            </div>
+            <div>
+              <div style="font-size: 11px; color: #888;">Slowest</div>
+              <div id="perfSlowest" style="font-size: 16px; font-weight: 600; color: #dc3545;">-</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="dev-messages" id="devMessages">
         <div class="empty-state">
           <div class="empty-state-icon">🔍</div>
