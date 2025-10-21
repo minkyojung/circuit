@@ -1,11 +1,12 @@
 /**
- * Phase 4: Test-Fix Loop Tab with Test Execution
+ * Phase 5: Test-Fix Loop Tab with AI Fix Suggestions
  */
 
 import { useState, useEffect } from 'react'
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Rocket, CheckCircle, AlertCircle, Sparkles, Eye, EyeOff, Play, Loader2 } from 'lucide-react'
+import { Input } from "@/components/ui/input"
+import { Rocket, CheckCircle, AlertCircle, Sparkles, Eye, EyeOff, Play, Loader2, Wand2 } from 'lucide-react'
 import { detectProjectType, getProjectTypeName, getConfidenceMessage, type DetectionResult, type ProjectType } from '@/core/detector'
 import { formatEvent, type FileChangeEvent } from '@/core/watcher'
 import { type TestResult } from '@/core/test-runner'
@@ -14,6 +15,7 @@ import { type TestResult } from '@/core/test-runner'
 const { ipcRenderer } = window.require('electron')
 
 export function TestFixTab() {
+  const [projectPath, setProjectPath] = useState('/Users/williamjung/test-project')
   const [isDetecting, setIsDetecting] = useState(false)
   const [detection, setDetection] = useState<DetectionResult | null>(null)
   const [isInitializing, setIsInitializing] = useState(false)
@@ -27,6 +29,10 @@ export function TestFixTab() {
   const [isRunningTest, setIsRunningTest] = useState(false)
   const [testResult, setTestResult] = useState<TestResult | null>(null)
   const [autoTest, setAutoTest] = useState(false)
+
+  // Phase 5: AI fix
+  const [isGettingFix, setIsGettingFix] = useState(false)
+  const [aiFix, setAiFix] = useState<string | null>(null)
 
   // Phase 2: Auto-detect on mount
   useEffect(() => {
@@ -58,9 +64,6 @@ export function TestFixTab() {
     setDetection(null)
 
     try {
-      // TODO: Get actual project path (for now, use a test path)
-      const projectPath = '/Users/williamjung/test-project'
-
       console.log('[Circuit] Detecting project at:', projectPath)
 
       const result = await ipcRenderer.invoke('circuit:detect-project', projectPath)
@@ -97,9 +100,6 @@ export function TestFixTab() {
     setInitResult(null)
 
     try {
-      // TODO: Get actual project path (for now, use a test path)
-      const projectPath = '/Users/williamjung/test-project'
-
       // Use detected strategy (or default to 'react')
       const strategy = detection?.type !== 'unknown' ? detection.type : 'react'
 
@@ -141,8 +141,6 @@ export function TestFixTab() {
 
   // Phase 4: Run tests
   const handleRunTest = async () => {
-    const projectPath = '/Users/williamjung/test-project'
-
     setIsRunningTest(true)
     setTestResult(null)
 
@@ -167,6 +165,38 @@ export function TestFixTab() {
     }
   }
 
+  // Phase 5: Get AI fix suggestion
+  const handleGetAiFix = async () => {
+    if (!testResult || testResult.success) return
+
+    setIsGettingFix(true)
+    setAiFix(null)
+
+    try {
+      console.log('[Circuit] Requesting AI fix...')
+
+      const fixRequest = {
+        testError: testResult.errors.join('\n') || testResult.output,
+        projectType: detection?.type || 'unknown'
+      }
+
+      const result = await ipcRenderer.invoke('circuit:get-ai-fix', fixRequest)
+
+      console.log('[Circuit] AI fix result:', result)
+
+      if (result.success) {
+        setAiFix(result.fix)
+      } else {
+        setAiFix(`❌ Error: ${result.error}`)
+      }
+    } catch (error) {
+      console.error('[Circuit] Get AI fix error:', error)
+      setAiFix(`❌ Error: ${String(error)}`)
+    } finally {
+      setIsGettingFix(false)
+    }
+  }
+
   return (
     <div className="max-w-4xl space-y-6">
       <div>
@@ -175,6 +205,23 @@ export function TestFixTab() {
           AI 기반 자동 테스트 & 수정 제안 시스템
         </p>
       </div>
+
+      {/* Project Path Input */}
+      <Card className="p-4 border-border">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">프로젝트 경로</label>
+          <Input
+            type="text"
+            value={projectPath}
+            onChange={(e) => setProjectPath(e.target.value)}
+            placeholder="/path/to/your/project"
+            className="font-mono text-sm"
+          />
+          <p className="text-xs text-muted-foreground">
+            테스트할 프로젝트의 절대 경로를 입력하세요
+          </p>
+        </div>
+      </Card>
 
       {/* Phase 2: Detection Result */}
       {detection && (
@@ -457,8 +504,50 @@ export function TestFixTab() {
                           </div>
                         </div>
                       )}
+
+                      {/* Phase 5: Get AI Fix Button */}
+                      {!testResult.success && (
+                        <div className="mt-3">
+                          <Button
+                            onClick={handleGetAiFix}
+                            disabled={isGettingFix}
+                            variant="outline"
+                            size="sm"
+                            className="gap-2"
+                          >
+                            {isGettingFix ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Getting AI Fix...
+                              </>
+                            ) : (
+                              <>
+                                <Wand2 className="h-4 w-4" />
+                                Get AI Fix
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
+
+                  {/* Phase 5: AI Fix Display */}
+                  {aiFix && (
+                    <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-md">
+                      <div className="flex items-start gap-2">
+                        <Wand2 className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5" />
+                        <div className="flex-1">
+                          <p className="text-xs font-medium text-blue-900 dark:text-blue-100 mb-2">
+                            AI Fix Suggestion:
+                          </p>
+                          <div className="text-xs text-blue-800 dark:text-blue-200 whitespace-pre-wrap">
+                            {aiFix}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -466,9 +555,13 @@ export function TestFixTab() {
 
           <div className="border-t border-border pt-4 mt-4">
             <p className="text-xs text-muted-foreground">
-              💡 Phase 4: 테스트 실행
+              💡 Phase 5: AI-Powered Test-Fix Loop (Conductor-style)
               <br />
-              npm test를 실행하고 결과를 UI에 표시합니다. Auto-run을 켜면 파일 변경 시 자동으로 테스트가 실행됩니다.
+              테스트 실행 → 실패 시 "Get AI Fix" → Claude가 수정 제안 → 완성!
+              <br />
+              <span className="text-primary font-medium">
+                Requires: Claude Code installed at ~/.claude/local/claude
+              </span>
             </p>
           </div>
         </div>

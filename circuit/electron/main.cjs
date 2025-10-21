@@ -3,6 +3,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 const fs = require('fs').promises;
 const chokidar = require('chokidar');
+const os = require('os');
 
 // macOS traffic light button positioning
 const HEADER_HEIGHT = 44;
@@ -713,6 +714,150 @@ ipcMain.handle('circuit:run-test', async (event, projectPath) => {
       duration: 0,
       output: '',
       errors: [error.message]
+    };
+  }
+});
+
+// ============================================================================
+// Circuit Test-Fix Loop - Phase 5: Claude CLI Integration (Conductor-style)
+// ============================================================================
+
+const CLAUDE_CLI_PATH = path.join(os.homedir(), '.claude/local/claude');
+
+/**
+ * Phase 5: Get AI fix suggestion using Claude CLI (no API key needed!)
+ */
+ipcMain.handle('circuit:get-ai-fix', async (event, fixRequest) => {
+  try {
+    console.log('[Circuit] Getting AI fix using Claude CLI...');
+    console.log('[Circuit] Request:', fixRequest);
+
+    // 1. Check if Claude CLI exists
+    try {
+      await fs.access(CLAUDE_CLI_PATH);
+    } catch (error) {
+      return {
+        success: false,
+        error: 'Claude Code CLI not found. Please install Claude Code first.\n\nExpected location: ~/.claude/local/claude'
+      };
+    }
+
+    // 2. Build prompt
+    const { testError, testCode, sourceCode, projectType } = fixRequest;
+
+    const prompt = `You are helping fix a failing test in a ${projectType} project.
+
+**Test Error:**
+\`\`\`
+${testError}
+\`\`\`
+
+${testCode ? `**Test Code:**
+\`\`\`javascript
+${testCode}
+\`\`\`
+` : ''}
+
+${sourceCode ? `**Source Code:**
+\`\`\`javascript
+${sourceCode}
+\`\`\`
+` : ''}
+
+Please analyze the error and suggest a fix. Provide:
+
+1. **Root Cause**: What's causing the test to fail?
+2. **Fix**: The exact code changes needed
+3. **Explanation**: Why this fix works
+
+Be concise and actionable.`;
+
+    // 3. Prepare Claude CLI subprocess
+    const claude = spawn(CLAUDE_CLI_PATH, [
+      '--print',
+      '--output-format', 'json',
+      '--model', 'sonnet'
+    ], {
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+
+    // 4. Send prompt to stdin
+    const input = JSON.stringify({
+      role: 'user',
+      content: prompt
+    });
+
+    console.log('[Circuit] Sending prompt to Claude CLI...');
+    claude.stdin.write(input);
+    claude.stdin.end();
+
+    // 5. Collect stdout and stderr
+    let stdout = '';
+    let stderr = '';
+
+    claude.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    claude.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    // 6. Wait for process to complete
+    return new Promise((resolve) => {
+      claude.on('close', (code) => {
+        console.log('[Circuit] Claude CLI exited with code:', code);
+
+        if (code !== 0) {
+          console.error('[Circuit] Claude CLI stderr:', stderr);
+          return resolve({
+            success: false,
+            error: `Claude CLI failed with code ${code}:\n${stderr}`
+          });
+        }
+
+        try {
+          // Parse JSON response
+          const response = JSON.parse(stdout);
+          console.log('[Circuit] Claude CLI response type:', response.type);
+          console.log('[Circuit] AI fix preview:', response.result?.slice(0, 200) + '...');
+
+          if (response.type === 'result' && response.subtype === 'success') {
+            return resolve({
+              success: true,
+              fix: response.result,
+              cost_usd: response.total_cost_usd,
+              session_id: response.session_id
+            });
+          } else {
+            return resolve({
+              success: false,
+              error: 'Unexpected response from Claude CLI'
+            });
+          }
+        } catch (parseError) {
+          console.error('[Circuit] Failed to parse Claude CLI output:', parseError);
+          console.error('[Circuit] Raw output:', stdout);
+          return resolve({
+            success: false,
+            error: `Failed to parse Claude CLI response: ${parseError.message}`
+          });
+        }
+      });
+
+      claude.on('error', (error) => {
+        console.error('[Circuit] Claude CLI spawn error:', error);
+        return resolve({
+          success: false,
+          error: `Failed to spawn Claude CLI: ${error.message}`
+        });
+      });
+    });
+  } catch (error) {
+    console.error('[Circuit] Get AI fix error:', error);
+    return {
+      success: false,
+      error: error.message
     };
   }
 });
