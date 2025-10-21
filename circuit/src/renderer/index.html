@@ -284,6 +284,127 @@
       border-color: #0e639c;
     }
 
+    /* Server Explorer */
+    #devExplorer {
+      background: #252526;
+      border: 1px solid #3e3e3e;
+      border-radius: 6px;
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+
+    .explorer-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      border-bottom: 1px solid #3e3e3e;
+      background: #2d2d2d;
+    }
+
+    .explorer-content {
+      padding: 16px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 16px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .explorer-content.collapsed {
+      display: none;
+    }
+
+    .explorer-section {
+      background: #1e1e1e;
+      border: 1px solid #3e3e3e;
+      border-radius: 6px;
+      padding: 12px;
+    }
+
+    .explorer-section-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .count-badge {
+      background: #3e3e3e;
+      color: #d4d4d4;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    .explorer-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .explorer-item {
+      background: #252526;
+      border: 1px solid #3e3e3e;
+      border-radius: 4px;
+      padding: 10px;
+      transition: border-color 0.2s;
+    }
+
+    .explorer-item:hover {
+      border-color: #0e639c;
+    }
+
+    .explorer-item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .explorer-item-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: #4ec9b0;
+      font-family: 'Monaco', 'Courier New', monospace;
+    }
+
+    .explorer-item-desc {
+      font-size: 12px;
+      color: #888;
+      margin-bottom: 8px;
+      line-height: 1.4;
+    }
+
+    .explorer-item-example {
+      font-size: 11px;
+      color: #666;
+      font-family: 'Monaco', 'Courier New', monospace;
+      background: #1e1e1e;
+      padding: 4px 8px;
+      border-radius: 3px;
+      margin-bottom: 8px;
+    }
+
+    .explorer-try-btn {
+      background: #0e639c;
+      color: white;
+      border: none;
+      padding: 4px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 11px;
+      transition: background 0.2s;
+    }
+
+    .explorer-try-btn:hover {
+      background: #1177bb;
+    }
+
     .dev-messages {
       flex: 1;
       display: flex;
@@ -553,6 +674,40 @@
           <button id="devStopBtn" class="secondary" disabled>⏹ Stop</button>
           <button id="devClearBtn" class="secondary">🗑 Clear Messages</button>
           <button id="devSendBtn" class="secondary">📤 Send Request</button>
+        </div>
+      </div>
+
+      <!-- Server Explorer (Playground) -->
+      <div id="devExplorer" style="display: none;">
+        <div class="explorer-header">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 16px; font-weight: 600;">🔍 Server Capabilities</span>
+            <span id="explorerStatus" style="font-size: 12px; color: #888;">Exploring...</span>
+          </div>
+          <button id="explorerToggle" class="secondary" style="padding: 4px 12px; font-size: 12px;">▼ Collapse</button>
+        </div>
+
+        <div id="explorerContent" class="explorer-content">
+          <div class="explorer-section">
+            <div class="explorer-section-title">🛠️ Tools <span id="toolsCount" class="count-badge">0</span></div>
+            <div id="toolsList" class="explorer-list">
+              <div class="empty-state" style="padding: 20px;">No tools discovered yet</div>
+            </div>
+          </div>
+
+          <div class="explorer-section">
+            <div class="explorer-section-title">💬 Prompts <span id="promptsCount" class="count-badge">0</span></div>
+            <div id="promptsList" class="explorer-list">
+              <div class="empty-state" style="padding: 20px;">No prompts discovered yet</div>
+            </div>
+          </div>
+
+          <div class="explorer-section">
+            <div class="explorer-section-title">📄 Resources <span id="resourcesCount" class="count-badge">0</span></div>
+            <div id="resourcesList" class="explorer-list">
+              <div class="empty-state" style="padding: 20px;">No resources discovered yet</div>
+            </div>
+          </div>
         </div>
       </div>
 

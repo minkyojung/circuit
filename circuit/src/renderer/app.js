@@ -426,6 +426,14 @@ const { spawn } = require('child_process');
 let mcpProcess = null;
 const devMessages = [];
 
+// Server Explorer data
+const explorerData = {
+  tools: [],
+  prompts: [],
+  resources: []
+};
+let exploringRequestIds = new Set(); // Track discovery requests
+
 // Request templates for different methods
 const REQUEST_TEMPLATES = {
   'tools/list': {},
@@ -554,11 +562,239 @@ function getJsonSummary(content) {
   return '';
 }
 
+// ============================================
+// SERVER EXPLORER FUNCTIONS
+// ============================================
+
+// Start auto-discovery when server starts
+function discoverServerCapabilities() {
+  // Reset explorer
+  explorerData.tools = [];
+  explorerData.prompts = [];
+  explorerData.resources = [];
+  exploringRequestIds.clear();
+
+  // Show explorer (initially in loading state)
+  document.getElementById('devExplorer').style.display = 'block';
+  document.getElementById('explorerStatus').textContent = 'Exploring...';
+
+  // Send discovery requests
+  setTimeout(() => {
+    if (mcpProcess) {
+      const toolsReq = { jsonrpc: '2.0', id: Date.now(), method: 'tools/list', params: {} };
+      exploringRequestIds.add(toolsReq.id);
+      addDevMessage('request', toolsReq);
+      mcpProcess.stdin.write(JSON.stringify(toolsReq) + '\n');
+    }
+  }, 1000);
+
+  setTimeout(() => {
+    if (mcpProcess) {
+      const promptsReq = { jsonrpc: '2.0', id: Date.now() + 1, method: 'prompts/list', params: {} };
+      exploringRequestIds.add(promptsReq.id);
+      addDevMessage('request', promptsReq);
+      mcpProcess.stdin.write(JSON.stringify(promptsReq) + '\n');
+    }
+  }, 1500);
+
+  setTimeout(() => {
+    if (mcpProcess) {
+      const resourcesReq = { jsonrpc: '2.0', id: Date.now() + 2, method: 'resources/list', params: {} };
+      exploringRequestIds.add(resourcesReq.id);
+      addDevMessage('request', resourcesReq);
+      mcpProcess.stdin.write(JSON.stringify(resourcesReq) + '\n');
+    }
+  }, 2000);
+}
+
+// Update explorer when discovery responses arrive
+function updateExplorer(type, data) {
+  if (type === 'tools' && data) {
+    explorerData.tools = data;
+    renderExplorerSection('tools', data);
+    document.getElementById('toolsCount').textContent = data.length;
+  } else if (type === 'prompts' && data) {
+    explorerData.prompts = data;
+    renderExplorerSection('prompts', data);
+    document.getElementById('promptsCount').textContent = data.length;
+  } else if (type === 'resources' && data) {
+    explorerData.resources = data;
+    renderExplorerSection('resources', data);
+    document.getElementById('resourcesCount').textContent = data.length;
+  }
+
+  // Update status
+  const total = explorerData.tools.length + explorerData.prompts.length + explorerData.resources.length;
+  if (total > 0) {
+    document.getElementById('explorerStatus').textContent = `${total} capabilities discovered`;
+  } else {
+    document.getElementById('explorerStatus').textContent = 'No capabilities found';
+  }
+}
+
+// Render a section of the explorer
+function renderExplorerSection(type, items) {
+  const listId = type + 'List';
+  const container = document.getElementById(listId);
+
+  if (!items || items.length === 0) {
+    container.innerHTML = '<div class="empty-state" style="padding: 20px;">No ' + type + ' discovered yet</div>';
+    return;
+  }
+
+  container.innerHTML = items.map(item => {
+    const name = item.name || 'Unnamed';
+    const description = item.description || 'No description';
+
+    // Generate example based on schema
+    let example = '';
+    if (type === 'tools' && item.inputSchema) {
+      example = generateExampleFromSchema(item.inputSchema);
+    } else if (type === 'prompts' && item.arguments) {
+      example = item.arguments.map(arg => `${arg.name}: ${arg.description || 'value'}`).join(', ');
+    }
+
+    return `
+      <div class="explorer-item">
+        <div class="explorer-item-header">
+          <span class="explorer-item-name">${escapeHtml(name)}</span>
+          <button class="explorer-try-btn" onclick="tryCapability('${type}', '${escapeHtml(name)}')">▶ Try it</button>
+        </div>
+        <div class="explorer-item-desc">${escapeHtml(description)}</div>
+        ${example ? `<div class="explorer-item-example">💡 ${escapeHtml(example)}</div>` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+// Generate example parameters from JSON schema
+function generateExampleFromSchema(schema) {
+  if (!schema || !schema.properties) return '';
+
+  const props = Object.keys(schema.properties);
+  if (props.length === 0) return 'No parameters';
+
+  const examples = props.slice(0, 2).map(key => {
+    const prop = schema.properties[key];
+    const type = prop.type || 'unknown';
+    let exampleValue = '';
+
+    if (prop.enum && prop.enum.length > 0) {
+      exampleValue = prop.enum[0];
+    } else if (type === 'string') {
+      exampleValue = prop.description ? `"${key}_example"` : '"example"';
+    } else if (type === 'number' || type === 'integer') {
+      exampleValue = '42';
+    } else if (type === 'boolean') {
+      exampleValue = 'true';
+    } else if (type === 'array') {
+      exampleValue = '[]';
+    } else if (type === 'object') {
+      exampleValue = '{}';
+    }
+
+    return `${key}: ${exampleValue}`;
+  });
+
+  if (props.length > 2) {
+    examples.push('...');
+  }
+
+  return examples.join(', ');
+}
+
+// Try a capability (called when Try it button is clicked)
+window.tryCapability = function(type, name) {
+  if (!mcpProcess) {
+    alert('Server not running');
+    return;
+  }
+
+  const modal = document.getElementById('requestModal');
+  modal.classList.add('active');
+
+  if (type === 'tools') {
+    // Find the tool
+    const tool = explorerData.tools.find(t => t.name === name);
+
+    document.getElementById('requestMethod').value = 'tools/call';
+
+    // Generate example parameters
+    let params = { name: name, arguments: {} };
+    if (tool && tool.inputSchema && tool.inputSchema.properties) {
+      const props = tool.inputSchema.properties;
+      Object.keys(props).forEach(key => {
+        const prop = props[key];
+        if (prop.type === 'string') {
+          params.arguments[key] = 'example_value';
+        } else if (prop.type === 'number') {
+          params.arguments[key] = 42;
+        } else if (prop.type === 'boolean') {
+          params.arguments[key] = true;
+        }
+      });
+    }
+
+    document.getElementById('requestParams').value = JSON.stringify(params, null, 2);
+  } else if (type === 'prompts') {
+    const prompt = explorerData.prompts.find(p => p.name === name);
+
+    document.getElementById('requestMethod').value = 'prompts/get';
+
+    let params = { name: name, arguments: {} };
+    if (prompt && prompt.arguments) {
+      prompt.arguments.forEach(arg => {
+        params.arguments[arg.name] = arg.description || 'example_value';
+      });
+    }
+
+    document.getElementById('requestParams').value = JSON.stringify(params, null, 2);
+  } else if (type === 'resources') {
+    const resource = explorerData.resources.find(r => r.name === name);
+
+    document.getElementById('requestMethod').value = 'resources/read';
+
+    const params = { uri: resource?.uri || 'resource://example' };
+    document.getElementById('requestParams').value = JSON.stringify(params, null, 2);
+  }
+};
+
+// Toggle explorer collapse
+document.getElementById('explorerToggle').addEventListener('click', () => {
+  const content = document.getElementById('explorerContent');
+  const btn = document.getElementById('explorerToggle');
+
+  if (content.classList.contains('collapsed')) {
+    content.classList.remove('collapsed');
+    btn.textContent = '▼ Collapse';
+  } else {
+    content.classList.add('collapsed');
+    btn.textContent = '▶ Expand';
+  }
+});
+
 // Add message to Developer tab
 function addDevMessage(type, content) {
   const timestamp = new Date().toLocaleTimeString();
   const message = { type, content, timestamp };
   devMessages.push(message);
+
+  // Check if this is a discovery response
+  if (type === 'response' && content.id && exploringRequestIds.has(content.id)) {
+    const requestData = requestMap.get(content.id);
+    if (requestData) {
+      const method = requestData.method;
+
+      if (method === 'tools/list' && content.result && content.result.tools) {
+        updateExplorer('tools', content.result.tools);
+      } else if (method === 'prompts/list' && content.result && content.result.prompts) {
+        updateExplorer('prompts', content.result.prompts);
+      } else if (method === 'resources/list' && content.result && content.result.resources) {
+        updateExplorer('resources', content.result.resources);
+      }
+    }
+    exploringRequestIds.delete(content.id);
+  }
 
   const messagesContainer = document.getElementById('devMessages');
 
@@ -752,26 +988,17 @@ document.getElementById('devStartBtn').addEventListener('click', () => {
     mcpProcess = null;
     document.getElementById('devStartBtn').disabled = false;
     document.getElementById('devStopBtn').disabled = true;
+
+    // Hide explorer when server stops
+    document.getElementById('devExplorer').style.display = 'none';
   });
 
   // Update buttons
   document.getElementById('devStartBtn').disabled = true;
   document.getElementById('devStopBtn').disabled = false;
 
-  // Send a test request
-  setTimeout(() => {
-    if (mcpProcess) {
-      const testRequest = {
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'tools/list',
-        params: {}
-      };
-
-      addDevMessage('request', testRequest);
-      mcpProcess.stdin.write(JSON.stringify(testRequest) + '\n');
-    }
-  }, 1000);
+  // Start auto-discovery
+  discoverServerCapabilities();
 });
 
 // Stop server
@@ -781,6 +1008,9 @@ document.getElementById('devStopBtn').addEventListener('click', () => {
     mcpProcess = null;
     document.getElementById('devStartBtn').disabled = false;
     document.getElementById('devStopBtn').disabled = true;
+
+    // Hide explorer
+    document.getElementById('devExplorer').style.display = 'none';
   }
 });
 
