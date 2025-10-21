@@ -1,20 +1,49 @@
 /**
  * Phase 1: Test-Fix Loop Tab
  *
- * 초기 버전: "Initialize" 버튼만
+ * Step 2: 실제 .circuit/ 폴더 생성
  */
 
+import { useState } from 'react'
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Rocket } from 'lucide-react'
+import { Rocket, CheckCircle, AlertCircle } from 'lucide-react'
+
+// Electron IPC
+const { ipcRenderer } = window.require('electron')
 
 export function TestFixTab() {
-  const handleInitialize = () => {
+  const [isInitializing, setIsInitializing] = useState(false)
+  const [initResult, setInitResult] = useState<{ success: boolean; message?: string; error?: string } | null>(null)
+
+  const handleInitialize = async () => {
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
     console.log('🚀 Initialize clicked!')
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
 
-    // TODO: 실제 초기화 로직 (Step 2에서)
+    setIsInitializing(true)
+    setInitResult(null)
+
+    try {
+      // TODO: Get actual project path (for now, use a test path)
+      const projectPath = '/Users/williamjung/test-project'
+
+      console.log('[Circuit] Calling circuit:init with path:', projectPath)
+
+      const result = await ipcRenderer.invoke('circuit:init', projectPath)
+
+      console.log('[Circuit] Init result:', result)
+
+      setInitResult(result)
+    } catch (error) {
+      console.error('[Circuit] Init error:', error)
+      setInitResult({
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    } finally {
+      setIsInitializing(false)
+    }
   }
 
   return (
@@ -40,19 +69,53 @@ export function TestFixTab() {
 
               <Button
                 onClick={handleInitialize}
+                disabled={isInitializing}
                 className="gap-2"
               >
                 <Rocket className="h-4 w-4" />
-                Initialize
+                {isInitializing ? 'Initializing...' : 'Initialize'}
               </Button>
+
+              {/* Result Display */}
+              {initResult && (
+                <div className={`mt-4 p-3 rounded-md flex items-start gap-2 ${
+                  initResult.success ? 'bg-green-50 dark:bg-green-950' : 'bg-red-50 dark:bg-red-950'
+                }`}>
+                  {initResult.success ? (
+                    <>
+                      <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium text-green-900 dark:text-green-100">
+                          {initResult.message}
+                        </p>
+                        <p className="text-xs text-green-700 dark:text-green-300 mt-1">
+                          Check <code className="bg-green-100 dark:bg-green-900 px-1 rounded">/Users/williamjung/test-project/.circuit/</code>
+                        </p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium text-red-900 dark:text-red-100">
+                          Initialization failed
+                        </p>
+                        <p className="text-xs text-red-700 dark:text-red-300 mt-1">
+                          {initResult.error}
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
           <div className="border-t border-border pt-4 mt-4">
             <p className="text-xs text-muted-foreground">
-              💡 Phase 1 - Step 1: UI 테스트 중
+              💡 Phase 1 - Step 2: 폴더 생성 테스트
               <br />
-              버튼 클릭 시 콘솔에 로그가 출력됩니다.
+              버튼 클릭 시 /Users/williamjung/test-project/.circuit/ 폴더가 생성됩니다.
             </p>
           </div>
         </div>
