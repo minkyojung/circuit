@@ -15,14 +15,9 @@ function App() {
       <aside className="w-56 bg-sidebar border-r border-sidebar-border flex flex-col">
         {/* Sidebar Top - Traffic Lights Area (Fully Draggable) */}
         <div
-          className="h-[60px] flex items-center px-4 border-b border-sidebar-border"
+          className="h-[44px] flex items-center px-4 border-b border-sidebar-border"
           style={{ WebkitAppRegion: 'drag' } as any}
-        >
-          {/* Traffic lights positioned by Electron */}
-          <div className="pl-[60px] text-sm font-semibold text-sidebar-foreground">
-            Circuit
-          </div>
-        </div>
+        />
 
         {/* Sidebar Navigation */}
         <nav className="flex-1 py-4">
@@ -51,7 +46,7 @@ function App() {
       <main className="flex-1 overflow-hidden flex flex-col">
         {/* Main Header (Empty spaces draggable, interactive elements not) */}
         <header
-          className="h-[60px] bg-background border-b border-border flex items-center px-4 gap-4"
+          className="h-[44px] bg-background border-b border-border flex items-center px-4 gap-4"
           style={{ WebkitAppRegion: 'drag' } as any}
         >
           {/* Left side - could add branch selector or other controls */}
