@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Circuit - MCP DevTools</title>
+  <title>Circuit - MCP Hub</title>
   <style>
     * {
       margin: 0;
@@ -37,50 +37,121 @@
       margin-top: 4px;
     }
 
-    main {
-      flex: 1;
-      padding: 24px;
-      overflow: auto;
+    .tabs {
+      display: flex;
+      background: #252526;
+      border-bottom: 1px solid #3e3e3e;
     }
 
-    .controls {
-      background: #252526;
-      border: 1px solid #3e3e3e;
-      border-radius: 6px;
-      padding: 16px;
+    .tab {
+      padding: 12px 24px;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+      font-size: 13px;
+      color: #888;
+    }
+
+    .tab:hover {
+      background: #2a2a2a;
+      color: #d4d4d4;
+    }
+
+    .tab.active {
+      color: #fff;
+      border-bottom-color: #0e639c;
+    }
+
+    main {
+      flex: 1;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .tab-content {
+      display: none;
+      flex: 1;
+      overflow: auto;
+      padding: 24px;
+    }
+
+    .tab-content.active {
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Marketplace Tab */
+    .search-bar {
       margin-bottom: 24px;
     }
 
-    .control-row {
+    .search-input {
+      width: 100%;
+      background: #252526;
+      border: 1px solid #3e3e3e;
+      color: #d4d4d4;
+      padding: 12px 16px;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    .search-input:focus {
+      outline: none;
+      border-color: #0e639c;
+    }
+
+    .mcp-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 16px;
+    }
+
+    .mcp-card {
+      background: #252526;
+      border: 1px solid #3e3e3e;
+      border-radius: 8px;
+      padding: 20px;
+      transition: border-color 0.2s;
+    }
+
+    .mcp-card:hover {
+      border-color: #0e639c;
+    }
+
+    .mcp-header {
       display: flex;
-      gap: 12px;
       align-items: center;
+      gap: 12px;
       margin-bottom: 12px;
     }
 
-    .control-row:last-child {
-      margin-bottom: 0;
+    .mcp-icon {
+      font-size: 32px;
     }
 
-    label {
-      font-size: 12px;
-      color: #888;
-      min-width: 80px;
+    .mcp-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #fff;
     }
 
-    select, input {
-      background: #1e1e1e;
-      color: #d4d4d4;
-      border: 1px solid #3e3e3e;
-      padding: 6px 12px;
-      border-radius: 4px;
+    .mcp-description {
       font-size: 13px;
-      flex: 1;
+      color: #888;
+      line-height: 1.5;
+      margin-bottom: 16px;
     }
 
-    select:focus, input:focus {
-      outline: none;
-      border-color: #0e639c;
+    .mcp-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .mcp-stats {
+      font-size: 11px;
+      color: #666;
     }
 
     button {
@@ -91,6 +162,7 @@
       border-radius: 4px;
       cursor: pointer;
       font-size: 13px;
+      transition: background 0.2s;
     }
 
     button:hover {
@@ -105,124 +177,61 @@
       background: #4e4e4e;
     }
 
-    .messages {
+    button.success {
+      background: #28a745;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Installed Tab */
+    .installed-list {
       display: flex;
       flex-direction: column;
       gap: 12px;
     }
 
-    .message {
+    .installed-item {
       background: #252526;
       border: 1px solid #3e3e3e;
       border-radius: 6px;
       padding: 16px;
-    }
-
-    .message-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 12px;
     }
 
-    .message-type {
-      font-size: 12px;
-      font-weight: 600;
-      text-transform: uppercase;
-      padding: 4px 8px;
-      border-radius: 4px;
+    .installed-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
     }
 
-    .message-type.request {
-      background: #1a3a52;
-      color: #4ec9b0;
-    }
-
-    .message-type.response {
-      background: #3a2d1a;
-      color: #dcdcaa;
-    }
-
-    .message-type.error {
-      background: #5a1a1a;
-      color: #f48771;
-    }
-
-    .message-type.system {
-      background: #2a2a2a;
-      color: #888;
-    }
-
-    .message-time {
-      font-size: 11px;
-      color: #888;
-    }
-
-    .message-header-actions {
+    .installed-actions {
       display: flex;
       gap: 8px;
-      align-items: center;
     }
 
-    .message-expand-btn {
-      background: none;
-      border: none;
-      color: #888;
-      cursor: pointer;
+    .status-badge {
       padding: 4px 8px;
+      border-radius: 4px;
       font-size: 11px;
-      border-radius: 4px;
+      font-weight: 600;
     }
 
-    .message-expand-btn:hover {
-      background: #3e3e3e;
-      color: #d4d4d4;
+    .status-badge.active {
+      background: #28a74520;
+      color: #28a745;
     }
 
-    .message-copy-btn {
-      background: none;
-      border: none;
-      color: #888;
-      cursor: pointer;
-      padding: 4px 8px;
-      font-size: 11px;
-      border-radius: 4px;
+    .status-badge.inactive {
+      background: #dc354520;
+      color: #dc3545;
     }
 
-    .message-copy-btn:hover {
-      background: #3e3e3e;
-      color: #d4d4d4;
-    }
-
-    .message-content {
-      background: #1e1e1e;
-      border: 1px solid #3e3e3e;
-      border-radius: 4px;
-      padding: 12px;
-      font-family: 'Monaco', 'Courier New', monospace;
-      font-size: 12px;
-      line-height: 1.5;
-      overflow-x: auto;
-      white-space: pre-wrap;
-      word-break: break-all;
-    }
-
-    .message-content.collapsed {
-      max-height: 100px;
-      overflow: hidden;
-      position: relative;
-    }
-
-    .message-content.collapsed::after {
-      content: '';
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      height: 40px;
-      background: linear-gradient(transparent, #1e1e1e);
-    }
-
+    /* Empty State */
     .empty-state {
       text-align: center;
       padding: 60px 20px;
@@ -233,43 +242,161 @@
       font-size: 48px;
       margin-bottom: 16px;
     }
+
+    /* Modal */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .modal.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background: #2d2d2d;
+      border-radius: 8px;
+      padding: 24px;
+      max-width: 500px;
+      width: 90%;
+      max-height: 80vh;
+      overflow: auto;
+    }
+
+    .modal-header {
+      margin-bottom: 20px;
+    }
+
+    .modal-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+
+    .modal-subtitle {
+      font-size: 13px;
+      color: #888;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 12px;
+      color: #888;
+      margin-bottom: 6px;
+    }
+
+    .form-input {
+      width: 100%;
+      background: #1e1e1e;
+      border: 1px solid #3e3e3e;
+      color: #d4d4d4;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: #0e639c;
+    }
+
+    .checkbox-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      margin-top: 20px;
+    }
   </style>
 </head>
 <body>
   <header>
     <h1>🔌 Circuit</h1>
-    <div class="subtitle">MCP DevTools - Monitor and debug MCP servers</div>
+    <div class="subtitle">Install, manage, and build MCP servers</div>
   </header>
 
+  <div class="tabs">
+    <div class="tab active" data-tab="marketplace">📦 Marketplace</div>
+    <div class="tab" data-tab="installed">⚙️ Installed</div>
+    <div class="tab" data-tab="developer">🔧 Developer</div>
+  </div>
+
   <main>
-    <div class="controls">
-      <div class="control-row">
-        <label for="serverType">Server Type:</label>
-        <select id="serverType">
-          <option value="echo">Echo Server (Test)</option>
-          <option value="github">GitHub Server</option>
-        </select>
+    <!-- Marketplace Tab -->
+    <div class="tab-content active" id="marketplace">
+      <div class="search-bar">
+        <input type="text" class="search-input" placeholder="🔍 Search MCP servers..." id="searchInput">
       </div>
 
-      <div class="control-row" id="githubTokenRow" style="display: none;">
-        <label for="githubToken">GitHub Token:</label>
-        <input type="password" id="githubToken" placeholder="ghp_xxxxxxxxxxxx" />
-      </div>
-
-      <div class="control-row">
-        <button id="startBtn">▶ Start Server</button>
-        <button id="stopBtn" class="secondary">⏹ Stop</button>
-        <button id="clearBtn" class="secondary">Clear</button>
+      <div class="mcp-grid" id="mcpGrid">
+        <!-- MCP cards will be inserted here -->
       </div>
     </div>
 
-    <div id="messages" class="messages">
+    <!-- Installed Tab -->
+    <div class="tab-content" id="installed">
+      <div class="installed-list" id="installedList">
+        <div class="empty-state">
+          <div class="empty-state-icon">📦</div>
+          <div>No MCP servers installed yet.</div>
+          <div style="margin-top: 8px; font-size: 12px;">Go to Marketplace to install your first server!</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Developer Tab -->
+    <div class="tab-content" id="developer">
       <div class="empty-state">
-        <div class="empty-state-icon">🔍</div>
-        <div>No messages yet. Start an MCP server to see communication.</div>
+        <div class="empty-state-icon">🔧</div>
+        <div>Developer tools coming soon!</div>
+        <div style="margin-top: 8px; font-size: 12px;">Build and debug your own MCP servers.</div>
       </div>
     </div>
   </main>
+
+  <!-- Install Modal -->
+  <div class="modal" id="installModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title" id="modalTitle">Install MCP Server</div>
+        <div class="modal-subtitle" id="modalSubtitle"></div>
+      </div>
+
+      <div id="modalForm">
+        <!-- Form fields will be inserted here -->
+      </div>
+
+      <div class="modal-actions">
+        <button class="secondary" id="modalCancel">Cancel</button>
+        <button id="modalInstall">Install</button>
+      </div>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>
