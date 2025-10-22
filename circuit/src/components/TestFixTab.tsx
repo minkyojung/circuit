@@ -69,10 +69,8 @@ export function TestFixTab() {
   // Listen for peek panel data (from "View Details" button)
   useEffect(() => {
     const handlePeekData = (_event: any, payload: any) => {
-      console.log('[TestFixTab] peek:data-opened received:', payload)
       if (payload.type === 'test-result' && payload.data) {
         const testData = payload.data
-        console.log('[TestFixTab] Converting test data:', testData)
         // Convert PeekData format to TestResult format
         const result: TestResult = {
           success: testData.status === 'success',
@@ -83,13 +81,11 @@ export function TestFixTab() {
           output: '',
           errors: testData.errors || []
         }
-        console.log('[TestFixTab] Setting test result:', result)
         setTestResult(result)
       }
     }
 
     ipcRenderer.on('peek:data-opened', handlePeekData)
-    console.log('[TestFixTab] Registered peek:data-opened listener')
 
     return () => {
       ipcRenderer.removeListener('peek:data-opened', handlePeekData)

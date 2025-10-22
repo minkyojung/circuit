@@ -88,8 +88,6 @@ function createPeekWindow() {
   // Load peek panel HTML
   if (process.env.VITE_DEV_SERVER_URL) {
     peekWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}#/peek`);
-    // Open DevTools for debugging
-    peekWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
     peekWindow.loadFile(path.join(__dirname, '../dist/index.html'), { hash: '/peek' });
   }
@@ -168,7 +166,6 @@ ipcMain.on('peek:mouse-leave', () => {
 });
 
 ipcMain.on('peek:open-in-window', (event, payload) => {
-  console.log('[Main] peek:open-in-window received:', payload);
   if (mainWindow) {
     // Focus main window
     if (mainWindow.isMinimized()) {
@@ -177,10 +174,7 @@ ipcMain.on('peek:open-in-window', (event, payload) => {
     mainWindow.focus();
 
     // Send data to main window
-    console.log('[Main] Sending peek:data-opened to main window');
     mainWindow.webContents.send('peek:data-opened', payload);
-  } else {
-    console.log('[Main] No main window available');
   }
 });
 
@@ -770,12 +764,8 @@ ipcMain.handle('circuit:run-test', async (event, projectPath) => {
     const startTime = Date.now();
 
     // Notify peek panel: test started
-    console.log('[Main] Sending test:started to peek panel');
     if (peekWindow) {
-      console.log('[Main] peekWindow exists, sending test:started');
       peekWindow.webContents.send('test:started');
-    } else {
-      console.log('[Main] peekWindow is null!');
     }
 
     return new Promise((resolve) => {
@@ -837,12 +827,8 @@ ipcMain.handle('circuit:run-test', async (event, projectPath) => {
         };
 
         // Notify peek panel: test completed
-        console.log('[Main] Sending test:completed to peek panel:', result);
         if (peekWindow) {
-          console.log('[Main] peekWindow exists, sending test:completed');
           peekWindow.webContents.send('test:completed', result);
-        } else {
-          console.log('[Main] peekWindow is null!');
         }
 
         resolve(result);
