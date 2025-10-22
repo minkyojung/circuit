@@ -13,6 +13,8 @@ import { CheckCircle2, XCircle, Loader2, Info, Server, Zap, AlertTriangle } from
 export function PeekPanel() {
   const { state, data, expand, collapse, hide, setFocusedServer, openInWindow } = usePeekPanel()
 
+  console.log('[PeekPanel] Rendered - state:', state, 'data:', data)
+
   if (state === 'hidden') {
     return null
   }
@@ -556,6 +558,7 @@ function ExpandedView({
 
   if (data.type === 'test-result') {
     const testData = data as TestResultData
+    console.log('[ExpandedView] Rendering test-result, status:', testData.status, 'data:', testData)
     return (
       <div className={`${glassClass} p-3`}>
         {/* Header */}
@@ -567,6 +570,17 @@ function ExpandedView({
             <h3 className="text-xs font-semibold text-white/90">Test Results</h3>
           </div>
           <div className="flex items-center gap-2">
+            {testData.status !== 'running' && (
+              <button
+                onClick={() => {
+                  console.log('[ExpandedView] View Details button clicked!');
+                  openInWindow();
+                }}
+                className="text-xs text-white/60 hover:text-white/90 transition-colors px-2 py-1 rounded hover:bg-white/10"
+              >
+                View Details
+              </button>
+            )}
             <button
               onClick={onCollapse}
               className="text-xs text-white/60 hover:text-white/90 transition-colors px-2 py-1 rounded hover:bg-white/10"

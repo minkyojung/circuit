@@ -22,6 +22,34 @@ function App() {
     checkCircuitConfig()
   }, [])
 
+  // Listen for peek panel data and auto-switch to appropriate tab
+  useEffect(() => {
+    try {
+      const { ipcRenderer } = window.require('electron')
+
+      const handlePeekData = (_event: any, payload: any) => {
+        console.log('[App] peek:data-opened received:', payload)
+        // Auto-switch to Test-Fix tab when test results are opened
+        if (payload.type === 'test-result') {
+          console.log('[App] Switching to testfix tab')
+          setCurrentPage('testfix')
+        }
+        // Future: Add more cases for other data types
+        // if (payload.type === 'deployment') setCurrentPage('deployments')
+        // if (payload.type === 'git') setCurrentPage('git-activity')
+      }
+
+      ipcRenderer.on('peek:data-opened', handlePeekData)
+      console.log('[App] Registered peek:data-opened listener')
+
+      return () => {
+        ipcRenderer.removeListener('peek:data-opened', handlePeekData)
+      }
+    } catch (e) {
+      console.warn('IPC not available for peek data listener:', e)
+    }
+  }, [])
+
   return (
     <div className="h-screen flex bg-background">
       {/* Sidebar */}

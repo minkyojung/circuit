@@ -171,6 +171,8 @@ export function usePeekPanel() {
   // Track all MCP servers for multi-server support
   const mcpServers = useRef<Record<string, MCPServerState>>({})
 
+  console.log('[usePeekPanel] Hook initialized')
+
   /**
    * Show panel with specific state and data
    */
@@ -256,16 +258,23 @@ export function usePeekPanel() {
    */
   const openInWindow = useCallback((targetData?: PeekData) => {
     const dataToOpen = targetData || data
-    if (!dataToOpen) return
+    console.log('[Peek] openInWindow called, data:', dataToOpen)
+    if (!dataToOpen) {
+      console.log('[Peek] No data to open')
+      return
+    }
 
     try {
       const { ipcRenderer } = require('electron')
 
-      // Send event to main process to open in main window
-      ipcRenderer.send('peek:open-in-window', {
+      const payload = {
         type: dataToOpen.type,
         data: dataToOpen
-      })
+      }
+      console.log('[Peek] Sending peek:open-in-window:', payload)
+
+      // Send event to main process to open in main window
+      ipcRenderer.send('peek:open-in-window', payload)
 
       // Optionally hide panel after opening
       // hide()
@@ -278,11 +287,13 @@ export function usePeekPanel() {
    * Listen for test events from Electron main process
    */
   useEffect(() => {
+    console.log('[usePeekPanel] Setting up test event listeners')
     try {
       const { ipcRenderer } = require('electron')
 
       // Test started → show dot
       const handleTestStart = () => {
+        console.log('[usePeekPanel] Test started')
         show('dot', {
           type: 'test-result',
           status: 'running'
@@ -291,6 +302,7 @@ export function usePeekPanel() {
 
       // Test completed → show compact with results
       const handleTestComplete = (event: any, result: any) => {
+        console.log('[usePeekPanel] Test completed:', result)
         const testData: TestResultData = {
           type: 'test-result',
           status: result.success ? 'success' : 'failure',
@@ -301,6 +313,7 @@ export function usePeekPanel() {
           errors: result.errors
         }
 
+        console.log('[usePeekPanel] Showing compact view with test data:', testData)
         show('compact', testData)
 
         // Auto-dismiss after 5s if success
@@ -315,6 +328,7 @@ export function usePeekPanel() {
 
       ipcRenderer.on('test:started', handleTestStart)
       ipcRenderer.on('test:completed', handleTestComplete)
+      console.log('[usePeekPanel] Test event listeners registered')
 
       return () => {
         ipcRenderer.removeListener('test:started', handleTestStart)
