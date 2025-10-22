@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, globalShortcut } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 const fs = require('fs').promises;
@@ -9,6 +9,9 @@ const os = require('os');
 const HEADER_HEIGHT = 44;
 const TRAFFIC_LIGHTS_HEIGHT = 14;
 const TRAFFIC_LIGHTS_MARGIN = 20;
+
+// Peek panel window instance
+let peekWindow = null;
 
 function createWindow() {
   const mainWindow = new BrowserWindow({
@@ -36,12 +39,144 @@ function createWindow() {
   }
 }
 
+// ============================================================================
+// Circuit Peek Panel - Corner-Anchored Mini Panel
+// ============================================================================
+
+/**
+ * Create peek panel window
+ * - Corner-anchored (bottom-right by default)
+ * - Always on top, but non-intrusive
+ * - Mouse events pass through when hidden/dot state
+ */
+function createPeekWindow() {
+  const { screen } = require('electron');
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+
+  peekWindow = new BrowserWindow({
+    width: 60,  // Start as dot
+    height: 60,
+    x: screenWidth - 80,  // 20px margin from right
+    y: screenHeight - 80, // 20px margin from bottom
+    type: 'panel',
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    acceptsFirstMouse: false,
+    backgroundColor: '#00000000',
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false,
+    }
+  });
+
+  // Load peek panel HTML
+  if (process.env.VITE_DEV_SERVER_URL) {
+    peekWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}#/peek`);
+  } else {
+    peekWindow.loadFile(path.join(__dirname, '../dist/index.html'), { hash: '/peek' });
+  }
+
+  // Mouse events pass through by default (for dot state)
+  peekWindow.setIgnoreMouseEvents(true, { forward: true });
+
+  // Prevent window from closing, just hide instead
+  peekWindow.on('close', (e) => {
+    e.preventDefault();
+    peekWindow.hide();
+  });
+}
+
+/**
+ * Resize peek window based on state
+ */
+function resizePeekWindow(state, data) {
+  if (!peekWindow) return;
+
+  const { screen } = require('electron');
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+
+  const margin = 20;
+
+  switch (state) {
+    case 'hidden':
+      peekWindow.hide();
+      break;
+
+    case 'dot':
+      peekWindow.setSize(60, 60);
+      peekWindow.setPosition(screenWidth - 60 - margin, screenHeight - 60 - margin);
+      peekWindow.setIgnoreMouseEvents(true, { forward: true });
+      peekWindow.show();
+      break;
+
+    case 'compact':
+      peekWindow.setSize(300, 120);
+      peekWindow.setPosition(screenWidth - 300 - margin, screenHeight - 120 - margin);
+      peekWindow.setIgnoreMouseEvents(false);
+      peekWindow.show();
+      break;
+
+    case 'expanded':
+      peekWindow.setSize(400, 300);
+      peekWindow.setPosition(screenWidth - 400 - margin, screenHeight - 300 - margin);
+      peekWindow.setIgnoreMouseEvents(false);
+      peekWindow.show();
+      break;
+  }
+}
+
+/**
+ * IPC Handlers for peek panel
+ */
+ipcMain.on('peek:resize', (event, { state, data }) => {
+  resizePeekWindow(state, data);
+});
+
+ipcMain.on('peek:mouse-enter', () => {
+  if (peekWindow) {
+    peekWindow.setIgnoreMouseEvents(false);
+  }
+});
+
+ipcMain.on('peek:mouse-leave', () => {
+  if (peekWindow) {
+    // Only ignore mouse events if in dot state
+    const bounds = peekWindow.getBounds();
+    if (bounds.width <= 60 && bounds.height <= 60) {
+      peekWindow.setIgnoreMouseEvents(true, { forward: true });
+    }
+  }
+});
+
 app.whenReady().then(() => {
   createWindow();
+  createPeekWindow();
+
+  // Register global shortcut for Cmd+Shift+P (peek panel toggle)
+  globalShortcut.register('CommandOrControl+Shift+P', () => {
+    if (peekWindow) {
+      if (peekWindow.isVisible()) {
+        peekWindow.webContents.send('peek:toggle');
+      } else {
+        peekWindow.webContents.send('peek:show');
+      }
+    }
+  });
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
+    }
+    if (!peekWindow) {
+      createPeekWindow();
     }
   });
 });
@@ -598,6 +733,11 @@ ipcMain.handle('circuit:run-test', async (event, projectPath) => {
   try {
     const startTime = Date.now();
 
+    // Notify peek panel: test started
+    if (peekWindow) {
+      peekWindow.webContents.send('test:started');
+    }
+
     return new Promise((resolve) => {
       // Run npm test
       const testProcess = spawn('npm', ['test'], {
@@ -646,7 +786,7 @@ ipcMain.handle('circuit:run-test', async (event, projectPath) => {
           line.includes('Received')
         );
 
-        resolve({
+        const result = {
           success: code === 0,
           passed,
           failed,
@@ -654,11 +794,18 @@ ipcMain.handle('circuit:run-test', async (event, projectPath) => {
           duration,
           output: output.slice(0, 10000), // Limit to 10KB
           errors: errorLines.slice(0, 10) // First 10 errors
-        });
+        };
+
+        // Notify peek panel: test completed
+        if (peekWindow) {
+          peekWindow.webContents.send('test:completed', result);
+        }
+
+        resolve(result);
       });
 
       testProcess.on('error', (error) => {
-        resolve({
+        const result = {
           success: false,
           passed: 0,
           failed: 0,
@@ -666,11 +813,18 @@ ipcMain.handle('circuit:run-test', async (event, projectPath) => {
           duration: Date.now() - startTime,
           output: '',
           errors: [error.message]
-        });
+        };
+
+        // Notify peek panel: test completed (with error)
+        if (peekWindow) {
+          peekWindow.webContents.send('test:completed', result);
+        }
+
+        resolve(result);
       });
     });
   } catch (error) {
-    return {
+    const result = {
       success: false,
       passed: 0,
       failed: 0,
@@ -679,6 +833,13 @@ ipcMain.handle('circuit:run-test', async (event, projectPath) => {
       output: '',
       errors: [error.message]
     };
+
+    // Notify peek panel: test completed (with error)
+    if (peekWindow) {
+      peekWindow.webContents.send('test:completed', result);
+    }
+
+    return result;
   }
 });
 
