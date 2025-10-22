@@ -62,6 +62,8 @@ function createPeekWindow() {
     type: 'panel',
     frame: false,
     transparent: true,
+    vibrancy: 'hud',  // macOS native glassmorphism blur
+    visualEffectState: 'active',
     alwaysOnTop: true,
     skipTaskbar: true,
     resizable: false,
@@ -69,7 +71,7 @@ function createPeekWindow() {
     minimizable: false,
     maximizable: false,
     acceptsFirstMouse: false,
-    backgroundColor: '#00000000',
+    hasShadow: false,
     show: false,  // Start hidden
     webPreferences: {
       nodeIntegration: true,
@@ -119,8 +121,8 @@ function resizePeekWindow(state, data) {
       break;
 
     case 'compact':
-      peekWindow.setSize(300, 120);
-      peekWindow.setPosition(screenWidth - 300 - margin, screenHeight - 120 - margin);
+      peekWindow.setSize(240, 60);
+      peekWindow.setPosition(screenWidth - 240 - margin, screenHeight - 60 - margin);
       peekWindow.setIgnoreMouseEvents(false);
       peekWindow.show();
       break;

@@ -204,7 +204,7 @@ export function usePeekPanel() {
 
         // Handle different MCP event types
         if (type === 'initialized') {
-          // Server just started
+          // Server just started - show compact view directly
           const mcpData: MCPPeekData = {
             type: 'mcp',
             serverId,
@@ -212,14 +212,7 @@ export function usePeekPanel() {
             status: 'running',
             recentActivity: []
           }
-          show('dot', mcpData)
-
-          // Auto-expand to compact after 2s
-          setTimeout(() => {
-            if (state === 'dot') {
-              show('compact', mcpData)
-            }
-          }, 2000)
+          show('compact', mcpData)
         } else if (type === 'message' && message) {
           // Track activity
           if (message.type === 'request' || message.type === 'response') {
