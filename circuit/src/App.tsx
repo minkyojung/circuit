@@ -2,14 +2,17 @@ import { useState, useEffect } from 'react'
 import { Card } from "@/components/ui/card"
 import { DeveloperTab } from "@/components/DeveloperTab"
 import { TestFixTab } from "@/components/TestFixTab"
-import { Store, Wrench, Package, Zap } from 'lucide-react'
+import { DeploymentsTab } from "@/components/DeploymentsTab"
+import { PeekDebugPanel } from "@/components/PeekDebugPanel"
+import { Store, Wrench, Package, Zap, Rocket } from 'lucide-react'
 import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
 import './App.css'
 
-type Page = 'marketplace' | 'installed' | 'developer' | 'testfix'
+type Page = 'marketplace' | 'installed' | 'developer' | 'testfix' | 'deployments'
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('developer')
+  const [showDebug, setShowDebug] = useState<boolean>(true)  // Set to true for debugging
 
   // Phase 0: .circuit/ 설정 읽기 시도
   useEffect(() => {
@@ -28,12 +31,13 @@ function App() {
       const { ipcRenderer } = window.require('electron')
 
       const handlePeekData = (_event: any, payload: any) => {
-        // Auto-switch to Test-Fix tab when test results are opened
+        // Auto-switch to appropriate tab based on data type
         if (payload.type === 'test-result') {
           setCurrentPage('testfix')
+        } else if (payload.type === 'deployment') {
+          setCurrentPage('deployments')
         }
         // Future: Add more cases for other data types
-        // if (payload.type === 'deployment') setCurrentPage('deployments')
         // if (payload.type === 'git') setCurrentPage('git-activity')
       }
 
@@ -49,6 +53,9 @@ function App() {
 
   return (
     <div className="h-screen flex bg-background">
+      {/* Debug Panel */}
+      {showDebug && <PeekDebugPanel />}
+
       {/* Sidebar */}
       <aside className="w-56 bg-sidebar border-r border-sidebar-border flex flex-col">
         {/* Sidebar Top - Traffic Lights Area (Fully Draggable) */}
@@ -76,6 +83,12 @@ function App() {
             label="Test-Fix"
             isActive={currentPage === 'testfix'}
             onClick={() => setCurrentPage('testfix')}
+          />
+          <SidebarButton
+            icon={<Rocket className="h-4 w-4" />}
+            label="Deployments"
+            isActive={currentPage === 'deployments'}
+            onClick={() => setCurrentPage('deployments')}
           />
           <SidebarButton
             icon={<Wrench className="h-4 w-4" />}
@@ -140,6 +153,12 @@ function App() {
           {currentPage === 'testfix' && (
             <div className="max-w-7xl">
               <TestFixTab />
+            </div>
+          )}
+
+          {currentPage === 'deployments' && (
+            <div className="max-w-7xl">
+              <DeploymentsTab />
             </div>
           )}
 

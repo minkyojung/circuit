@@ -2,8 +2,10 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 
 /**
  * Panel States
+ * - peek: Tab only visible (60px, mostly off-screen) - default state
+ * - compact: Full content visible (260x80)
  */
-export type PeekPanelState = 'hidden' | 'dot' | 'compact' | 'expanded'
+export type PeekPanelState = 'peek' | 'compact'
 
 /**
  * Test Result Data
@@ -165,11 +167,81 @@ export type PeekData =
  * - Expandable states: dot → compact → expanded
  */
 export function usePeekPanel() {
-  const [state, setState] = useState<PeekPanelState>('hidden')
+  const [state, setState] = useState<PeekPanelState>('peek')  // Start with tab visible
   const [data, setData] = useState<PeekData>(null)
+  const [autoHideProgress, setAutoHideProgress] = useState<number>(0) // 0-100, for progress bar
 
   // Track all MCP servers for multi-server support
   const mcpServers = useRef<Record<string, MCPServerState>>({})
+
+  // Track auto-hide timer to prevent stale closures from hiding the panel
+  const autoHideTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const autoHideIntervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  /**
+   * Clear any pending auto-hide timer
+   */
+  const clearAutoHideTimer = useCallback(() => {
+    if (autoHideTimerRef.current) {
+      clearTimeout(autoHideTimerRef.current)
+      autoHideTimerRef.current = null
+    }
+    if (autoHideIntervalRef.current) {
+      clearInterval(autoHideIntervalRef.current)
+      autoHideIntervalRef.current = null
+    }
+    setAutoHideProgress(0)
+  }, [])
+
+  /**
+   * Set auto-hide timer (used for success states)
+   */
+  const setAutoHideTimer = useCallback((delayMs: number) => {
+    // Clear any existing timer first
+    clearAutoHideTimer()
+
+    // Reset progress
+    setAutoHideProgress(0)
+
+    // Update progress bar every 50ms
+    const intervalMs = 50
+    const totalSteps = delayMs / intervalMs
+    let currentStep = 0
+
+    autoHideIntervalRef.current = setInterval(() => {
+      currentStep++
+      const progress = (currentStep / totalSteps) * 100
+      setAutoHideProgress(Math.min(progress, 100))
+    }, intervalMs)
+
+    // Set main timer to collapse to peek
+    autoHideTimerRef.current = setTimeout(() => {
+      // Clear interval
+      if (autoHideIntervalRef.current) {
+        clearInterval(autoHideIntervalRef.current)
+        autoHideIntervalRef.current = null
+      }
+
+      // Collapse to peek state
+      setState((currentState) => {
+        if (currentState === 'compact') {
+          try {
+            const { ipcRenderer } = require('electron')
+            ipcRenderer.send('peek:resize', {
+              state: 'peek',
+              data: null
+            })
+          } catch (e) {
+            console.warn('IPC not available:', e)
+          }
+          setAutoHideProgress(0)
+          return 'peek'
+        }
+        return currentState
+      })
+      autoHideTimerRef.current = null
+    }, delayMs)
+  }, [clearAutoHideTimer])
 
   /**
    * Show panel with specific state and data
@@ -193,51 +265,34 @@ export function usePeekPanel() {
   }, [data])
 
   /**
-   * Hide panel
+   * Hide panel (collapses to peek state)
    * @param clearData - If true, clears the panel data. Default: false (preserves data)
    */
   const hide = useCallback((clearData = false) => {
-    setState('hidden')
+    // Clear any pending auto-hide timer
+    clearAutoHideTimer()
+
     if (clearData) {
       setData(null)
     }
 
-    try {
-      const { ipcRenderer } = require('electron')
-      ipcRenderer.send('peek:resize', {
-        state: 'hidden',
-        data: clearData ? null : data
-      })
-    } catch (e) {
-      console.warn('IPC not available:', e)
-    }
-  }, [data])
+    // Collapse to peek instead of hiding
+    show('peek')
+  }, [clearAutoHideTimer, show])
 
   /**
-   * Expand to next state
+   * Expand to compact (show full content)
    */
   const expand = useCallback(() => {
-    const nextState: Record<PeekPanelState, PeekPanelState> = {
-      'hidden': 'dot',
-      'dot': 'compact',
-      'compact': 'expanded',
-      'expanded': 'expanded'
-    }
-    show(nextState[state])
-  }, [state, show])
+    show('compact')
+  }, [show])
 
   /**
-   * Collapse to previous state
+   * Collapse to peek (show tab only)
    */
   const collapse = useCallback(() => {
-    const prevState: Record<PeekPanelState, PeekPanelState> = {
-      'hidden': 'hidden',
-      'dot': 'hidden',
-      'compact': 'dot',
-      'expanded': 'compact'
-    }
-    show(prevState[state])
-  }, [state, show])
+    show('peek')
+  }, [show])
 
   /**
    * Set focused server (for multi-MCP mode)
@@ -283,9 +338,9 @@ export function usePeekPanel() {
     try {
       const { ipcRenderer } = require('electron')
 
-      // Test started → show dot
+      // Test started → show peek (tab only)
       const handleTestStart = () => {
-        show('dot', {
+        show('peek', {
           type: 'test-result',
           status: 'running'
         })
@@ -303,15 +358,14 @@ export function usePeekPanel() {
           errors: result.errors
         }
 
+        // Clear any existing auto-hide timer
+        clearAutoHideTimer()
+
         show('compact', testData)
 
-        // Auto-dismiss after 5s if success
+        // Auto-dismiss after 5s if success (but NOT if failed)
         if (result.success) {
-          setTimeout(() => {
-            if (state !== 'expanded') {
-              hide()
-            }
-          }, 5000)
+          setAutoHideTimer(5000)
         }
       }
 
@@ -325,7 +379,7 @@ export function usePeekPanel() {
     } catch (e) {
       console.warn('IPC not available in test listener:', e)
     }
-  }, [show, hide, state])
+  }, [show, clearAutoHideTimer, setAutoHideTimer])
 
   /**
    * Listen for MCP events from Electron main process
@@ -451,8 +505,9 @@ export function usePeekPanel() {
         const serverCount = Object.keys(mcpServers.current).length
 
         if (serverCount === 0) {
-          // All servers stopped
-          hide(true)
+          // All servers stopped - collapse to peek
+          show('peek')
+          setData(null)
           return
         }
 
@@ -466,25 +521,24 @@ export function usePeekPanel() {
           } else if (type === 'message') {
             const activity = mcpServers.current[singleServerId].recentActivity[0]
             if (activity) {
-              if (state === 'hidden' || state === 'dot') {
+              if (state === 'peek') {
                 show('compact', singleData)
               } else {
                 setData(singleData)
               }
 
-              // Auto-dismiss or expand based on result
-              if (activity.success && state !== 'expanded') {
+              // Auto-dismiss to peek on success
+              if (activity.success) {
                 setTimeout(() => {
                   if (state === 'compact') {
-                    show('dot', singleData)
+                    show('peek', singleData)
                   }
                 }, 3000)
-              } else if (!activity.success) {
-                show('expanded', singleData)
               }
             }
           } else if (type === 'status' && rest.status === 'stopped') {
-            hide(true)
+            show('peek')
+            setData(null)
           }
         } else {
           // Multi-server mode
@@ -492,7 +546,7 @@ export function usePeekPanel() {
 
           if (type === 'initialized') {
             // New server joined
-            if (state === 'hidden') {
+            if (state === 'peek') {
               show('compact', multiData)
             } else {
               setData(multiData)
@@ -501,15 +555,10 @@ export function usePeekPanel() {
             // Activity update
             const activity = mcpServers.current[serverId]?.recentActivity[0]
             if (activity) {
-              if (state === 'hidden' || state === 'dot') {
+              if (state === 'peek') {
                 show('compact', multiData)
               } else {
                 setData(multiData)
-              }
-
-              // Expand on error
-              if (!activity.success) {
-                show('expanded', multiData)
               }
             }
           } else if (type === 'status' && rest.status === 'stopped') {
@@ -537,20 +586,20 @@ export function usePeekPanel() {
       const { ipcRenderer } = require('electron')
 
       const handleDeploymentEvent = (event: any, deploymentData: DeploymentPeekData) => {
-        // Show compact view for deployment events
+        // Clear any existing auto-hide timer first
+        clearAutoHideTimer()
+
+        // Show appropriate view based on deployment status
         if (deploymentData.status === 'building') {
+          // Building - show compact, no auto-hide
           show('compact', deploymentData)
         } else if (deploymentData.status === 'success') {
+          // Success - show compact, auto-collapse to peek after 5s
           show('compact', deploymentData)
-          // Auto-dismiss after 5s if success
-          setTimeout(() => {
-            if (state !== 'expanded') {
-              hide()
-            }
-          }, 5000)
+          setAutoHideTimer(5000)
         } else {
-          // Failed or cancelled - show expanded for details
-          show('expanded', deploymentData)
+          // Failed or cancelled - show compact, NO auto-hide
+          show('compact', deploymentData)
         }
       }
 
@@ -562,7 +611,7 @@ export function usePeekPanel() {
     } catch (e) {
       console.warn('IPC not available for deployment events:', e)
     }
-  }, [show, hide, state])
+  }, [show, clearAutoHideTimer, setAutoHideTimer])
 
   /**
    * Keyboard shortcuts and IPC toggle events
@@ -570,10 +619,10 @@ export function usePeekPanel() {
   useEffect(() => {
     // Local keyboard shortcuts
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Escape to hide
-      if (e.key === 'Escape' && state !== 'hidden') {
+      // Escape to collapse to peek
+      if (e.key === 'Escape' && state === 'compact') {
         e.preventDefault()
-        hide()
+        collapse()
       }
     }
 
@@ -584,8 +633,8 @@ export function usePeekPanel() {
       const { ipcRenderer } = require('electron')
 
       const handleToggle = () => {
-        if (state === 'hidden') {
-          // Show with default message if no data
+        if (state === 'peek') {
+          // Expand to compact
           const defaultData: CustomPeekData = {
             type: 'custom',
             title: 'Circuit Peek',
@@ -594,12 +643,13 @@ export function usePeekPanel() {
           }
           show('compact', data || defaultData)
         } else {
-          hide()
+          // Collapse to peek
+          collapse()
         }
       }
 
       const handleShow = () => {
-        // Show with default message if no data
+        // Show compact with default message if no data
         const defaultData: CustomPeekData = {
           type: 'custom',
           title: 'Circuit Peek',
@@ -623,9 +673,17 @@ export function usePeekPanel() {
     }
   }, [state, show, hide])
 
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      clearAutoHideTimer()
+    }
+  }, [clearAutoHideTimer])
+
   return {
     state,
     data,
+    autoHideProgress,
     show,
     hide,
     expand,

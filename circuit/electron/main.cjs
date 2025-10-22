@@ -105,6 +105,7 @@ function createPeekWindow() {
 
 /**
  * Resize peek window based on state
+ * Uses smooth animation on macOS via setBounds with animate flag
  */
 function resizePeekWindow(state, data) {
   if (!peekWindow) return;
@@ -113,30 +114,48 @@ function resizePeekWindow(state, data) {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
 
-  const margin = 20;
+  const margin = 10;
+
+  // Determine if we should use animation (macOS supports it)
+  const shouldAnimate = process.platform === 'darwin';
 
   switch (state) {
-    case 'hidden':
-      peekWindow.hide();
-      break;
+    case 'peek':
+      // Tab only: 60px wide, mostly off-screen, only 12px visible
+      const peekBounds = {
+        x: screenWidth - 12,
+        y: screenHeight - 80 - margin,
+        width: 60,
+        height: 80
+      };
 
-    case 'dot':
-      peekWindow.setSize(60, 60);
-      peekWindow.setPosition(screenWidth - 60 - margin, screenHeight - 60 - margin);
+      if (shouldAnimate) {
+        peekWindow.setBounds(peekBounds, true);  // animate: true
+      } else {
+        peekWindow.setSize(peekBounds.width, peekBounds.height);
+        peekWindow.setPosition(peekBounds.x, peekBounds.y);
+      }
+
       peekWindow.setIgnoreMouseEvents(true, { forward: true });
       peekWindow.show();
       break;
 
     case 'compact':
-      peekWindow.setSize(240, 60);
-      peekWindow.setPosition(screenWidth - 240 - margin, screenHeight - 60 - margin);
-      peekWindow.setIgnoreMouseEvents(false);
-      peekWindow.show();
-      break;
+      // Full content visible: 260x80
+      const compactBounds = {
+        x: screenWidth - 260 - margin,
+        y: screenHeight - 80 - margin,
+        width: 260,
+        height: 80
+      };
 
-    case 'expanded':
-      peekWindow.setSize(400, 300);
-      peekWindow.setPosition(screenWidth - 400 - margin, screenHeight - 300 - margin);
+      if (shouldAnimate) {
+        peekWindow.setBounds(compactBounds, true);  // animate: true
+      } else {
+        peekWindow.setSize(compactBounds.width, compactBounds.height);
+        peekWindow.setPosition(compactBounds.x, compactBounds.y);
+      }
+
       peekWindow.setIgnoreMouseEvents(false);
       peekWindow.show();
       break;
@@ -158,9 +177,9 @@ ipcMain.on('peek:mouse-enter', () => {
 
 ipcMain.on('peek:mouse-leave', () => {
   if (peekWindow) {
-    // Only ignore mouse events if in dot state
+    // Only ignore mouse events if in peek state (tab only)
     const bounds = peekWindow.getBounds();
-    if (bounds.width <= 60 && bounds.height <= 60) {
+    if (bounds.width <= 60) {
       peekWindow.setIgnoreMouseEvents(true, { forward: true });
     }
   }
@@ -177,6 +196,12 @@ ipcMain.on('peek:open-in-window', (event, payload) => {
     // Send data to main window
     mainWindow.webContents.send('peek:data-opened', payload);
   }
+});
+
+// Debug: Manual state change from main window
+ipcMain.on('peek:debug-change-state', (event, state) => {
+  console.log('[Debug] Manually changing peek window state to:', state);
+  resizePeekWindow(state, null);
 });
 
 // ============================================================================
@@ -658,6 +683,84 @@ ipcMain.handle('mcp:get-server-status', async (event, serverId) => {
   return {
     status: server ? server.status : 'stopped'
   };
+});
+
+// ============================================================================
+// Deployments - Test Webhook Sender
+// ============================================================================
+
+/**
+ * Send test deployment webhook to peek panel
+ */
+ipcMain.handle('deployments:send-test-webhook', async (event, status) => {
+  try {
+    // Generate sample deployment data based on status
+    const sampleData = {
+      building: {
+        type: 'deployment',
+        source: 'vercel',
+        status: 'building',
+        projectName: 'my-awesome-app',
+        branch: 'main',
+        commit: 'abc1234',
+        timestamp: Date.now(),
+        url: 'https://my-awesome-app-abc123.vercel.app',
+        logUrl: 'https://vercel.com/logs/abc123'
+      },
+      success: {
+        type: 'deployment',
+        source: 'vercel',
+        status: 'success',
+        projectName: 'my-awesome-app',
+        branch: 'main',
+        commit: 'abc1234',
+        timestamp: Date.now(),
+        duration: 45000,
+        url: 'https://my-awesome-app-abc123.vercel.app',
+        logUrl: 'https://vercel.com/logs/abc123'
+      },
+      failed: {
+        type: 'deployment',
+        source: 'vercel',
+        status: 'failed',
+        projectName: 'my-awesome-app',
+        branch: 'feature-new-ui',
+        commit: 'def9876',
+        timestamp: Date.now(),
+        duration: 32000,
+        url: 'https://my-awesome-app-def987.vercel.app',
+        logUrl: 'https://vercel.com/logs/def987',
+        error: {
+          message: 'Build failed: Module not found'
+        }
+      }
+    };
+
+    const deploymentData = sampleData[status];
+
+    if (!deploymentData) {
+      return {
+        success: false,
+        error: `Invalid status: ${status}`
+      };
+    }
+
+    // Send to peek panel
+    if (peekWindow && !peekWindow.isDestroyed()) {
+      peekWindow.webContents.send('deployment:event', deploymentData);
+      return { success: true };
+    } else {
+      return {
+        success: false,
+        error: 'Peek panel is not available'
+      };
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message
+    };
+  }
 });
 
 // ============================================================================
