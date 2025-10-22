@@ -55,7 +55,7 @@ function createPeekWindow() {
   const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
 
   peekWindow = new BrowserWindow({
-    width: 60,  // Start as dot
+    width: 60,  // Initial size (will be resized when shown)
     height: 60,
     x: screenWidth - 80,  // 20px margin from right
     y: screenHeight - 80, // 20px margin from bottom
@@ -70,6 +70,7 @@ function createPeekWindow() {
     maximizable: false,
     acceptsFirstMouse: false,
     backgroundColor: '#00000000',
+    show: false,  // Start hidden
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
@@ -473,11 +474,19 @@ class MCPServer {
   }
 
   sendToRenderer(data) {
+    const payload = {
+      serverId: this.config.id,
+      ...data
+    };
+
+    // Send to main window (Developer tab)
     if (this.eventTarget) {
-      this.eventTarget.webContents.send('mcp-event', {
-        serverId: this.config.id,
-        ...data
-      });
+      this.eventTarget.webContents.send('mcp-event', payload);
+    }
+
+    // Also send to peek window for ambient display
+    if (peekWindow && !peekWindow.isDestroyed()) {
+      peekWindow.webContents.send('mcp-event', payload);
     }
   }
 }

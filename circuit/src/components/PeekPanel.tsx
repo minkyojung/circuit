@@ -1,6 +1,6 @@
 import { usePeekPanel } from '@/hooks/usePeekPanel'
-import type { TestResultData, CustomPeekData } from '@/hooks/usePeekPanel'
-import { CheckCircle2, XCircle, Loader2, Info } from 'lucide-react'
+import type { TestResultData, CustomPeekData, MCPPeekData, MCPActivity } from '@/hooks/usePeekPanel'
+import { CheckCircle2, XCircle, Loader2, Info, Server, Zap } from 'lucide-react'
 
 /**
  * Circuit Peek Panel
@@ -32,6 +32,7 @@ export function PeekPanel() {
 function DotView({ data, onExpand }: { data: any; onExpand: () => void }) {
   const getColor = () => {
     if (!data) return 'bg-gray-400'
+
     if (data.type === 'test-result') {
       const testData = data as TestResultData
       switch (testData.status) {
@@ -41,6 +42,18 @@ function DotView({ data, onExpand }: { data: any; onExpand: () => void }) {
         default: return 'bg-gray-400'
       }
     }
+
+    if (data.type === 'mcp') {
+      const mcpData = data as MCPPeekData
+      switch (mcpData.status) {
+        case 'starting': return 'bg-yellow-400 animate-pulse'
+        case 'running': return 'bg-blue-500 animate-pulse'
+        case 'error': return 'bg-red-500'
+        case 'stopped': return 'bg-gray-400'
+        default: return 'bg-gray-400'
+      }
+    }
+
     if (data.type === 'custom') {
       const customData = data as CustomPeekData
       switch (customData.variant) {
@@ -50,6 +63,7 @@ function DotView({ data, onExpand }: { data: any; onExpand: () => void }) {
         default: return 'bg-blue-400'
       }
     }
+
     return 'bg-gray-400'
   }
 
@@ -112,6 +126,51 @@ function CompactView({
             </>
           )}
         </div>
+      </div>
+    )
+  }
+
+  if (data.type === 'mcp') {
+    const mcpData = data as MCPPeekData
+    const latestActivity = mcpData.recentActivity[0]
+
+    // Status indicator (colored dot)
+    const getStatusDot = () => {
+      switch (mcpData.status) {
+        case 'starting':
+          return <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
+        case 'running':
+          return <div className="w-2 h-2 rounded-full bg-blue-500" />
+        case 'error':
+          return <div className="w-2 h-2 rounded-full bg-red-500" />
+        default:
+          return <div className="w-2 h-2 rounded-full bg-gray-400" />
+      }
+    }
+
+    return (
+      <div
+        className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg p-3 cursor-pointer hover:bg-white transition-colors"
+        onClick={onExpand}
+        onDoubleClick={onHide}
+      >
+        <div className="flex items-center gap-2 mb-1">
+          {getStatusDot()}
+          <Server className="h-4 w-4 text-gray-600" />
+          <span className="text-sm font-medium text-gray-700">{mcpData.serverName}</span>
+        </div>
+
+        {latestActivity && (
+          <div className="flex items-center gap-2 text-xs text-gray-600 ml-6">
+            <Zap className="h-3 w-3" />
+            <span className="truncate flex-1">
+              {latestActivity.summary || latestActivity.method}
+            </span>
+            {latestActivity.latency && (
+              <span className="text-gray-400">{latestActivity.latency}ms</span>
+            )}
+          </div>
+        )}
       </div>
     )
   }
@@ -217,6 +276,96 @@ function ExpandedView({
               {testData.errors.map((error, i) => (
                 <div key={i} className="truncate">
                   {error}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  if (data.type === 'mcp') {
+    const mcpData = data as MCPPeekData
+
+    // Status indicator (colored dot)
+    const getStatusDot = () => {
+      switch (mcpData.status) {
+        case 'starting':
+          return <div className="w-2.5 h-2.5 rounded-full bg-yellow-400 animate-pulse" />
+        case 'running':
+          return <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+        case 'error':
+          return <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
+        default:
+          return <div className="w-2.5 h-2.5 rounded-full bg-gray-400" />
+      }
+    }
+
+    return (
+      <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg p-4 w-full h-full overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            {getStatusDot()}
+            <Server className="h-4 w-4 text-gray-600" />
+            <h3 className="text-sm font-semibold text-gray-800">{mcpData.serverName}</h3>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onCollapse}
+              className="text-xs text-gray-500 hover:text-gray-700"
+            >
+              Collapse
+            </button>
+            <button
+              onClick={onHide}
+              className="text-xs text-gray-500 hover:text-gray-700"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+
+        {/* Status */}
+        <div className="text-xs text-gray-500 mb-3">
+          Status: <span className="font-medium capitalize">{mcpData.status}</span>
+        </div>
+
+        {/* Recent Activity */}
+        {mcpData.recentActivity.length > 0 && (
+          <div className="flex-1 overflow-y-auto">
+            <div className="text-xs font-medium text-gray-700 mb-2">Recent Activity</div>
+            <div className="space-y-2">
+              {mcpData.recentActivity.map((activity) => (
+                <div
+                  key={activity.id}
+                  className="bg-gray-50 rounded p-2 text-xs"
+                >
+                  <div className="flex items-start gap-2 mb-1">
+                    <Zap className="h-3 w-3 text-gray-500 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-gray-700 truncate">
+                          {activity.method}
+                        </span>
+                        <div className={`w-1.5 h-1.5 rounded-full ${activity.success ? 'bg-green-500' : 'bg-red-500'}`} />
+                      </div>
+                      {activity.summary && (
+                        <div className="text-gray-600 truncate mt-0.5">
+                          {activity.summary}
+                        </div>
+                      )}
+                      {activity.error && (
+                        <div className="text-red-600 text-xs mt-0.5 truncate">
+                          Error: {activity.error}
+                        </div>
+                      )}
+                    </div>
+                    {activity.latency && (
+                      <span className="text-gray-400 shrink-0">{activity.latency}ms</span>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
