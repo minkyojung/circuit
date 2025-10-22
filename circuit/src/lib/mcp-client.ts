@@ -1,5 +1,5 @@
 // MCP Client API for Renderer Process
-import type { MCPServerConfig, MessageLog, ServerState } from '@/types/mcp'
+import type { MCPServerConfig } from '@/types/mcp'
 
 // Get ipcRenderer from window (available because contextIsolation is false)
 const ipcRenderer = (window as any).require('electron').ipcRenderer
@@ -25,7 +25,7 @@ class MCPClient {
 
   addEventListener(listener: MCPEventListener) {
     this.listeners.add(listener)
-    return () => this.listeners.delete(listener)
+    return () => { this.listeners.delete(listener) }
   }
 
   async startServer(config: MCPServerConfig): Promise<{ success: boolean; result?: any; error?: string }> {

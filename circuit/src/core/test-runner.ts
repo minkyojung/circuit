@@ -72,7 +72,7 @@ export function formatTestResult(result: TestResult): string {
 /**
  * Get test command based on project type
  */
-export function getTestCommand(projectType: string): string {
+export function getTestCommand(_projectType: string): string {
   // For now, just use npm test
   // Later can customize based on projectType (react, nextjs, etc)
   return 'npm test'
