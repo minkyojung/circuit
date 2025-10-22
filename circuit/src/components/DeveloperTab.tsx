@@ -34,6 +34,22 @@ export function DeveloperTab() {
     maxLatency: 0
   })
 
+  // Check server status when selection changes
+  useEffect(() => {
+    if (selectedServerId) {
+      mcpClient.getServerStatus(selectedServerId).then(({ status }) => {
+        if (status === 'running') {
+          setServerStatus('running')
+          fetchCapabilities(selectedServerId)
+        } else {
+          setServerStatus('stopped')
+        }
+      }).catch(() => {
+        setServerStatus('stopped')
+      })
+    }
+  }, [selectedServerId])
+
   // Listen to MCP events
   useEffect(() => {
     const removeListener = mcpClient.addEventListener((event) => {
@@ -227,7 +243,7 @@ export function DeveloperTab() {
               <Select
                 value={selectedServerId}
                 onValueChange={setSelectedServerId}
-                disabled={serverStatus === 'starting' || isRunning}
+                disabled={serverStatus === 'starting'}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Choose a server..." />
@@ -247,7 +263,7 @@ export function DeveloperTab() {
               onClick={isRunning ? handleStop : handleStart}
               variant={isRunning ? "destructive" : "default"}
               className="h-10"
-              disabled={serverStatus === 'starting'}
+              disabled={serverStatus === 'starting' || !selectedServerId}
             >
               {serverStatus === 'starting' ? 'Starting...' : isRunning ? "Stop" : "Start"}
             </Button>

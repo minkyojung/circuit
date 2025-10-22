@@ -1,6 +1,6 @@
 import { usePeekPanel } from '@/hooks/usePeekPanel'
-import type { TestResultData, CustomPeekData, MCPPeekData, MCPActivity } from '@/hooks/usePeekPanel'
-import { CheckCircle2, XCircle, Loader2, Info, Server, Zap } from 'lucide-react'
+import type { TestResultData, CustomPeekData, MCPPeekData, MCPActivity, MultiMCPPeekData, MCPServerState } from '@/hooks/usePeekPanel'
+import { CheckCircle2, XCircle, Loader2, Info, Server, Zap, AlertTriangle } from 'lucide-react'
 
 /**
  * Circuit Peek Panel
@@ -11,7 +11,7 @@ import { CheckCircle2, XCircle, Loader2, Info, Server, Zap } from 'lucide-react'
  * - Expanded: Full details with glassmorphism
  */
 export function PeekPanel() {
-  const { state, data, expand, collapse, hide } = usePeekPanel()
+  const { state, data, expand, collapse, hide, setFocusedServer } = usePeekPanel()
 
   if (state === 'hidden') {
     return null
@@ -26,7 +26,7 @@ export function PeekPanel() {
     <div className={containerClass}>
       {state === 'dot' && <DotView data={data} onExpand={expand} />}
       {state === 'compact' && <CompactView data={data} onExpand={expand} onCollapse={collapse} onHide={hide} />}
-      {state === 'expanded' && <ExpandedView data={data} onCollapse={collapse} onHide={hide} />}
+      {state === 'expanded' && <ExpandedView data={data} onCollapse={collapse} onHide={hide} setFocusedServer={setFocusedServer} />}
     </div>
   )
 }
@@ -181,6 +181,76 @@ function CompactView({
     hover:shadow-[0_8px_32px_rgba(217,119,87,0.3)]
   `
 
+  // Multi-server view
+  if (data.type === 'multi-mcp') {
+    const multiData = data as MultiMCPPeekData
+    const servers = Object.values(multiData.servers)
+    const errorServers = servers.filter(s => s.status === 'error')
+    const runningServers = servers.filter(s => s.status === 'running')
+    const highlightServer = errorServers[0] || servers[0]
+
+    // Status dot component
+    const StatusDot = ({ status }: { status: MCPServerState['status'] }) => {
+      const dotColors = {
+        starting: 'bg-[#AE7663] shadow-[0_0_8px_rgba(174,118,99,0.8)]',
+        running: 'bg-[#D97757] shadow-[0_0_10px_rgba(217,119,87,0.9)]',
+        error: 'bg-[#ef4444] shadow-[0_0_10px_rgba(239,68,68,0.9)]',
+        stopped: 'bg-[#846961] shadow-[0_0_6px_rgba(132,105,97,0.6)]'
+      }
+      return <div className={`w-2 h-2 rounded-full ${dotColors[status]}`} />
+    }
+
+    return (
+      <div
+        className={`${glassClass} w-full h-full flex flex-col justify-center px-3 py-2`}
+        onClick={onExpand}
+        onDoubleClick={onHide}
+      >
+        {/* Summary line */}
+        <div className="flex items-center gap-2 mb-1">
+          {/* Status dots (max 5) */}
+          <div className="flex items-center gap-1">
+            {servers.slice(0, 5).map((s, i) => (
+              <StatusDot key={i} status={s.status} />
+            ))}
+            {servers.length > 5 && (
+              <span className="text-xs text-white/60 ml-0.5">+{servers.length - 5}</span>
+            )}
+          </div>
+          <Server className="h-3.5 w-3.5 text-white/70" />
+          <span className="text-xs font-medium text-white/90">
+            {runningServers.length} active
+          </span>
+          <span className="text-xs text-white/50">•</span>
+          <span className="text-xs text-white/60">
+            {multiData.totalActivityCount} requests
+          </span>
+        </div>
+
+        {/* Highlight server (error or most recent) */}
+        {highlightServer && (
+          <div className="flex items-center gap-2 text-xs ml-5">
+            {errorServers.length > 0 && (
+              <AlertTriangle className="h-3 w-3 text-[#ef4444] flex-shrink-0" />
+            )}
+            {errorServers.length === 0 && (
+              <Zap className="h-3 w-3 text-[#D97757] flex-shrink-0" />
+            )}
+            <span className="text-white/70 truncate flex-1">
+              {highlightServer.serverName}
+              {errorServers.length > 0 && ` (${errorServers.length} error${errorServers.length > 1 ? 's' : ''})`}
+            </span>
+            {highlightServer.recentActivity[0]?.latency && (
+              <span className="text-white/40 text-xs">
+                {highlightServer.recentActivity[0].latency}ms
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   if (data.type === 'test-result') {
     const testData = data as TestResultData
     return (
@@ -307,11 +377,13 @@ function CompactView({
 function ExpandedView({
   data,
   onCollapse,
-  onHide
+  onHide,
+  setFocusedServer
 }: {
   data: any
   onCollapse: () => void
   onHide: () => void
+  setFocusedServer: (serverId: string) => void
 }) {
   if (!data) return null
 
@@ -326,6 +398,154 @@ function ExpandedView({
     overflow-hidden
     flex flex-col
   `
+
+  // Multi-server expanded view
+  if (data.type === 'multi-mcp') {
+    const multiData = data as MultiMCPPeekData
+    const servers = Object.values(multiData.servers).sort(
+      (a, b) => b.lastActivityTime - a.lastActivityTime
+    )
+    const focusedServer = multiData.focusedServerId
+      ? multiData.servers[multiData.focusedServerId]
+      : null
+
+    // Status dot component
+    const StatusDot = ({ status }: { status: MCPServerState['status'] }) => {
+      const dotColors = {
+        starting: 'bg-[#AE7663] shadow-[0_0_10px_rgba(174,118,99,0.9)] animate-pulse',
+        running: 'bg-[#D97757] shadow-[0_0_12px_rgba(217,119,87,0.9)]',
+        error: 'bg-[#ef4444] shadow-[0_0_12px_rgba(239,68,68,0.9)]',
+        stopped: 'bg-[#846961] shadow-[0_0_8px_rgba(132,105,97,0.6)]'
+      }
+      return <div className={`w-2.5 h-2.5 rounded-full ${dotColors[status]}`} />
+    }
+
+    return (
+      <div className={`${glassClass} p-3`}>
+        {/* Header */}
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <Server className="h-4 w-4 text-white/70" />
+            <h3 className="text-xs font-semibold text-white/90">
+              MCP Servers ({servers.length})
+            </h3>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onCollapse}
+              className="text-xs text-white/60 hover:text-white/90 transition-colors px-2 py-1 rounded hover:bg-white/10"
+            >
+              Collapse
+            </button>
+            <button
+              onClick={onHide}
+              className="text-sm text-white/60 hover:text-white/90 transition-colors px-1.5 py-0.5 rounded hover:bg-white/10"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+
+        {/* Server List */}
+        <div className="space-y-1 mb-3 max-h-24 overflow-y-auto">
+          {servers.map((server) => {
+            const isFocused = server.serverId === multiData.focusedServerId
+            const activityCount = server.recentActivity.length
+
+            return (
+              <div
+                key={server.serverId}
+                onClick={() => setFocusedServer(server.serverId)}
+                className={`
+                  flex items-center gap-2 px-2 py-1.5 rounded-lg
+                  cursor-pointer transition-all duration-200
+                  ${isFocused
+                    ? 'bg-[#D97757]/20 border border-[#D97757]/30'
+                    : 'bg-white/5 hover:bg-white/10 border border-transparent'
+                  }
+                `}
+              >
+                <StatusDot status={server.status} />
+                <Server className="h-3 w-3 text-white/60 flex-shrink-0" />
+                <span className={`text-xs flex-1 truncate ${
+                  isFocused ? 'text-white/90 font-medium' : 'text-white/70'
+                }`}>
+                  {server.serverName}
+                </span>
+                <div className="flex items-center gap-1.5">
+                  {activityCount > 0 && (
+                    <>
+                      <Zap className="h-3 w-3 text-[#D97757]" />
+                      <span className="text-xs text-white/50">{activityCount}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Activity Details */}
+        {focusedServer && focusedServer.recentActivity.length > 0 && (
+          <div className="flex-1 overflow-y-auto">
+            <div className="text-xs font-medium text-white/70 mb-1.5">
+              Recent Activity
+            </div>
+            <div className="space-y-1.5">
+              {focusedServer.recentActivity.map((activity) => (
+                <div
+                  key={activity.id}
+                  className="bg-white/5 hover:bg-white/10 rounded-lg p-2 text-xs transition-all duration-200"
+                >
+                  <div className="flex items-start gap-2">
+                    <Zap className="h-3 w-3 text-[#D97757] mt-0.5 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-white/80 truncate text-xs">
+                          {activity.method}
+                        </span>
+                        <div
+                          className={`
+                            w-1.5 h-1.5 rounded-full
+                            ${activity.success
+                              ? 'bg-[#4ade80] shadow-[0_0_8px_rgba(74,222,128,0.8)]'
+                              : 'bg-[#ef4444] shadow-[0_0_8px_rgba(239,68,68,0.8)]'
+                            }
+                          `}
+                        />
+                      </div>
+                      {activity.summary && (
+                        <div className="text-white/50 truncate mt-0.5 text-xs">
+                          {activity.summary}
+                        </div>
+                      )}
+                      {activity.error && (
+                        <div className="text-[#ef4444] text-xs mt-0.5 truncate">
+                          Error: {activity.error}
+                        </div>
+                      )}
+                    </div>
+                    {activity.latency && (
+                      <span className="text-white/40 shrink-0 text-xs">
+                        {activity.latency}ms
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Empty state */}
+        {focusedServer && focusedServer.recentActivity.length === 0 && (
+          <div className="flex-1 flex items-center justify-center text-xs text-white/50">
+            No recent activity
+          </div>
+        )}
+      </div>
+    )
+  }
 
   if (data.type === 'test-result') {
     const testData = data as TestResultData

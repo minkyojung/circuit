@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 
 /**
  * Panel States
@@ -42,7 +42,7 @@ export interface MCPActivity {
 }
 
 /**
- * MCP Server Data
+ * MCP Server Data (Single Server)
  */
 export interface MCPPeekData {
   type: 'mcp'
@@ -53,9 +53,30 @@ export interface MCPPeekData {
 }
 
 /**
+ * MCP Server State (for multi-server tracking)
+ */
+export interface MCPServerState {
+  serverId: string
+  serverName: string
+  status: 'starting' | 'running' | 'error' | 'stopped'
+  recentActivity: MCPActivity[]
+  lastActivityTime: number  // For sorting/priority
+}
+
+/**
+ * Multi MCP Server Data
+ */
+export interface MultiMCPPeekData {
+  type: 'multi-mcp'
+  servers: Record<string, MCPServerState>  // serverId → state
+  focusedServerId: string | null            // Currently selected server
+  totalActivityCount: number                // Total activity count across all servers
+}
+
+/**
  * Peek Data Union Type
  */
-export type PeekData = TestResultData | CustomPeekData | MCPPeekData | null
+export type PeekData = TestResultData | CustomPeekData | MCPPeekData | MultiMCPPeekData | null
 
 /**
  * Hook for managing the Circuit Peek Panel
@@ -69,6 +90,9 @@ export type PeekData = TestResultData | CustomPeekData | MCPPeekData | null
 export function usePeekPanel() {
   const [state, setState] = useState<PeekPanelState>('hidden')
   const [data, setData] = useState<PeekData>(null)
+
+  // Track all MCP servers for multi-server support
+  const mcpServers = useRef<Record<string, MCPServerState>>({})
 
   /**
    * Show panel with specific state and data
@@ -139,6 +163,18 @@ export function usePeekPanel() {
   }, [state, show])
 
   /**
+   * Set focused server (for multi-MCP mode)
+   */
+  const setFocusedServer = useCallback((serverId: string) => {
+    if (data?.type === 'multi-mcp') {
+      setData({
+        ...data,
+        focusedServerId: serverId
+      })
+    }
+  }, [data])
+
+  /**
    * Listen for test events from Electron main process
    */
   useEffect(() => {
@@ -196,25 +232,83 @@ export function usePeekPanel() {
     try {
       const { ipcRenderer } = require('electron')
 
-      // Track MCP activity for each server
-      const mcpActivity = new Map<string, MCPActivity[]>()
+      // Helper: Extract summary from message
+      const extractSummary = (message: any): string | undefined => {
+        if (message.method?.includes('tools/')) {
+          const toolName = message.method.replace('tools/', '')
+          if (message.data?.path) {
+            return `${toolName}: ${message.data.path}`
+          }
+          return toolName
+        }
+        return undefined
+      }
 
+      // Helper: Build MultiMCPPeekData from current servers
+      const buildMultiMCPData = (): MultiMCPPeekData => {
+        const servers = mcpServers.current
+        const serverList = Object.values(servers)
+
+        // Calculate total activity count
+        const totalActivityCount = serverList.reduce(
+          (sum, s) => sum + s.recentActivity.length,
+          0
+        )
+
+        // Determine focused server (priority: error > user selection > most recent)
+        let focusedServerId: string | null = null
+
+        // Check if current data has a focused server
+        if (data?.type === 'multi-mcp' && data.focusedServerId) {
+          focusedServerId = data.focusedServerId
+        } else {
+          // Auto-focus: error server first, then most recent activity
+          const errorServer = serverList.find(s => s.status === 'error')
+          if (errorServer) {
+            focusedServerId = errorServer.serverId
+          } else if (serverList.length > 0) {
+            // Sort by last activity time
+            const sorted = [...serverList].sort((a, b) => b.lastActivityTime - a.lastActivityTime)
+            focusedServerId = sorted[0].serverId
+          }
+        }
+
+        return {
+          type: 'multi-mcp',
+          servers,
+          focusedServerId,
+          totalActivityCount
+        }
+      }
+
+      // Helper: Build single MCP data (backward compatibility)
+      const buildSingleMCPData = (serverId: string): MCPPeekData => {
+        const server = mcpServers.current[serverId]
+        return {
+          type: 'mcp',
+          serverId: server.serverId,
+          serverName: server.serverName,
+          status: server.status,
+          recentActivity: server.recentActivity
+        }
+      }
+
+      // Main event handler
       const handleMCPEvent = (event: any, payload: any) => {
         const { serverId, type, message, ...rest } = payload
 
-        // Handle different MCP event types
+        // 1. Update server state
         if (type === 'initialized') {
-          // Server just started - show compact view directly
-          const mcpData: MCPPeekData = {
-            type: 'mcp',
+          // Server just started
+          mcpServers.current[serverId] = {
             serverId,
             serverName: rest.serverInfo?.name || serverId,
             status: 'running',
-            recentActivity: []
+            recentActivity: [],
+            lastActivityTime: Date.now()
           }
-          show('compact', mcpData)
         } else if (type === 'message' && message) {
-          // Track activity
+          // Activity event
           if (message.type === 'request' || message.type === 'response') {
             const activity: MCPActivity = {
               id: message.id,
@@ -226,58 +320,101 @@ export function usePeekPanel() {
               summary: extractSummary(message)
             }
 
-            // Update activity list for this server
-            const activities = mcpActivity.get(serverId) || []
-            activities.unshift(activity)
-            mcpActivity.set(serverId, activities.slice(0, 5)) // Keep last 5
+            // Update server's activity list
+            const server = mcpServers.current[serverId]
+            if (server) {
+              server.recentActivity.unshift(activity)
+              server.recentActivity = server.recentActivity.slice(0, 5) // Keep last 5
+              server.lastActivityTime = Date.now()
 
-            // Get current data if it's MCP type
-            const currentData = data as MCPPeekData
-            if (currentData?.type === 'mcp' && currentData.serverId === serverId) {
-              const updatedData: MCPPeekData = {
-                ...currentData,
-                recentActivity: mcpActivity.get(serverId) || []
-              }
+              // Note: Individual activity failures don't change server status
+              // Server status is only changed by explicit status events from main process
+            }
+          }
+        } else if (type === 'status') {
+          // Status update
+          const server = mcpServers.current[serverId]
+          if (server) {
+            server.status = rest.status
+            if (rest.status === 'stopped') {
+              // Remove stopped server after delay
+              setTimeout(() => {
+                delete mcpServers.current[serverId]
+              }, 1000)
+            }
+          }
+        }
 
-              // Show compact on new activity
+        // 2. Determine UI mode (single vs multi)
+        const serverCount = Object.keys(mcpServers.current).length
+
+        if (serverCount === 0) {
+          // All servers stopped
+          hide(true)
+          return
+        }
+
+        if (serverCount === 1) {
+          // Single server mode (backward compatibility)
+          const singleServerId = Object.keys(mcpServers.current)[0]
+          const singleData = buildSingleMCPData(singleServerId)
+
+          if (type === 'initialized') {
+            show('compact', singleData)
+          } else if (type === 'message') {
+            const activity = mcpServers.current[singleServerId].recentActivity[0]
+            if (activity) {
               if (state === 'hidden' || state === 'dot') {
-                show('compact', updatedData)
+                show('compact', singleData)
               } else {
-                // Update data without changing state
-                setData(updatedData)
+                setData(singleData)
               }
 
-              // Auto-dismiss after 3s if success
+              // Auto-dismiss or expand based on result
               if (activity.success && state !== 'expanded') {
                 setTimeout(() => {
                   if (state === 'compact') {
-                    show('dot', updatedData)
+                    show('dot', singleData)
                   }
                 }, 3000)
               } else if (!activity.success) {
-                // Expand on error
-                show('expanded', updatedData)
+                show('expanded', singleData)
               }
             }
+          } else if (type === 'status' && rest.status === 'stopped') {
+            hide(true)
           }
-        } else if (type === 'status' && rest.status === 'stopped') {
-          // Server stopped - clear data since server is gone
-          if (data && (data as MCPPeekData).type === 'mcp' && (data as MCPPeekData).serverId === serverId) {
-            hide(true)  // clearData = true
-          }
-        }
-      }
+        } else {
+          // Multi-server mode
+          const multiData = buildMultiMCPData()
 
-      // Helper to extract summary from message
-      const extractSummary = (message: any): string | undefined => {
-        if (message.method?.includes('tools/')) {
-          const toolName = message.method.replace('tools/', '')
-          if (message.data?.path) {
-            return `${toolName}: ${message.data.path}`
+          if (type === 'initialized') {
+            // New server joined
+            if (state === 'hidden') {
+              show('compact', multiData)
+            } else {
+              setData(multiData)
+            }
+          } else if (type === 'message') {
+            // Activity update
+            const activity = mcpServers.current[serverId]?.recentActivity[0]
+            if (activity) {
+              if (state === 'hidden' || state === 'dot') {
+                show('compact', multiData)
+              } else {
+                setData(multiData)
+              }
+
+              // Expand on error
+              if (!activity.success) {
+                show('expanded', multiData)
+              }
+            }
+          } else if (type === 'status' && rest.status === 'stopped') {
+            // Server stopped - update multi view
+            setData(buildMultiMCPData())
           }
-          return toolName
         }
-        return undefined
       }
 
       ipcRenderer.on('mcp-event', handleMCPEvent)
@@ -355,6 +492,7 @@ export function usePeekPanel() {
     show,
     hide,
     expand,
-    collapse
+    collapse,
+    setFocusedServer
   }
 }

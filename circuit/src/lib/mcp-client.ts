@@ -92,5 +92,17 @@ export const BUILTIN_SERVERS: MCPServerConfig[] = [
     name: 'Echo Server (Built-in)',
     command: 'node',
     args: ['test-servers/echo-server.cjs']
+  },
+  {
+    id: 'filesystem',
+    name: 'Filesystem Server (Built-in)',
+    command: 'node',
+    args: ['test-servers/filesystem-server.cjs']
+  },
+  {
+    id: 'weather',
+    name: 'Weather API (Built-in)',
+    command: 'node',
+    args: ['test-servers/weather-server.cjs']
   }
 ]
