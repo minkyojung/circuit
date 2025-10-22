@@ -187,66 +187,65 @@ function CompactView({
     const servers = Object.values(multiData.servers)
     const errorServers = servers.filter(s => s.status === 'error')
     const runningServers = servers.filter(s => s.status === 'running')
-    const highlightServer = errorServers[0] || servers[0]
+    const highlightServer = errorServers[0] || servers.sort((a, b) => b.lastActivityTime - a.lastActivityTime)[0]
 
-    // Status dot component
+    // Status dot component (smaller)
     const StatusDot = ({ status }: { status: MCPServerState['status'] }) => {
       const dotColors = {
-        starting: 'bg-[#AE7663] shadow-[0_0_8px_rgba(174,118,99,0.8)]',
-        running: 'bg-[#D97757] shadow-[0_0_10px_rgba(217,119,87,0.9)]',
-        error: 'bg-[#ef4444] shadow-[0_0_10px_rgba(239,68,68,0.9)]',
-        stopped: 'bg-[#846961] shadow-[0_0_6px_rgba(132,105,97,0.6)]'
+        starting: 'bg-[#AE7663] shadow-[0_0_6px_rgba(174,118,99,0.8)] animate-pulse',
+        running: 'bg-[#D97757] shadow-[0_0_8px_rgba(217,119,87,0.9)]',
+        error: 'bg-[#ef4444] shadow-[0_0_8px_rgba(239,68,68,0.9)]',
+        stopped: 'bg-[#846961] shadow-[0_0_4px_rgba(132,105,97,0.6)]'
       }
-      return <div className={`w-2 h-2 rounded-full ${dotColors[status]}`} />
+      return <div className={`w-1.5 h-1.5 rounded-full ${dotColors[status]} ring-1 ring-white/20`} />
     }
 
     return (
       <div
-        className={`${glassClass} w-full h-full flex flex-col justify-center px-3 py-2`}
+        className={`${glassClass} w-full h-full flex items-center justify-center px-3`}
         onClick={onExpand}
         onDoubleClick={onHide}
       >
-        {/* Summary line */}
-        <div className="flex items-center gap-2 mb-1">
-          {/* Status dots (max 5) */}
-          <div className="flex items-center gap-1">
+        {/* Single line: dots + server name + stats */}
+        <div className="flex items-center gap-2 w-full">
+          {/* Avatar-group style status dots (overlapping) */}
+          <div className="flex items-center -space-x-1">
             {servers.slice(0, 5).map((s, i) => (
-              <StatusDot key={i} status={s.status} />
+              <div key={i} className="relative">
+                <StatusDot status={s.status} />
+              </div>
             ))}
             {servers.length > 5 && (
-              <span className="text-xs text-white/60 ml-0.5">+{servers.length - 5}</span>
+              <span className="text-[10px] text-white/50 ml-1.5">+{servers.length - 5}</span>
             )}
           </div>
-          <Server className="h-3.5 w-3.5 text-white/70" />
-          <span className="text-xs font-medium text-white/90">
-            {runningServers.length} active
-          </span>
-          <span className="text-xs text-white/50">•</span>
-          <span className="text-xs text-white/60">
-            {multiData.totalActivityCount} requests
-          </span>
-        </div>
 
-        {/* Highlight server (error or most recent) */}
-        {highlightServer && (
-          <div className="flex items-center gap-2 text-xs ml-5">
-            {errorServers.length > 0 && (
-              <AlertTriangle className="h-3 w-3 text-[#ef4444] flex-shrink-0" />
-            )}
-            {errorServers.length === 0 && (
-              <Zap className="h-3 w-3 text-[#D97757] flex-shrink-0" />
-            )}
-            <span className="text-white/70 truncate flex-1">
-              {highlightServer.serverName}
-              {errorServers.length > 0 && ` (${errorServers.length} error${errorServers.length > 1 ? 's' : ''})`}
-            </span>
+          {/* Server name */}
+          <span className="text-xs font-medium text-white/90 truncate flex-shrink-0">
+            {highlightServer.serverName}
+          </span>
+
+          {/* Separator */}
+          <span className="text-xs text-white/30">•</span>
+
+          {/* Stats */}
+          <div className="flex items-center gap-1.5 text-xs text-white/60 truncate">
+            <span>{runningServers.length} active</span>
+            <span className="text-white/30">•</span>
+            <span>{multiData.totalActivityCount} req</span>
             {highlightServer.recentActivity[0]?.latency && (
-              <span className="text-white/40 text-xs">
-                {highlightServer.recentActivity[0].latency}ms
-              </span>
+              <>
+                <span className="text-white/30">•</span>
+                <span className="text-white/50">{highlightServer.recentActivity[0].latency}ms</span>
+              </>
             )}
           </div>
-        )}
+
+          {/* Error indicator */}
+          {errorServers.length > 0 && (
+            <AlertTriangle className="h-3 w-3 text-[#ef4444] ml-auto flex-shrink-0" />
+          )}
+        </div>
       </div>
     )
   }
@@ -299,19 +298,19 @@ function CompactView({
       switch (mcpData.status) {
         case 'starting':
           return (
-            <div className="w-2 h-2 rounded-full bg-[#AE7663] shadow-[0_0_10px_rgba(174,118,99,0.8)] animate-pulse" />
+            <div className="w-1.5 h-1.5 rounded-full bg-[#AE7663] shadow-[0_0_8px_rgba(174,118,99,0.8)] animate-pulse" />
           )
         case 'running':
           return (
-            <div className="w-2 h-2 rounded-full bg-[#D97757] shadow-[0_0_10px_rgba(217,119,87,0.9)]" />
+            <div className="w-1.5 h-1.5 rounded-full bg-[#D97757] shadow-[0_0_8px_rgba(217,119,87,0.9)]" />
           )
         case 'error':
           return (
-            <div className="w-2 h-2 rounded-full bg-[#ef4444] shadow-[0_0_10px_rgba(239,68,68,0.9)]" />
+            <div className="w-1.5 h-1.5 rounded-full bg-[#ef4444] shadow-[0_0_8px_rgba(239,68,68,0.9)]" />
           )
         default:
           return (
-            <div className="w-2 h-2 rounded-full bg-[#846961] shadow-[0_0_8px_rgba(132,105,97,0.6)]" />
+            <div className="w-1.5 h-1.5 rounded-full bg-[#846961] shadow-[0_0_6px_rgba(132,105,97,0.6)]" />
           )
       }
     }
@@ -412,12 +411,12 @@ function ExpandedView({
     // Status dot component
     const StatusDot = ({ status }: { status: MCPServerState['status'] }) => {
       const dotColors = {
-        starting: 'bg-[#AE7663] shadow-[0_0_10px_rgba(174,118,99,0.9)] animate-pulse',
-        running: 'bg-[#D97757] shadow-[0_0_12px_rgba(217,119,87,0.9)]',
-        error: 'bg-[#ef4444] shadow-[0_0_12px_rgba(239,68,68,0.9)]',
-        stopped: 'bg-[#846961] shadow-[0_0_8px_rgba(132,105,97,0.6)]'
+        starting: 'bg-[#AE7663] shadow-[0_0_8px_rgba(174,118,99,0.9)] animate-pulse',
+        running: 'bg-[#D97757] shadow-[0_0_10px_rgba(217,119,87,0.9)]',
+        error: 'bg-[#ef4444] shadow-[0_0_10px_rgba(239,68,68,0.9)]',
+        stopped: 'bg-[#846961] shadow-[0_0_6px_rgba(132,105,97,0.6)]'
       }
-      return <div className={`w-2.5 h-2.5 rounded-full ${dotColors[status]}`} />
+      return <div className={`w-2 h-2 rounded-full ${dotColors[status]}`} />
     }
 
     return (
@@ -622,13 +621,13 @@ function ExpandedView({
     const getStatusDot = () => {
       switch (mcpData.status) {
         case 'starting':
-          return <div className="w-2.5 h-2.5 rounded-full bg-[#AE7663] shadow-[0_0_12px_rgba(174,118,99,0.9)] animate-pulse" />
+          return <div className="w-2 h-2 rounded-full bg-[#AE7663] shadow-[0_0_10px_rgba(174,118,99,0.9)] animate-pulse" />
         case 'running':
-          return <div className="w-2.5 h-2.5 rounded-full bg-[#D97757] shadow-[0_0_12px_rgba(217,119,87,0.9)]" />
+          return <div className="w-2 h-2 rounded-full bg-[#D97757] shadow-[0_0_10px_rgba(217,119,87,0.9)]" />
         case 'error':
-          return <div className="w-2.5 h-2.5 rounded-full bg-[#ef4444] shadow-[0_0_12px_rgba(239,68,68,0.9)]" />
+          return <div className="w-2 h-2 rounded-full bg-[#ef4444] shadow-[0_0_10px_rgba(239,68,68,0.9)]" />
         default:
-          return <div className="w-2.5 h-2.5 rounded-full bg-[#846961] shadow-[0_0_10px_rgba(132,105,97,0.6)]" />
+          return <div className="w-2 h-2 rounded-full bg-[#846961] shadow-[0_0_8px_rgba(132,105,97,0.6)]" />
       }
     }
 
