@@ -159,6 +159,19 @@ ipcMain.on('peek:mouse-leave', () => {
   }
 });
 
+ipcMain.on('peek:open-in-window', (event, payload) => {
+  if (mainWindow) {
+    // Focus main window
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore();
+    }
+    mainWindow.focus();
+
+    // Send data to main window
+    mainWindow.webContents.send('peek:data-opened', payload);
+  }
+});
+
 app.whenReady().then(() => {
   createWindow();
   createPeekWindow();

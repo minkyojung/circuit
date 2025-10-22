@@ -11,7 +11,7 @@ import { CheckCircle2, XCircle, Loader2, Info, Server, Zap, AlertTriangle } from
  * - Expanded: Full details with glassmorphism
  */
 export function PeekPanel() {
-  const { state, data, expand, collapse, hide, setFocusedServer } = usePeekPanel()
+  const { state, data, expand, collapse, hide, setFocusedServer, openInWindow } = usePeekPanel()
 
   if (state === 'hidden') {
     return null
@@ -26,7 +26,7 @@ export function PeekPanel() {
     <div className={containerClass}>
       {state === 'dot' && <DotView data={data} onExpand={expand} />}
       {state === 'compact' && <CompactView data={data} onExpand={expand} onCollapse={collapse} onHide={hide} />}
-      {state === 'expanded' && <ExpandedView data={data} onCollapse={collapse} onHide={hide} setFocusedServer={setFocusedServer} />}
+      {state === 'expanded' && <ExpandedView data={data} onCollapse={collapse} onHide={hide} setFocusedServer={setFocusedServer} openInWindow={openInWindow} />}
     </div>
   )
 }
@@ -377,12 +377,14 @@ function ExpandedView({
   data,
   onCollapse,
   onHide,
-  setFocusedServer
+  setFocusedServer,
+  openInWindow
 }: {
   data: any
   onCollapse: () => void
   onHide: () => void
   setFocusedServer: (serverId: string) => void
+  openInWindow: () => void
 }) {
   if (!data) return null
 
@@ -430,6 +432,12 @@ function ExpandedView({
             </h3>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={openInWindow}
+              className="text-xs text-white/60 hover:text-white/90 transition-colors px-2 py-1 rounded hover:bg-white/10"
+            >
+              View Details
+            </button>
             <button
               onClick={onCollapse}
               className="text-xs text-white/60 hover:text-white/90 transition-colors px-2 py-1 rounded hover:bg-white/10"

@@ -74,9 +74,86 @@ export interface MultiMCPPeekData {
 }
 
 /**
+ * Deployment/Build Event Data (Vercel, Netlify, etc.)
+ */
+export interface DeploymentPeekData {
+  type: 'deployment'
+  source: 'vercel' | 'netlify' | 'github-pages' | 'custom'
+  status: 'building' | 'success' | 'failed' | 'cancelled'
+  projectName: string
+  branch: string
+  commit: string
+  timestamp: number
+  duration?: number
+  // For failed builds
+  error?: {
+    message: string
+    file?: string
+    line?: number
+    code?: string
+  }
+  // Deep link data
+  url?: string
+  logUrl?: string
+}
+
+/**
+ * Git/GitHub Event Data (CI, PR, etc.)
+ */
+export interface GitPeekData {
+  type: 'git'
+  eventType: 'push' | 'pr' | 'ci' | 'review'
+  status: 'pending' | 'running' | 'success' | 'failed' | 'cancelled'
+  title: string
+  branch: string
+  commit?: string
+  timestamp: number
+  // CI-specific
+  checks?: {
+    name: string
+    status: 'pending' | 'running' | 'success' | 'failed'
+    conclusion?: string
+  }[]
+  // Deep link
+  url?: string
+}
+
+/**
+ * Generic Event Data (extensible for future integrations)
+ */
+export interface GenericEventData {
+  type: 'generic'
+  category: string  // 'linter', 'formatter', 'security-scan', etc.
+  status: 'info' | 'success' | 'warning' | 'error'
+  title: string
+  message: string
+  timestamp: number
+  // Optional details
+  details?: {
+    file?: string
+    line?: number
+    code?: string
+    suggestion?: string
+  }
+  // Actions
+  actions?: {
+    label: string
+    action: string  // IPC event name or URL
+  }[]
+}
+
+/**
  * Peek Data Union Type
  */
-export type PeekData = TestResultData | CustomPeekData | MCPPeekData | MultiMCPPeekData | null
+export type PeekData =
+  | TestResultData
+  | CustomPeekData
+  | MCPPeekData
+  | MultiMCPPeekData
+  | DeploymentPeekData
+  | GitPeekData
+  | GenericEventData
+  | null
 
 /**
  * Hook for managing the Circuit Peek Panel
@@ -171,6 +248,29 @@ export function usePeekPanel() {
         ...data,
         focusedServerId: serverId
       })
+    }
+  }, [data])
+
+  /**
+   * Open detailed view in main window
+   */
+  const openInWindow = useCallback((targetData?: PeekData) => {
+    const dataToOpen = targetData || data
+    if (!dataToOpen) return
+
+    try {
+      const { ipcRenderer } = require('electron')
+
+      // Send event to main process to open in main window
+      ipcRenderer.send('peek:open-in-window', {
+        type: dataToOpen.type,
+        data: dataToOpen
+      })
+
+      // Optionally hide panel after opening
+      // hide()
+    } catch (e) {
+      console.warn('IPC not available for openInWindow:', e)
     }
   }, [data])
 
@@ -493,6 +593,7 @@ export function usePeekPanel() {
     hide,
     expand,
     collapse,
-    setFocusedServer
+    setFocusedServer,
+    openInWindow
   }
 }
