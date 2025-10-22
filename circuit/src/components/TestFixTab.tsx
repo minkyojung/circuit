@@ -7,16 +7,22 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Rocket, CheckCircle, AlertCircle, Sparkles, Eye, EyeOff, Play, Loader2, Wand2, Check } from 'lucide-react'
-import { detectProjectType, getProjectTypeName, getConfidenceMessage, type DetectionResult, type ProjectType } from '@/core/detector'
+import { detectProjectType, getProjectTypeName, getConfidenceMessage, type DetectionResult } from '@/core/detector'
 import { formatEvent, type FileChangeEvent } from '@/core/watcher'
 import { type TestResult } from '@/core/test-runner'
 import { parseAiFix, type ParsedFix } from '@/core/claude-cli'
 
 // Electron IPC
+declare global {
+  interface Window {
+    require: any
+  }
+}
+
 const { ipcRenderer } = window.require('electron')
 
 export function TestFixTab() {
-  const [projectPath, setProjectPath] = useState('/Users/williamjung/test-project')
+  const [projectPath, setProjectPath] = useState('')
   const [isDetecting, setIsDetecting] = useState(false)
   const [detection, setDetection] = useState<DetectionResult | null>(null)
   const [isInitializing, setIsInitializing] = useState(false)
@@ -45,12 +51,10 @@ export function TestFixTab() {
   // Phase 3: Set up file change listener
   useEffect(() => {
     const handleFileChange = (_event: any, changeEvent: FileChangeEvent) => {
-      console.log('[Circuit] File change received:', changeEvent)
       setFileChanges(prev => [changeEvent, ...prev].slice(0, 10)) // Keep last 10
 
       // Phase 4: Auto-run tests on file change
       if (autoTest && !isRunningTest) {
-        console.log('[Circuit] Auto-running tests due to file change')
         handleRunTest()
       }
     }
@@ -67,13 +71,10 @@ export function TestFixTab() {
     setDetection(null)
 
     try {
-      console.log('[Circuit] Detecting project at:', projectPath)
-
       const result = await ipcRenderer.invoke('circuit:detect-project', projectPath)
 
       if (result.success) {
         const detected = detectProjectType(result.packageJson)
-        console.log('[Circuit] Detection result:', detected)
         setDetection(detected)
       } else {
         setDetection({
@@ -83,7 +84,6 @@ export function TestFixTab() {
         })
       }
     } catch (error) {
-      console.error('[Circuit] Detection error:', error)
       setDetection({
         type: 'unknown',
         confidence: 0,
@@ -95,26 +95,17 @@ export function TestFixTab() {
   }
 
   const handleInitialize = async () => {
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
-    console.log('🚀 Initialize clicked!')
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
-
     setIsInitializing(true)
     setInitResult(null)
 
     try {
       // Use detected strategy (or default to 'react')
-      const strategy = detection?.type !== 'unknown' ? detection.type : 'react'
-
-      console.log('[Circuit] Calling circuit:init with strategy:', strategy)
+      const strategy = detection?.type && detection.type !== 'unknown' ? detection.type : 'react'
 
       const result = await ipcRenderer.invoke('circuit:init', projectPath, strategy)
 
-      console.log('[Circuit] Init result:', result)
-
       setInitResult(result)
     } catch (error) {
-      console.error('[Circuit] Init error:', error)
       setInitResult({
         success: false,
         error: error instanceof Error ? error.message : String(error)
@@ -126,18 +117,14 @@ export function TestFixTab() {
 
   // Phase 3: Toggle file watching
   const handleToggleWatch = async () => {
-    const projectPath = '/Users/williamjung/test-project'
-
     if (isWatching) {
       // Stop watching
-      const result = await ipcRenderer.invoke('circuit:watch-stop', projectPath)
-      console.log('[Circuit] Watch stopped:', result)
+      await ipcRenderer.invoke('circuit:watch-stop', projectPath)
       setIsWatching(false)
       setFileChanges([])
     } else {
       // Start watching
-      const result = await ipcRenderer.invoke('circuit:watch-start', projectPath)
-      console.log('[Circuit] Watch started:', result)
+      await ipcRenderer.invoke('circuit:watch-start', projectPath)
       setIsWatching(true)
     }
   }
@@ -148,12 +135,9 @@ export function TestFixTab() {
     setTestResult(null)
 
     try {
-      console.log('[Circuit] Running tests...')
       const result = await ipcRenderer.invoke('circuit:run-test', projectPath)
-      console.log('[Circuit] Test result:', result)
       setTestResult(result)
     } catch (error) {
-      console.error('[Circuit] Test error:', error)
       setTestResult({
         success: false,
         passed: 0,
@@ -177,8 +161,6 @@ export function TestFixTab() {
     setParsedFix(null)
 
     try {
-      console.log('[Circuit] Requesting AI fix...')
-
       // Read test file content
       const testFilePath = `${projectPath}/test.js`
       const fs = window.require('fs')
@@ -186,9 +168,8 @@ export function TestFixTab() {
 
       try {
         testCode = fs.readFileSync(testFilePath, 'utf-8')
-        console.log('[Circuit] Test file loaded, length:', testCode.length)
       } catch (readError) {
-        console.warn('[Circuit] Could not read test file:', readError)
+        // Could not read test file
       }
 
       const fixRequest = {
@@ -200,8 +181,6 @@ export function TestFixTab() {
 
       const result = await ipcRenderer.invoke('circuit:get-ai-fix', fixRequest)
 
-      console.log('[Circuit] AI fix result:', result)
-
       if (result.success) {
         setAiFix(result.fix)
 
@@ -209,15 +188,11 @@ export function TestFixTab() {
         const parsed = parseAiFix(result.fix)
         if (parsed) {
           setParsedFix(parsed)
-          console.log('[Circuit] Parsed fix:', parsed)
-        } else {
-          console.warn('[Circuit] Could not parse AI fix - Apply button will be hidden')
         }
       } else {
         setAiFix(`❌ Error: ${result.error}`)
       }
     } catch (error) {
-      console.error('[Circuit] Get AI fix error:', error)
       setAiFix(`❌ Error: ${String(error)}`)
     } finally {
       setIsGettingFix(false)
@@ -231,8 +206,6 @@ export function TestFixTab() {
     setIsApplyingFix(true)
 
     try {
-      console.log('[Circuit] Applying fix...')
-
       const testFilePath = `${projectPath}/test.js`
 
       const result = await ipcRenderer.invoke('circuit:apply-fix', {
@@ -240,17 +213,13 @@ export function TestFixTab() {
         fixedCode: parsedFix.fixedCode
       })
 
-      console.log('[Circuit] Apply fix result:', result)
-
       if (result.success) {
         // Auto-rerun tests after applying fix
-        console.log('[Circuit] Fix applied! Auto-running tests...')
         await handleRunTest()
       } else {
         alert(`Failed to apply fix: ${result.error}`)
       }
     } catch (error) {
-      console.error('[Circuit] Apply fix error:', error)
       alert(`Error applying fix: ${String(error)}`)
     } finally {
       setIsApplyingFix(false)
@@ -375,7 +344,7 @@ export function TestFixTab() {
                           {initResult.message}
                         </p>
                         <p className="text-xs text-green-700 dark:text-green-300 mt-1">
-                          Check <code className="bg-green-100 dark:bg-green-900 px-1 rounded">/Users/williamjung/test-project/.circuit/</code>
+                          Check <code className="bg-green-100 dark:bg-green-900 px-1 rounded">{projectPath}/.circuit/</code>
                         </p>
                       </div>
                     </>

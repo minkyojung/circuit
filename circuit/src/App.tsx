@@ -14,9 +14,8 @@ function App() {
   // Phase 0: .circuit/ 설정 읽기 시도
   useEffect(() => {
     const checkCircuitConfig = async () => {
-      // TODO: 실제 프로젝트 경로 가져오기 (나중에 Electron main에서)
-      const dummyPath = '/Users/williamjung/test-project'
-      const config = await readCircuitConfig(dummyPath)
+      // TODO: Get actual project path from Electron main process
+      const config = await readCircuitConfig('')
       logCircuitStatus(config)
     }
 

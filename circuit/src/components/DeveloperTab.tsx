@@ -37,8 +37,6 @@ export function DeveloperTab() {
   // Listen to MCP events
   useEffect(() => {
     const removeListener = mcpClient.addEventListener((event) => {
-      console.log('[MCP Event]', event)
-
       switch (event.type) {
         case 'initialized':
           setServerStatus('running')
@@ -65,24 +63,23 @@ export function DeveloperTab() {
           setMessages(prev => [...prev, msg])
 
           // Update metrics
-          if (msg.latency) {
+          if (msg.latency !== undefined) {
             setMetrics(prev => ({
               totalRequests: prev.totalRequests + 1,
-              avgLatency: (prev.avgLatency * prev.totalRequests + msg.latency) / (prev.totalRequests + 1),
-              minLatency: Math.min(prev.minLatency, msg.latency),
-              maxLatency: Math.max(prev.maxLatency, msg.latency)
+              avgLatency: (prev.avgLatency * prev.totalRequests + msg.latency!) / (prev.totalRequests + 1),
+              minLatency: Math.min(prev.minLatency, msg.latency!),
+              maxLatency: Math.max(prev.maxLatency, msg.latency!)
             }))
           }
           break
 
         case 'error':
-          console.error('[MCP Error]', event.error)
           setServerStatus('error')
           setServerError(event.error || 'Unknown error')
           break
 
         case 'log':
-          console.log(`[MCP Log ${event.level}]`, event.message)
+          // Log messages are handled internally
           break
       }
     })
@@ -102,7 +99,7 @@ export function DeveloperTab() {
       setPrompts(promptsList || [])
       setResources(resourcesList || [])
     } catch (error) {
-      console.error('Failed to fetch capabilities:', error)
+      // Failed to fetch capabilities
     }
   }
 
