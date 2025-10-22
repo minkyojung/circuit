@@ -530,6 +530,41 @@ export function usePeekPanel() {
   }, [show, hide, state, data])
 
   /**
+   * Listen for deployment events from Electron main process (Vercel webhooks)
+   */
+  useEffect(() => {
+    try {
+      const { ipcRenderer } = require('electron')
+
+      const handleDeploymentEvent = (event: any, deploymentData: DeploymentPeekData) => {
+        // Show compact view for deployment events
+        if (deploymentData.status === 'building') {
+          show('compact', deploymentData)
+        } else if (deploymentData.status === 'success') {
+          show('compact', deploymentData)
+          // Auto-dismiss after 5s if success
+          setTimeout(() => {
+            if (state !== 'expanded') {
+              hide()
+            }
+          }, 5000)
+        } else {
+          // Failed or cancelled - show expanded for details
+          show('expanded', deploymentData)
+        }
+      }
+
+      ipcRenderer.on('deployment:event', handleDeploymentEvent)
+
+      return () => {
+        ipcRenderer.removeListener('deployment:event', handleDeploymentEvent)
+      }
+    } catch (e) {
+      console.warn('IPC not available for deployment events:', e)
+    }
+  }, [show, hide, state])
+
+  /**
    * Keyboard shortcuts and IPC toggle events
    */
   useEffect(() => {

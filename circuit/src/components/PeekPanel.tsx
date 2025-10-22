@@ -1,6 +1,6 @@
 import { usePeekPanel } from '@/hooks/usePeekPanel'
-import type { TestResultData, CustomPeekData, MCPPeekData, MCPActivity, MultiMCPPeekData, MCPServerState } from '@/hooks/usePeekPanel'
-import { CheckCircle2, XCircle, Loader2, Info, Server, Zap, AlertTriangle } from 'lucide-react'
+import type { TestResultData, CustomPeekData, MCPPeekData, MCPActivity, MultiMCPPeekData, MCPServerState, DeploymentPeekData } from '@/hooks/usePeekPanel'
+import { CheckCircle2, XCircle, Loader2, Info, Server, Zap, AlertTriangle, Rocket, ExternalLink } from 'lucide-react'
 
 /**
  * Circuit Peek Panel
@@ -123,6 +123,38 @@ function DotView({ data, onExpand }: { data: any; onExpand: () => void }) {
           return {
             bg: 'bg-[#D97757]',
             shadow: 'shadow-[0_0_25px_rgba(217,119,87,0.9)]'
+          }
+      }
+    }
+
+    if (data.type === 'deployment') {
+      const deployData = data as DeploymentPeekData
+      switch (deployData.status) {
+        case 'building':
+          return {
+            bg: 'bg-[#D97757]',
+            shadow: 'shadow-[0_0_25px_rgba(217,119,87,0.9)]',
+            animate: 'animate-pulse'
+          }
+        case 'success':
+          return {
+            bg: 'bg-[#4ade80]',
+            shadow: 'shadow-[0_0_25px_rgba(74,222,128,0.9)]'
+          }
+        case 'failed':
+          return {
+            bg: 'bg-[#ef4444]',
+            shadow: 'shadow-[0_0_25px_rgba(239,68,68,0.9)]'
+          }
+        case 'cancelled':
+          return {
+            bg: 'bg-[#AE7663]',
+            shadow: 'shadow-[0_0_20px_rgba(174,118,99,0.6)]'
+          }
+        default:
+          return {
+            bg: 'bg-[#846961]',
+            shadow: 'shadow-[0_0_20px_rgba(132,105,97,0.6)]'
           }
       }
     }
@@ -362,6 +394,28 @@ function CompactView({
         <div className="flex items-center gap-2">
           {getIcon()}
           <span className="text-xs font-medium text-white/90 truncate">{customData.message}</span>
+        </div>
+      </div>
+    )
+  }
+
+  if (data.type === 'deployment') {
+    const deployData = data as DeploymentPeekData
+    return (
+      <div
+        className={`${glassClass} w-full h-full flex items-center justify-center px-3`}
+        onClick={onExpand}
+        onDoubleClick={onHide}
+      >
+        <div className="flex items-center gap-2">
+          {deployData.status === 'building' && <Loader2 className="h-4 w-4 text-[#D97757] animate-spin" />}
+          {deployData.status === 'success' && <CheckCircle2 className="h-4 w-4 text-[#4ade80]" />}
+          {deployData.status === 'failed' && <XCircle className="h-4 w-4 text-[#ef4444]" />}
+          {deployData.status === 'cancelled' && <Info className="h-4 w-4 text-[#AE7663]" />}
+          <Rocket className="h-4 w-4 text-white/70" />
+          <span className="text-xs font-medium text-white/90 truncate">{deployData.projectName}</span>
+          <span className="text-xs text-white/30">•</span>
+          <span className="text-xs text-white/60 truncate">{deployData.branch}</span>
         </div>
       </div>
     )
@@ -755,6 +809,114 @@ function ExpandedView({
         <div className="flex-1 overflow-y-auto text-xs text-white/80">
           {customData.message}
         </div>
+      </div>
+    )
+  }
+
+  if (data.type === 'deployment') {
+    const deployData = data as DeploymentPeekData
+    return (
+      <div className={`${glassClass} p-3`}>
+        {/* Header */}
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            {deployData.status === 'building' && <Loader2 className="h-4 w-4 text-[#D97757] animate-spin" />}
+            {deployData.status === 'success' && <CheckCircle2 className="h-4 w-4 text-[#4ade80]" />}
+            {deployData.status === 'failed' && <XCircle className="h-4 w-4 text-[#ef4444]" />}
+            {deployData.status === 'cancelled' && <Info className="h-4 w-4 text-[#AE7663]" />}
+            <Rocket className="h-3.5 w-3.5 text-white/70" />
+            <h3 className="text-xs font-semibold text-white/90">Deployment</h3>
+          </div>
+          <div className="flex items-center gap-2">
+            {deployData.status !== 'building' && (
+              <button
+                onClick={openInWindow}
+                className="text-xs text-white/60 hover:text-white/90 transition-colors px-2 py-1 rounded hover:bg-white/10"
+              >
+                View Details
+              </button>
+            )}
+            <button
+              onClick={onCollapse}
+              className="text-xs text-white/60 hover:text-white/90 transition-colors px-2 py-1 rounded hover:bg-white/10"
+            >
+              Collapse
+            </button>
+            <button
+              onClick={onHide}
+              className="text-sm text-white/60 hover:text-white/90 transition-colors px-1.5 py-0.5 rounded hover:bg-white/10"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+
+        {/* Project Info */}
+        <div className="space-y-1.5 mb-2">
+          <div className="text-xs text-white/90 font-medium">{deployData.projectName}</div>
+          <div className="flex items-center gap-2 text-xs text-white/60">
+            <span>{deployData.source}</span>
+            <span className="text-white/30">•</span>
+            <span>{deployData.branch}</span>
+            <span className="text-white/30">•</span>
+            <span className="font-mono">{deployData.commit}</span>
+          </div>
+        </div>
+
+        {/* Status */}
+        <div className={`text-xs font-medium mb-2 ${
+          deployData.status === 'building' ? 'text-[#D97757]' :
+          deployData.status === 'success' ? 'text-[#4ade80]' :
+          deployData.status === 'failed' ? 'text-[#ef4444]' :
+          'text-[#AE7663]'
+        }`}>
+          {deployData.status === 'building' && 'Building...'}
+          {deployData.status === 'success' && '✓ Deployed Successfully'}
+          {deployData.status === 'failed' && '✗ Deployment Failed'}
+          {deployData.status === 'cancelled' && 'Cancelled'}
+        </div>
+
+        {/* Duration */}
+        {deployData.duration && (
+          <div className="text-xs text-white/50 mb-2">
+            Duration: {(deployData.duration / 1000).toFixed(1)}s
+          </div>
+        )}
+
+        {/* Error */}
+        {deployData.error && (
+          <div className="bg-[#332925]/40 rounded-lg p-2 text-xs text-[#ef4444] mb-2">
+            {deployData.error.message}
+          </div>
+        )}
+
+        {/* Links */}
+        {(deployData.url || deployData.logUrl) && (
+          <div className="flex gap-2 mt-2">
+            {deployData.url && (
+              <a
+                href={deployData.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-xs text-white/60 hover:text-white/90 transition-colors px-2 py-1 rounded hover:bg-white/10"
+              >
+                <ExternalLink className="h-3 w-3" />
+                Visit
+              </a>
+            )}
+            {deployData.logUrl && (
+              <a
+                href={deployData.logUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-xs text-white/60 hover:text-white/90 transition-colors px-2 py-1 rounded hover:bg-white/10"
+              >
+                <ExternalLink className="h-3 w-3" />
+                Logs
+              </a>
+            )}
+          </div>
+        )}
       </div>
     )
   }

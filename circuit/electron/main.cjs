@@ -4,6 +4,7 @@ const { spawn } = require('child_process');
 const fs = require('fs').promises;
 const chokidar = require('chokidar');
 const os = require('os');
+const http = require('http');
 
 // macOS traffic light button positioning
 const HEADER_HEIGHT = 44;
@@ -178,6 +179,93 @@ ipcMain.on('peek:open-in-window', (event, payload) => {
   }
 });
 
+// ============================================================================
+// Vercel Webhook Server for Deployment Events
+// ============================================================================
+
+/**
+ * Start HTTP server to receive Vercel deployment webhooks
+ * Server listens on port 3456 by default
+ */
+function startWebhookServer() {
+  const PORT = process.env.WEBHOOK_PORT || 3456;
+
+  const server = http.createServer((req, res) => {
+    // Only handle POST requests to /webhook/vercel
+    if (req.method === 'POST' && req.url === '/webhook/vercel') {
+      let body = '';
+
+      req.on('data', (chunk) => {
+        body += chunk.toString();
+      });
+
+      req.on('end', () => {
+        try {
+          const payload = JSON.parse(body);
+
+          // Transform Vercel webhook payload to DeploymentPeekData format
+          const deploymentData = {
+            type: 'deployment',
+            source: 'vercel',
+            status: transformVercelStatus(payload.deployment.state),
+            projectName: payload.deployment.projectSettings?.name || payload.deployment.name,
+            branch: payload.deployment.meta?.githubCommitRef || 'main',
+            commit: payload.deployment.meta?.githubCommitSha?.slice(0, 7) || 'unknown',
+            timestamp: Date.now(),
+            duration: payload.deployment.ready ? Date.now() - payload.deployment.createdAt : undefined,
+            url: payload.deployment.url ? `https://${payload.deployment.url}` : undefined,
+            logUrl: payload.deployment.inspectorUrl,
+            error: payload.deployment.errorMessage ? {
+              message: payload.deployment.errorMessage,
+            } : undefined
+          };
+
+          // Send to peek panel
+          if (peekWindow) {
+            peekWindow.webContents.send('deployment:event', deploymentData);
+          }
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ received: true }));
+        } catch (error) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid JSON' }));
+        }
+      });
+    } else {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Not found' }));
+    }
+  });
+
+  server.listen(PORT, () => {
+    console.log(`[Webhook] Server listening on port ${PORT}`);
+    console.log(`[Webhook] Vercel endpoint: http://localhost:${PORT}/webhook/vercel`);
+  });
+
+  // Store server reference for cleanup
+  app.on('before-quit', () => {
+    server.close();
+  });
+
+  return server;
+}
+
+/**
+ * Transform Vercel deployment status to our status enum
+ */
+function transformVercelStatus(vercelStatus) {
+  const statusMap = {
+    'BUILDING': 'building',
+    'READY': 'success',
+    'ERROR': 'failed',
+    'CANCELED': 'cancelled',
+    'QUEUED': 'building',
+    'INITIALIZING': 'building'
+  };
+  return statusMap[vercelStatus] || 'building';
+}
+
 app.whenReady().then(() => {
   createWindow();
   createPeekWindow();
@@ -192,6 +280,9 @@ app.whenReady().then(() => {
       }
     }
   });
+
+  // Start Vercel webhook server
+  startWebhookServer();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
