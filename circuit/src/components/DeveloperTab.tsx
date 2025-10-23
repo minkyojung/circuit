@@ -1,109 +1,130 @@
 import { useState, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+import { Server, Play, Square, AlertCircle, Activity } from 'lucide-react'
 import { mcpClient, BUILTIN_SERVERS } from '@/lib/mcp-client'
 import type { MessageLog, Tool, Prompt, Resource, MCPServerConfig } from '@/types/mcp'
 
+// Server state tracker
+interface ServerState {
+  id: string
+  name: string
+  status: 'stopped' | 'starting' | 'running' | 'error'
+  info: any | null
+  error: string
+  messages: MessageLog[]
+  tools: Tool[]
+  prompts: Prompt[]
+  resources: Resource[]
+  metrics: {
+    totalRequests: number
+    avgLatency: number
+    lastActivity: number | null
+  }
+}
+
 export function DeveloperTab() {
-  const [selectedServerId, setSelectedServerId] = useState<string>('')
-  const [customCommand, setCustomCommand] = useState('')
-  const [customArgs, setCustomArgs] = useState('')
+  // Track all servers state
+  const [servers, setServers] = useState<Map<string, ServerState>>(new Map())
 
-  const [serverStatus, setServerStatus] = useState<'stopped' | 'starting' | 'running' | 'error'>('stopped')
-  const [serverInfo, setServerInfo] = useState<any>(null)
-  const [serverError, setServerError] = useState<string>('')
-  const [messages, setMessages] = useState<MessageLog[]>([])
-
-  const [tools, setTools] = useState<Tool[]>([])
-  const [prompts, setPrompts] = useState<Prompt[]>([])
-  const [resources, setResources] = useState<Resource[]>([])
-
-  // Tool testing state
-  const [testingTool, setTestingTool] = useState<Tool | null>(null)
-  const [toolArgs, setToolArgs] = useState<Record<string, string>>({})
-
-  const [metrics, setMetrics] = useState({
-    totalRequests: 0,
-    avgLatency: 0,
-    minLatency: Infinity,
-    maxLatency: 0
-  })
-
-  // Check server status when selection changes
+  // Initialize servers from BUILTIN_SERVERS
   useEffect(() => {
-    if (selectedServerId) {
-      mcpClient.getServerStatus(selectedServerId).then(({ status }) => {
-        if (status === 'running') {
-          setServerStatus('running')
-          fetchCapabilities(selectedServerId)
-        } else {
-          setServerStatus('stopped')
+    const initialServers = new Map<string, ServerState>()
+    BUILTIN_SERVERS.forEach(config => {
+      initialServers.set(config.id, {
+        id: config.id,
+        name: config.name,
+        status: 'stopped',
+        info: null,
+        error: '',
+        messages: [],
+        tools: [],
+        prompts: [],
+        resources: [],
+        metrics: {
+          totalRequests: 0,
+          avgLatency: 0,
+          lastActivity: null
         }
-      }).catch(() => {
-        setServerStatus('stopped')
       })
-    }
-  }, [selectedServerId])
+    })
+    setServers(initialServers)
+  }, [])
 
-  // Listen to MCP events
+  // Listen to MCP events for all servers
   useEffect(() => {
     const removeListener = mcpClient.addEventListener((event) => {
-      switch (event.type) {
-        case 'initialized':
-          setServerStatus('running')
-          setServerInfo(event.serverInfo)
-          // Auto-fetch capabilities
-          if (selectedServerId) {
-            fetchCapabilities(selectedServerId)
-          }
-          break
+      const serverId = event.serverId
+      if (!serverId) return
 
-        case 'status':
-          setServerStatus(event.status)
-          if (event.status === 'stopped') {
-            setTools([])
-            setPrompts([])
-            setResources([])
-            setServerInfo(null)
-            setServerError('')
-          }
-          break
+      setServers(prev => {
+        const newServers = new Map(prev)
+        const server = newServers.get(serverId)
+        if (!server) return prev
 
-        case 'message':
-          const msg = event.message as MessageLog
-          setMessages(prev => [...prev, msg])
+        switch (event.type) {
+          case 'initialized':
+            server.status = 'running'
+            server.info = event.serverInfo
+            // Auto-fetch capabilities
+            fetchCapabilities(serverId, server)
+            break
 
-          // Update metrics
-          if (msg.latency !== undefined) {
-            setMetrics(prev => ({
-              totalRequests: prev.totalRequests + 1,
-              avgLatency: (prev.avgLatency * prev.totalRequests + msg.latency!) / (prev.totalRequests + 1),
-              minLatency: Math.min(prev.minLatency, msg.latency!),
-              maxLatency: Math.max(prev.maxLatency, msg.latency!)
-            }))
-          }
-          break
+          case 'status':
+            server.status = event.status
+            if (event.status === 'stopped') {
+              server.tools = []
+              server.prompts = []
+              server.resources = []
+              server.info = null
+              server.error = ''
+              server.messages = []
+              server.metrics = {
+                totalRequests: 0,
+                avgLatency: 0,
+                lastActivity: null
+              }
+            }
+            break
 
-        case 'error':
-          setServerStatus('error')
-          setServerError(event.error || 'Unknown error')
-          break
+          case 'message':
+            const msg = event.message as MessageLog
+            server.messages = [...server.messages, msg]
 
-        case 'log':
-          // Log messages are handled internally
-          break
-      }
+            // Update metrics
+            if (msg.latency !== undefined) {
+              const { totalRequests, avgLatency } = server.metrics
+              server.metrics = {
+                totalRequests: totalRequests + 1,
+                avgLatency: (avgLatency * totalRequests + msg.latency) / (totalRequests + 1),
+                lastActivity: Date.now()
+              }
+            }
+            break
+
+          case 'error':
+            server.status = 'error'
+            server.error = event.error || 'Unknown error'
+            break
+
+          case 'log':
+            // Log messages handled internally
+            break
+        }
+
+        newServers.set(serverId, server)
+        return newServers
+      })
     })
 
     return removeListener
-  }, [selectedServerId])
+  }, [])
 
-  const fetchCapabilities = async (serverId: string) => {
+  const fetchCapabilities = async (serverId: string, server: ServerState) => {
     try {
       const [toolsList, promptsList, resourcesList] = await Promise.all([
         mcpClient.listTools(serverId),
@@ -111,469 +132,334 @@ export function DeveloperTab() {
         mcpClient.listResources(serverId)
       ])
 
-      setTools(toolsList || [])
-      setPrompts(promptsList || [])
-      setResources(resourcesList || [])
+      setServers(prev => {
+        const newServers = new Map(prev)
+        const updatedServer = newServers.get(serverId)
+        if (updatedServer) {
+          updatedServer.tools = toolsList || []
+          updatedServer.prompts = promptsList || []
+          updatedServer.resources = resourcesList || []
+          newServers.set(serverId, updatedServer)
+        }
+        return newServers
+      })
     } catch (error) {
       // Failed to fetch capabilities
     }
   }
 
-  const handleStart = async () => {
-    if (!selectedServerId) {
-      alert('Please select a server')
+  const handleStart = async (serverId: string) => {
+    const builtin = BUILTIN_SERVERS.find(s => s.id === serverId)
+    if (!builtin) {
+      alert('Server not found')
       return
     }
 
-    setServerStatus('starting')
-    setServerError('')
-    setMessages([])
-    setMetrics({
-      totalRequests: 0,
-      avgLatency: 0,
-      minLatency: Infinity,
-      maxLatency: 0
+    // Update status to starting
+    setServers(prev => {
+      const newServers = new Map(prev)
+      const server = newServers.get(serverId)
+      if (server) {
+        server.status = 'starting'
+        server.error = ''
+        server.messages = []
+        server.metrics = {
+          totalRequests: 0,
+          avgLatency: 0,
+          lastActivity: null
+        }
+        newServers.set(serverId, server)
+      }
+      return newServers
     })
 
-    let config: MCPServerConfig
-
-    if (selectedServerId === 'custom') {
-      if (!customCommand.trim()) {
-        alert('Please enter a command')
-        setServerStatus('stopped')
-        return
-      }
-
-      config = {
-        id: 'custom',
-        name: 'Custom Server',
-        command: customCommand.split(' ')[0],
-        args: customArgs ? customArgs.split(' ') : customCommand.split(' ').slice(1)
-      }
-    } else {
-      const builtin = BUILTIN_SERVERS.find(s => s.id === selectedServerId)
-      if (!builtin) {
-        alert('Server not found')
-        setServerStatus('stopped')
-        return
-      }
-      config = builtin
-    }
-
-    const result = await mcpClient.startServer(config)
+    const result = await mcpClient.startServer(builtin)
     if (!result.success) {
-      setServerStatus('error')
-      setServerError(result.error || 'Failed to start server')
+      setServers(prev => {
+        const newServers = new Map(prev)
+        const server = newServers.get(serverId)
+        if (server) {
+          server.status = 'error'
+          server.error = result.error || 'Failed to start server'
+          newServers.set(serverId, server)
+        }
+        return newServers
+      })
     }
   }
 
-  const handleStop = async () => {
-    if (!selectedServerId) return
-
-    const result = await mcpClient.stopServer(selectedServerId)
-    if (result.success) {
-      setServerStatus('stopped')
-      setMessages([])
-      setTools([])
-      setPrompts([])
-      setResources([])
-      setServerInfo(null)
-    } else {
+  const handleStop = async (serverId: string) => {
+    const result = await mcpClient.stopServer(serverId)
+    if (!result.success) {
       alert(`Failed to stop server: ${result.error}`)
     }
   }
 
-  const handleTryTool = (toolName: string) => {
-    const tool = tools.find(t => t.name === toolName)
-    if (!tool) return
-
-    setTestingTool(tool)
-    setToolArgs({})
+  // Format time ago
+  const formatTimeAgo = (ms: number | null): string => {
+    if (!ms) return 'never'
+    const seconds = Math.floor((Date.now() - ms) / 1000)
+    if (seconds < 60) return 'now'
+    const minutes = Math.floor(seconds / 60)
+    if (minutes < 60) return `${minutes}m ago`
+    const hours = Math.floor(minutes / 60)
+    return `${hours}h ago`
   }
 
-  const handleExecuteTool = async () => {
-    if (!testingTool || !selectedServerId) return
-
-    // Build arguments with type coercion
-    const args: Record<string, any> = {}
-
-    if (testingTool.inputSchema.properties) {
-      for (const [key, schema] of Object.entries(testingTool.inputSchema.properties)) {
-        const propSchema = schema as any
-        const value = toolArgs[key]
-
-        if (value !== undefined && value !== '') {
-          if (propSchema.type === 'number') {
-            args[key] = parseFloat(value)
-          } else if (propSchema.type === 'boolean') {
-            args[key] = value.toLowerCase() === 'true'
-          } else {
-            args[key] = value
-          }
-        }
-      }
-    }
-
-    try {
-      const result = await mcpClient.callTool(selectedServerId, testingTool.name, args)
-
-      if (result.success) {
-        alert(`Tool result:\n${JSON.stringify(result.result, null, 2)}`)
-      } else {
-        alert(`Tool failed: ${result.error}`)
-      }
-    } catch (error) {
-      alert(`Error: ${error}`)
-    }
-
-    setTestingTool(null)
-    setToolArgs({})
-  }
-
-  const isRunning = serverStatus === 'running'
+  const serverList = Array.from(servers.values())
+  const runningServers = serverList.filter(s => s.status === 'running')
+  const errorServers = serverList.filter(s => s.status === 'error')
 
   return (
-    <div className="space-y-4">
-      {/* Server Controls */}
-      <Card className="p-4 border-border">
-        <div className="space-y-4">
-          <div className="flex items-end gap-3">
-            <div className="flex-1 space-y-2">
-              <label className="text-sm font-medium">Select Server</label>
-              <Select
-                value={selectedServerId}
-                onValueChange={setSelectedServerId}
-                disabled={serverStatus === 'starting'}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Choose a server..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {BUILTIN_SERVERS.map(server => (
-                    <SelectItem key={server.id} value={server.id}>
-                      {server.name}
-                    </SelectItem>
-                  ))}
-                  <SelectItem value="custom">Custom Server...</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <Button
-              onClick={isRunning ? handleStop : handleStart}
-              variant={isRunning ? "destructive" : "default"}
-              className="h-10"
-              disabled={serverStatus === 'starting' || !selectedServerId}
-            >
-              {serverStatus === 'starting' ? 'Starting...' : isRunning ? "Stop" : "Start"}
-            </Button>
-          </div>
-
-          {selectedServerId === 'custom' && !isRunning && (
-            <div className="space-y-3">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Command</label>
-                <Input
-                  placeholder="node"
-                  value={customCommand}
-                  onChange={(e) => setCustomCommand(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Arguments (space-separated)</label>
-                <Input
-                  placeholder="server.js --port 3000"
-                  value={customArgs}
-                  onChange={(e) => setCustomArgs(e.target.value)}
-                />
-              </div>
-            </div>
-          )}
-
-          {isRunning && serverInfo && (
-            <div className="flex items-center gap-2 text-sm">
-              <Badge variant="default" className="bg-green-600">Running</Badge>
-              <span className="text-muted-foreground">
-                {serverInfo.name} v{serverInfo.version}
-              </span>
-            </div>
-          )}
-
-          {serverStatus === 'error' && (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm">
-                <Badge variant="destructive">Error</Badge>
-                <span className="text-muted-foreground">Server failed to start</span>
-              </div>
-              {serverError && (
-                <div className="text-xs text-destructive bg-destructive/10 p-2 rounded border border-destructive/20 font-mono max-h-32 overflow-auto">
-                  {serverError}
-                </div>
-              )}
-            </div>
-          )}
+    <div className="space-y-6">
+      {/* Overview Cards Grid */}
+      <div>
+        <h2 className="text-sm font-semibold text-white/90 mb-3">MCP Servers</h2>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          {serverList.map(server => (
+            <ServerCard
+              key={server.id}
+              server={server}
+              onStart={() => handleStart(server.id)}
+              onStop={() => handleStop(server.id)}
+            />
+          ))}
         </div>
-      </Card>
-
-      {/* Main Content Area - Split Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Messages Panel */}
-        <Card className="border-border">
-          <div className="p-4 border-b border-border flex items-center justify-between">
-            <h3 className="text-sm font-semibold">Messages</h3>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setMessages([])}
-              disabled={messages.length === 0}
-            >
-              Clear
-            </Button>
-          </div>
-          <ScrollArea className="h-[500px]">
-            <div className="p-4 space-y-3">
-              {messages.length > 0 ? (
-                messages.map((msg, index) => (
-                  <MessageItem key={`${msg.id}-${msg.timestamp}-${index}`} message={msg} />
-                ))
-              ) : (
-                <div className="text-center py-12 text-muted-foreground text-sm">
-                  {isRunning ? 'No messages yet' : 'Start a server to see messages'}
-                </div>
-              )}
-            </div>
-          </ScrollArea>
-        </Card>
-
-        {/* Server Explorer Panel */}
-        <Card className="border-border">
-          <div className="p-4 border-b border-border">
-            <h3 className="text-sm font-semibold">Server Explorer</h3>
-            <p className="text-xs text-muted-foreground mt-1">
-              Auto-discovered capabilities
-            </p>
-          </div>
-          <ScrollArea className="h-[500px]">
-            <div className="p-4">
-              {isRunning ? (
-                <div className="space-y-4">
-                  {tools.length > 0 && (
-                    <>
-                      <CapabilitySection
-                        title="Tools"
-                        count={tools.length}
-                        items={tools.map(t => ({
-                          name: t.name,
-                          description: t.description || 'No description'
-                        }))}
-                        onTry={handleTryTool}
-                      />
-                      <Separator />
-                    </>
-                  )}
-
-                  {prompts.length > 0 && (
-                    <>
-                      <CapabilitySection
-                        title="Prompts"
-                        count={prompts.length}
-                        items={prompts.map(p => ({
-                          name: p.name,
-                          description: p.description || 'No description'
-                        }))}
-                      />
-                      <Separator />
-                    </>
-                  )}
-
-                  {resources.length > 0 && (
-                    <CapabilitySection
-                      title="Resources"
-                      count={resources.length}
-                      items={resources.map(r => ({
-                        name: r.name,
-                        description: r.description || r.uri
-                      }))}
-                    />
-                  )}
-
-                  {tools.length === 0 && prompts.length === 0 && resources.length === 0 && (
-                    <div className="text-center py-12 text-muted-foreground text-sm">
-                      No capabilities discovered yet
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="text-center py-12 text-muted-foreground text-sm">
-                  Start a server to explore capabilities
-                </div>
-              )}
-            </div>
-          </ScrollArea>
-        </Card>
       </div>
 
-      {/* Tool Testing Form */}
-      {testingTool && (
-        <Card className="p-4 border-border">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-semibold">Test Tool: {testingTool.name}</h3>
-                <p className="text-xs text-muted-foreground">{testingTool.description}</p>
-              </div>
-              <Button variant="ghost" size="sm" onClick={() => setTestingTool(null)}>
-                Cancel
-              </Button>
-            </div>
+      <Separator className="bg-white/10" />
 
-            {testingTool.inputSchema.properties && (
-              <div className="space-y-3">
-                {Object.entries(testingTool.inputSchema.properties).map(([key, schema]) => {
-                  const propSchema = schema as any
-                  const isRequired = testingTool.inputSchema.required?.includes(key)
-
-                  return (
-                    <div key={key} className="space-y-2">
-                      <label className="text-sm font-medium">
-                        {key}
-                        {isRequired && <span className="text-destructive ml-1">*</span>}
-                      </label>
-                      <Input
-                        placeholder={propSchema.description || key}
-                        value={toolArgs[key] || ''}
-                        onChange={(e) => setToolArgs({ ...toolArgs, [key]: e.target.value })}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Type: {propSchema.type || 'string'}
-                      </p>
+      {/* Detailed Server List */}
+      <div>
+        <h3 className="text-sm font-semibold text-white/90 mb-3">Server Details</h3>
+        {serverList.length > 0 ? (
+          <Accordion type="multiple" className="space-y-2">
+            {serverList.map(server => (
+              <AccordionItem
+                key={server.id}
+                value={server.id}
+                className="border border-[var(--glass-border)] rounded-lg bg-[var(--glass-bg)] overflow-hidden"
+              >
+                <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-white/5">
+                  <div className="flex items-center justify-between w-full pr-2">
+                    <div className="flex items-center gap-3">
+                      <Server className="h-4 w-4 text-white/60" />
+                      <span className="text-sm font-medium text-white/90">{server.name}</span>
                     </div>
-                  )
-                })}
+                    <ServerStatusBadge status={server.status} />
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <ServerDetails server={server} />
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
+        ) : (
+          <div className="text-center py-12 text-white/40 text-sm">
+            No servers available
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Server Overview Card Component
+function ServerCard({
+  server,
+  onStart,
+  onStop
+}: {
+  server: ServerState
+  onStart: () => void
+  onStop: () => void
+}) {
+  const isRunning = server.status === 'running'
+  const isStarting = server.status === 'starting'
+  const isError = server.status === 'error'
+
+  const totalCapabilities = server.tools.length + server.prompts.length + server.resources.length
+
+  return (
+    <Card className="p-3 border-[var(--glass-border)] bg-[var(--glass-bg)] hover:bg-[var(--glass-hover)] transition-colors">
+      <div className="space-y-2">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <h3 className="text-xs font-medium text-white/90 truncate">{server.name}</h3>
+          </div>
+          <ServerStatusDot status={server.status} />
+        </div>
+
+        {/* Stats */}
+        <div className="space-y-1 text-xs">
+          {isRunning && (
+            <>
+              <div className="text-white/50">{totalCapabilities} capabilities</div>
+              <div className="text-white/40">{server.metrics.totalRequests} requests</div>
+              {server.metrics.avgLatency > 0 && (
+                <div className="text-white/40">{server.metrics.avgLatency.toFixed(0)}ms avg</div>
+              )}
+            </>
+          )}
+          {isError && (
+            <div className="text-[#ef4444] text-[10px] line-clamp-2">{server.error}</div>
+          )}
+          {!isRunning && !isError && !isStarting && (
+            <div className="text-white/40">Stopped</div>
+          )}
+          {isStarting && (
+            <div className="text-[#D97757]">Starting...</div>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div className="pt-1">
+          {isRunning ? (
+            <Button
+              onClick={onStop}
+              size="sm"
+              variant="ghost"
+              className="w-full h-7 text-xs text-white/60 hover:text-white/90 hover:bg-white/10"
+            >
+              <Square className="h-3 w-3 mr-1.5" />
+              Stop
+            </Button>
+          ) : (
+            <Button
+              onClick={onStart}
+              size="sm"
+              variant="ghost"
+              disabled={isStarting}
+              className="w-full h-7 text-xs text-white/60 hover:text-white/90 hover:bg-white/10"
+            >
+              <Play className="h-3 w-3 mr-1.5" />
+              {isStarting ? 'Starting...' : 'Start'}
+            </Button>
+          )}
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+// Status Dot (Minimal, subdued colors)
+function ServerStatusDot({ status }: { status: ServerState['status'] }) {
+  const colors = {
+    stopped: 'bg-[#595350]',          // ⚫ Gray - idle
+    starting: 'bg-[#D97757] animate-pulse', // 🟠 Orange - warning (only for starting)
+    running: 'bg-[#846961]',          // 🟤 Brown - subdued active
+    error: 'bg-[#ef4444] animate-pulse'     // 🔴 Red - error only!
+  }
+
+  return (
+    <div className={`w-2 h-2 rounded-full ${colors[status]} flex-shrink-0`} />
+  )
+}
+
+// Status Badge (for accordion header)
+function ServerStatusBadge({ status }: { status: ServerState['status'] }) {
+  const config = {
+    stopped: { label: 'Stopped', className: 'bg-[#595350]/20 text-[#595350] border-[#595350]/30' },
+    starting: { label: 'Starting', className: 'bg-[#D97757]/20 text-[#D97757] border-[#D97757]/30' },
+    running: { label: 'Active', className: 'bg-[#846961]/20 text-[#846961] border-[#846961]/40' },
+    error: { label: 'Error', className: 'bg-[#ef4444]/20 text-[#ef4444] border-[#ef4444]/30' }
+  }
+
+  const { label, className } = config[status]
+
+  return (
+    <Badge variant="outline" className={`text-xs font-normal ${className}`}>
+      {label}
+    </Badge>
+  )
+}
+
+// Server Details (Accordion content)
+function ServerDetails({ server }: { server: ServerState }) {
+  const formatTimeAgo = (ms: number | null): string => {
+    if (!ms) return 'never'
+    const seconds = Math.floor((Date.now() - ms) / 1000)
+    if (seconds < 60) return 'now'
+    const minutes = Math.floor(seconds / 60)
+    if (minutes < 60) return `${minutes}m ago`
+    const hours = Math.floor(minutes / 60)
+    return `${hours}h ago`
+  }
+
+  const isRunning = server.status === 'running'
+
+  return (
+    <div className="space-y-4 pt-3">
+      {/* Server Info */}
+      {server.info && (
+        <div className="flex items-center gap-2 text-xs text-white/60">
+          <Server className="h-3 w-3" />
+          <span>{server.info.name} v{server.info.version}</span>
+        </div>
+      )}
+
+      {/* Error */}
+      {server.error && (
+        <div className="flex items-start gap-2 text-xs">
+          <AlertCircle className="h-3 w-3 text-[#ef4444] flex-shrink-0 mt-0.5" />
+          <span className="text-[#ef4444]">{server.error}</span>
+        </div>
+      )}
+
+      {/* Capabilities Summary */}
+      {isRunning && (
+        <div className="grid grid-cols-3 gap-3 text-xs">
+          <div className="space-y-1">
+            <div className="text-white/40">Tools</div>
+            <div className="text-white/80 font-medium">{server.tools.length}</div>
+          </div>
+          <div className="space-y-1">
+            <div className="text-white/40">Prompts</div>
+            <div className="text-white/80 font-medium">{server.prompts.length}</div>
+          </div>
+          <div className="space-y-1">
+            <div className="text-white/40">Resources</div>
+            <div className="text-white/80 font-medium">{server.resources.length}</div>
+          </div>
+        </div>
+      )}
+
+      {/* Activity */}
+      {isRunning && server.metrics.totalRequests > 0 && (
+        <div className="flex items-center gap-2 text-xs">
+          <Activity className="h-3 w-3 text-white/40" />
+          <span className="text-white/60">
+            {server.metrics.totalRequests} requests • {server.metrics.avgLatency.toFixed(0)}ms avg
+          </span>
+          {server.metrics.lastActivity && (
+            <>
+              <span className="text-white/30">•</span>
+              <span className="text-white/40">{formatTimeAgo(server.metrics.lastActivity)}</span>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Tools List (collapsed) */}
+      {isRunning && server.tools.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-xs font-medium text-white/70">Available Tools</div>
+          <div className="space-y-1 max-h-32 overflow-y-auto">
+            {server.tools.slice(0, 5).map(tool => (
+              <div key={tool.name} className="text-xs text-white/50 font-mono">
+                {tool.name}
+              </div>
+            ))}
+            {server.tools.length > 5 && (
+              <div className="text-xs text-white/40">
+                +{server.tools.length - 5} more...
               </div>
             )}
-
-            <div className="flex gap-2">
-              <Button onClick={handleExecuteTool} className="flex-1">
-                Execute
-              </Button>
-            </div>
           </div>
-        </Card>
-      )}
-
-      {/* Performance Metrics */}
-      {isRunning && metrics.totalRequests > 0 && (
-        <Card className="p-4 border-border">
-          <h3 className="text-sm font-semibold mb-3">Performance Metrics</h3>
-          <div className="grid grid-cols-4 gap-4">
-            <MetricCard label="Total Requests" value={metrics.totalRequests.toString()} />
-            <MetricCard label="Avg Latency" value={`${metrics.avgLatency.toFixed(1)}ms`} />
-            <MetricCard label="Fastest" value={`${metrics.minLatency === Infinity ? '-' : metrics.minLatency}ms`} />
-            <MetricCard label="Slowest" value={`${metrics.maxLatency || '-'}ms`} />
-          </div>
-        </Card>
-      )}
-    </div>
-  )
-}
-
-function MessageItem({ message }: { message: MessageLog }) {
-  const formatTimestamp = (ts: number) => {
-    const date = new Date(ts)
-    return date.toLocaleTimeString()
-  }
-
-  const getBadgeVariant = () => {
-    switch (message.type) {
-      case 'request': return 'outline'
-      case 'response': return 'secondary'
-      case 'error': return 'destructive'
-      default: return 'default'
-    }
-  }
-
-  const getIcon = () => {
-    switch (message.type) {
-      case 'request': return '→'
-      case 'response': return '←'
-      case 'notification': return '⚡'
-      case 'error': return '✕'
-      default: return '•'
-    }
-  }
-
-  return (
-    <div className="border border-border rounded-lg p-3 space-y-2 text-sm">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Badge variant={getBadgeVariant()} className="text-xs">
-            {getIcon()}
-          </Badge>
-          <span className="font-medium font-mono text-xs">{message.method || 'notification'}</span>
         </div>
-        <div className="flex items-center gap-2">
-          {message.latency && (
-            <Badge variant="outline" className="text-xs bg-green-950 text-green-400 border-green-800">
-              {message.latency}ms
-            </Badge>
-          )}
-          <span className="text-xs text-muted-foreground">{formatTimestamp(message.timestamp)}</span>
-        </div>
-      </div>
-      <div className="text-xs text-muted-foreground font-mono bg-muted/50 p-2 rounded max-h-32 overflow-auto">
-        {JSON.stringify(message.data, null, 2)}
-      </div>
-    </div>
-  )
-}
-
-function CapabilitySection({
-  title,
-  count,
-  items,
-  onTry
-}: {
-  title: string
-  count: number
-  items: Array<{ name: string; description: string }>
-  onTry?: (name: string) => void
-}) {
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h4 className="text-sm font-medium">{title}</h4>
-        <Badge variant="secondary" className="text-xs">{count}</Badge>
-      </div>
-      <div className="space-y-2">
-        {items.map((item) => (
-          <div key={item.name} className="border border-border rounded-lg p-3 space-y-1">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium font-mono">{item.name}</span>
-              {onTry && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => onTry(item.name)}
-                >
-                  Try it
-                </Button>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground">{item.description}</p>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function MetricCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="border border-border rounded-lg p-3">
-      <div className="text-xs text-muted-foreground mb-1">{label}</div>
-      <div className="text-xl font-semibold">{value}</div>
+      )}
     </div>
   )
 }
