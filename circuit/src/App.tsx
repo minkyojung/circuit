@@ -2,18 +2,18 @@ import { useState, useEffect } from 'react'
 import { Card } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { DeveloperTab } from "@/components/DeveloperTab"
-import { TestFixTab } from "@/components/TestFixTab"
+import { DashboardTab } from "@/components/DashboardTab"
 import { DeploymentsTab } from "@/components/DeploymentsTab"
 import { GitHubTab } from "@/components/GitHubTab"
 import { PeekDebugPanel } from "@/components/PeekDebugPanel"
-import { Wrench, Zap, Rocket, GitBranch, Plus } from 'lucide-react'
+import { Wrench, LayoutDashboard, Plus } from 'lucide-react'
 import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
 import './App.css'
 
-type Page = 'mcp-servers' | 'testfix' | 'deployments' | 'github' | 'marketplace'
+type Page = 'mcp-servers' | 'dashboard' | 'marketplace'
 
 function App() {
-  const [currentPage, setCurrentPage] = useState<Page>('testfix')
+  const [currentPage, setCurrentPage] = useState<Page>('dashboard')
   const [showDebug] = useState<boolean>(false)  // Debug panel hidden by default
 
   // Phase 0: .circuit/ 설정 읽기 시도
@@ -33,13 +33,9 @@ function App() {
       const { ipcRenderer } = window.require('electron')
 
       const handlePeekData = (_event: any, payload: any) => {
-        // Auto-switch to appropriate tab based on data type
-        if (payload.type === 'test-result') {
-          setCurrentPage('testfix')
-        } else if (payload.type === 'deployment') {
-          setCurrentPage('deployments')
-        } else if (payload.type === 'github') {
-          setCurrentPage('github')
+        // Auto-switch to dashboard for all workflow events
+        if (payload.type === 'test-result' || payload.type === 'deployment' || payload.type === 'github') {
+          setCurrentPage('dashboard')
         }
       }
 
@@ -68,24 +64,12 @@ function App() {
 
         {/* Sidebar Navigation */}
         <nav className="flex-1 overflow-auto py-3 px-2">
-          {/* Primary Workflows */}
+          {/* Dashboard */}
           <SidebarButton
-            icon={<Zap className="h-4 w-4" />}
-            label="Test-Fix"
-            isActive={currentPage === 'testfix'}
-            onClick={() => setCurrentPage('testfix')}
-          />
-          <SidebarButton
-            icon={<Rocket className="h-4 w-4" />}
-            label="Deployments"
-            isActive={currentPage === 'deployments'}
-            onClick={() => setCurrentPage('deployments')}
-          />
-          <SidebarButton
-            icon={<GitBranch className="h-4 w-4" />}
-            label="GitHub"
-            isActive={currentPage === 'github'}
-            onClick={() => setCurrentPage('github')}
+            icon={<LayoutDashboard className="h-4 w-4" />}
+            label="Dashboard"
+            isActive={currentPage === 'dashboard'}
+            onClick={() => setCurrentPage('dashboard')}
           />
 
           {/* New Workflow Button */}
@@ -151,21 +135,9 @@ function App() {
 
         {/* Main Content Area */}
         <div className="flex-1 overflow-auto p-8">
-          {currentPage === 'testfix' && (
-            <div className="max-w-7xl">
-              <TestFixTab />
-            </div>
-          )}
-
-          {currentPage === 'deployments' && (
-            <div className="max-w-7xl">
-              <DeploymentsTab />
-            </div>
-          )}
-
-          {currentPage === 'github' && (
-            <div className="max-w-7xl">
-              <GitHubTab />
+          {currentPage === 'dashboard' && (
+            <div className="max-w-5xl mx-auto">
+              <DashboardTab />
             </div>
           )}
 
