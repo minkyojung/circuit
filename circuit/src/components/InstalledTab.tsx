@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { ChevronDown, ChevronRight, Play, Square, AlertCircle, RefreshCw, FileText, Activity } from 'lucide-react'
+import { ChevronDown, ChevronRight, Play, Square, AlertCircle, RefreshCw, FileText, Activity, Trash2 } from 'lucide-react'
 
 interface ServerStatus {
   id: string
@@ -88,6 +88,24 @@ export function InstalledTab() {
       }
     } catch (error) {
       console.error('Failed to restart server:', error)
+    }
+  }
+
+  const handleUninstall = async (serverId: string, serverName: string) => {
+    if (!confirm(`Are you sure you want to uninstall "${serverName}"?\n\nThis will remove the server configuration.`)) {
+      return
+    }
+
+    try {
+      const { ipcRenderer } = window.require('electron')
+      const result = await ipcRenderer.invoke('circuit:mcp-uninstall', serverId)
+
+      if (!result.success) {
+        alert(`Failed to uninstall: ${result.error}`)
+      }
+    } catch (error) {
+      console.error('Failed to uninstall server:', error)
+      alert(`Failed to uninstall: ${error}`)
     }
   }
 
@@ -221,14 +239,25 @@ export function InstalledTab() {
                   )}
 
                   {(server.status === 'stopped' || server.status === 'error') && (
-                    <Button
-                      size="sm"
-                      className="h-7 text-xs gap-1.5"
-                      onClick={() => handleStart(server.id)}
-                    >
-                      <Play className="h-3 w-3" />
-                      Start
-                    </Button>
+                    <>
+                      <Button
+                        size="sm"
+                        className="h-7 text-xs gap-1.5"
+                        onClick={() => handleStart(server.id)}
+                      >
+                        <Play className="h-3 w-3" />
+                        Start
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs gap-1.5 text-[var(--circuit-error)]"
+                        onClick={() => handleUninstall(server.id, server.name)}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        Uninstall
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>

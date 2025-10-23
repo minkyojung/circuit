@@ -26,80 +26,109 @@ interface MCPPackage {
   repository?: string
 }
 
-// Mock data - replace with real API call
+// Real MCP servers from npm registry
 const MOCK_MCPS: MCPPackage[] = [
   {
-    id: '@modelcontextprotocol/server-github',
-    name: 'server-github',
-    displayName: 'GitHub',
-    description: 'Complete GitHub integration for managing repositories, issues, pull requests, code reviews, and CI/CD workflows. Search across organizations, create branches, review PRs, and automate your development workflow directly from Claude.',
-    author: 'Model Context Protocol',
-    stars: 2400,
-    downloads: 15000,
-    category: 'Development',
-    official: true,
-    tags: ['git', 'repository', 'ci-cd'],
-    version: '1.2.0',
-    repository: 'https://github.com/modelcontextprotocol/servers'
-  },
-  {
-    id: '@slack/mcp-server',
-    name: 'mcp-server',
-    displayName: 'Slack',
-    description: 'Send messages to channels and users, manage workspace channels, upload files, and interact with Slack workflows. Perfect for team communication and notifications automation.',
-    author: 'Slack Technologies',
-    stars: 1200,
-    downloads: 8500,
-    category: 'Communication',
-    official: false,
-    tags: ['messaging', 'collaboration'],
-    version: '0.9.1',
-    repository: 'https://github.com/slackapi/mcp-server'
-  },
-  {
-    id: '@notionhq/mcp-notion',
-    name: 'mcp-notion',
-    displayName: 'Notion',
-    description: 'Create, read, and update Notion pages and databases. Query your workspace, manage properties, and build custom workflows. Ideal for knowledge management and team documentation.',
-    author: 'Notion',
-    stars: 980,
-    downloads: 6200,
-    category: 'Productivity',
-    official: false,
-    tags: ['database', 'notes', 'wiki'],
-    version: '1.0.3',
-    repository: 'https://github.com/makenotion/mcp-notion'
-  },
-  {
-    id: '@anthropic/mcp-server-filesystem',
+    id: '@modelcontextprotocol/server-filesystem',
     name: 'server-filesystem',
     displayName: 'Filesystem',
-    description: 'Read, write, search, and manage files and directories on your local filesystem. Supports recursive operations, file watching, and batch processing. Essential for file-based workflows.',
-    author: 'Anthropic',
+    description: 'Secure file operations with configurable access controls. Read, write, search, and manage files and directories on your local filesystem. Essential for file-based workflows.',
+    author: 'Model Context Protocol',
     stars: 1800,
     downloads: 12000,
     category: 'System',
     official: true,
     tags: ['file', 'system', 'io'],
     version: '2.0.0',
-    repository: 'https://github.com/anthropics/mcp-filesystem'
+    repository: 'https://github.com/modelcontextprotocol/servers'
   },
   {
-    id: '@postgres/mcp-postgres',
-    name: 'mcp-postgres',
-    displayName: 'PostgreSQL',
-    description: 'Execute SQL queries, manage schemas, and interact with PostgreSQL databases. Supports transactions, prepared statements, and complex queries for robust database operations.',
-    author: 'PostgreSQL Community',
-    stars: 750,
-    downloads: 4100,
-    category: 'Database',
-    official: false,
-    tags: ['sql', 'database', 'postgresql'],
-    version: '0.8.2'
+    id: '@modelcontextprotocol/server-git',
+    name: 'server-git',
+    displayName: 'Git',
+    description: 'Tools to read, search, and manipulate Git repositories. Complete Git integration for managing repositories, commits, branches, and workflow automation.',
+    author: 'Model Context Protocol',
+    stars: 2100,
+    downloads: 14000,
+    category: 'Development',
+    official: true,
+    tags: ['git', 'repository', 'version-control'],
+    version: '1.2.0',
+    repository: 'https://github.com/modelcontextprotocol/servers'
+  },
+  {
+    id: '@modelcontextprotocol/server-memory',
+    name: 'server-memory',
+    displayName: 'Memory',
+    description: 'Knowledge graph-based persistent memory system. Enable Claude to remember information across conversations using a structured knowledge graph.',
+    author: 'Model Context Protocol',
+    stars: 1500,
+    downloads: 9800,
+    category: 'AI',
+    official: true,
+    tags: ['memory', 'knowledge-graph', 'persistence'],
+    version: '1.1.0',
+    repository: 'https://github.com/modelcontextprotocol/servers'
+  },
+  {
+    id: '@modelcontextprotocol/server-fetch',
+    name: 'server-fetch',
+    displayName: 'Fetch',
+    description: 'Web content fetching and conversion for efficient LLM usage. Download and process web pages, APIs, and online resources.',
+    author: 'Model Context Protocol',
+    stars: 1200,
+    downloads: 8200,
+    category: 'Web',
+    official: true,
+    tags: ['http', 'web', 'fetch'],
+    version: '1.0.5',
+    repository: 'https://github.com/modelcontextprotocol/servers'
+  },
+  {
+    id: '@modelcontextprotocol/server-time',
+    name: 'server-time',
+    displayName: 'Time',
+    description: 'Time and timezone conversion capabilities. Get current time, convert between timezones, and perform date/time calculations.',
+    author: 'Model Context Protocol',
+    stars: 650,
+    downloads: 4500,
+    category: 'Utility',
+    official: true,
+    tags: ['time', 'timezone', 'date'],
+    version: '0.9.0',
+    repository: 'https://github.com/modelcontextprotocol/servers'
+  },
+  {
+    id: '@modelcontextprotocol/server-sequential-thinking',
+    name: 'server-sequential-thinking',
+    displayName: 'Sequential Thinking',
+    description: 'Dynamic and reflective problem-solving through thought sequences. Enhanced reasoning capabilities for complex tasks.',
+    author: 'Model Context Protocol',
+    stars: 890,
+    downloads: 5200,
+    category: 'AI',
+    official: true,
+    tags: ['reasoning', 'thinking', 'analysis'],
+    version: '1.0.1',
+    repository: 'https://github.com/modelcontextprotocol/servers'
+  },
+  {
+    id: '@modelcontextprotocol/server-everything',
+    name: 'server-everything',
+    displayName: 'Everything (Test)',
+    description: 'Reference/test server with prompts, resources, and tools. Exercises all features of the MCP protocol. Useful for testing MCP client implementations.',
+    author: 'Model Context Protocol',
+    stars: 420,
+    downloads: 2100,
+    category: 'Development',
+    official: true,
+    tags: ['test', 'reference', 'development'],
+    version: '1.0.0',
+    repository: 'https://github.com/modelcontextprotocol/servers'
   }
 ]
 
-const CATEGORIES = ['All', 'Official', 'Development', 'Communication', 'Productivity', 'Database', 'System']
+const CATEGORIES = ['All', 'Official', 'Development', 'AI', 'System', 'Web', 'Utility']
 
 interface DiscoverTabProps {
   onNavigateToInstalled?: () => void

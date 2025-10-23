@@ -1650,6 +1650,20 @@ ipcMain.handle('circuit:mcp-install', async (event, packageId, config) => {
 console.log('[main.cjs] circuit:mcp-install handler registered');
 
 /**
+ * Uninstall an MCP server
+ */
+ipcMain.handle('circuit:mcp-uninstall', async (event, serverId) => {
+  try {
+    const manager = await getMCPManagerInstance();
+    await manager.uninstall(serverId);
+    return { success: true };
+  } catch (error) {
+    console.error('MCP uninstall error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
  * Start an MCP server
  */
 ipcMain.handle('circuit:mcp-start', async (event, serverId) => {

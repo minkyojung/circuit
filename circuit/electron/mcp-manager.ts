@@ -274,7 +274,13 @@ export class MCPServerManager {
       return
     }
 
-    console.log(`Starting MCP server: ${server.name}`)
+    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
+    console.log(`🚀 Starting MCP server: ${server.name}`)
+    console.log(`   ID: ${serverId}`)
+    console.log(`   Command: ${server.config.command}`)
+    console.log(`   Args: ${server.config.args.join(' ')}`)
+    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
+
     server.status = 'starting'
 
     try {
@@ -284,13 +290,18 @@ export class MCPServerManager {
         ...server.config.env
       }
 
+      console.log(`[${serverId}] Step 1/6: Creating StdioClientTransport...`)
+
       // Create MCP client with StdioClientTransport
-      // StdioClientTransport handles process spawning internally
       const transport = new StdioClientTransport({
         command: server.config.command,
         args: server.config.args,
         env: processEnv
       })
+
+      console.log(`[${serverId}] Step 2/6: Transport created (process will spawn on connect)`)
+
+      console.log(`[${serverId}] Step 3/6: Creating MCP Client...`)
 
       const client = new Client({
         name: 'circuit-client',
@@ -299,30 +310,66 @@ export class MCPServerManager {
         capabilities: {}
       })
 
-      // Connect to the server
-      await client.connect(transport)
+      console.log(`[${serverId}] Step 4/6: Connecting client to transport...`)
+      console.log(`[${serverId}] This will spawn the child process and send MCP initialize request...`)
 
-      // Access the internal process from transport
+      // Add timeout to catch hanging connections
+      const connectTimeout = setTimeout(() => {
+        console.error(`[${serverId}] ⏱️  Connection timeout after 10s`)
+      }, 10000)
+
+      try {
+        await client.connect(transport)
+        clearTimeout(connectTimeout)
+        console.log(`[${serverId}] ✅ Step 5/6: Client connected successfully`)
+      } catch (connectError) {
+        clearTimeout(connectTimeout)
+        console.error(`[${serverId}] ❌ Connection failed:`, connectError)
+        throw connectError
+      }
+
+      // NOW access the child process (spawned during connect)
       // @ts-ignore - accessing internal property
       const childProcess = transport._process
 
-      if (childProcess) {
-        // Setup logging with the transport's process
-        this.setupLogging(serverId, childProcess)
+      if (!childProcess) {
+        console.error(`[${serverId}] ❌ No child process after connection`)
+        throw new Error('Transport did not spawn child process')
+      }
 
-        // Handle process errors
-        childProcess.on('error', (error) => {
-          console.error(`Server ${serverId} process error:`, error)
-          this.handleServerError(serverId, error)
-        })
+      console.log(`[${serverId}] Step 6/6: Setting up process monitoring (PID: ${childProcess.pid})`)
 
-        childProcess.on('exit', (code) => {
-          console.log(`Server ${serverId} exited with code ${code}`)
-          server.status = 'stopped'
+      // Setup logging AFTER connection
+      this.setupLogging(serverId, childProcess)
 
-          if (server.config.autoRestart) {
-            console.log(`Auto-restarting ${serverId}...`)
-            setTimeout(() => this.start(serverId), 2000)
+      // Monitor process state
+      childProcess.on('error', (error) => {
+        console.error(`[${serverId}] ❌ Process error:`, error)
+        this.handleServerError(serverId, error)
+      })
+
+      childProcess.on('exit', (code, signal) => {
+        console.log(`[${serverId}] 🛑 Process exited (code: ${code}, signal: ${signal})`)
+        server.status = 'stopped'
+
+        if (server.config.autoRestart && code !== 0) {
+          console.log(`[${serverId}] 🔄 Auto-restarting in 2s...`)
+          setTimeout(() => this.start(serverId), 2000)
+        }
+      })
+
+      // Log stderr in real-time and detect npm errors
+      if (childProcess.stderr) {
+        let stderrBuffer = ''
+        childProcess.stderr.on('data', (data) => {
+          const output = data.toString()
+          stderrBuffer += output
+          console.error(`[${serverId}] stderr:`, output.trim())
+
+          // Detect npm 404 errors for better error messages
+          if (output.includes('npm error code E404') || output.includes('404 Not Found')) {
+            console.error(`[${serverId}] ⚠️  Package not found in npm registry`)
+            server.error = `Package '${server.config.packageId}' not found in npm registry. Please verify the package name.`
           }
         })
       }
@@ -334,19 +381,53 @@ export class MCPServerManager {
       server.status = 'running'
       server.startedAt = Date.now()
 
-      console.log(`Server ${serverId} started successfully`)
+      console.log(`[${serverId}] ✅ Server running successfully`)
+      console.log(`[${serverId}] Fetching capabilities...`)
 
       // Fetch initial capabilities
       await this.fetchServerCapabilities(serverId)
 
+      console.log(`[${serverId}] Starting health check...`)
+
       // Start health check
       this.startHealthCheck(serverId)
 
+      console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
+      console.log(`✅ ${server.name} startup complete`)
+      console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
+
     } catch (error) {
-      console.error(`Failed to start server ${serverId}:`, error)
+      console.error(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
+      console.error(`❌ Failed to start ${server.name}:`, error)
+      console.error(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
       this.handleServerError(serverId, error as Error)
       throw error
     }
+  }
+
+  /**
+   * Uninstall an MCP server
+   */
+  async uninstall(serverId: string): Promise<void> {
+    const server = this.servers.get(serverId)
+    if (!server) {
+      throw new Error(`Server ${serverId} not found`)
+    }
+
+    console.log(`Uninstalling MCP server: ${server.name} (${serverId})`)
+
+    // Stop the server first if running
+    if (server.status === 'running') {
+      await this.stop(serverId)
+    }
+
+    // Remove from servers map
+    this.servers.delete(serverId)
+
+    // Save updated config
+    this.saveConfig()
+
+    console.log(`Uninstalled MCP server: ${server.name}`)
   }
 
   /**
