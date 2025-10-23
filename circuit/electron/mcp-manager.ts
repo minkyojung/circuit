@@ -94,7 +94,7 @@ export interface ServerStatus {
 }
 
 export class MCPServerManager {
-  private servers = new Map<string, ServerInstance>()
+  public servers = new Map<string, ServerInstance>()
   private configPath: string
   private logsDir: string
   private serversDir: string
