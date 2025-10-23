@@ -67,7 +67,7 @@ function App() {
         />
 
         {/* Sidebar Navigation */}
-        <nav className="flex-1 overflow-auto py-3">
+        <nav className="flex-1 overflow-auto py-3 px-2">
           {/* Primary Workflows */}
           <SidebarButton
             icon={<Zap className="h-4 w-4" />}
@@ -90,7 +90,7 @@ function App() {
 
           {/* New Workflow Button */}
           <button
-            className="w-full px-2 py-1.5 mt-1 flex items-center gap-2.5 text-xs font-normal text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--glass-hover)] transition-all duration-150 rounded mx-2"
+            className="w-full px-2 py-1.5 mt-1 flex items-center gap-2.5 text-xs font-normal text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--glass-hover)] transition-all duration-150 rounded"
             style={{ WebkitAppRegion: 'no-drag' } as any}
             onClick={() => setCurrentPage('marketplace')}
           >
@@ -99,10 +99,10 @@ function App() {
           </button>
 
           {/* Separator */}
-          <Separator className="mx-3 my-4" />
+          <Separator className="mx-1 my-4" />
 
           {/* Tools */}
-          <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+          <div className="px-1 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
             Tools
           </div>
           <SidebarButton
@@ -208,7 +208,7 @@ function SidebarButton({
     <button
       onClick={onClick}
       className={`
-        w-full px-2 py-1.5 mx-2 flex items-center gap-2.5 text-xs font-normal transition-all duration-150 rounded
+        w-full px-2 py-1.5 flex items-center gap-2.5 text-xs font-normal transition-all duration-150 rounded
         ${isActive
           ? 'bg-[var(--circuit-orange)]/15 text-[var(--circuit-orange)] border-l-2 border-[var(--circuit-orange)]'
           : 'text-[var(--text-secondary)] hover:bg-[var(--glass-hover)] hover:text-[var(--text-primary)]'
