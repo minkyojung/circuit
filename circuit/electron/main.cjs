@@ -9,10 +9,63 @@ const http = require('http');
 // Import MCP Server Manager (ES Module)
 let mcpManagerPromise = null;
 async function getMCPManagerInstance() {
+  console.log('[main.cjs] getMCPManagerInstance called');
   if (!mcpManagerPromise) {
-    mcpManagerPromise = import('./mcp-manager.ts').then(module => module.getMCPManager());
+    console.log('[main.cjs] Creating new MCP Manager instance...');
+    mcpManagerPromise = import('./mcp-manager.ts')
+      .then(module => {
+        console.log('[main.cjs] mcp-manager.ts imported successfully');
+        return module.getMCPManager();
+      })
+      .catch(error => {
+        console.error('[main.cjs] Failed to import mcp-manager.ts:', error);
+        throw error;
+      });
   }
-  return mcpManagerPromise;
+  const manager = await mcpManagerPromise;
+  console.log('[main.cjs] MCP Manager instance ready');
+  return manager;
+}
+
+// Import Circuit API Server (ES Module)
+let apiServerPromise = null;
+async function getAPIServerInstance() {
+  if (!apiServerPromise) {
+    apiServerPromise = (async () => {
+      const mcpManager = await getMCPManagerInstance();
+      const { CircuitAPIServer } = await import('./api-server.ts');
+      return new CircuitAPIServer(mcpManager);
+    })();
+  }
+  return apiServerPromise;
+}
+
+/**
+ * Install circuit-proxy to ~/.circuit/bin/
+ * This proxy allows Claude Code to access all MCP servers via a single MCP interface
+ */
+async function installCircuitProxy() {
+  try {
+    const circuitDir = path.join(os.homedir(), '.circuit');
+    const binDir = path.join(circuitDir, 'bin');
+    const proxyDestPath = path.join(binDir, 'circuit-proxy');
+
+    // Create directories
+    await fs.mkdir(binDir, { recursive: true });
+
+    // Copy the proxy script
+    const proxySourcePath = path.join(__dirname, 'circuit-proxy.js');
+    await fs.copyFile(proxySourcePath, proxyDestPath);
+
+    // Make it executable
+    await fs.chmod(proxyDestPath, 0o755);
+
+    console.log('[Circuit] Proxy installed to:', proxyDestPath);
+    return { success: true, path: proxyDestPath };
+  } catch (error) {
+    console.error('[Circuit] Failed to install proxy:', error);
+    return { success: false, error: error.message };
+  }
 }
 
 // macOS traffic light button positioning
@@ -430,7 +483,7 @@ function transformVercelStatus(vercelStatus) {
   return statusMap[vercelStatus] || 'building';
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   createWindow();
   createPeekWindow();
 
@@ -447,6 +500,24 @@ app.whenReady().then(() => {
 
   // Start Vercel webhook server
   startWebhookServer();
+
+  // Initialize MCP Manager and API Server
+  try {
+    // Install circuit-proxy
+    await installCircuitProxy();
+
+    // Start Circuit HTTP API Server
+    const apiServer = await getAPIServerInstance();
+    await apiServer.start();
+    console.log('Circuit API Server started');
+
+    // Start MCP servers
+    const manager = await getMCPManagerInstance();
+    await manager.startAllAutoStartServers();
+    console.log('Auto-start servers initialized');
+  } catch (error) {
+    console.error('Failed to initialize MCP/API:', error);
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -1562,15 +1633,21 @@ ipcMain.handle('circuit:apply-fix', async (event, applyRequest) => {
  * Install a new MCP server
  */
 ipcMain.handle('circuit:mcp-install', async (event, packageId, config) => {
+  console.log('[IPC] circuit:mcp-install called with:', packageId, config);
   try {
+    console.log('[IPC] Getting MCP Manager instance...');
     const manager = await getMCPManagerInstance();
-    await manager.install(packageId, config);
-    return { success: true };
+    console.log('[IPC] MCP Manager obtained, calling install...');
+    const serverId = await manager.install(packageId, config);
+    console.log('[IPC] Install completed successfully, serverId:', serverId);
+    return { success: true, serverId };
   } catch (error) {
-    console.error('MCP install error:', error);
+    console.error('[IPC] MCP install error:', error);
+    console.error('[IPC] Error stack:', error.stack);
     return { success: false, error: error.message };
   }
 });
+console.log('[main.cjs] circuit:mcp-install handler registered');
 
 /**
  * Start an MCP server
@@ -1687,6 +1764,12 @@ ipcMain.handle('circuit:mcp-get-logs', async (event, serverId, lines = 100) => {
 // Cleanup on app quit
 app.on('before-quit', async () => {
   try {
+    // Stop API server
+    const apiServer = await getAPIServerInstance();
+    await apiServer.stop();
+    console.log('Circuit API Server stopped');
+
+    // Cleanup MCP manager
     const manager = await getMCPManagerInstance();
     await manager.cleanup();
   } catch (error) {
@@ -1694,13 +1777,4 @@ app.on('before-quit', async () => {
   }
 });
 
-// Auto-start MCP servers on app ready
-app.whenReady().then(async () => {
-  try {
-    const manager = await getMCPManagerInstance();
-    await manager.startAllAutoStartServers();
-    console.log('Auto-start servers initialized');
-  } catch (error) {
-    console.error('Failed to auto-start servers:', error);
-  }
-});
+// MCP/API initialization is now handled in the main app.whenReady() block above

@@ -122,6 +122,15 @@ export class MCPServerManager {
     })
   }
 
+  /**
+   * Normalize server ID for filesystem safety and consistency
+   * @example '@slack/mcp-server' -> 'slack-mcp-server'
+   * @example '@modelcontextprotocol/server-github' -> 'modelcontextprotocol-server-github'
+   */
+  private normalizeServerId(id: string): string {
+    return id.replace(/^@/, '').replace(/\//g, '-')
+  }
+
   private loadConfig() {
     if (!fs.existsSync(this.configPath)) {
       this.saveConfig({ servers: {} })
@@ -132,12 +141,39 @@ export class MCPServerManager {
       const data = fs.readFileSync(this.configPath, 'utf-8')
       const config = JSON.parse(data)
 
+      let needsMigration = false
+      const processedIds = new Set<string>()
+
       // Initialize server instances from config
       Object.values(config.servers || {}).forEach((serverConfig: any) => {
-        this.servers.set(serverConfig.id, {
-          id: serverConfig.id,
+        // Normalize the ID during load (migration for old configs)
+        const normalizedId = this.normalizeServerId(serverConfig.id)
+
+        // Skip duplicates (in case config has both old and new versions)
+        if (processedIds.has(normalizedId)) {
+          console.log(`[Config Migration] Skipping duplicate: ${serverConfig.id} (already loaded as ${normalizedId})`)
+          needsMigration = true
+          return
+        }
+
+        processedIds.add(normalizedId)
+
+        // Check if this is an old config that needs migration
+        if (normalizedId !== serverConfig.id) {
+          console.log(`[Config Migration] ${serverConfig.id} -> ${normalizedId}`)
+          needsMigration = true
+        }
+
+        // Update config with normalized ID
+        const updatedConfig = {
+          ...serverConfig,
+          id: normalizedId
+        }
+
+        this.servers.set(normalizedId, {
+          id: normalizedId,
           name: serverConfig.name,
-          config: serverConfig,
+          config: updatedConfig,
           status: 'stopped',
           tools: [],
           prompts: [],
@@ -150,6 +186,12 @@ export class MCPServerManager {
           }
         })
       })
+
+      // Save migrated config (removes duplicates and normalizes IDs)
+      if (needsMigration) {
+        console.log('[Config Migration] Saving normalized config...')
+        this.saveConfig()
+      }
     } catch (error) {
       console.error('Failed to load config:', error)
     }
@@ -170,18 +212,20 @@ export class MCPServerManager {
 
   /**
    * Install a new MCP server
+   * @returns The normalized server ID
    */
-  async install(packageId: string, config: Partial<MCPServerConfig>): Promise<void> {
-    const id = config.id || packageId.replace(/[@/]/g, '-')
+  async install(packageId: string, config: Partial<MCPServerConfig>): Promise<string> {
+    // Always normalize the ID to be filesystem-safe
+    const normalizedId = this.normalizeServerId(config.id || packageId)
     const name = config.name || packageId
 
     // Check if already installed
-    if (this.servers.has(id)) {
-      throw new Error(`Server ${id} is already installed`)
+    if (this.servers.has(normalizedId)) {
+      throw new Error(`Server ${normalizedId} is already installed`)
     }
 
     const serverConfig: MCPServerConfig = {
-      id,
+      id: normalizedId,
       name,
       packageId,
       command: config.command || 'npx',
@@ -193,7 +237,7 @@ export class MCPServerManager {
 
     // Create server instance
     const instance: ServerInstance = {
-      id,
+      id: normalizedId,
       name,
       config: serverConfig,
       status: 'stopped',
@@ -208,10 +252,12 @@ export class MCPServerManager {
       }
     }
 
-    this.servers.set(id, instance)
+    this.servers.set(normalizedId, instance)
     this.saveConfig()
 
-    console.log(`Installed MCP server: ${name} (${id})`)
+    console.log(`Installed MCP server: ${name} (${normalizedId})`)
+
+    return normalizedId
   }
 
   /**
@@ -232,42 +278,18 @@ export class MCPServerManager {
     server.status = 'starting'
 
     try {
-      // Spawn process
-      const process = spawn(server.config.command, server.config.args, {
-        stdio: ['pipe', 'pipe', 'pipe'],
-        env: {
-          ...process.env,
-          ...server.config.env
-        }
-      })
+      // Prepare environment
+      const processEnv = {
+        ...process.env,
+        ...server.config.env
+      }
 
-      // Setup logging
-      this.setupLogging(serverId, process)
-
-      // Handle process errors
-      process.on('error', (error) => {
-        console.error(`Server ${serverId} process error:`, error)
-        this.handleServerError(serverId, error)
-      })
-
-      process.on('exit', (code) => {
-        console.log(`Server ${serverId} exited with code ${code}`)
-        if (server.status === 'running' && server.config.autoRestart) {
-          console.log(`Auto-restarting ${serverId}...`)
-          setTimeout(() => this.start(serverId), 2000)
-        } else {
-          server.status = 'stopped'
-        }
-      })
-
-      // Create MCP client
+      // Create MCP client with StdioClientTransport
+      // StdioClientTransport handles process spawning internally
       const transport = new StdioClientTransport({
         command: server.config.command,
         args: server.config.args,
-        env: {
-          ...process.env,
-          ...server.config.env
-        }
+        env: processEnv
       })
 
       const client = new Client({
@@ -277,10 +299,36 @@ export class MCPServerManager {
         capabilities: {}
       })
 
+      // Connect to the server
       await client.connect(transport)
 
+      // Access the internal process from transport
+      // @ts-ignore - accessing internal property
+      const childProcess = transport._process
+
+      if (childProcess) {
+        // Setup logging with the transport's process
+        this.setupLogging(serverId, childProcess)
+
+        // Handle process errors
+        childProcess.on('error', (error) => {
+          console.error(`Server ${serverId} process error:`, error)
+          this.handleServerError(serverId, error)
+        })
+
+        childProcess.on('exit', (code) => {
+          console.log(`Server ${serverId} exited with code ${code}`)
+          server.status = 'stopped'
+
+          if (server.config.autoRestart) {
+            console.log(`Auto-restarting ${serverId}...`)
+            setTimeout(() => this.start(serverId), 2000)
+          }
+        })
+      }
+
       // Update server instance
-      server.process = process
+      server.process = childProcess
       server.transport = transport
       server.client = client
       server.status = 'running'
@@ -513,7 +561,9 @@ export class MCPServerManager {
    * Get logs for a server
    */
   async getLogs(serverId: string, lines: number = 100): Promise<string[]> {
-    const logPath = path.join(this.logsDir, `${serverId}.log`)
+    // Sanitize serverId for filesystem safety (must match setupLogging)
+    const safeServerId = serverId.replace(/[@/\\:*?"<>|]/g, '-')
+    const logPath = path.join(this.logsDir, `${safeServerId}.log`)
 
     if (!fs.existsSync(logPath)) {
       return []
@@ -567,7 +617,15 @@ export class MCPServerManager {
    * Setup logging for a server process
    */
   private setupLogging(serverId: string, process: ChildProcess): void {
-    const logPath = path.join(this.logsDir, `${serverId}.log`)
+    // Sanitize serverId for filesystem safety
+    const safeServerId = serverId.replace(/[@/\\:*?"<>|]/g, '-')
+    const logPath = path.join(this.logsDir, `${safeServerId}.log`)
+
+    // Ensure log directory exists
+    if (!fs.existsSync(this.logsDir)) {
+      fs.mkdirSync(this.logsDir, { recursive: true })
+    }
+
     const logStream = fs.createWriteStream(logPath, { flags: 'a' })
 
     const timestamp = () => new Date().toISOString()
@@ -596,7 +654,9 @@ export class MCPServerManager {
    * Rotate logs if they exceed 100MB
    */
   private rotateLogs(serverId: string): void {
-    const logPath = path.join(this.logsDir, `${serverId}.log`)
+    // Sanitize serverId for filesystem safety (must match setupLogging)
+    const safeServerId = serverId.replace(/[@/\\:*?"<>|]/g, '-')
+    const logPath = path.join(this.logsDir, `${safeServerId}.log`)
 
     if (!fs.existsSync(logPath)) return
 

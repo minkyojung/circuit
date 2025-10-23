@@ -3,12 +3,12 @@
  * Browse, search, and install MCP servers
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Search, Star, Download, ExternalLink, Lightbulb, Package } from 'lucide-react'
+import { Search, Star, Download, ExternalLink, Lightbulb, Package, Check } from 'lucide-react'
 
 // MCP Package type
 interface MCPPackage {
@@ -32,7 +32,7 @@ const MOCK_MCPS: MCPPackage[] = [
     id: '@modelcontextprotocol/server-github',
     name: 'server-github',
     displayName: 'GitHub',
-    description: 'Access repositories, issues, pull requests, and more',
+    description: 'Complete GitHub integration for managing repositories, issues, pull requests, code reviews, and CI/CD workflows. Search across organizations, create branches, review PRs, and automate your development workflow directly from Claude.',
     author: 'Model Context Protocol',
     stars: 2400,
     downloads: 15000,
@@ -46,7 +46,7 @@ const MOCK_MCPS: MCPPackage[] = [
     id: '@slack/mcp-server',
     name: 'mcp-server',
     displayName: 'Slack',
-    description: 'Send messages, manage channels, and interact with Slack',
+    description: 'Send messages to channels and users, manage workspace channels, upload files, and interact with Slack workflows. Perfect for team communication and notifications automation.',
     author: 'Slack Technologies',
     stars: 1200,
     downloads: 8500,
@@ -60,7 +60,7 @@ const MOCK_MCPS: MCPPackage[] = [
     id: '@notionhq/mcp-notion',
     name: 'mcp-notion',
     displayName: 'Notion',
-    description: 'Read and write to Notion databases and pages',
+    description: 'Create, read, and update Notion pages and databases. Query your workspace, manage properties, and build custom workflows. Ideal for knowledge management and team documentation.',
     author: 'Notion',
     stars: 980,
     downloads: 6200,
@@ -74,7 +74,7 @@ const MOCK_MCPS: MCPPackage[] = [
     id: '@anthropic/mcp-server-filesystem',
     name: 'server-filesystem',
     displayName: 'Filesystem',
-    description: 'Read, write, and manage files on local filesystem',
+    description: 'Read, write, search, and manage files and directories on your local filesystem. Supports recursive operations, file watching, and batch processing. Essential for file-based workflows.',
     author: 'Anthropic',
     stars: 1800,
     downloads: 12000,
@@ -88,7 +88,7 @@ const MOCK_MCPS: MCPPackage[] = [
     id: '@postgres/mcp-postgres',
     name: 'mcp-postgres',
     displayName: 'PostgreSQL',
-    description: 'Query and manage PostgreSQL databases',
+    description: 'Execute SQL queries, manage schemas, and interact with PostgreSQL databases. Supports transactions, prepared statements, and complex queries for robust database operations.',
     author: 'PostgreSQL Community',
     stars: 750,
     downloads: 4100,
@@ -101,10 +101,49 @@ const MOCK_MCPS: MCPPackage[] = [
 
 const CATEGORIES = ['All', 'Official', 'Development', 'Communication', 'Productivity', 'Database', 'System']
 
-export function DiscoverTab() {
+interface DiscoverTabProps {
+  onNavigateToInstalled?: () => void
+}
+
+export function DiscoverTab({ onNavigateToInstalled }: DiscoverTabProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [sortBy, setSortBy] = useState<'popular' | 'recent' | 'name'>('popular')
+  const [installedServers, setInstalledServers] = useState<Set<string>>(new Set())
+
+  // Load installed servers on mount
+  useEffect(() => {
+    const loadInstalledServers = async () => {
+      try {
+        const { ipcRenderer } = window.require('electron')
+        const result = await ipcRenderer.invoke('circuit:mcp-get-all-status')
+
+        console.log('[DiscoverTab] Loaded installed servers:', result)
+
+        if (result.success && result.statuses) {
+          const installedIds = new Set<string>(result.statuses.map((s: any) => s.id as string))
+          console.log('[DiscoverTab] Installed IDs:', Array.from(installedIds))
+          setInstalledServers(installedIds)
+        }
+      } catch (error) {
+        console.error('Failed to load installed servers:', error)
+      }
+    }
+
+    loadInstalledServers()
+  }, [])
+
+  // Normalize MCP ID to match backend normalization
+  // @example '@slack/mcp-server' -> 'slack-mcp-server'
+  const normalizeId = (id: string): string => {
+    return id.replace(/^@/, '').replace(/\//g, '-')
+  }
+
+  // Check if a server is installed
+  const isInstalled = (mcpId: string): boolean => {
+    const normalizedId = normalizeId(mcpId)
+    return installedServers.has(normalizedId)
+  }
 
   // Filter MCPs
   const filteredMCPs = MOCK_MCPS.filter(mcp => {
@@ -127,12 +166,18 @@ export function DiscoverTab() {
   const recommendedMCPs = MOCK_MCPS.filter(mcp => mcp.official).slice(0, 3)
 
   const handleInstall = async (mcp: MCPPackage) => {
+    // If already installed, navigate to Installed tab
+    if (isInstalled(mcp.id)) {
+      onNavigateToInstalled?.()
+      return
+    }
+
     try {
       const { ipcRenderer } = window.require('electron')
 
       // 1. Install the MCP server
+      // Note: Backend will normalize the ID to be filesystem-safe
       const installResult = await ipcRenderer.invoke('circuit:mcp-install', mcp.id, {
-        id: mcp.id,
         name: mcp.displayName,
         packageId: mcp.id,
         command: 'npx',
@@ -146,13 +191,19 @@ export function DiscoverTab() {
         return
       }
 
+      // Get the normalized server ID from the backend
+      const serverId = installResult.serverId
+
       // 2. Start the server
-      const startResult = await ipcRenderer.invoke('circuit:mcp-start', mcp.id)
+      const startResult = await ipcRenderer.invoke('circuit:mcp-start', serverId)
 
       if (!startResult.success) {
         alert(`Failed to start: ${startResult.error}`)
         return
       }
+
+      // 3. Update installed servers list with the normalized ID
+      setInstalledServers(prev => new Set(prev).add(serverId))
 
       alert(`${mcp.displayName} installed and started successfully!`)
     } catch (error) {
@@ -201,7 +252,7 @@ export function DiscoverTab() {
               <button
                 key={mcp.id}
                 onClick={() => handleInstall(mcp)}
-                className="glass-card p-3 rounded-lg border border-[var(--glass-border)] hover:border-[var(--circuit-orange)] hover:bg-[var(--glass-hover)] transition-all text-left group"
+                className="p-3 rounded-lg bg-[#110F0E] hover:bg-[#1a1816] transition-all text-left group shadow-none"
               >
                 <div className="flex items-start gap-2 mb-2">
                   <Package className="h-4 w-4 text-[var(--circuit-orange)] flex-shrink-0 mt-0.5" />
@@ -260,10 +311,10 @@ export function DiscoverTab() {
       {/* MCP Cards */}
       <div className="space-y-3">
         {filteredMCPs.map(mcp => (
-          <Card key={mcp.id} className="glass-card p-4 border-[var(--glass-border)] hover:border-[var(--glass-border-hover)] transition-colors">
+          <Card key={mcp.id} className="p-4 bg-[#110F0E] hover:bg-[#1a1816] transition-colors border-0 shadow-none">
             <div className="flex items-start gap-4">
               {/* Icon/Avatar */}
-              <div className="w-12 h-12 rounded-lg bg-[var(--glass-bg)] flex items-center justify-center flex-shrink-0">
+              <div className="w-12 h-12 rounded-lg bg-[#1a1816] flex items-center justify-center flex-shrink-0">
                 <Package className="h-6 w-6 text-[var(--circuit-orange)]" />
               </div>
 
@@ -295,6 +346,12 @@ export function DiscoverTab() {
                       Official
                     </Badge>
                   )}
+                  {isInstalled(mcp.id) && (
+                    <Badge className="bg-[var(--circuit-orange)]/20 text-[var(--circuit-orange)] border-0 text-[10px] px-2 py-0">
+                      <Check className="h-2.5 w-2.5 mr-1" />
+                      Installed
+                    </Badge>
+                  )}
                   <span className="text-xs text-[var(--text-muted)]">{mcp.author}</span>
                   <span className="text-xs text-[var(--text-muted)]">v{mcp.version}</span>
                 </div>
@@ -313,14 +370,26 @@ export function DiscoverTab() {
 
                 {/* Actions */}
                 <div className="flex items-center gap-2">
-                  <Button
-                    onClick={() => handleInstall(mcp)}
-                    size="sm"
-                    className="gap-1.5 h-7 text-xs"
-                  >
-                    <Download className="h-3 w-3" />
-                    Add to Claude
-                  </Button>
+                  {isInstalled(mcp.id) ? (
+                    <Button
+                      onClick={() => handleInstall(mcp)}
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 h-7 text-xs"
+                    >
+                      <Check className="h-3 w-3" />
+                      Manage
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={() => handleInstall(mcp)}
+                      size="sm"
+                      className="gap-1.5 h-7 text-xs"
+                    >
+                      <Download className="h-3 w-3" />
+                      Add to Claude
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     size="sm"

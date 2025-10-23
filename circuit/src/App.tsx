@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { Card } from "@/components/ui/card"
 import { InstalledTab } from "@/components/InstalledTab"
 import { DiscoverTab } from "@/components/DiscoverTab"
+import { PlaygroundTab } from "@/components/PlaygroundTab"
 import { PeekDebugPanel } from "@/components/PeekDebugPanel"
 import { Package, Server, FlaskConical } from 'lucide-react'
 import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
@@ -126,7 +126,7 @@ function App() {
         <div className="flex-1 overflow-auto p-8">
           {currentPage === 'discover' && (
             <div className="max-w-5xl mx-auto">
-              <DiscoverTab />
+              <DiscoverTab onNavigateToInstalled={() => setCurrentPage('installed')} />
             </div>
           )}
 
@@ -137,13 +137,8 @@ function App() {
           )}
 
           {currentPage === 'playground' && (
-            <div className="max-w-4xl mx-auto">
-              <Card className="p-6 glass-card">
-                <h2 className="text-lg font-semibold mb-2 text-[var(--text-primary)]">Playground</h2>
-                <p className="text-sm text-[var(--text-tertiary)]">
-                  Test MCP tools without installing them.
-                </p>
-              </Card>
+            <div className="h-full">
+              <PlaygroundTab />
             </div>
           )}
         </div>
