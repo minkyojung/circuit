@@ -1066,6 +1066,37 @@ ipcMain.handle('github:send-test-webhook', async (event, eventType) => {
 });
 
 // ============================================================================
+// Circuit Test-Fix Loop - Phase 1: Project Path Detection
+// ============================================================================
+
+/**
+ * Get the actual project path from the Conductor workspace
+ * Resolves from: /path/to/project/.conductor/workspace/circuit/electron
+ * To: /path/to/project
+ */
+ipcMain.handle('circuit:get-project-path', async () => {
+  try {
+    // Get the electron directory path
+    // e.g., /Users/williamjung/conductor/circuit-1/.conductor/hyderabad/circuit/electron
+    const electronDir = __dirname;
+
+    // Navigate up to find the actual project root
+    // From: /Users/.../circuit-1/.conductor/hyderabad/circuit/electron
+    // To:   /Users/.../circuit-1
+    // That's 5 levels up: electron -> circuit -> hyderabad -> .conductor -> circuit-1
+    const projectPath = path.resolve(electronDir, '../../../..');
+
+    console.log('[Circuit] Electron dir:', electronDir);
+    console.log('[Circuit] Resolved project path:', projectPath);
+
+    return { success: true, projectPath };
+  } catch (error) {
+    console.error('[Circuit] Failed to get project path:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// ============================================================================
 // Circuit Test-Fix Loop - Phase 2
 // ============================================================================
 

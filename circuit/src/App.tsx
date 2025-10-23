@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, createContext, useContext } from 'react'
 import { InstalledTab } from "@/components/InstalledTab"
 import { DiscoverTab } from "@/components/DiscoverTab"
 import { PlaygroundTab } from "@/components/PlaygroundTab"
@@ -9,20 +9,59 @@ import './App.css'
 
 type Page = 'discover' | 'installed' | 'playground'
 
+// Project Path Context
+interface ProjectPathContextValue {
+  projectPath: string
+  isLoading: boolean
+}
+
+const ProjectPathContext = createContext<ProjectPathContextValue>({
+  projectPath: '',
+  isLoading: true
+})
+
+export const useProjectPath = () => useContext(ProjectPathContext)
+
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('discover')
   const [showDebug] = useState<boolean>(false)  // Debug panel hidden by default
+  const [projectPath, setProjectPath] = useState<string>('')
+  const [isLoadingPath, setIsLoadingPath] = useState<boolean>(true)
+
+  // Load project path from Electron main process
+  useEffect(() => {
+    const loadProjectPath = async () => {
+      try {
+        const { ipcRenderer } = window.require('electron')
+        const result = await ipcRenderer.invoke('circuit:get-project-path')
+
+        if (result.success) {
+          console.log('[App] Project path loaded:', result.projectPath)
+          setProjectPath(result.projectPath)
+        } else {
+          console.error('[App] Failed to load project path:', result.error)
+        }
+      } catch (error) {
+        console.error('[App] Error loading project path:', error)
+      } finally {
+        setIsLoadingPath(false)
+      }
+    }
+
+    loadProjectPath()
+  }, [])
 
   // Phase 0: .circuit/ 설정 읽기 시도
   useEffect(() => {
+    if (!projectPath) return
+
     const checkCircuitConfig = async () => {
-      // TODO: Get actual project path from Electron main process
-      const config = await readCircuitConfig('')
+      const config = await readCircuitConfig(projectPath)
       logCircuitStatus(config)
     }
 
     checkCircuitConfig()
-  }, [])
+  }, [projectPath])
 
   // Listen for peek panel data and auto-switch to appropriate tab
   useEffect(() => {
@@ -47,9 +86,10 @@ function App() {
   }, [])
 
   return (
-    <div className="h-screen flex bg-gradient-to-br from-[#0f0d0c] to-[#1a1412]">
-      {/* Debug Panel */}
-      {showDebug && <PeekDebugPanel />}
+    <ProjectPathContext.Provider value={{ projectPath, isLoading: isLoadingPath }}>
+      <div className="h-screen flex bg-gradient-to-br from-[#0f0d0c] to-[#1a1412]">
+        {/* Debug Panel */}
+        {showDebug && <PeekDebugPanel />}
 
       {/* Sidebar */}
       <aside className="w-[200px] glass-sidebar flex flex-col">
@@ -143,7 +183,8 @@ function App() {
           )}
         </div>
       </main>
-    </div>
+      </div>
+    </ProjectPathContext.Provider>
   )
 }
 
