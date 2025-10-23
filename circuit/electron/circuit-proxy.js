@@ -40,7 +40,7 @@ class StdioTransport {
         const message = JSON.parse(line);
         this.messageHandlers.forEach(handler => handler(message));
       } catch (error) {
-        console.error('[circuit-proxy] Parse error:', error);
+        // Silently ignore parse errors from malformed input
       }
     }
   }
@@ -90,7 +90,7 @@ async function main() {
         try {
           const response = await fetch(`${CIRCUIT_API}/mcp/tools`);
           if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
+            throw new Error(`Circuit API returned ${response.status}`);
           }
           const data = await response.json();
 
@@ -102,11 +102,13 @@ async function main() {
             },
           });
         } catch (error) {
+          // SECURITY: Don't expose internal error details
           transport.send({
             jsonrpc: '2.0',
             id: request.id,
-            result: {
-              tools: [],
+            error: {
+              code: -32603,
+              message: 'Failed to fetch tools from Circuit',
             },
           });
         }
@@ -118,6 +120,11 @@ async function main() {
         try {
           const { name, arguments: args } = request.params;
 
+          // SECURITY: Validate input
+          if (!name || typeof name !== 'string') {
+            throw new Error('Invalid tool name');
+          }
+
           const response = await fetch(`${CIRCUIT_API}/mcp/call`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -125,8 +132,7 @@ async function main() {
           });
 
           if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || `HTTP ${response.status}`);
+            throw new Error('Tool execution failed');
           }
 
           const result = await response.json();
@@ -142,7 +148,7 @@ async function main() {
             id: request.id,
             error: {
               code: -32603,
-              message: error.message,
+              message: 'Tool execution failed',
             },
           });
         }
@@ -183,14 +189,13 @@ async function main() {
         },
       });
     } catch (error) {
-      console.error('[circuit-proxy] Error:', error);
       if (request.id !== undefined) {
         transport.send({
           jsonrpc: '2.0',
           id: request.id,
           error: {
             code: -32603,
-            message: error.message,
+            message: 'Internal error',
           },
         });
       }

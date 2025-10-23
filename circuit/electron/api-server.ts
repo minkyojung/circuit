@@ -17,8 +17,13 @@ export class CircuitAPIServer {
   }
 
   private setupMiddleware(): void {
-    this.app.use(cors());
-    this.app.use(express.json());
+    // SECURITY: Restrict CORS to localhost only for development
+    // In production, this should be further restricted or use proper authentication
+    this.app.use(cors({
+      origin: ['http://localhost:5173', 'http://localhost:3737'],
+      credentials: true
+    }));
+    this.app.use(express.json({ limit: '1mb' })); // Prevent large payload attacks
   }
 
   private setupRoutes(): void {
@@ -43,14 +48,13 @@ export class CircuitAPIServer {
               _serverName: server.name,
             })));
           } catch (error) {
-            console.error(`Error getting tools for ${serverId}:`, error);
+            // Skip servers with errors, continue processing others
           }
         }
 
         res.json({ tools: allTools });
       } catch (error: any) {
-        console.error('Error listing tools:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'Failed to list tools' });
       }
     });
 
@@ -59,8 +63,13 @@ export class CircuitAPIServer {
       try {
         const { toolName, arguments: args, serverId } = req.body;
 
-        if (!toolName) {
-          return res.status(400).json({ error: 'toolName is required' });
+        // SECURITY: Input validation
+        if (!toolName || typeof toolName !== 'string') {
+          return res.status(400).json({ error: 'toolName is required and must be a string' });
+        }
+
+        if (serverId && typeof serverId !== 'string') {
+          return res.status(400).json({ error: 'serverId must be a string' });
         }
 
         // If serverId is provided, use it directly
@@ -79,14 +88,14 @@ export class CircuitAPIServer {
         }
 
         if (!targetServerId) {
-          return res.status(404).json({ error: `Tool '${toolName}' not found` });
+          return res.status(404).json({ error: 'Tool not found or server not running' });
         }
 
         const result = await this.mcpManager.callTool(targetServerId, toolName, args || {});
         res.json(result);
       } catch (error: any) {
-        console.error('Error calling tool:', error);
-        res.status(500).json({ error: error.message });
+        // SECURITY: Don't expose internal error details
+        res.status(500).json({ error: 'Internal server error' });
       }
     });
 
@@ -108,14 +117,14 @@ export class CircuitAPIServer {
               avgCallDuration: 0,
             },
             toolCount: server.tools?.length || 0,
-            error: server.error,
+            // SECURITY: Don't expose error details to prevent information leakage
+            hasError: !!server.error,
           };
         }
 
         res.json(statuses);
       } catch (error: any) {
-        console.error('Error getting status:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'Failed to get server status' });
       }
     });
 
@@ -125,32 +134,33 @@ export class CircuitAPIServer {
         const { serverId } = req.params;
         const lines = parseInt(req.query.lines as string) || 100;
 
-        const logs = await this.mcpManager.getLogs(serverId, lines);
+        // SECURITY: Validate and limit lines parameter
+        const validatedLines = Math.min(Math.max(1, lines), 10000);
+
+        const logs = await this.mcpManager.getLogs(serverId, validatedLines);
         res.json({ logs });
       } catch (error: any) {
-        console.error('Error getting logs:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: 'Failed to get logs' });
       }
     });
   }
 
-  start(): Promise<void> {
+  async start(): Promise<void> {
     return new Promise((resolve) => {
-      this.server = this.app.listen(this.port, () => {
+      this.server = this.app.listen(this.port, '127.0.0.1', () => {
         console.log(`[Circuit API] Server listening on http://localhost:${this.port}`);
         resolve();
       });
     });
   }
 
-  stop(): Promise<void> {
+  async stop(): Promise<void> {
     return new Promise((resolve, reject) => {
       if (this.server) {
         this.server.close((err: any) => {
           if (err) {
             reject(err);
           } else {
-            console.log('[Circuit API] Server stopped');
             resolve();
           }
         });
