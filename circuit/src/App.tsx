@@ -54,7 +54,7 @@ function App() {
   }, [])
 
   return (
-    <div className="h-screen flex bg-gradient-to-br from-[#1a1412] to-[#2d2522]">
+    <div className="h-screen flex bg-gradient-to-br from-[#0f0d0c] to-[#1a1412]">
       {/* Debug Panel */}
       {showDebug && <PeekDebugPanel />}
 

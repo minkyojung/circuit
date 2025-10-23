@@ -18,9 +18,9 @@
   --circuit-warning: #f59e0b;
 
   /* Glass effects */
-  --glass-bg: rgba(89, 83, 80, 0.15);
-  --glass-border: rgba(255, 255, 255, 0.1);
-  --glass-hover: rgba(89, 83, 80, 0.25);
+  --glass-bg: rgba(50, 47, 45, 0.2);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-hover: rgba(50, 47, 45, 0.35);
 
   /* Shadows with glow */
   --glow-orange: 0 0 25px rgba(217, 119, 87, 0.9);
@@ -85,5 +85,5 @@
 
 /* Global background */
 body {
-  background: linear-gradient(135deg, #1a1412 0%, #2d2522 100%);
+  background: linear-gradient(135deg, #0f0d0c 0%, #1a1412 100%);
 }
