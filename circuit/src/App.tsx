@@ -62,7 +62,7 @@ function App() {
       <aside className="w-[200px] glass-sidebar flex flex-col">
         {/* Sidebar Top - Traffic Lights Area (Fully Draggable) */}
         <div
-          className="h-[44px] flex items-center px-4 border-b border-[var(--glass-border)]"
+          className="h-[44px] flex items-center px-4"
           style={{ WebkitAppRegion: 'drag' } as any}
         />
 
@@ -127,7 +127,7 @@ function App() {
         </nav>
 
         {/* Bottom Status Bar */}
-        <div className="border-t border-[var(--glass-border)] p-3">
+        <div className="p-3">
           <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
             <div className="h-1.5 w-1.5 rounded-full bg-[var(--circuit-success)]" />
             <span>Ready</span>
@@ -139,7 +139,7 @@ function App() {
       <main className="flex-1 overflow-hidden flex flex-col">
         {/* Main Header (Empty spaces draggable, interactive elements not) */}
         <header
-          className="h-[44px] bg-transparent border-b border-[var(--glass-border)] flex items-center px-4 gap-4"
+          className="h-[44px] bg-transparent flex items-center px-4 gap-4"
           style={{ WebkitAppRegion: 'drag' } as any}
         >
           {/* Left side - could add branch selector or other controls */}
