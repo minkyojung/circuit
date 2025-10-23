@@ -77,10 +77,10 @@
 }
 
 .glass-sidebar {
-  background: rgba(30, 25, 23, 0.7);
-  border-right: 1px solid var(--glass-border);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: rgba(30, 25, 23, 0.3);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
 }
 
 /* Global background */
