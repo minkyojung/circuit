@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { GitBranch, GitPullRequest, CheckCircle2, XCircle, Loader2, Copy, ExternalLink, GitCommit } from 'lucide-react'
+import { GitBranch, GitPullRequest, CheckCircle2, Loader2, Copy, ExternalLink, GitCommit } from 'lucide-react'
 
 export function GitHubTab() {
   const [isSending, setIsSending] = useState(false)

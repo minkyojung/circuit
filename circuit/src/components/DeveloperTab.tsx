@@ -2,12 +2,11 @@ import { useState, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Server, Play, Square, AlertCircle, Activity } from 'lucide-react'
 import { mcpClient, BUILTIN_SERVERS } from '@/lib/mcp-client'
-import type { MessageLog, Tool, Prompt, Resource, MCPServerConfig } from '@/types/mcp'
+import type { MessageLog, Tool, Prompt, Resource } from '@/types/mcp'
 
 // Server state tracker
 interface ServerState {
@@ -71,7 +70,7 @@ export function DeveloperTab() {
             server.status = 'running'
             server.info = event.serverInfo
             // Auto-fetch capabilities
-            fetchCapabilities(serverId, server)
+            fetchCapabilities(serverId)
             break
 
           case 'status':
@@ -124,7 +123,7 @@ export function DeveloperTab() {
     return removeListener
   }, [])
 
-  const fetchCapabilities = async (serverId: string, server: ServerState) => {
+  const fetchCapabilities = async (serverId: string) => {
     try {
       const [toolsList, promptsList, resourcesList] = await Promise.all([
         mcpClient.listTools(serverId),
@@ -195,20 +194,7 @@ export function DeveloperTab() {
     }
   }
 
-  // Format time ago
-  const formatTimeAgo = (ms: number | null): string => {
-    if (!ms) return 'never'
-    const seconds = Math.floor((Date.now() - ms) / 1000)
-    if (seconds < 60) return 'now'
-    const minutes = Math.floor(seconds / 60)
-    if (minutes < 60) return `${minutes}m ago`
-    const hours = Math.floor(minutes / 60)
-    return `${hours}h ago`
-  }
-
   const serverList = Array.from(servers.values())
-  const runningServers = serverList.filter(s => s.status === 'running')
-  const errorServers = serverList.filter(s => s.status === 'error')
 
   return (
     <div className="space-y-6">

@@ -126,10 +126,39 @@ export function DiscoverTab() {
   // Recommended MCPs (top 3 official ones)
   const recommendedMCPs = MOCK_MCPS.filter(mcp => mcp.official).slice(0, 3)
 
-  const handleInstall = (mcp: MCPPackage) => {
-    console.log('Installing:', mcp.id)
-    // TODO: Implement actual installation
-    alert(`Installing ${mcp.displayName} to Claude Desktop...`)
+  const handleInstall = async (mcp: MCPPackage) => {
+    try {
+      const { ipcRenderer } = window.require('electron')
+
+      // 1. Install the MCP server
+      const installResult = await ipcRenderer.invoke('circuit:mcp-install', mcp.id, {
+        id: mcp.id,
+        name: mcp.displayName,
+        packageId: mcp.id,
+        command: 'npx',
+        args: ['-y', mcp.id],
+        autoStart: true,
+        autoRestart: true
+      })
+
+      if (!installResult.success) {
+        alert(`Installation failed: ${installResult.error}`)
+        return
+      }
+
+      // 2. Start the server
+      const startResult = await ipcRenderer.invoke('circuit:mcp-start', mcp.id)
+
+      if (!startResult.success) {
+        alert(`Failed to start: ${startResult.error}`)
+        return
+      }
+
+      alert(`${mcp.displayName} installed and started successfully!`)
+    } catch (error) {
+      console.error('Installation error:', error)
+      alert(`Installation failed: ${error}`)
+    }
   }
 
   return (

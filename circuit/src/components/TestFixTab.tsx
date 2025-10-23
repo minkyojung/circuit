@@ -23,7 +23,6 @@ const { ipcRenderer } = window.require('electron')
 export function TestFixTab() {
   // Project detection
   const [detection, setDetection] = useState<DetectionResult | null>(null)
-  const [isDetecting, setIsDetecting] = useState(false)
 
   // Workflow states
   const [isInitializing, setIsInitializing] = useState(false)
@@ -82,7 +81,6 @@ export function TestFixTab() {
   }, [])
 
   const handleDetect = async () => {
-    setIsDetecting(true)
     try {
       const result = await ipcRenderer.invoke('circuit:detect-project', projectPath)
       if (result.success) {
@@ -92,8 +90,6 @@ export function TestFixTab() {
       }
     } catch (error) {
       setDetection({ type: 'unknown', confidence: 0, reasons: ['Detection failed'] })
-    } finally {
-      setIsDetecting(false)
     }
   }
 

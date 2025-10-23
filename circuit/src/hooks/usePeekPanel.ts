@@ -216,8 +216,8 @@ export function usePeekPanel() {
   const mcpServers = useRef<Record<string, MCPServerState>>({})
 
   // Track auto-hide timer to prevent stale closures from hiding the panel
-  const autoHideTimerRef = useRef<NodeJS.Timeout | null>(null)
-  const autoHideIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const autoHideTimerRef = useRef<number | null>(null)
+  const autoHideIntervalRef = useRef<number | null>(null)
 
   /**
    * Clear any pending auto-hide timer
@@ -267,7 +267,7 @@ export function usePeekPanel() {
       setState((currentState) => {
         if (currentState === 'compact') {
           try {
-            const { ipcRenderer } = require('electron')
+            const { ipcRenderer } = window.require('electron')
             ipcRenderer.send('peek:resize', {
               state: 'peek',
               data: null
@@ -295,7 +295,7 @@ export function usePeekPanel() {
 
     // Notify Electron to resize window
     try {
-      const { ipcRenderer } = require('electron')
+      const { ipcRenderer } = window.require('electron')
       ipcRenderer.send('peek:resize', {
         state: newState,
         data: newData || data
@@ -355,7 +355,7 @@ export function usePeekPanel() {
     if (!dataToOpen) return
 
     try {
-      const { ipcRenderer } = require('electron')
+      const { ipcRenderer } = window.require('electron')
 
       const payload = {
         type: dataToOpen.type,
@@ -377,7 +377,7 @@ export function usePeekPanel() {
    */
   useEffect(() => {
     try {
-      const { ipcRenderer } = require('electron')
+      const { ipcRenderer } = window.require('electron')
 
       // Test started → show peek (tab only)
       const handleTestStart = () => {
@@ -388,7 +388,7 @@ export function usePeekPanel() {
       }
 
       // Test completed → show compact with results
-      const handleTestComplete = (event: any, result: any) => {
+      const handleTestComplete = (_event: any, result: any) => {
         const testData: TestResultData = {
           type: 'test-result',
           status: result.success ? 'success' : 'failure',
@@ -427,7 +427,7 @@ export function usePeekPanel() {
    */
   useEffect(() => {
     try {
-      const { ipcRenderer } = require('electron')
+      const { ipcRenderer } = window.require('electron')
 
       // Helper: Extract summary from message
       const extractSummary = (message: any): string | undefined => {
@@ -491,7 +491,7 @@ export function usePeekPanel() {
       }
 
       // Main event handler
-      const handleMCPEvent = (event: any, payload: any) => {
+      const handleMCPEvent = (_event: any, payload: any) => {
         const { serverId, type, message, ...rest } = payload
 
         // 1. Update server state
@@ -624,9 +624,9 @@ export function usePeekPanel() {
    */
   useEffect(() => {
     try {
-      const { ipcRenderer } = require('electron')
+      const { ipcRenderer } = window.require('electron')
 
-      const handleDeploymentEvent = (event: any, deploymentData: DeploymentPeekData) => {
+      const handleDeploymentEvent = (_event: any, deploymentData: DeploymentPeekData) => {
         // Clear any existing auto-hide timer first
         clearAutoHideTimer()
 
@@ -659,9 +659,9 @@ export function usePeekPanel() {
    */
   useEffect(() => {
     try {
-      const { ipcRenderer } = require('electron')
+      const { ipcRenderer } = window.require('electron')
 
-      const handleGitHubEvent = (event: any, githubData: GitHubPeekData) => {
+      const handleGitHubEvent = (_event: any, githubData: GitHubPeekData) => {
         // Clear any existing auto-hide timer first
         clearAutoHideTimer()
 
@@ -699,7 +699,7 @@ export function usePeekPanel() {
 
     // Global shortcut from main process (Cmd+T)
     try {
-      const { ipcRenderer } = require('electron')
+      const { ipcRenderer } = window.require('electron')
 
       const handleToggle = () => {
         if (state === 'peek') {

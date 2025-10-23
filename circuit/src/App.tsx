@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { Card } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
 import { InstalledTab } from "@/components/InstalledTab"
 import { DiscoverTab } from "@/components/DiscoverTab"
 import { PeekDebugPanel } from "@/components/PeekDebugPanel"
