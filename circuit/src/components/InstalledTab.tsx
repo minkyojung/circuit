@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ChevronDown, ChevronRight, Play, Square, AlertCircle, RefreshCw, FileText, Trash2, Copy, Check } from 'lucide-react'
+import { HistoryPanel } from './HistoryPanel'
+import { useFeatureFlag } from '@/lib/featureFlags'
 
 interface Tool {
   name: string
@@ -42,6 +44,9 @@ export function InstalledTab() {
   const [expandedServer, setExpandedServer] = useState<string | null>(null)
   const [logs, setLogs] = useState<Record<string, string[]>>({})
   const [copiedTool, setCopiedTool] = useState<string | null>(null)
+
+  // Feature flag for history
+  const historyEnabled = useFeatureFlag('historyEnabled')
 
   // Poll server status every second
   useEffect(() => {
@@ -362,6 +367,13 @@ export function InstalledTab() {
           </Card>
         ))}
       </div>
+
+      {/* Call History Panel - Feature Flag Controlled */}
+      {historyEnabled && (
+        <div className="mt-6">
+          <HistoryPanel />
+        </div>
+      )}
     </div>
   )
 }

@@ -1775,6 +1775,21 @@ ipcMain.handle('circuit:mcp-get-logs', async (event, serverId, lines = 100) => {
   }
 });
 
+// ============================================================================
+// MCP Call History
+// ============================================================================
+
+// Register history IPC handlers
+(async () => {
+  try {
+    const { registerHistoryHandlers } = await import('./historyHandlers.ts');
+    registerHistoryHandlers();
+    console.log('[main.cjs] History handlers registered');
+  } catch (error) {
+    console.error('[main.cjs] Failed to register history handlers:', error);
+  }
+})();
+
 // Cleanup on app quit
 app.on('before-quit', async () => {
   try {

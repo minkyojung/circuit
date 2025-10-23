@@ -9,6 +9,8 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
+import { getHistoryStorage } from './historyStorage'
+import { getPrivacyFilter } from './privacyFilter'
 
 // Types
 export interface MCPServerConfig {
@@ -577,6 +579,11 @@ export class MCPServerManager {
     // Measure performance
     const startTime = Date.now()
 
+    // Record call in history (async, don't block)
+    this.recordCallStart(serverId, server.name, toolName, args).catch(error => {
+      console.error('[MCPManager] Failed to record call start:', error)
+    })
+
     try {
       const result = await server.client.callTool({
         name: toolName,
@@ -592,10 +599,22 @@ export class MCPServerManager {
 
       console.log(`Tool call ${toolName} completed in ${duration}ms`)
 
+      // Record success in history (async, don't block)
+      this.recordCallSuccess(serverId, server.name, toolName, args, result, duration).catch(error => {
+        console.error('[MCPManager] Failed to record call success:', error)
+      })
+
       return result
     } catch (error) {
       server.stats.errorCount++
       console.error(`Tool call ${toolName} failed:`, error)
+
+      // Record error in history (async, don't block)
+      const duration = Date.now() - startTime
+      this.recordCallError(serverId, server.name, toolName, args, error, duration).catch(err => {
+        console.error('[MCPManager] Failed to record call error:', err)
+      })
+
       throw error
     }
   }
@@ -829,6 +848,111 @@ export class MCPServerManager {
     }
   }
 
+  // ============================================================================
+  // Call History Recording
+  // ============================================================================
+
+  /**
+   * Record start of a tool call
+   */
+  private async recordCallStart(
+    serverId: string,
+    serverName: string,
+    toolName: string,
+    args: any
+  ): Promise<void> {
+    // This is a placeholder - actual implementation would store pending call
+    // For now, we'll just record the complete call (success or error)
+  }
+
+  /**
+   * Record successful tool call
+   */
+  private async recordCallSuccess(
+    serverId: string,
+    serverName: string,
+    toolName: string,
+    args: any,
+    result: any,
+    duration: number
+  ): Promise<void> {
+    try {
+      const storage = await getHistoryStorage()
+      const filter = getPrivacyFilter()
+
+      // Create call record
+      const call = {
+        timestamp: Date.now(),
+        duration,
+        serverId,
+        serverName,
+        method: 'tools/call',
+        toolName,
+        requestParams: JSON.stringify(args || {}),
+        requestRaw: JSON.stringify({ name: toolName, arguments: args }),
+        responseResult: JSON.stringify(result || {}),
+        responseRaw: JSON.stringify(result),
+        status: 'success' as const,
+        source: 'claude-code',
+      }
+
+      // Apply privacy filters
+      const sanitized = filter.sanitizeCall(call)
+
+      // Store in database
+      await storage.storeCall(sanitized)
+    } catch (error) {
+      console.error('[MCPManager] Failed to record call success:', error)
+      // Don't throw - history recording should not break tool calls
+    }
+  }
+
+  /**
+   * Record failed tool call
+   */
+  private async recordCallError(
+    serverId: string,
+    serverName: string,
+    toolName: string,
+    args: any,
+    error: any,
+    duration: number
+  ): Promise<void> {
+    try {
+      const storage = await getHistoryStorage()
+      const filter = getPrivacyFilter()
+
+      // Create call record
+      const call = {
+        timestamp: Date.now(),
+        duration,
+        serverId,
+        serverName,
+        method: 'tools/call',
+        toolName,
+        requestParams: JSON.stringify(args || {}),
+        requestRaw: JSON.stringify({ name: toolName, arguments: args }),
+        responseError: JSON.stringify({
+          code: -1,
+          message: error?.message || String(error),
+          data: error?.data,
+        }),
+        responseRaw: JSON.stringify({ error }),
+        status: 'error' as const,
+        source: 'claude-code',
+      }
+
+      // Apply privacy filters
+      const sanitized = filter.sanitizeCall(call)
+
+      // Store in database
+      await storage.storeCall(sanitized)
+    } catch (err) {
+      console.error('[MCPManager] Failed to record call error:', err)
+      // Don't throw - history recording should not break tool calls
+    }
+  }
+
   /**
    * Cleanup on shutdown
    */
@@ -841,6 +965,14 @@ export class MCPServerManager {
 
     await Promise.all(stopPromises)
     console.log('All MCP servers stopped')
+
+    // Close history storage
+    try {
+      const storage = await getHistoryStorage()
+      await storage.close()
+    } catch (error) {
+      console.error('Failed to close history storage:', error)
+    }
   }
 }
 
