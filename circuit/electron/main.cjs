@@ -6,6 +6,15 @@ const chokidar = require('chokidar');
 const os = require('os');
 const http = require('http');
 
+// Import MCP Server Manager (ES Module)
+let mcpManagerPromise = null;
+async function getMCPManagerInstance() {
+  if (!mcpManagerPromise) {
+    mcpManagerPromise = import('./mcp-manager.ts').then(module => module.getMCPManager());
+  }
+  return mcpManagerPromise;
+}
+
 // macOS traffic light button positioning
 const HEADER_HEIGHT = 44;
 const TRAFFIC_LIGHTS_HEIGHT = 14;
@@ -1542,5 +1551,156 @@ ipcMain.handle('circuit:apply-fix', async (event, applyRequest) => {
       success: false,
       error: error.message
     };
+  }
+});
+
+// ============================================================================
+// MCP Runtime Manager - New Architecture
+// ============================================================================
+
+/**
+ * Install a new MCP server
+ */
+ipcMain.handle('circuit:mcp-install', async (event, packageId, config) => {
+  try {
+    const manager = await getMCPManagerInstance();
+    await manager.install(packageId, config);
+    return { success: true };
+  } catch (error) {
+    console.error('MCP install error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Start an MCP server
+ */
+ipcMain.handle('circuit:mcp-start', async (event, serverId) => {
+  try {
+    const manager = await getMCPManagerInstance();
+    await manager.start(serverId);
+    return { success: true };
+  } catch (error) {
+    console.error('MCP start error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Stop an MCP server
+ */
+ipcMain.handle('circuit:mcp-stop', async (event, serverId) => {
+  try {
+    const manager = await getMCPManagerInstance();
+    await manager.stop(serverId);
+    return { success: true };
+  } catch (error) {
+    console.error('MCP stop error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Restart an MCP server
+ */
+ipcMain.handle('circuit:mcp-restart', async (event, serverId) => {
+  try {
+    const manager = await getMCPManagerInstance();
+    await manager.restart(serverId);
+    return { success: true };
+  } catch (error) {
+    console.error('MCP restart error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * List tools from a server
+ */
+ipcMain.handle('circuit:mcp-list-tools', async (event, serverId) => {
+  try {
+    const manager = await getMCPManagerInstance();
+    const tools = await manager.listTools(serverId);
+    return { success: true, tools };
+  } catch (error) {
+    console.error('MCP list tools error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Call a tool
+ */
+ipcMain.handle('circuit:mcp-call-tool', async (event, serverId, toolName, args) => {
+  try {
+    const manager = await getMCPManagerInstance();
+    const result = await manager.callTool(serverId, toolName, args);
+    return { success: true, result };
+  } catch (error) {
+    console.error('MCP call tool error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Get status of a specific server
+ */
+ipcMain.handle('circuit:mcp-get-status', async (event, serverId) => {
+  try {
+    const manager = await getMCPManagerInstance();
+    const status = await manager.getStatus(serverId);
+    return { success: true, status };
+  } catch (error) {
+    console.error('MCP get status error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Get status of all servers
+ */
+ipcMain.handle('circuit:mcp-get-all-status', async (event) => {
+  try {
+    const manager = await getMCPManagerInstance();
+    const statuses = await manager.getAllStatuses();
+    return { success: true, statuses };
+  } catch (error) {
+    console.error('MCP get all status error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Get logs for a server
+ */
+ipcMain.handle('circuit:mcp-get-logs', async (event, serverId, lines = 100) => {
+  try {
+    const manager = await getMCPManagerInstance();
+    const logs = await manager.getLogs(serverId, lines);
+    return { success: true, logs };
+  } catch (error) {
+    console.error('MCP get logs error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Cleanup on app quit
+app.on('before-quit', async () => {
+  try {
+    const manager = await getMCPManagerInstance();
+    await manager.cleanup();
+  } catch (error) {
+    console.error('Cleanup error:', error);
+  }
+});
+
+// Auto-start MCP servers on app ready
+app.whenReady().then(async () => {
+  try {
+    const manager = await getMCPManagerInstance();
+    await manager.startAllAutoStartServers();
+    console.log('Auto-start servers initialized');
+  } catch (error) {
+    console.error('Failed to auto-start servers:', error);
   }
 });
