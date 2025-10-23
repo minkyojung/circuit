@@ -1,17 +1,84 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, globalShortcut } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 const fs = require('fs').promises;
 const chokidar = require('chokidar');
 const os = require('os');
+const http = require('http');
+
+// Import MCP Server Manager (ES Module)
+let mcpManagerPromise = null;
+async function getMCPManagerInstance() {
+  console.log('[main.cjs] getMCPManagerInstance called');
+  if (!mcpManagerPromise) {
+    console.log('[main.cjs] Creating new MCP Manager instance...');
+    mcpManagerPromise = import('../dist-electron/mcp-manager.js')
+      .then(module => {
+        console.log('[main.cjs] mcp-manager.js imported successfully');
+        return module.getMCPManager();
+      })
+      .catch(error => {
+        console.error('[main.cjs] Failed to import mcp-manager.js:', error);
+        throw error;
+      });
+  }
+  const manager = await mcpManagerPromise;
+  console.log('[main.cjs] MCP Manager instance ready');
+  return manager;
+}
+
+// Import Circuit API Server (ES Module)
+let apiServerPromise = null;
+async function getAPIServerInstance() {
+  if (!apiServerPromise) {
+    apiServerPromise = (async () => {
+      const mcpManager = await getMCPManagerInstance();
+      const { CircuitAPIServer } = await import('../dist-electron/api-server.js');
+      return new CircuitAPIServer(mcpManager);
+    })();
+  }
+  return apiServerPromise;
+}
+
+/**
+ * Install circuit-proxy to ~/.circuit/bin/
+ * This proxy allows Claude Code to access all MCP servers via a single MCP interface
+ */
+async function installCircuitProxy() {
+  try {
+    const circuitDir = path.join(os.homedir(), '.circuit');
+    const binDir = path.join(circuitDir, 'bin');
+    const proxyDestPath = path.join(binDir, 'circuit-proxy');
+
+    // Create directories
+    await fs.mkdir(binDir, { recursive: true });
+
+    // Copy the proxy script
+    const proxySourcePath = path.join(__dirname, 'circuit-proxy.js');
+    await fs.copyFile(proxySourcePath, proxyDestPath);
+
+    // Make it executable
+    await fs.chmod(proxyDestPath, 0o755);
+
+    console.log('[Circuit] Proxy installed to:', proxyDestPath);
+    return { success: true, path: proxyDestPath };
+  } catch (error) {
+    console.error('[Circuit] Failed to install proxy:', error);
+    return { success: false, error: error.message };
+  }
+}
 
 // macOS traffic light button positioning
 const HEADER_HEIGHT = 44;
 const TRAFFIC_LIGHTS_HEIGHT = 14;
 const TRAFFIC_LIGHTS_MARGIN = 20;
 
+// Window instances
+let mainWindow = null;
+let peekWindow = null;
+
 function createWindow() {
-  const mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     titleBarStyle: process.platform === 'darwin' ? 'hidden' : 'default',
@@ -34,14 +101,430 @@ function createWindow() {
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
+
+  // Clean up reference when window is closed
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
 }
 
-app.whenReady().then(() => {
+// ============================================================================
+// Circuit Peek Panel - Corner-Anchored Mini Panel
+// ============================================================================
+
+/**
+ * Create peek panel window
+ * - Corner-anchored (bottom-right by default)
+ * - Always on top, but non-intrusive
+ * - Mouse events pass through when hidden/dot state
+ */
+function createPeekWindow() {
+  const { screen } = require('electron');
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+  const margin = 10;
+
+  peekWindow = new BrowserWindow({
+    width: 60,
+    height: 60,
+    // Start off-screen for smooth slide-in animation
+    x: screenWidth + 100,
+    y: screenHeight - 60 - margin,
+    type: 'panel',
+    frame: false,
+    transparent: true,
+    vibrancy: 'hud',  // macOS native glassmorphism blur
+    visualEffectState: 'active',
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    acceptsFirstMouse: false,
+    hasShadow: false,
+    show: true,  // Always visible (starts off-screen, slides in)
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false,
+    }
+  });
+
+  // Load peek panel HTML
+  if (process.env.VITE_DEV_SERVER_URL) {
+    peekWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}#/peek`);
+  } else {
+    peekWindow.loadFile(path.join(__dirname, '../dist/index.html'), { hash: '/peek' });
+  }
+
+  // Mouse events pass through by default (for peek state)
+  peekWindow.setIgnoreMouseEvents(true, { forward: true });
+
+  // After loading, slide into peek position with animation
+  peekWindow.webContents.on('did-finish-load', () => {
+    setTimeout(() => {
+      resizePeekWindow('peek', null);
+    }, 100);  // Short delay for smooth appearance
+  });
+
+  // Prevent window from closing, just hide instead
+  peekWindow.on('close', (e) => {
+    e.preventDefault();
+    peekWindow.hide();
+  });
+}
+
+/**
+ * Resize peek window based on state
+ * Uses smooth animation on macOS via setBounds with animate flag
+ * Always keeps window visible with consistent slide animations
+ */
+function resizePeekWindow(state, data) {
+  if (!peekWindow) return;
+
+  const { screen } = require('electron');
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+
+  const margin = 10;
+
+  // Determine if we should use animation (macOS supports it)
+  const shouldAnimate = process.platform === 'darwin';
+
+  // Ensure window is always visible (no-op if already shown)
+  if (!peekWindow.isVisible()) {
+    peekWindow.show();
+  }
+
+  switch (state) {
+    case 'peek':
+      // Tab only: 60px wide, mostly off-screen, only 12px visible
+      const peekBounds = {
+        x: screenWidth - 12,
+        y: screenHeight - 60 - margin,
+        width: 60,
+        height: 60
+      };
+
+      // Always use setBounds for consistent animation
+      peekWindow.setBounds(peekBounds, shouldAnimate);
+      peekWindow.setIgnoreMouseEvents(true, { forward: true });
+      break;
+
+    case 'compact':
+      // Full content visible: 240x60 (compact Cursor-style design)
+      const compactBounds = {
+        x: screenWidth - 240 - margin,
+        y: screenHeight - 60 - margin,
+        width: 240,
+        height: 60
+      };
+
+      // Always use setBounds for consistent animation
+      peekWindow.setBounds(compactBounds, shouldAnimate);
+      peekWindow.setIgnoreMouseEvents(false);
+      break;
+  }
+}
+
+/**
+ * IPC Handlers for peek panel
+ */
+ipcMain.on('peek:resize', (event, { state, data }) => {
+  resizePeekWindow(state, data);
+});
+
+ipcMain.on('peek:mouse-enter', () => {
+  if (peekWindow) {
+    peekWindow.setIgnoreMouseEvents(false);
+  }
+});
+
+ipcMain.on('peek:mouse-leave', () => {
+  if (peekWindow) {
+    // Only ignore mouse events if in peek state (tab only)
+    const bounds = peekWindow.getBounds();
+    if (bounds.width <= 60) {
+      peekWindow.setIgnoreMouseEvents(true, { forward: true });
+    }
+  }
+});
+
+ipcMain.on('peek:open-in-window', (event, payload) => {
+  if (mainWindow) {
+    // Focus main window
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore();
+    }
+    mainWindow.focus();
+
+    // Send data to main window
+    mainWindow.webContents.send('peek:data-opened', payload);
+  }
+});
+
+// Debug: Manual state change from main window
+ipcMain.on('peek:debug-change-state', (event, state) => {
+  console.log('[Debug] Manually changing peek window state to:', state);
+  resizePeekWindow(state, null);
+});
+
+// ============================================================================
+// Webhook Server for Integrations (Vercel, GitHub, etc.)
+// ============================================================================
+
+/**
+ * Handle Vercel deployment webhook
+ */
+function handleVercelWebhook(payload, res) {
+  try {
+    const deploymentData = {
+      type: 'deployment',
+      source: 'vercel',
+      status: transformVercelStatus(payload.deployment.state),
+      projectName: payload.deployment.projectSettings?.name || payload.deployment.name,
+      branch: payload.deployment.meta?.githubCommitRef || 'main',
+      commit: payload.deployment.meta?.githubCommitSha?.slice(0, 7) || 'unknown',
+      timestamp: Date.now(),
+      duration: payload.deployment.ready ? Date.now() - payload.deployment.createdAt : undefined,
+      url: payload.deployment.url ? `https://${payload.deployment.url}` : undefined,
+      logUrl: payload.deployment.inspectorUrl,
+      error: payload.deployment.errorMessage ? {
+        message: payload.deployment.errorMessage,
+      } : undefined
+    };
+
+    // Send to peek panel
+    if (peekWindow) {
+      peekWindow.webContents.send('deployment:event', deploymentData);
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ received: true }));
+  } catch (error) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: error.message }));
+  }
+}
+
+/**
+ * Handle GitHub webhook events
+ */
+function handleGitHubWebhook(payload, eventType, res) {
+  try {
+    let githubData = null;
+
+    // Push event
+    if (eventType === 'push') {
+      githubData = {
+        type: 'github',
+        eventType: 'push',
+        repository: payload.repository.full_name,
+        timestamp: Date.now(),
+        push: {
+          ref: payload.ref.replace('refs/heads/', ''),
+          pusher: payload.pusher.name,
+          commits: payload.commits.map(c => ({
+            sha: c.id.slice(0, 7),
+            message: c.message.split('\n')[0],  // First line only
+            author: c.author.name
+          })),
+          compareUrl: payload.compare
+        }
+      };
+    }
+
+    // Pull Request event
+    else if (eventType === 'pull_request') {
+      githubData = {
+        type: 'github',
+        eventType: 'pull_request',
+        repository: payload.repository.full_name,
+        timestamp: Date.now(),
+        pullRequest: {
+          number: payload.pull_request.number,
+          title: payload.pull_request.title,
+          action: payload.action,
+          author: payload.pull_request.user.login,
+          state: payload.pull_request.state,
+          merged: payload.pull_request.merged || false,
+          mergeable: payload.pull_request.mergeable,
+          url: payload.pull_request.html_url
+        }
+      };
+    }
+
+    // Check Run event (CI/CD)
+    else if (eventType === 'check_run') {
+      githubData = {
+        type: 'github',
+        eventType: 'check_run',
+        repository: payload.repository.full_name,
+        timestamp: Date.now(),
+        checkRun: {
+          name: payload.check_run.name,
+          status: payload.check_run.status,
+          conclusion: payload.check_run.conclusion,
+          branch: payload.check_run.check_suite?.head_branch || payload.check_run.head_branch || 'unknown',
+          commit: payload.check_run.head_sha ? payload.check_run.head_sha.slice(0, 7) : 'unknown',
+          detailsUrl: payload.check_run.details_url || payload.check_run.html_url
+        }
+      };
+    }
+
+    // Pull Request Review event
+    else if (eventType === 'pull_request_review') {
+      githubData = {
+        type: 'github',
+        eventType: 'review',
+        repository: payload.repository.full_name,
+        timestamp: Date.now(),
+        review: {
+          pullRequestNumber: payload.pull_request.number,
+          reviewer: payload.review.user.login,
+          state: payload.review.state.toLowerCase(),
+          body: payload.review.body
+        }
+      };
+    }
+
+    if (githubData && peekWindow) {
+      peekWindow.webContents.send('github:event', githubData);
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ received: true }));
+  } catch (error) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: error.message }));
+  }
+}
+
+/**
+ * Start HTTP server to receive webhooks from various services
+ * Server listens on port 3456 by default
+ */
+function startWebhookServer() {
+  const PORT = process.env.WEBHOOK_PORT || 3456;
+
+  const server = http.createServer((req, res) => {
+    if (req.method !== 'POST') {
+      res.writeHead(405, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Method not allowed' }));
+      return;
+    }
+
+    let body = '';
+
+    req.on('data', (chunk) => {
+      body += chunk.toString();
+    });
+
+    req.on('end', () => {
+      try {
+        const payload = JSON.parse(body);
+
+        // Route based on URL
+        if (req.url === '/webhook/vercel') {
+          handleVercelWebhook(payload, res);
+        }
+        else if (req.url === '/webhook/github') {
+          // GitHub sends event type in X-GitHub-Event header
+          const eventType = req.headers['x-github-event'];
+          handleGitHubWebhook(payload, eventType, res);
+        }
+        else {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Endpoint not found' }));
+        }
+      } catch (error) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON' }));
+      }
+    });
+  });
+
+  // Handle port conflicts gracefully
+  server.on('error', (error) => {
+    if (error.code === 'EADDRINUSE') {
+      console.warn(`[Webhook] Port ${PORT} is already in use. Webhook server not started.`);
+      console.warn(`[Webhook] This likely means another instance is running. Webhooks will be handled by that instance.`);
+    } else {
+      console.error(`[Webhook] Server error:`, error);
+    }
+  });
+
+  server.listen(PORT, () => {
+    console.log(`[Webhook] Server listening on port ${PORT}`);
+    console.log(`[Webhook] Vercel endpoint: http://localhost:${PORT}/webhook/vercel`);
+    console.log(`[Webhook] GitHub endpoint: http://localhost:${PORT}/webhook/github`);
+  });
+
+  // Store server reference for cleanup
+  app.on('before-quit', () => {
+    server.close();
+  });
+
+  return server;
+}
+
+/**
+ * Transform Vercel deployment status to our status enum
+ */
+function transformVercelStatus(vercelStatus) {
+  const statusMap = {
+    'BUILDING': 'building',
+    'READY': 'success',
+    'ERROR': 'failed',
+    'CANCELED': 'cancelled',
+    'QUEUED': 'building',
+    'INITIALIZING': 'building'
+  };
+  return statusMap[vercelStatus] || 'building';
+}
+
+app.whenReady().then(async () => {
   createWindow();
+  createPeekWindow();
+
+  // Register global shortcut for Cmd+Shift+P (peek panel toggle)
+  globalShortcut.register('CommandOrControl+Shift+P', () => {
+    if (peekWindow) {
+      if (peekWindow.isVisible()) {
+        peekWindow.webContents.send('peek:toggle');
+      } else {
+        peekWindow.webContents.send('peek:show');
+      }
+    }
+  });
+
+  // Start Vercel webhook server
+  startWebhookServer();
+
+  // Initialize MCP Manager and API Server
+  try {
+    // Install circuit-proxy
+    await installCircuitProxy();
+
+    // Start Circuit HTTP API Server
+    const apiServer = await getAPIServerInstance();
+    await apiServer.start();
+    console.log('Circuit API Server started');
+
+    // Start MCP servers
+    const manager = await getMCPManagerInstance();
+    await manager.startAllAutoStartServers();
+    console.log('Auto-start servers initialized');
+  } catch (error) {
+    console.error('Failed to initialize MCP/API:', error);
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
+    }
+    if (!peekWindow) {
+      createPeekWindow();
     }
   });
 });
@@ -338,11 +821,19 @@ class MCPServer {
   }
 
   sendToRenderer(data) {
+    const payload = {
+      serverId: this.config.id,
+      ...data
+    };
+
+    // Send to main window (Developer tab)
     if (this.eventTarget) {
-      this.eventTarget.webContents.send('mcp-event', {
-        serverId: this.config.id,
-        ...data
-      });
+      this.eventTarget.webContents.send('mcp-event', payload);
+    }
+
+    // Also send to peek window for ambient display
+    if (peekWindow && !peekWindow.isDestroyed()) {
+      peekWindow.webContents.send('mcp-event', payload);
     }
   }
 }
@@ -405,8 +896,247 @@ ipcMain.handle('mcp:get-server-status', async (event, serverId) => {
 });
 
 // ============================================================================
+// Deployments - Test Webhook Sender
+// ============================================================================
+
+/**
+ * Send test deployment webhook to peek panel
+ */
+ipcMain.handle('deployments:send-test-webhook', async (event, status) => {
+  try {
+    // Generate sample deployment data based on status
+    const sampleData = {
+      building: {
+        type: 'deployment',
+        source: 'vercel',
+        status: 'building',
+        projectName: 'my-awesome-app',
+        branch: 'main',
+        commit: 'abc1234',
+        timestamp: Date.now(),
+        url: 'https://my-awesome-app-abc123.vercel.app',
+        logUrl: 'https://vercel.com/logs/abc123'
+      },
+      success: {
+        type: 'deployment',
+        source: 'vercel',
+        status: 'success',
+        projectName: 'my-awesome-app',
+        branch: 'main',
+        commit: 'abc1234',
+        timestamp: Date.now(),
+        duration: 45000,
+        url: 'https://my-awesome-app-abc123.vercel.app',
+        logUrl: 'https://vercel.com/logs/abc123'
+      },
+      failed: {
+        type: 'deployment',
+        source: 'vercel',
+        status: 'failed',
+        projectName: 'my-awesome-app',
+        branch: 'feature-new-ui',
+        commit: 'def9876',
+        timestamp: Date.now(),
+        duration: 32000,
+        url: 'https://my-awesome-app-def987.vercel.app',
+        logUrl: 'https://vercel.com/logs/def987',
+        error: {
+          message: 'Build failed: Module not found'
+        }
+      }
+    };
+
+    const deploymentData = sampleData[status];
+
+    if (!deploymentData) {
+      return {
+        success: false,
+        error: `Invalid status: ${status}`
+      };
+    }
+
+    // Send to peek panel
+    if (peekWindow && !peekWindow.isDestroyed()) {
+      peekWindow.webContents.send('deployment:event', deploymentData);
+      return { success: true };
+    } else {
+      return {
+        success: false,
+        error: 'Peek panel is not available'
+      };
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+// GitHub - Test Webhook Sender
+// ============================================================================
+
+/**
+ * Send test GitHub webhook to peek panel
+ */
+ipcMain.handle('github:send-test-webhook', async (event, eventType) => {
+  try {
+    // Generate sample GitHub data based on event type
+    const sampleData = {
+      push: {
+        type: 'github',
+        eventType: 'push',
+        repository: 'user/my-awesome-app',
+        timestamp: Date.now(),
+        push: {
+          ref: 'main',
+          pusher: 'john',
+          commits: [
+            {
+              sha: 'abc1234',
+              message: 'Add new feature',
+              author: 'john'
+            },
+            {
+              sha: 'def5678',
+              message: 'Fix typo',
+              author: 'john'
+            }
+          ],
+          compareUrl: 'https://github.com/user/repo/compare/abc...def'
+        }
+      },
+      pull_request: {
+        type: 'github',
+        eventType: 'pull_request',
+        repository: 'user/my-awesome-app',
+        timestamp: Date.now(),
+        pullRequest: {
+          number: 123,
+          title: 'Add dark mode',
+          action: 'opened',
+          author: 'alice',
+          state: 'open',
+          merged: false,
+          mergeable: true,
+          url: 'https://github.com/user/repo/pull/123'
+        }
+      },
+      check_run: {
+        type: 'github',
+        eventType: 'check_run',
+        repository: 'user/my-awesome-app',
+        timestamp: Date.now(),
+        checkRun: {
+          name: 'tests',
+          status: 'completed',
+          conclusion: 'success',
+          branch: 'main',
+          commit: 'abc1234',
+          detailsUrl: 'https://github.com/user/repo/runs/456'
+        }
+      }
+    };
+
+    const githubData = sampleData[eventType];
+
+    if (!githubData) {
+      return {
+        success: false,
+        error: `Invalid event type: ${eventType}`
+      };
+    }
+
+    // Send to peek panel
+    if (peekWindow && !peekWindow.isDestroyed()) {
+      peekWindow.webContents.send('github:event', githubData);
+      return { success: true };
+    } else {
+      return {
+        success: false,
+        error: 'Peek panel is not available'
+      };
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+// ============================================================================
 // Circuit Test-Fix Loop - Phase 2
 // ============================================================================
+
+/**
+ * Read MCP config from local apps (Claude Desktop, Cursor, Windsurf, etc.)
+ */
+ipcMain.handle('circuit:read-mcp-config', async (event, configPath) => {
+  try {
+    // Expand ~ to home directory
+    const expandedPath = configPath.replace(/^~/, os.homedir());
+
+    // Check if file exists
+    try {
+      await fs.access(expandedPath);
+    } catch {
+      return {
+        success: false,
+        error: 'Config file not found'
+      };
+    }
+
+    // Read and parse config
+    const configContent = await fs.readFile(expandedPath, 'utf-8');
+    const config = JSON.parse(configContent);
+
+    // Extract MCP servers from different config formats
+    let servers = [];
+
+    // Format 1: { "mcpServers": { "id": { ... } } }
+    if (config.mcpServers && typeof config.mcpServers === 'object') {
+      servers = Object.entries(config.mcpServers).map(([id, serverConfig]) => ({
+        id,
+        name: serverConfig.name || id,
+        command: serverConfig.command,
+        args: serverConfig.args || [],
+        env: serverConfig.env || {}
+      }));
+    }
+    // Format 2: { "servers": { "id": { ... } } }
+    else if (config.servers && typeof config.servers === 'object') {
+      servers = Object.entries(config.servers).map(([id, serverConfig]) => ({
+        id,
+        name: serverConfig.name || id,
+        command: serverConfig.command,
+        args: serverConfig.args || [],
+        env: serverConfig.env || {}
+      }));
+    }
+    // Format 3: { "mcp": { "servers": { ... } } }
+    else if (config.mcp?.servers && typeof config.mcp.servers === 'object') {
+      servers = Object.entries(config.mcp.servers).map(([id, serverConfig]) => ({
+        id,
+        name: serverConfig.name || id,
+        command: serverConfig.command,
+        args: serverConfig.args || [],
+        env: serverConfig.env || {}
+      }));
+    }
+
+    return {
+      success: true,
+      servers,
+      raw: config
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
 
 /**
  * Phase 2: Detect project type from package.json
@@ -598,6 +1328,11 @@ ipcMain.handle('circuit:run-test', async (event, projectPath) => {
   try {
     const startTime = Date.now();
 
+    // Notify peek panel: test started
+    if (peekWindow) {
+      peekWindow.webContents.send('test:started');
+    }
+
     return new Promise((resolve) => {
       // Run npm test
       const testProcess = spawn('npm', ['test'], {
@@ -646,7 +1381,7 @@ ipcMain.handle('circuit:run-test', async (event, projectPath) => {
           line.includes('Received')
         );
 
-        resolve({
+        const result = {
           success: code === 0,
           passed,
           failed,
@@ -654,11 +1389,18 @@ ipcMain.handle('circuit:run-test', async (event, projectPath) => {
           duration,
           output: output.slice(0, 10000), // Limit to 10KB
           errors: errorLines.slice(0, 10) // First 10 errors
-        });
+        };
+
+        // Notify peek panel: test completed
+        if (peekWindow) {
+          peekWindow.webContents.send('test:completed', result);
+        }
+
+        resolve(result);
       });
 
       testProcess.on('error', (error) => {
-        resolve({
+        const result = {
           success: false,
           passed: 0,
           failed: 0,
@@ -666,11 +1408,18 @@ ipcMain.handle('circuit:run-test', async (event, projectPath) => {
           duration: Date.now() - startTime,
           output: '',
           errors: [error.message]
-        });
+        };
+
+        // Notify peek panel: test completed (with error)
+        if (peekWindow) {
+          peekWindow.webContents.send('test:completed', result);
+        }
+
+        resolve(result);
       });
     });
   } catch (error) {
-    return {
+    const result = {
       success: false,
       passed: 0,
       failed: 0,
@@ -679,6 +1428,13 @@ ipcMain.handle('circuit:run-test', async (event, projectPath) => {
       output: '',
       errors: [error.message]
     };
+
+    // Notify peek panel: test completed (with error)
+    if (peekWindow) {
+      peekWindow.webContents.send('test:completed', result);
+    }
+
+    return result;
   }
 });
 
@@ -868,3 +1624,186 @@ ipcMain.handle('circuit:apply-fix', async (event, applyRequest) => {
     };
   }
 });
+
+// ============================================================================
+// MCP Runtime Manager - New Architecture
+// ============================================================================
+
+/**
+ * Install a new MCP server
+ */
+ipcMain.handle('circuit:mcp-install', async (event, packageId, config) => {
+  console.log('[IPC] circuit:mcp-install called with:', packageId, config);
+  try {
+    console.log('[IPC] Getting MCP Manager instance...');
+    const manager = await getMCPManagerInstance();
+    console.log('[IPC] MCP Manager obtained, calling install...');
+    const serverId = await manager.install(packageId, config);
+    console.log('[IPC] Install completed successfully, serverId:', serverId);
+    return { success: true, serverId };
+  } catch (error) {
+    console.error('[IPC] MCP install error:', error);
+    console.error('[IPC] Error stack:', error.stack);
+    return { success: false, error: error.message };
+  }
+});
+console.log('[main.cjs] circuit:mcp-install handler registered');
+
+/**
+ * Uninstall an MCP server
+ */
+ipcMain.handle('circuit:mcp-uninstall', async (event, serverId) => {
+  try {
+    const manager = await getMCPManagerInstance();
+    await manager.uninstall(serverId);
+    return { success: true };
+  } catch (error) {
+    console.error('MCP uninstall error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Start an MCP server
+ */
+ipcMain.handle('circuit:mcp-start', async (event, serverId) => {
+  try {
+    const manager = await getMCPManagerInstance();
+    await manager.start(serverId);
+    return { success: true };
+  } catch (error) {
+    console.error('MCP start error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Stop an MCP server
+ */
+ipcMain.handle('circuit:mcp-stop', async (event, serverId) => {
+  try {
+    const manager = await getMCPManagerInstance();
+    await manager.stop(serverId);
+    return { success: true };
+  } catch (error) {
+    console.error('MCP stop error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Restart an MCP server
+ */
+ipcMain.handle('circuit:mcp-restart', async (event, serverId) => {
+  try {
+    const manager = await getMCPManagerInstance();
+    await manager.restart(serverId);
+    return { success: true };
+  } catch (error) {
+    console.error('MCP restart error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * List tools from a server
+ */
+ipcMain.handle('circuit:mcp-list-tools', async (event, serverId) => {
+  try {
+    const manager = await getMCPManagerInstance();
+    const tools = await manager.listTools(serverId);
+    return { success: true, tools };
+  } catch (error) {
+    console.error('MCP list tools error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Call a tool
+ */
+ipcMain.handle('circuit:mcp-call-tool', async (event, serverId, toolName, args) => {
+  try {
+    const manager = await getMCPManagerInstance();
+    const result = await manager.callTool(serverId, toolName, args);
+    return { success: true, result };
+  } catch (error) {
+    console.error('MCP call tool error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Get status of a specific server
+ */
+ipcMain.handle('circuit:mcp-get-status', async (event, serverId) => {
+  try {
+    const manager = await getMCPManagerInstance();
+    const status = await manager.getStatus(serverId);
+    return { success: true, status };
+  } catch (error) {
+    console.error('MCP get status error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Get status of all servers
+ */
+ipcMain.handle('circuit:mcp-get-all-status', async (event) => {
+  try {
+    const manager = await getMCPManagerInstance();
+    const statuses = await manager.getAllStatuses();
+    return { success: true, statuses };
+  } catch (error) {
+    console.error('MCP get all status error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Get logs for a server
+ */
+ipcMain.handle('circuit:mcp-get-logs', async (event, serverId, lines = 100) => {
+  try {
+    const manager = await getMCPManagerInstance();
+    const logs = await manager.getLogs(serverId, lines);
+    return { success: true, logs };
+  } catch (error) {
+    console.error('MCP get logs error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// ============================================================================
+// MCP Call History
+// ============================================================================
+
+// Register history IPC handlers
+(async () => {
+  try {
+    const { registerHistoryHandlers } = await import('../dist-electron/historyHandlers.js');
+    registerHistoryHandlers();
+    console.log('[main.cjs] History handlers registered');
+  } catch (error) {
+    console.error('[main.cjs] Failed to register history handlers:', error);
+  }
+})();
+
+// Cleanup on app quit
+app.on('before-quit', async () => {
+  try {
+    // Stop API server
+    const apiServer = await getAPIServerInstance();
+    await apiServer.stop();
+    console.log('Circuit API Server stopped');
+
+    // Cleanup MCP manager
+    const manager = await getMCPManagerInstance();
+    await manager.cleanup();
+  } catch (error) {
+    console.error('Cleanup error:', error);
+  }
+});
+
+// MCP/API initialization is now handled in the main app.whenReady() block above

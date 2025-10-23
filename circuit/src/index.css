@@ -74,8 +74,20 @@
 }
 
 @layer base {
-  body {
+  /* Only apply background to non-peek-panel windows */
+  html:not(.peek-panel) body {
     background-color: var(--background);
+  }
+
+  /* Force transparency for peek panel */
+  html.peek-panel,
+  html.peek-panel body,
+  html.peek-panel #root {
+    background-color: transparent !important;
+    background: transparent !important;
+  }
+
+  body {
     color: var(--foreground);
   }
 }

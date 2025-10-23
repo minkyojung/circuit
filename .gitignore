@@ -4,6 +4,7 @@ circuit/node_modules/
 
 # Build outputs
 circuit/dist/
+circuit/dist-electron/
 circuit/out/
 
 # Logs
@@ -21,3 +22,8 @@ Thumbs.db
 # Environment
 .env
 .env.local
+
+# Backup files
+*.bak
+*.bak*
+*.disabled
