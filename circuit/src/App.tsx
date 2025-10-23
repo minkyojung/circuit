@@ -6,14 +6,14 @@ import { TestFixTab } from "@/components/TestFixTab"
 import { DeploymentsTab } from "@/components/DeploymentsTab"
 import { GitHubTab } from "@/components/GitHubTab"
 import { PeekDebugPanel } from "@/components/PeekDebugPanel"
-import { Store, Wrench, Package, Zap, Rocket, GitBranch } from 'lucide-react'
+import { Store, Wrench, Zap, Rocket, GitBranch } from 'lucide-react'
 import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
 import './App.css'
 
-type Page = 'browse' | 'installed' | 'mcp-servers' | 'testfix' | 'deployments' | 'github'
+type Page = 'browse' | 'mcp-servers' | 'testfix' | 'deployments' | 'github'
 
 function App() {
-  const [currentPage, setCurrentPage] = useState<Page>('mcp-servers')
+  const [currentPage, setCurrentPage] = useState<Page>('testfix')
   const [showDebug] = useState<boolean>(false)  // Debug panel hidden by default
 
   // Phase 0: .circuit/ 설정 읽기 시도
@@ -68,61 +68,44 @@ function App() {
 
         {/* Sidebar Navigation */}
         <nav className="flex-1 overflow-auto py-3">
-          {/* Section: Marketplace */}
-          <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-            Marketplace
-          </div>
+          {/* Primary Workflows */}
           <SidebarButton
-            icon={<Store className="h-3.5 w-3.5" />}
-            label="Browse"
-            isActive={currentPage === 'browse'}
-            onClick={() => setCurrentPage('browse')}
-          />
-          <SidebarButton
-            icon={<Package className="h-3.5 w-3.5" />}
-            label="Installed"
-            isActive={currentPage === 'installed'}
-            onClick={() => setCurrentPage('installed')}
-          />
-
-          {/* Separator */}
-          <Separator className="mx-3 my-3" />
-
-          {/* Section: Workflows */}
-          <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-            Workflows
-          </div>
-          <SidebarButton
-            icon={<Zap className="h-3.5 w-3.5" />}
+            icon={<Zap className="h-4 w-4" />}
             label="Test-Fix"
             isActive={currentPage === 'testfix'}
             onClick={() => setCurrentPage('testfix')}
           />
           <SidebarButton
-            icon={<Rocket className="h-3.5 w-3.5" />}
+            icon={<Rocket className="h-4 w-4" />}
             label="Deployments"
             isActive={currentPage === 'deployments'}
             onClick={() => setCurrentPage('deployments')}
           />
           <SidebarButton
-            icon={<GitBranch className="h-3.5 w-3.5" />}
+            icon={<GitBranch className="h-4 w-4" />}
             label="GitHub"
             isActive={currentPage === 'github'}
             onClick={() => setCurrentPage('github')}
           />
 
           {/* Separator */}
-          <Separator className="mx-3 my-3" />
+          <Separator className="mx-3 my-4" />
 
-          {/* Section: Developer */}
+          {/* Tools */}
           <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-            Developer
+            Tools
           </div>
           <SidebarButton
             icon={<Wrench className="h-3.5 w-3.5" />}
             label="MCP Servers"
             isActive={currentPage === 'mcp-servers'}
             onClick={() => setCurrentPage('mcp-servers')}
+          />
+          <SidebarButton
+            icon={<Store className="h-3.5 w-3.5" />}
+            label="Marketplace"
+            isActive={currentPage === 'browse'}
+            onClick={() => setCurrentPage('browse')}
           />
         </nav>
 
@@ -164,28 +147,6 @@ function App() {
 
         {/* Main Content Area */}
         <div className="flex-1 overflow-auto p-8">
-          {currentPage === 'browse' && (
-            <div className="max-w-4xl">
-              <Card className="p-6 glass-card">
-                <h2 className="text-lg font-semibold mb-2 text-[var(--text-primary)]">MCP Server Marketplace</h2>
-                <p className="text-sm text-[var(--text-tertiary)]">
-                  Discover and install MCP servers from the community.
-                </p>
-              </Card>
-            </div>
-          )}
-
-          {currentPage === 'installed' && (
-            <div className="max-w-4xl">
-              <Card className="p-6 glass-card">
-                <h2 className="text-lg font-semibold mb-2 text-[var(--text-primary)]">Installed Servers</h2>
-                <p className="text-sm text-[var(--text-tertiary)]">
-                  Manage your installed MCP servers.
-                </p>
-              </Card>
-            </div>
-          )}
-
           {currentPage === 'testfix' && (
             <div className="max-w-7xl">
               <TestFixTab />
@@ -207,6 +168,17 @@ function App() {
           {currentPage === 'mcp-servers' && (
             <div className="max-w-7xl">
               <DeveloperTab />
+            </div>
+          )}
+
+          {currentPage === 'browse' && (
+            <div className="max-w-4xl">
+              <Card className="p-6 glass-card">
+                <h2 className="text-lg font-semibold mb-2 text-[var(--text-primary)]">MCP Server Marketplace</h2>
+                <p className="text-sm text-[var(--text-tertiary)]">
+                  Discover and install MCP servers from the community.
+                </p>
+              </Card>
             </div>
           )}
         </div>
