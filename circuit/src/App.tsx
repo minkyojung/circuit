@@ -2,12 +2,14 @@ import { useState, useEffect, createContext, useContext } from 'react'
 import { InstalledTab } from "@/components/InstalledTab"
 import { DiscoverTab } from "@/components/DiscoverTab"
 import { PlaygroundTab } from "@/components/PlaygroundTab"
+import { DashboardTab } from "@/components/DashboardTab"
+import { TestFixTab } from "@/components/TestFixTab"
 import { PeekDebugPanel } from "@/components/PeekDebugPanel"
-import { Package, Server, FlaskConical } from 'lucide-react'
+import { Package, Server, FlaskConical, LayoutDashboard, Zap } from 'lucide-react'
 import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
 import './App.css'
 
-type Page = 'discover' | 'installed' | 'playground'
+type Page = 'dashboard' | 'discover' | 'installed' | 'playground' | 'test-fix'
 
 // Project Path Context
 interface ProjectPathContextValue {
@@ -23,7 +25,7 @@ const ProjectPathContext = createContext<ProjectPathContextValue>({
 export const useProjectPath = () => useContext(ProjectPathContext)
 
 function App() {
-  const [currentPage, setCurrentPage] = useState<Page>('discover')
+  const [currentPage, setCurrentPage] = useState<Page>('dashboard')
   const [showDebug] = useState<boolean>(false)  // Debug panel hidden by default
   const [projectPath, setProjectPath] = useState<string>('')
   const [isLoadingPath, setIsLoadingPath] = useState<boolean>(true)
@@ -101,6 +103,14 @@ function App() {
 
         {/* Sidebar Navigation */}
         <nav className="flex-1 overflow-auto py-3 px-2">
+          {/* Dashboard */}
+          <SidebarButton
+            icon={<LayoutDashboard className="h-4 w-4" />}
+            label="Dashboard"
+            isActive={currentPage === 'dashboard'}
+            onClick={() => setCurrentPage('dashboard')}
+          />
+
           {/* Discover */}
           <SidebarButton
             icon={<Package className="h-4 w-4" />}
@@ -123,6 +133,14 @@ function App() {
             label="Playground"
             isActive={currentPage === 'playground'}
             onClick={() => setCurrentPage('playground')}
+          />
+
+          {/* Test-Fix Loop */}
+          <SidebarButton
+            icon={<Zap className="h-4 w-4" />}
+            label="Test-Fix Loop"
+            isActive={currentPage === 'test-fix'}
+            onClick={() => setCurrentPage('test-fix')}
           />
         </nav>
 
@@ -164,6 +182,12 @@ function App() {
 
         {/* Main Content Area */}
         <div className="flex-1 overflow-auto p-8">
+          {currentPage === 'dashboard' && (
+            <div className="max-w-6xl mx-auto">
+              <DashboardTab />
+            </div>
+          )}
+
           {currentPage === 'discover' && (
             <div className="max-w-5xl mx-auto">
               <DiscoverTab onNavigateToInstalled={() => setCurrentPage('installed')} />
@@ -179,6 +203,12 @@ function App() {
           {currentPage === 'playground' && (
             <div className="h-full">
               <PlaygroundTab />
+            </div>
+          )}
+
+          {currentPage === 'test-fix' && (
+            <div className="max-w-5xl mx-auto">
+              <TestFixTab />
             </div>
           )}
         </div>
