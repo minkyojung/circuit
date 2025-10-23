@@ -168,14 +168,41 @@ export function InstalledTab() {
     return `${seconds}s`
   }
 
+  const handleReloadClaudeCode = async () => {
+    try {
+      const { ipcRenderer } = window.require('electron')
+      const result = await ipcRenderer.invoke('circuit:reload-claude-code')
+
+      if (result.success) {
+        alert('Claude Code reload command sent! ✓\n\nIf you have VS Code open, the window should reload now.')
+      } else {
+        alert(`Failed to reload: ${result.error}\n\nYou can manually reload by:\n1. Opening VS Code\n2. Cmd+Shift+P → "Reload Window"`)
+      }
+    } catch (error) {
+      console.error('Failed to reload Claude Code:', error)
+      alert('Manual reload required:\n1. Open VS Code\n2. Cmd+Shift+P → "Reload Window"')
+    }
+  }
+
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div>
-        <h1 className="text-base font-semibold leading-tight mb-1 text-[var(--text-primary)]">Installed</h1>
-        <p className="text-xs leading-normal text-[var(--text-secondary)]">
-          Manage your MCP servers • Tools are automatically available in Claude Code
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-base font-semibold leading-tight mb-1 text-[var(--text-primary)]">Installed</h1>
+          <p className="text-xs leading-normal text-[var(--text-secondary)]">
+            Manage your MCP servers • Tools are automatically available in Claude Code
+          </p>
+        </div>
+        <Button
+          onClick={handleReloadClaudeCode}
+          size="sm"
+          variant="outline"
+          className="flex items-center gap-2"
+        >
+          <RefreshCw className="h-3.5 w-3.5" />
+          Reload Claude Code
+        </Button>
       </div>
 
       {/* Server List */}

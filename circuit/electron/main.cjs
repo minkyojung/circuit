@@ -1806,6 +1806,47 @@ ipcMain.handle('circuit:mcp-get-logs', async (event, serverId, lines = 100) => {
   }
 });
 
+ipcMain.handle('circuit:reload-claude-code', async (event) => {
+  try {
+    const { exec } = require('child_process');
+    const util = require('util');
+    const execPromise = util.promisify(exec);
+
+    // Try to reload VS Code using the 'code' CLI
+    try {
+      await execPromise('code --command workbench.action.reloadWindow');
+      console.log('[Circuit] Claude Code reload command sent');
+      return { success: true };
+    } catch (cliError) {
+      // If 'code' CLI is not available, try AppleScript
+      console.log('[Circuit] Code CLI not available, trying AppleScript...');
+      const script = `
+        tell application "System Events"
+          if exists (process "Code") then
+            tell process "Code"
+              keystroke "r" using {command down, shift down}
+            end tell
+            return "success"
+          else
+            return "Code not running"
+          end if
+        end tell
+      `;
+
+      const { stdout } = await execPromise(`osascript -e '${script}'`);
+      if (stdout.trim() === 'success') {
+        console.log('[Circuit] Claude Code reload via AppleScript');
+        return { success: true };
+      } else {
+        return { success: false, error: 'VS Code is not running' };
+      }
+    }
+  } catch (error) {
+    console.error('[Circuit] Failed to reload Claude Code:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // ============================================================================
 // MCP Call History
 // ============================================================================
