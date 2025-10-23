@@ -12,13 +12,13 @@ async function getMCPManagerInstance() {
   console.log('[main.cjs] getMCPManagerInstance called');
   if (!mcpManagerPromise) {
     console.log('[main.cjs] Creating new MCP Manager instance...');
-    mcpManagerPromise = import('./mcp-manager.ts')
+    mcpManagerPromise = import('../dist-electron/mcp-manager.js')
       .then(module => {
-        console.log('[main.cjs] mcp-manager.ts imported successfully');
+        console.log('[main.cjs] mcp-manager.js imported successfully');
         return module.getMCPManager();
       })
       .catch(error => {
-        console.error('[main.cjs] Failed to import mcp-manager.ts:', error);
+        console.error('[main.cjs] Failed to import mcp-manager.js:', error);
         throw error;
       });
   }
@@ -33,7 +33,7 @@ async function getAPIServerInstance() {
   if (!apiServerPromise) {
     apiServerPromise = (async () => {
       const mcpManager = await getMCPManagerInstance();
-      const { CircuitAPIServer } = await import('./api-server.ts');
+      const { CircuitAPIServer } = await import('../dist-electron/api-server.js');
       return new CircuitAPIServer(mcpManager);
     })();
   }
@@ -1782,7 +1782,7 @@ ipcMain.handle('circuit:mcp-get-logs', async (event, serverId, lines = 100) => {
 // Register history IPC handlers
 (async () => {
   try {
-    const { registerHistoryHandlers } = await import('./historyHandlers.ts');
+    const { registerHistoryHandlers } = await import('../dist-electron/historyHandlers.js');
     registerHistoryHandlers();
     console.log('[main.cjs] History handlers registered');
   } catch (error) {

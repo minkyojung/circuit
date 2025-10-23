@@ -43,18 +43,18 @@ const MOCK_MCPS: MCPPackage[] = [
     repository: 'https://github.com/modelcontextprotocol/servers'
   },
   {
-    id: '@modelcontextprotocol/server-git',
-    name: 'server-git',
+    id: '@mseep/git-mcp-server',
+    name: 'git-mcp-server',
     displayName: 'Git',
     description: 'Tools to read, search, and manipulate Git repositories. Complete Git integration for managing repositories, commits, branches, and workflow automation.',
-    author: 'Model Context Protocol',
+    author: 'mseep',
     stars: 2100,
     downloads: 14000,
     category: 'Development',
-    official: true,
+    official: false,
     tags: ['git', 'repository', 'version-control'],
     version: '1.2.0',
-    repository: 'https://github.com/modelcontextprotocol/servers'
+    repository: 'https://github.com/cyanheads/git-mcp-server'
   },
   {
     id: '@modelcontextprotocol/server-memory',

@@ -5,8 +5,8 @@
  */
 
 import { ipcMain } from 'electron'
-import { getHistoryStorage } from './historyStorage'
-import type { HistoryQuery } from './historyStorage'
+import { getHistoryStorage } from './historyStorage.js'
+import type { HistoryQuery } from './historyStorage.js'
 
 /**
  * Register all history-related IPC handlers

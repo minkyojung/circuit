@@ -4,7 +4,7 @@
  * Provides access to call history with filtering, pagination, and statistics.
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import type { MCPCall, HistoryQuery, CallStats } from '../types/history'
 
 interface UseCallHistoryResult {
@@ -27,6 +27,18 @@ export function useCallHistory(query: HistoryQuery = {}): UseCallHistoryResult {
   const [error, setError] = useState<string | null>(null)
   const [hasMore, setHasMore] = useState(false)
   const [nextCursor, setNextCursor] = useState<number | undefined>()
+
+  // Stable query key to prevent infinite loops
+  const queryKey = useMemo(() => JSON.stringify(query), [
+    query.serverId,
+    query.toolName,
+    query.status,
+    query.after,
+    query.before,
+    query.cursor,
+    query.limit,
+    query.searchQuery,
+  ])
 
   // Fetch history
   const fetchHistory = useCallback(async (cursor?: number) => {
@@ -89,7 +101,7 @@ export function useCallHistory(query: HistoryQuery = {}): UseCallHistoryResult {
     } finally {
       setLoading(false)
     }
-  }, [query])
+  }, [queryKey])
 
   // Initial fetch
   useEffect(() => {

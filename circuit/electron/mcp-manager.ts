@@ -9,8 +9,8 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
-import { getHistoryStorage } from './historyStorage'
-import { getPrivacyFilter } from './privacyFilter'
+import { getHistoryStorage } from './historyStorage.js'
+import { getPrivacyFilter } from './privacyFilter.js'
 
 // Types
 export interface MCPServerConfig {
@@ -540,7 +540,7 @@ export class MCPServerManager {
 
     try {
       const result = await server.client.listTools()
-      const tools = result.tools || []
+      const tools = (result.tools || []) as any
 
       this.toolsCache.set(serverId, {
         tools,
