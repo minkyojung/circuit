@@ -1,9 +1,17 @@
 # Circuit Product Vision
 
 ## Mission
-**"MCP를 처음 접하는 바이브 코더부터 서버를 직접 만드는 개발자까지, 모두가 MCP를 쉽게 이해하고 활용할 수 있게 만든다"**
+**"Circuit: The MCP Package Manager - Discover, Install, Monitor, and Test MCP Servers"**
 
-GitKraken이 Git을 시각화해서 누구나 쓸 수 있게 만든 것처럼, Circuit은 MCP를 시각화해서 진입장벽을 낮춘다.
+Claude Desktop처럼 MCP를 설정 파일로 관리하는 것이 아니라, **Circuit이 MCP 런타임이 되어 중앙에서 모든 MCP 서버를 실행하고 관리**합니다.
+
+### Core Identity
+- **MCP Package Manager**: npm처럼 MCP 서버를 검색, 설치, 업데이트
+- **Discover Platform**: 마켓플레이스에서 MCP 찾고 추천받기
+- **Playground**: 설치 전 MCP 도구 테스트해보기
+- **Health Monitor**: 실시간 상태 확인, 로그, 성능 모니터링
+
+GitKraken이 Git을 시각화한 것처럼, Circuit은 MCP 생태계를 시각화하고 관리 가능하게 만듭니다.
 
 ---
 
@@ -98,55 +106,63 @@ GitKraken이 Git을 시각화해서 누구나 쓸 수 있게 만든 것처럼, C
 
 ## Core Solutions
 
-### 🎯 Problem 1: "MCP 서버 Health Check의 부재"
-**Circuit Solution: Server Health Dashboard**
+### 🎯 Problem 1: "MCP 서버 설치와 관리가 너무 어려움"
+**Circuit Solution: One-Click Install & Centralized Management**
 
 ```
-📊 서버 상태 한눈에 보기
+📦 Discover Tab
 ┌────────────────────────────────┐
-│ ✅ GitHub Server               │
-│    3 tools available           │
-│    Last check: 2 mins ago      │
-│    [Test Connection]           │
+│ Search: "github"               │
 ├────────────────────────────────┤
-│ ⚠️ Notion Server              │
-│    Error: Invalid API token    │
-│    [Fix Configuration]         │
+│ 🔍 GitHub MCP Server           │
+│    ⭐ Official • 2.4k stars    │
+│    Access repos, issues, PRs   │
+│                                │
+│    [Add to Claude] [Playground]│
 └────────────────────────────────┘
 ```
 
+**How It Works:**
+1. Click "Add to Claude"
+2. Circuit installs & starts MCP server
+3. Claude Code automatically uses it via circuit-proxy
+4. No config file editing needed!
+
 **Features:**
-- 설치된 모든 서버 자동 검사
-- 상태: ✅ 정상 / ⚠️ 경고 / ❌ 에러
-- 에러 발생 시 해결 방법 제안
-- 원클릭 테스트 버튼
+- 원클릭 설치 (설정 파일 수동 편집 불필요)
+- Circuit이 모든 MCP 서버 프로세스 실행
+- Claude Code, Cursor, Windsurf 모두 Circuit의 MCP 사용
+- 통합 관리 (한 곳에서 모든 AI 도구의 MCP 관리)
 
 ---
 
-### 🎯 Problem 2: "서버 개발 테스트 사이클이 너무 느림"
-**Circuit Solution: Hot Reload Developer Mode**
+### 🎯 Problem 2: "MCP 서버가 제대로 작동하는지 확인할 방법 없음"
+**Circuit Solution: Real-time Health Monitoring**
 
 ```
-🔄 파일 변경 감지 → 1초 만에 재시작
+📊 Installed Tab
 ┌────────────────────────────────┐
-│ 📁 Watching: my-notion-server  │
-│ 🔄 Auto-restart on save: ON   │
-│                                │
-│ [파일 수정 감지]                │
-│ → 자동 재시작 (1초)            │
-│ → 자동 테스트 (tools/list)     │
-│ → 결과 즉시 표시               │
-│ → Diff 표시 (변경 전/후)       │
+│ ✅ GitHub Server               │
+│    Running • 3 tools available │
+│    Uptime: 2h 15m              │
+│    Calls: 142 • Errors: 0      │
+│    [Stop] [Restart] [Logs]     │
+├────────────────────────────────┤
+│ ⚠️ Notion Server              │
+│    Error: Connection timeout   │
+│    Last seen: 5 mins ago       │
+│    [View Logs] [Restart]       │
 └────────────────────────────────┘
 ```
 
 **Features:**
-- 파일 변경 감지 → 자동 재시작
-- 재시작 후 자동으로 기본 요청 전송
-- 변경 전/후 Response Diff 표시
-- 에러 발생 시 코드 라인 번호까지 표시
+- Circuit이 직접 MCP 실행 → 완전한 가시성
+- 실시간 헬스체크 (30초마다)
+- 성능 메트릭 (API 호출 수, 응답 시간, 에러율)
+- 로그 수집 & 검색
+- 에러 발생 시 자동 재시작
 
-**Impact:** 5분 → 1초 = **300배 빠른 개발**
+**Impact:** 블랙박스 → 완전 투명화
 
 ---
 
@@ -237,28 +253,44 @@ GitKraken이 Git을 시각화해서 누구나 쓸 수 있게 만든 것처럼, C
 
 ## Roadmap
 
-### Phase 1: 발견과 탐색 (현재 진행 중)
-- [x] Marketplace - MCP 서버 발견
-- [x] Installed - 설치된 서버 관리
-- [x] Developer - 기본 디버깅 도구
-- [x] Request Builder - 커스텀 요청 전송
-- [x] Custom Server - 내 서버 테스트
-- [ ] **Server Explorer (Playground Mode)** ⭐ **다음 목표**
-  - 자동 기능 탐색
+### Phase 1: MCP Runtime Core (Week 1-2) ⭐ **현재 진행**
+- [ ] MCP Server Manager
+  - install/start/stop/restart
+  - Process management (spawn, health check)
+  - StdioClientTransport 연동
+- [ ] IPC API (Main ↔ Renderer)
+- [ ] DiscoverTab: One-click install
+- [ ] InstalledTab: Real-time status monitoring
+
+### Phase 2: Monitoring & Observability (Week 3)
+- [ ] Health check system (30s interval)
+- [ ] Log collection & rotation
+- [ ] Performance metrics
+  - Call count, response time, error rate
+- [ ] Auto-restart on failure
+- [ ] InstalledTab: Logs viewer
+
+### Phase 3: Claude Code Integration (Week 4)
+- [ ] HTTP API Server (localhost:3737)
+- [ ] circuit-proxy implementation
+  - MCP server that proxies to Circuit
+- [ ] Installation automation
+  - `claude mcp add circuit -s stdio ~/.circuit/bin/circuit-proxy`
+
+### Phase 4: Playground & Testing (Week 5)
+- [ ] PlaygroundTab
+  - 자동 기능 탐색 (listTools/Prompts/Resources)
+  - Try it 버튼으로 즉시 테스트
   - 예제 자동 생성
-  - 즉시 테스트
+- [ ] Custom Server testing
+- [ ] Request Builder
 
-### Phase 2: 시각화와 인사이트
-- [ ] Visual Request Flow - 흐름 그래프
-- [ ] Performance Timeline - 응답 시간 측정
-- [ ] Server Health Dashboard - 상태 모니터링
-- [ ] Error Explainer - 에러 해설
-
-### Phase 3: 개발 가속화
-- [ ] Hot Reload - 파일 변경 감지
-- [ ] Response Diff Viewer - 변경사항 비교
-- [ ] Smart Scenarios - 자주 쓰는 요청 저장
-- [ ] Batch Testing - 여러 요청 자동 실행
+### Phase 5: Performance & Polish (Week 6+)
+- [ ] Lazy loading (첫 호출 시 서버 시작)
+- [ ] Tool caching (1분 TTL)
+- [ ] Idle timeout (5분 미사용 시 종료)
+- [ ] Parallel server start
+- [ ] UI polish & animations
 
 ---
 
@@ -314,18 +346,37 @@ GitKraken이 Git을 시각화해서 누구나 쓸 수 있게 만든 것처럼, C
 
 ---
 
+## Architecture Reference
+
+자세한 아키텍처는 `MCP_RUNTIME_ARCHITECTURE.md` 참고
+
+### Key Differences: Circuit vs Claude Desktop
+
+| 항목 | Claude Desktop | Circuit |
+|------|---------------|---------|
+| **MCP 실행** | Claude Desktop이 실행 | Circuit이 실행 |
+| **설정 방법** | JSON 파일 수동 편집 | UI에서 원클릭 |
+| **모니터링** | ❌ 로그 파일만 | ✅ 실시간 대시보드 |
+| **다중 도구** | 각 도구마다 별도 설정 | Circuit proxy 하나만 |
+| **상태 확인** | ❌ 불가능 | ✅ 헬스체크 |
+| **에러 처리** | ❌ 수동 | ✅ 자동 재시작 |
+
+---
+
 ## Next Steps
 
 **Immediate (이번 세션):**
-1. Server Explorer (Playground Mode) 구현
-   - 자동 기능 탐색 (tools/prompts/resources)
-   - 예제 생성 로직
-   - Try it 버튼 구현
+1. MCP Server Manager 구현 시작
+   - `circuit/electron/mcp-manager.ts` 생성
+   - install/start/stop 기본 로직
+   - StdioClientTransport 연동
 
-**Short-term (다음 세션):**
-2. Visual Request Flow
-3. Error Explainer
+**This Week:**
+2. IPC API 구현
+3. DiscoverTab "Add to Claude" 버튼 구현
+4. InstalledTab 실시간 상태 모니터링
 
-**Mid-term:**
-4. Hot Reload
-5. Health Dashboard
+**Next Week:**
+5. Health check & logging
+6. HTTP API Server
+7. circuit-proxy
