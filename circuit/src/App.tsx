@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Card } from "@/components/ui/card"
+import { Separator } from "@/components/ui/separator"
 import { DeveloperTab } from "@/components/DeveloperTab"
 import { TestFixTab } from "@/components/TestFixTab"
 import { DeploymentsTab } from "@/components/DeploymentsTab"
@@ -9,10 +10,10 @@ import { Store, Wrench, Package, Zap, Rocket, GitBranch } from 'lucide-react'
 import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
 import './App.css'
 
-type Page = 'marketplace' | 'installed' | 'developer' | 'testfix' | 'deployments' | 'github'
+type Page = 'browse' | 'installed' | 'mcp-servers' | 'testfix' | 'deployments' | 'github'
 
 function App() {
-  const [currentPage, setCurrentPage] = useState<Page>('developer')
+  const [currentPage, setCurrentPage] = useState<Page>('mcp-servers')
   const [showDebug] = useState<boolean>(false)  // Debug panel hidden by default
 
   // Phase 0: .circuit/ 설정 읽기 시도
@@ -58,7 +59,7 @@ function App() {
       {showDebug && <PeekDebugPanel />}
 
       {/* Sidebar */}
-      <aside className="w-56 glass-sidebar flex flex-col">
+      <aside className="w-[200px] glass-sidebar flex flex-col">
         {/* Sidebar Top - Traffic Lights Area (Fully Draggable) */}
         <div
           className="h-[44px] flex items-center px-4 border-b border-[var(--glass-border)]"
@@ -66,44 +67,72 @@ function App() {
         />
 
         {/* Sidebar Navigation */}
-        <nav className="flex-1 py-4">
+        <nav className="flex-1 overflow-auto py-3">
+          {/* Section: Marketplace */}
+          <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+            Marketplace
+          </div>
           <SidebarButton
-            icon={<Store className="h-4 w-4" />}
-            label="Marketplace"
-            isActive={currentPage === 'marketplace'}
-            onClick={() => setCurrentPage('marketplace')}
+            icon={<Store className="h-3.5 w-3.5" />}
+            label="Browse"
+            isActive={currentPage === 'browse'}
+            onClick={() => setCurrentPage('browse')}
           />
           <SidebarButton
-            icon={<Package className="h-4 w-4" />}
+            icon={<Package className="h-3.5 w-3.5" />}
             label="Installed"
             isActive={currentPage === 'installed'}
             onClick={() => setCurrentPage('installed')}
           />
+
+          {/* Separator */}
+          <Separator className="mx-3 my-3" />
+
+          {/* Section: Workflows */}
+          <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+            Workflows
+          </div>
           <SidebarButton
-            icon={<Zap className="h-4 w-4" />}
+            icon={<Zap className="h-3.5 w-3.5" />}
             label="Test-Fix"
             isActive={currentPage === 'testfix'}
             onClick={() => setCurrentPage('testfix')}
           />
           <SidebarButton
-            icon={<Rocket className="h-4 w-4" />}
+            icon={<Rocket className="h-3.5 w-3.5" />}
             label="Deployments"
             isActive={currentPage === 'deployments'}
             onClick={() => setCurrentPage('deployments')}
           />
           <SidebarButton
-            icon={<GitBranch className="h-4 w-4" />}
+            icon={<GitBranch className="h-3.5 w-3.5" />}
             label="GitHub"
             isActive={currentPage === 'github'}
             onClick={() => setCurrentPage('github')}
           />
+
+          {/* Separator */}
+          <Separator className="mx-3 my-3" />
+
+          {/* Section: Developer */}
+          <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+            Developer
+          </div>
           <SidebarButton
-            icon={<Wrench className="h-4 w-4" />}
-            label="Developer"
-            isActive={currentPage === 'developer'}
-            onClick={() => setCurrentPage('developer')}
+            icon={<Wrench className="h-3.5 w-3.5" />}
+            label="MCP Servers"
+            isActive={currentPage === 'mcp-servers'}
+            onClick={() => setCurrentPage('mcp-servers')}
           />
         </nav>
+
+        {/* Bottom Status Bar */}
+        <div className="border-t border-[var(--glass-border)] p-3">
+          <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
+            <div className="h-1.5 w-1.5 rounded-full bg-[var(--circuit-success)]" />
+            <span>Ready</span>
+          </div>
+        </div>
       </aside>
 
       {/* Main Content */}
@@ -135,7 +164,7 @@ function App() {
 
         {/* Main Content Area */}
         <div className="flex-1 overflow-auto p-8">
-          {currentPage === 'marketplace' && (
+          {currentPage === 'browse' && (
             <div className="max-w-4xl">
               <Card className="p-6 glass-card">
                 <h2 className="text-lg font-semibold mb-2 text-[var(--text-primary)]">MCP Server Marketplace</h2>
@@ -175,7 +204,7 @@ function App() {
             </div>
           )}
 
-          {currentPage === 'developer' && (
+          {currentPage === 'mcp-servers' && (
             <div className="max-w-7xl">
               <DeveloperTab />
             </div>
@@ -190,27 +219,34 @@ function SidebarButton({
   icon,
   label,
   isActive,
-  onClick
+  onClick,
+  badge
 }: {
   icon: React.ReactNode
   label: string
   isActive: boolean
   onClick: () => void
+  badge?: string
 }) {
   return (
     <button
       onClick={onClick}
       className={`
-        w-full px-4 py-2.5 flex items-center gap-3 text-sm font-medium transition-colors
+        w-full px-3 py-1.5 flex items-center gap-2.5 text-xs font-normal transition-all duration-150
         ${isActive
-          ? 'bg-sidebar-accent text-sidebar-accent-foreground border-l-2 border-sidebar-primary'
-          : 'text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
+          ? 'bg-[var(--circuit-orange)]/15 text-[var(--circuit-orange)] border-l-2 border-[var(--circuit-orange)]'
+          : 'text-[var(--text-secondary)] hover:bg-[var(--glass-hover)] hover:text-[var(--text-primary)]'
         }
       `}
       style={{ WebkitAppRegion: 'no-drag' } as any}
     >
       {icon}
-      <span>{label}</span>
+      <span className="flex-1 text-left">{label}</span>
+      {badge && (
+        <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-[var(--glass-hover)] text-[var(--text-muted)]">
+          {badge}
+        </span>
+      )}
     </button>
   )
 }
