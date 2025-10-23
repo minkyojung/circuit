@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { ChevronDown, ChevronRight, Play, Square, AlertCircle, RefreshCw, FileText, Activity, Trash2, Copy, Check } from 'lucide-react'
+import { ChevronDown, ChevronRight, Play, Square, AlertCircle, RefreshCw, FileText, Trash2, Copy, Check } from 'lucide-react'
 
 interface Tool {
   name: string
@@ -164,49 +164,49 @@ export function InstalledTab() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold mb-1 text-[var(--text-primary)]">Installed Servers</h1>
-        <p className="text-sm text-[var(--text-secondary)]">
-          Monitor and manage your MCP servers
+        <h1 className="text-base font-semibold leading-tight mb-1 text-[var(--text-primary)]">Installed</h1>
+        <p className="text-xs leading-normal text-[var(--text-secondary)]">
+          Manage your MCP servers • Tools are automatically available in Claude Code
         </p>
       </div>
 
       {/* Server List */}
-      <div className="space-y-3">
+      <div className="space-y-2">
         {servers.length === 0 && (
-          <Card className="p-6 glass-card text-center">
-            <p className="text-sm text-[var(--text-muted)]">
-              No MCP servers installed yet. Visit the Discover tab to install servers.
+          <Card className="p-6 glass-card text-center border-0">
+            <p className="text-xs leading-normal text-[var(--text-muted)]">
+              No servers installed. Visit Discover to get started.
             </p>
           </Card>
         )}
 
         {servers.map(server => (
-          <Card key={server.id} className="glass-card overflow-hidden">
-            <div className="p-4">
-              <div className="flex items-center justify-between mb-3">
+          <Card key={server.id} className="glass-card overflow-hidden border border-white/5">
+            <div className="p-3">
+              <div className="flex items-center justify-between mb-2">
                 {/* Server Info */}
-                <div className="flex items-center gap-3 flex-1">
+                <div className="flex items-center gap-2 flex-1">
                   <button
                     onClick={() => setExpandedServer(expandedServer === server.id ? null : server.id)}
                     className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
                   >
                     {expandedServer === server.id ? (
-                      <ChevronDown className="h-4 w-4" />
+                      <ChevronDown className="h-3.5 w-3.5" />
                     ) : (
-                      <ChevronRight className="h-4 w-4" />
+                      <ChevronRight className="h-3.5 w-3.5" />
                     )}
                   </button>
 
                   <div className="flex-1">
-                    <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-1">
+                    <h3 className="text-sm font-semibold leading-tight text-[var(--text-primary)] mb-0.5">
                       {server.name}
                     </h3>
                     <div className="flex items-center gap-2 flex-wrap">
                       <Badge
-                        className={`text-[10px] px-2 py-0 ${
+                        className={`text-[11px] px-1.5 py-0 ${
                           server.status === 'running'
                             ? 'bg-[var(--circuit-success)]/20 text-[var(--circuit-success)]'
                             : server.status === 'error'
@@ -221,10 +221,10 @@ export function InstalledTab() {
 
                       {server.status === 'running' && (
                         <>
-                          <span className="text-[10px] text-[var(--text-muted)]">
+                          <span className="text-[11px] text-[var(--text-muted)]">
                             {server.toolCount} tools
                           </span>
-                          <span className="text-[10px] text-[var(--text-muted)]">
+                          <span className="text-[11px] text-[var(--text-muted)]">
                             Uptime: {formatUptime(server.uptime)}
                           </span>
                         </>
@@ -291,44 +291,26 @@ export function InstalledTab() {
                 </div>
               </div>
 
-              {/* Stats (Running only) */}
-              {server.status === 'running' && (
-                <div className="flex items-center gap-4 text-[10px] text-[var(--text-muted)] mb-2">
-                  <div className="flex items-center gap-1.5">
-                    <Activity className="h-3 w-3" />
-                    <span>{server.stats.callCount} calls</span>
-                  </div>
-                  {server.stats.callCount > 0 && (
-                    <>
-                      <span>Avg: {server.stats.avgCallDuration}ms</span>
-                      <span className={server.stats.errorCount > 0 ? 'text-[var(--circuit-error)]' : ''}>
-                        {server.stats.errorCount} errors
-                      </span>
-                    </>
-                  )}
-                </div>
-              )}
-
               {/* Available Tools */}
               {server.status === 'running' && server.tools && server.tools.length > 0 && (
-                <div className="mt-3 border-t border-[var(--glass-border)] pt-3">
-                  <div className="text-xs font-medium text-[var(--text-secondary)] mb-2">
-                    🔧 Available Tools ({server.tools.length})
+                <div className="mt-2 border-t border-[var(--glass-border)]/50 pt-2">
+                  <div className="text-xs font-semibold leading-tight text-[var(--text-secondary)] mb-1.5">
+                    🔧 {server.tools.length} {server.tools.length === 1 ? 'Tool' : 'Tools'}
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {server.tools.slice(0, 6).map((tool) => (
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {server.tools.slice(0, 4).map((tool) => (
                       <div
                         key={tool.name}
-                        className="p-2 rounded bg-[#110F0E] border border-[var(--glass-border)] hover:border-[var(--circuit-orange)]/30 transition-colors"
+                        className="p-2 rounded bg-[var(--bg-section)] hover:bg-[var(--bg-card)] border border-white/5 hover:border-white/10 transition-colors"
                       >
-                        <div className="flex items-start justify-between gap-2 mb-1">
-                          <code className="text-xs font-medium text-[var(--circuit-orange)]">
+                        <div className="flex items-start justify-between gap-1.5 mb-0.5">
+                          <code className="text-xs font-medium leading-tight text-[var(--circuit-orange)]">
                             {tool.name}
                           </code>
                           <button
                             onClick={() => handleCopyPrompt(tool.name, tool.description)}
-                            className="flex-shrink-0 p-1 rounded hover:bg-[var(--glass-bg)] transition-colors"
-                            title="Copy prompt for Claude Code"
+                            className="flex-shrink-0 p-0.5 rounded hover:bg-[var(--glass-bg)] transition-colors"
+                            title="Copy prompt"
                           >
                             {copiedTool === tool.name ? (
                               <Check className="h-3 w-3 text-[var(--circuit-success)]" />
@@ -338,25 +320,20 @@ export function InstalledTab() {
                           </button>
                         </div>
                         {tool.description && (
-                          <p className="text-[10px] text-[var(--text-muted)] line-clamp-2">
+                          <p className="text-[11px] leading-normal text-[var(--text-muted)] line-clamp-1">
                             {tool.description}
                           </p>
                         )}
                       </div>
                     ))}
                   </div>
-                  {server.tools.length > 6 && (
-                    <div className="text-center mt-2">
-                      <span className="text-[10px] text-[var(--text-muted)]">
-                        +{server.tools.length - 6} more tools
+                  {server.tools.length > 4 && (
+                    <div className="text-center mt-1.5">
+                      <span className="text-[11px] text-[var(--text-muted)]">
+                        +{server.tools.length - 4} more
                       </span>
                     </div>
                   )}
-                  <div className="mt-3 p-2 rounded bg-[var(--circuit-orange)]/10 border border-[var(--circuit-orange)]/20">
-                    <p className="text-[10px] text-[var(--text-secondary)]">
-                      💡 <strong>Using in Claude Code:</strong> These tools are automatically available. Click the copy button to get a prompt, then paste it into Claude Code.
-                    </p>
-                  </div>
                 </div>
               )}
 

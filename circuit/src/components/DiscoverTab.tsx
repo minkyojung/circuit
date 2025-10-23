@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Search, Star, Download, ExternalLink, Lightbulb, Package, Check, Loader2 } from 'lucide-react'
+import { Search, Download, Lightbulb, Package, Check, Loader2 } from 'lucide-react'
 
 // MCP Package type
 interface MCPPackage {
@@ -253,12 +253,12 @@ export function DiscoverTab({ onNavigateToInstalled }: DiscoverTabProps) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold mb-1 text-[var(--text-primary)]">Discover</h1>
-        <p className="text-sm text-[var(--text-secondary)]">
-          Find and install MCP servers for Claude Desktop
+        <h1 className="text-base font-semibold leading-tight mb-1 text-[var(--text-primary)]">Discover</h1>
+        <p className="text-xs leading-normal text-[var(--text-secondary)]">
+          Find and install MCP servers for Claude
         </p>
       </div>
 
@@ -276,18 +276,18 @@ export function DiscoverTab({ onNavigateToInstalled }: DiscoverTabProps) {
 
       {/* Recommended Section */}
       {!searchQuery && (
-        <div className="space-y-3">
+        <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <Lightbulb className="h-4 w-4 text-[var(--circuit-orange)]" />
-            <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+            <Lightbulb className="h-3.5 w-3.5 text-[var(--text-muted)]" />
+            <h2 className="text-sm font-semibold leading-tight text-[var(--text-primary)]">
               Recommended
             </h2>
-            <span className="text-xs text-[var(--text-muted)]">
+            <span className="text-xs leading-normal text-[var(--text-muted)]">
               Popular official servers
             </span>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-2">
             {recommendedMCPs.map(mcp => {
               const isInstalling = installingServers.has(mcp.id)
 
@@ -296,27 +296,26 @@ export function DiscoverTab({ onNavigateToInstalled }: DiscoverTabProps) {
                   key={mcp.id}
                   onClick={() => handleInstall(mcp)}
                   disabled={isInstalling}
-                  className="p-3 rounded-lg bg-[#110F0E] hover:bg-[#1a1816] transition-all text-left group shadow-none disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="p-2.5 rounded-lg bg-[var(--bg-section)] hover:bg-[var(--bg-card)] border border-white/5 hover:border-white/10 transition-colors text-left group shadow-none disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <div className="flex items-start gap-2 mb-2">
+                  <div className="flex items-start gap-2 mb-1.5">
                     {isInstalling ? (
-                      <Loader2 className="h-4 w-4 text-[var(--circuit-orange)] flex-shrink-0 mt-0.5 animate-spin" />
+                      <Loader2 className="h-3.5 w-3.5 text-[var(--circuit-orange)] flex-shrink-0 mt-0.5 animate-spin" />
                     ) : (
-                      <Package className="h-4 w-4 text-[var(--circuit-orange)] flex-shrink-0 mt-0.5" />
+                      <Package className="h-3.5 w-3.5 text-[var(--text-muted)] flex-shrink-0 mt-0.5" />
                     )}
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-xs font-semibold text-[var(--text-primary)] mb-0.5">
+                      <h3 className="text-xs font-semibold leading-tight text-[var(--text-primary)] mb-0.5">
                         {mcp.displayName}
                         {isInstalling && <span className="ml-1 text-[var(--circuit-orange)]">Installing...</span>}
                       </h3>
-                      <p className="text-[10px] text-[var(--text-muted)] line-clamp-2">
+                      <p className="text-[11px] leading-normal text-[var(--text-muted)] line-clamp-2">
                         {mcp.description}
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 text-[9px] text-[var(--text-muted)]">
-                    <Star className="h-2.5 w-2.5" />
-                    <span>{(mcp.stars / 1000).toFixed(1)}k</span>
+                  <div className="text-[11px] text-[var(--text-muted)]">
+                    ⭐ {(mcp.stars / 1000).toFixed(1)}k
                   </div>
                 </button>
               )
@@ -335,7 +334,7 @@ export function DiscoverTab({ onNavigateToInstalled }: DiscoverTabProps) {
               className={`
                 px-3 py-1 text-xs rounded-full transition-all
                 ${selectedCategory === category
-                  ? 'bg-[var(--circuit-orange)]/25 text-[var(--circuit-orange)] font-medium'
+                  ? 'bg-[var(--circuit-orange)]/40 text-[var(--circuit-orange)] font-medium'
                   : 'bg-[var(--glass-bg)] text-[var(--text-secondary)] hover:bg-[var(--glass-hover)]'
                 }
               `}
@@ -359,66 +358,47 @@ export function DiscoverTab({ onNavigateToInstalled }: DiscoverTabProps) {
       </div>
 
       {/* MCP Cards */}
-      <div className="space-y-3">
+      <div className="space-y-2">
         {filteredMCPs.map(mcp => (
-          <Card key={mcp.id} className="p-4 bg-[#110F0E] hover:bg-[#1a1816] transition-colors border-0 shadow-none">
-            <div className="flex items-start gap-4">
+          <Card key={mcp.id} className="p-3 bg-[var(--bg-section)] hover:bg-[var(--bg-card)] border border-white/5 hover:border-white/10 transition-colors shadow-none">
+            <div className="flex items-start gap-3">
               {/* Icon/Avatar */}
-              <div className="w-12 h-12 rounded-lg bg-[#1a1816] flex items-center justify-center flex-shrink-0">
-                <Package className="h-6 w-6 text-[var(--circuit-orange)]" />
+              <div className="w-10 h-10 rounded-lg bg-[var(--bg-card-elevated)] flex items-center justify-center flex-shrink-0">
+                <Package className="h-5 w-5 text-[var(--text-muted)]" />
               </div>
 
               {/* Content */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between gap-3 mb-2">
-                  <div>
-                    <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-1">
+                  <div className="flex-1">
+                    <h3 className="text-sm font-semibold leading-tight text-[var(--text-primary)] mb-0.5">
                       {mcp.displayName}
                     </h3>
-                    <p className="text-xs text-[var(--text-secondary)] mb-2">
+                    <p className="text-xs leading-normal text-[var(--text-secondary)] line-clamp-1">
                       {mcp.description}
                     </p>
                   </div>
                 </div>
 
-                {/* Metadata */}
-                <div className="flex items-center gap-4 mb-3">
-                  <div className="flex items-center gap-1 text-xs text-[var(--text-muted)]">
-                    <Star className="h-3 w-3" />
-                    <span>{(mcp.stars / 1000).toFixed(1)}k</span>
-                  </div>
-                  <div className="flex items-center gap-1 text-xs text-[var(--text-muted)]">
-                    <Download className="h-3 w-3" />
-                    <span>{(mcp.downloads / 1000).toFixed(1)}k</span>
-                  </div>
+                {/* Metadata - Simplified */}
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[11px] text-[var(--text-muted)]">
+                    ⭐ {(mcp.stars / 1000).toFixed(1)}k
+                  </span>
                   {mcp.official && (
-                    <Badge className="bg-[var(--circuit-success)]/20 text-[var(--circuit-success)] border-0 text-[10px] px-2 py-0">
+                    <Badge className="bg-[var(--circuit-success)]/20 text-[var(--circuit-success)] border-0 text-[11px] px-1.5 py-0">
                       Official
                     </Badge>
                   )}
                   {isInstalled(mcp.id) && (
-                    <Badge className="bg-[var(--circuit-orange)]/20 text-[var(--circuit-orange)] border-0 text-[10px] px-2 py-0">
-                      <Check className="h-2.5 w-2.5 mr-1" />
+                    <Badge className="bg-[var(--circuit-orange)]/20 text-[var(--circuit-orange)] border-0 text-[11px] px-1.5 py-0">
+                      <Check className="h-2.5 w-2.5 mr-0.5" />
                       Installed
                     </Badge>
                   )}
-                  <span className="text-xs text-[var(--text-muted)]">{mcp.author}</span>
-                  <span className="text-xs text-[var(--text-muted)]">v{mcp.version}</span>
                 </div>
 
-                {/* Tags */}
-                <div className="flex items-center gap-2 mb-3">
-                  {mcp.tags.map(tag => (
-                    <span
-                      key={tag}
-                      className="text-[10px] px-2 py-0.5 rounded bg-[var(--glass-bg)] text-[var(--text-muted)]"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-
-                {/* Actions */}
+                {/* Actions - Simplified */}
                 <div className="flex items-center gap-2">
                   {installingServers.has(mcp.id) ? (
                     <Button
@@ -449,24 +429,6 @@ export function DiscoverTab({ onNavigateToInstalled }: DiscoverTabProps) {
                       Add to Claude
                     </Button>
                   )}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5 h-7 text-xs"
-                  >
-                    Try in Playground
-                  </Button>
-                  {mcp.repository && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="gap-1.5 h-7 text-xs ml-auto"
-                      onClick={() => window.open(mcp.repository, '_blank')}
-                    >
-                      <ExternalLink className="h-3 w-3" />
-                      View Source
-                    </Button>
-                  )}
                 </div>
               </div>
             </div>
@@ -475,10 +437,10 @@ export function DiscoverTab({ onNavigateToInstalled }: DiscoverTabProps) {
       </div>
 
       {filteredMCPs.length === 0 && (
-        <div className="text-center py-12">
-          <Package className="h-12 w-12 text-[var(--text-muted)] mx-auto mb-3 opacity-50" />
-          <p className="text-sm text-[var(--text-muted)]">
-            No MCP servers found matching your search
+        <div className="text-center py-16">
+          <Package className="h-10 w-10 text-[var(--text-muted)] mx-auto mb-2 opacity-40" />
+          <p className="text-xs text-[var(--text-muted)]">
+            No servers found
           </p>
         </div>
       )}
