@@ -1,5 +1,5 @@
 /**
- * Phase 0: .circuit/circuit.config.md 파일 읽기
+ * Phase 1: .circuit/circuit.config.md 파일 읽기
  *
  * 목표: 파일이 있으면 읽어서 콘솔에 출력
  */
@@ -8,6 +8,7 @@ export interface CircuitConfig {
   projectPath: string
   configExists: boolean
   strategy?: string
+  configContent?: string
   error?: string
 }
 
@@ -18,14 +19,42 @@ export async function readCircuitConfig(projectPath: string): Promise<CircuitCon
   console.log('[Circuit] Checking for .circuit/ config...')
   console.log('[Circuit] Project path:', projectPath)
 
+  if (!projectPath) {
+    return {
+      projectPath: '',
+      configExists: false,
+      error: 'Project path is empty'
+    }
+  }
+
   try {
-    // TODO: 실제 파일 읽기 (Phase 1에서 구현)
-    // 지금은 일단 존재 여부만 체크
+    // Node.js fs module을 사용해서 파일 읽기
+    const fs = window.require('fs')
+    const path = window.require('path')
+
+    const configPath = path.join(projectPath, '.circuit', 'circuit.config.md')
+
+    // 파일 존재 여부 확인
+    if (!fs.existsSync(configPath)) {
+      return {
+        projectPath,
+        configExists: false,
+        error: 'Config file not found'
+      }
+    }
+
+    // 파일 읽기
+    const configContent = fs.readFileSync(configPath, 'utf-8')
+
+    // Strategy 추출 (간단한 파싱)
+    const strategyMatch = configContent.match(/Strategy:\s*(\w+)/i)
+    const strategy = strategyMatch ? strategyMatch[1] : undefined
 
     return {
       projectPath,
-      configExists: false,
-      error: 'Not implemented yet - Phase 0'
+      configExists: true,
+      strategy,
+      configContent
     }
   } catch (error) {
     console.error('[Circuit] Error reading config:', error)
