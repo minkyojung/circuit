@@ -990,6 +990,75 @@ ipcMain.handle('github:send-test-webhook', async (event, eventType) => {
 // ============================================================================
 
 /**
+ * Read MCP config from local apps (Claude Desktop, Cursor, Windsurf, etc.)
+ */
+ipcMain.handle('circuit:read-mcp-config', async (event, configPath) => {
+  try {
+    // Expand ~ to home directory
+    const expandedPath = configPath.replace(/^~/, os.homedir());
+
+    // Check if file exists
+    try {
+      await fs.access(expandedPath);
+    } catch {
+      return {
+        success: false,
+        error: 'Config file not found'
+      };
+    }
+
+    // Read and parse config
+    const configContent = await fs.readFile(expandedPath, 'utf-8');
+    const config = JSON.parse(configContent);
+
+    // Extract MCP servers from different config formats
+    let servers = [];
+
+    // Format 1: { "mcpServers": { "id": { ... } } }
+    if (config.mcpServers && typeof config.mcpServers === 'object') {
+      servers = Object.entries(config.mcpServers).map(([id, serverConfig]) => ({
+        id,
+        name: serverConfig.name || id,
+        command: serverConfig.command,
+        args: serverConfig.args || [],
+        env: serverConfig.env || {}
+      }));
+    }
+    // Format 2: { "servers": { "id": { ... } } }
+    else if (config.servers && typeof config.servers === 'object') {
+      servers = Object.entries(config.servers).map(([id, serverConfig]) => ({
+        id,
+        name: serverConfig.name || id,
+        command: serverConfig.command,
+        args: serverConfig.args || [],
+        env: serverConfig.env || {}
+      }));
+    }
+    // Format 3: { "mcp": { "servers": { ... } } }
+    else if (config.mcp?.servers && typeof config.mcp.servers === 'object') {
+      servers = Object.entries(config.mcp.servers).map(([id, serverConfig]) => ({
+        id,
+        name: serverConfig.name || id,
+        command: serverConfig.command,
+        args: serverConfig.args || [],
+        env: serverConfig.env || {}
+      }));
+    }
+
+    return {
+      success: true,
+      servers,
+      raw: config
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+/**
  * Phase 2: Detect project type from package.json
  */
 ipcMain.handle('circuit:detect-project', async (event, projectPath) => {

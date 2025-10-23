@@ -222,7 +222,7 @@ export function TestFixTab() {
   // Build timeline events
   const timelineEvents: TimelineEvent[] = fileChanges.map(change => ({
     title: change.path.split('/').pop() || change.path,
-    description: change.eventType,
+    description: change.type,
     timestamp: new Date(change.timestamp).toLocaleTimeString(),
     icon: <FileEdit className="h-3.5 w-3.5 text-[var(--text-secondary)]" />,
     color: 'default' as const

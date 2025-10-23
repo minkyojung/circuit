@@ -1,19 +1,17 @@
 import { useState, useEffect } from 'react'
 import { Card } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import { DeveloperTab } from "@/components/DeveloperTab"
-import { DashboardTab } from "@/components/DashboardTab"
-import { DeploymentsTab } from "@/components/DeploymentsTab"
-import { GitHubTab } from "@/components/GitHubTab"
+import { InstalledTab } from "@/components/InstalledTab"
+import { DiscoverTab } from "@/components/DiscoverTab"
 import { PeekDebugPanel } from "@/components/PeekDebugPanel"
-import { Wrench, LayoutDashboard, Plus } from 'lucide-react'
+import { Package, Server, FlaskConical } from 'lucide-react'
 import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
 import './App.css'
 
-type Page = 'mcp-servers' | 'dashboard' | 'marketplace'
+type Page = 'discover' | 'installed' | 'playground'
 
 function App() {
-  const [currentPage, setCurrentPage] = useState<Page>('dashboard')
+  const [currentPage, setCurrentPage] = useState<Page>('discover')
   const [showDebug] = useState<boolean>(false)  // Debug panel hidden by default
 
   // Phase 0: .circuit/ 설정 읽기 시도
@@ -33,9 +31,9 @@ function App() {
       const { ipcRenderer } = window.require('electron')
 
       const handlePeekData = (_event: any, payload: any) => {
-        // Auto-switch to dashboard for all workflow events
+        // Auto-switch to discover for all workflow events
         if (payload.type === 'test-result' || payload.type === 'deployment' || payload.type === 'github') {
-          setCurrentPage('dashboard')
+          setCurrentPage('discover')
         }
       }
 
@@ -64,36 +62,28 @@ function App() {
 
         {/* Sidebar Navigation */}
         <nav className="flex-1 overflow-auto py-3 px-2">
-          {/* Dashboard */}
+          {/* Discover */}
           <SidebarButton
-            icon={<LayoutDashboard className="h-4 w-4" />}
-            label="Dashboard"
-            isActive={currentPage === 'dashboard'}
-            onClick={() => setCurrentPage('dashboard')}
+            icon={<Package className="h-4 w-4" />}
+            label="Discover"
+            isActive={currentPage === 'discover'}
+            onClick={() => setCurrentPage('discover')}
           />
 
-          {/* New Workflow Button */}
-          <button
-            className="w-full px-2 py-1.5 mt-1 flex items-center gap-2.5 text-xs font-normal text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--glass-hover)] transition-all duration-150 rounded"
-            style={{ WebkitAppRegion: 'no-drag' } as any}
-            onClick={() => setCurrentPage('marketplace')}
-          >
-            <Plus className="h-4 w-4" />
-            <span>New workflow</span>
-          </button>
-
-          {/* Separator */}
-          <Separator className="mx-1 my-4" />
-
-          {/* Tools */}
-          <div className="px-1 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-            Tools
-          </div>
+          {/* Installed */}
           <SidebarButton
-            icon={<Wrench className="h-3.5 w-3.5" />}
-            label="MCP Servers"
-            isActive={currentPage === 'mcp-servers'}
-            onClick={() => setCurrentPage('mcp-servers')}
+            icon={<Server className="h-4 w-4" />}
+            label="Installed"
+            isActive={currentPage === 'installed'}
+            onClick={() => setCurrentPage('installed')}
+          />
+
+          {/* Playground */}
+          <SidebarButton
+            icon={<FlaskConical className="h-4 w-4" />}
+            label="Playground"
+            isActive={currentPage === 'playground'}
+            onClick={() => setCurrentPage('playground')}
           />
         </nav>
 
@@ -135,24 +125,24 @@ function App() {
 
         {/* Main Content Area */}
         <div className="flex-1 overflow-auto p-8">
-          {currentPage === 'dashboard' && (
+          {currentPage === 'discover' && (
             <div className="max-w-5xl mx-auto">
-              <DashboardTab />
+              <DiscoverTab />
             </div>
           )}
 
-          {currentPage === 'mcp-servers' && (
-            <div className="max-w-7xl">
-              <DeveloperTab />
+          {currentPage === 'installed' && (
+            <div className="max-w-4xl mx-auto">
+              <InstalledTab />
             </div>
           )}
 
-          {currentPage === 'marketplace' && (
-            <div className="max-w-4xl">
+          {currentPage === 'playground' && (
+            <div className="max-w-4xl mx-auto">
               <Card className="p-6 glass-card">
-                <h2 className="text-lg font-semibold mb-2 text-[var(--text-primary)]">Workflow Marketplace</h2>
+                <h2 className="text-lg font-semibold mb-2 text-[var(--text-primary)]">Playground</h2>
                 <p className="text-sm text-[var(--text-tertiary)]">
-                  Discover and install workflow templates from the community.
+                  Test MCP tools without installing them.
                 </p>
               </Card>
             </div>

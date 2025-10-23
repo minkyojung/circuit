@@ -1,20 +1,23 @@
 /**
- * Dashboard: Unified view of all workflows
+ * Dashboard: Unified view of all workflows (System + MCP)
  */
 
 import { useState, useEffect } from 'react'
 import { Button } from "@/components/ui/button"
 import {
   Sparkles, Play, Loader2, Wand2, Check, CheckCircle, AlertCircle,
-  FileEdit, Rocket, GitBranch, Activity
+  FileEdit, Rocket, GitBranch, Activity, Server, Lightbulb, Plus,
+  ExternalLink, Square
 } from 'lucide-react'
 import { WorkflowCard } from '@/components/workflow/WorkflowCard'
 import { QuickStatusBar, type QuickStatus } from '@/components/workflow/QuickStatusBar'
 import { ActionBar, ContentTimeline, DetailPanel, type TimelineEvent, type DetailSection } from '@/components/workflow'
-import { detectProjectType, getProjectTypeName, type DetectionResult } from '@/core/detector'
+import { detectProjectType, type DetectionResult } from '@/core/detector'
 import { type FileChangeEvent } from '@/core/watcher'
 import { type TestResult } from '@/core/test-runner'
 import { parseAiFix, type ParsedFix } from '@/core/claude-cli'
+import { mcpClient, BUILTIN_SERVERS } from '@/lib/mcp-client'
+import type { MCPServerConfig, Tool } from '@/types/mcp'
 
 // Electron IPC
 declare global {
@@ -25,10 +28,36 @@ declare global {
 
 const { ipcRenderer } = window.require('electron')
 
+// MCP Server State
+interface MCPServerState {
+  id: string
+  name: string
+  status: 'stopped' | 'starting' | 'running' | 'error'
+  tools: Tool[]
+  prompts: any[]
+  resources: any[]
+  error?: string
+}
+
+// Detected local app
+interface DetectedApp {
+  name: string
+  configPath: string
+  servers: MCPServerConfig[]
+}
+
+// Recommended workflow
+interface RecommendedWorkflow {
+  id: string
+  title: string
+  description: string
+  mcpServers: string[]
+  icon: React.ReactNode
+}
+
 export function DashboardTab() {
   // Project detection
   const [detection, setDetection] = useState<DetectionResult | null>(null)
-  const [isDetecting, setIsDetecting] = useState(false)
 
   // Test-Fix states
   const [isInitializing, setIsInitializing] = useState(false)
@@ -41,12 +70,204 @@ export function DashboardTab() {
   const [aiFix, setAiFix] = useState<string | null>(null)
   const [parsedFix, setParsedFix] = useState<ParsedFix | null>(null)
 
+  // MCP Server states
+  const [mcpServers, setMcpServers] = useState<Map<string, MCPServerState>>(new Map())
+
+  // Detected local apps & recommendations
+  const [detectedApps, setDetectedApps] = useState<DetectedApp[]>([])
+  const [recommendations, setRecommendations] = useState<RecommendedWorkflow[]>([])
+
   const projectPath = '' // TODO: Get from context
 
   // Auto-detect on mount
   useEffect(() => {
     handleDetect()
+    detectLocalApps()
+    initializeMCPServers()
   }, [])
+
+  // Initialize MCP servers tracking
+  const initializeMCPServers = () => {
+    const initialServers = new Map<string, MCPServerState>()
+    BUILTIN_SERVERS.forEach(config => {
+      initialServers.set(config.id, {
+        id: config.id,
+        name: config.name,
+        status: 'stopped',
+        tools: [],
+        prompts: [],
+        resources: []
+      })
+    })
+    setMcpServers(initialServers)
+  }
+
+  // Listen to MCP events
+  useEffect(() => {
+    const removeListener = mcpClient.addEventListener((event) => {
+      const serverId = event.serverId
+      if (!serverId) return
+
+      setMcpServers(prev => {
+        const newServers = new Map(prev)
+        const server = newServers.get(serverId)
+        if (!server) return prev
+
+        switch (event.type) {
+          case 'initialized':
+            server.status = 'running'
+            // Auto-fetch capabilities
+            fetchServerCapabilities(serverId)
+            break
+
+          case 'status':
+            server.status = event.status
+            if (event.status === 'stopped') {
+              server.tools = []
+              server.prompts = []
+              server.resources = []
+              server.error = undefined
+            }
+            break
+
+          case 'error':
+            server.status = 'error'
+            server.error = event.error
+            break
+        }
+
+        newServers.set(serverId, { ...server })
+        return newServers
+      })
+    })
+
+    return removeListener
+  }, [])
+
+  // Fetch server capabilities (tools, prompts, resources)
+  const fetchServerCapabilities = async (serverId: string) => {
+    try {
+      const [tools, prompts, resources] = await Promise.all([
+        mcpClient.listTools(serverId),
+        mcpClient.listPrompts(serverId),
+        mcpClient.listResources(serverId)
+      ])
+
+      setMcpServers(prev => {
+        const newServers = new Map(prev)
+        const server = newServers.get(serverId)
+        if (server) {
+          server.tools = tools || []
+          server.prompts = prompts || []
+          server.resources = resources || []
+          newServers.set(serverId, { ...server })
+        }
+        return newServers
+      })
+    } catch (error) {
+      console.error(`Failed to fetch capabilities for ${serverId}:`, error)
+    }
+  }
+
+  // Detect local apps with MCP configs
+  const detectLocalApps = async () => {
+    try {
+      // Known config paths
+      const configPaths = [
+        {
+          name: 'Claude Desktop',
+          path: '~/Library/Application Support/Claude/claude_desktop_config.json'
+        },
+        {
+          name: 'Cursor',
+          path: '~/.cursor/mcp_config.json'
+        },
+        {
+          name: 'Windsurf',
+          path: '~/.codeium/windsurf/mcp_config.json'
+        }
+      ]
+
+      const detected: DetectedApp[] = []
+
+      // Check each path (would need IPC handler in electron/main.cjs)
+      for (const { name, path } of configPaths) {
+        try {
+          const result = await ipcRenderer.invoke('circuit:read-mcp-config', path)
+          if (result.success && result.servers) {
+            detected.push({
+              name,
+              configPath: path,
+              servers: result.servers
+            })
+          }
+        } catch (error) {
+          // App not installed or config not found
+          console.log(`${name} not detected`)
+        }
+      }
+
+      setDetectedApps(detected)
+      generateRecommendations(detected)
+    } catch (error) {
+      console.error('Failed to detect local apps:', error)
+    }
+  }
+
+  // Generate workflow recommendations based on detected apps
+  const generateRecommendations = (apps: DetectedApp[]) => {
+    const recs: RecommendedWorkflow[] = []
+
+    // Collect all detected MCP servers
+    const allMCPs = new Set<string>()
+    apps.forEach(app => {
+      app.servers.forEach(server => allMCPs.add(server.id))
+    })
+
+    // GitHub-based recommendations
+    if (allMCPs.has('github') || allMCPs.has('@modelcontextprotocol/server-github')) {
+      recs.push({
+        id: 'pr-monitor',
+        title: 'PR Monitor',
+        description: 'Track pull requests and get notifications',
+        mcpServers: ['github'],
+        icon: <GitBranch className="h-4 w-4" />
+      })
+    }
+
+    // Slack-based recommendations
+    if (allMCPs.has('slack') || allMCPs.has('@modelcontextprotocol/server-slack')) {
+      recs.push({
+        id: 'deploy-notify',
+        title: 'Deploy & Notify',
+        description: 'Auto-notify Slack after successful deployment',
+        mcpServers: ['deployments', 'slack'],
+        icon: <Rocket className="h-4 w-4" />
+      })
+    }
+
+    // Notion-based recommendations
+    if (allMCPs.has('notion') || allMCPs.has('@modelcontextprotocol/server-notion')) {
+      recs.push({
+        id: 'issue-tracker',
+        title: 'Issue Tracker Sync',
+        description: 'Sync GitHub issues to Notion database',
+        mcpServers: ['github', 'notion'],
+        icon: <Activity className="h-4 w-4" />
+      })
+    }
+
+    // Always show "CI/CD Pipeline" if Test-Fix is available
+    recs.push({
+      id: 'ci-cd-pipeline',
+      title: 'CI/CD Pipeline',
+      description: 'Test → Build → Deploy → Notify workflow',
+      mcpServers: ['test-fix', 'deployments', 'slack'],
+      icon: <Sparkles className="h-4 w-4" />
+    })
+
+    setRecommendations(recs)
+  }
 
   // File change listener
   useEffect(() => {
@@ -85,7 +306,6 @@ export function DashboardTab() {
   }, [])
 
   const handleDetect = async () => {
-    setIsDetecting(true)
     try {
       const result = await ipcRenderer.invoke('circuit:detect-project', projectPath)
       if (result.success) {
@@ -95,8 +315,6 @@ export function DashboardTab() {
       }
     } catch (error) {
       setDetection({ type: 'unknown', confidence: 0, reasons: ['Detection failed'] })
-    } finally {
-      setIsDetecting(false)
     }
   }
 
@@ -201,7 +419,25 @@ export function DashboardTab() {
     }
   }
 
+  // Start/Stop MCP server
+  const handleToggleMCPServer = async (serverId: string) => {
+    const server = mcpServers.get(serverId)
+    if (!server) return
+
+    const config = BUILTIN_SERVERS.find(s => s.id === serverId)
+    if (!config) return
+
+    if (server.status === 'running') {
+      await mcpClient.stopServer(serverId)
+    } else {
+      await mcpClient.startServer(config)
+    }
+  }
+
   // Quick status bar
+  const activeServersCount = Array.from(mcpServers.values()).filter(s => s.status === 'running').length
+  const totalServersCount = mcpServers.size
+
   const quickStatuses: QuickStatus[] = [
     {
       label: testResult
@@ -218,16 +454,16 @@ export function DashboardTab() {
       color: 'success'
     },
     {
-      label: '0 PRs',
-      icon: <GitBranch className="h-3.5 w-3.5" />,
-      color: 'default'
+      label: `${activeServersCount}/${totalServersCount} MCP Active`,
+      icon: <Server className="h-3.5 w-3.5" />,
+      color: activeServersCount > 0 ? 'success' : 'default'
     }
   ]
 
   // Test-Fix timeline
   const testFixTimeline: TimelineEvent[] = fileChanges.map(change => ({
     title: change.path.split('/').pop() || change.path,
-    description: change.eventType,
+    description: change.type,
     timestamp: new Date(change.timestamp).toLocaleTimeString(),
     icon: <FileEdit className="h-3.5 w-3.5 text-[var(--text-secondary)]" />,
     color: 'default' as const
@@ -287,7 +523,7 @@ export function DashboardTab() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold mb-1 text-[var(--text-primary)]">Dashboard</h1>
@@ -299,8 +535,61 @@ export function DashboardTab() {
       {/* Quick Status Bar */}
       <QuickStatusBar statuses={quickStatuses} />
 
-      {/* Workflow Cards */}
+      {/* Recommended Workflows */}
+      {recommendations.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Lightbulb className="h-4 w-4 text-[var(--circuit-orange)]" />
+            <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+              Recommended Workflows
+            </h2>
+            <span className="text-xs text-[var(--text-muted)]">
+              Based on your installed apps
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            {recommendations.map(rec => (
+              <button
+                key={rec.id}
+                className="glass-card p-3 rounded-lg border border-[var(--glass-border)] hover:border-[var(--circuit-orange)] hover:bg-[var(--glass-hover)] transition-all text-left group"
+              >
+                <div className="flex items-start gap-2 mb-2">
+                  <div className="p-1.5 rounded bg-[var(--glass-bg)] text-[var(--circuit-orange)] group-hover:bg-[var(--circuit-orange)]/20 transition-colors">
+                    {rec.icon}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-xs font-semibold text-[var(--text-primary)] mb-0.5">
+                      {rec.title}
+                    </h3>
+                    <p className="text-[10px] text-[var(--text-muted)] line-clamp-2">
+                      {rec.description}
+                    </p>
+                  </div>
+                  <Plus className="h-3 w-3 text-[var(--text-muted)] group-hover:text-[var(--circuit-orange)] transition-colors" />
+                </div>
+                <div className="flex items-center gap-1 flex-wrap">
+                  {rec.mcpServers.map(serverId => (
+                    <span
+                      key={serverId}
+                      className="text-[9px] px-1.5 py-0.5 rounded bg-[var(--glass-bg)] text-[var(--text-muted)]"
+                    >
+                      {serverId}
+                    </span>
+                  ))}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* System Workflows */}
       <div className="space-y-3">
+        <h2 className="text-sm font-semibold text-[var(--text-primary)] px-1">
+          System Workflows
+        </h2>
+
         {/* Test-Fix */}
         <WorkflowCard
           title="Test-Fix"
@@ -445,30 +734,129 @@ export function DashboardTab() {
             No pull requests
           </div>
         </WorkflowCard>
-
-        {/* Activity Feed */}
-        <WorkflowCard
-          title="Activity"
-          status={{
-            label: `${fileChanges.length} recent events`,
-            icon: <Activity className="h-3.5 w-3.5" />,
-            color: fileChanges.length > 0 ? 'warning' : 'default'
-          }}
-          defaultExpanded={fileChanges.length > 0}
-        >
-          {fileChanges.length > 0 ? (
-            <ContentTimeline
-              events={testFixTimeline}
-              emptyMessage="No recent activity"
-              maxHeight="max-h-60"
-            />
-          ) : (
-            <div className="text-xs text-[var(--text-muted)]">
-              No recent activity
-            </div>
-          )}
-        </WorkflowCard>
       </div>
+
+      {/* MCP Workflows */}
+      {mcpServers.size > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-sm font-semibold text-[var(--text-primary)] px-1">
+            MCP Workflows
+          </h2>
+
+          {Array.from(mcpServers.values()).map(server => (
+            <WorkflowCard
+              key={server.id}
+              title={server.name}
+              status={{
+                label: server.status === 'running'
+                  ? `${server.tools.length} tools available`
+                  : server.status === 'error'
+                    ? 'Error'
+                    : 'Stopped',
+                icon: <Server className="h-3.5 w-3.5" />,
+                color: server.status === 'running' ? 'success' : server.status === 'error' ? 'error' : 'default'
+              }}
+              quickActions={
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="gap-1.5 h-7 text-xs"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleToggleMCPServer(server.id)
+                  }}
+                >
+                  {server.status === 'running' ? (
+                    <>
+                      <Square className="h-3 w-3" />
+                      Stop
+                    </>
+                  ) : (
+                    <>
+                      <Play className="h-3 w-3" />
+                      Start
+                    </>
+                  )}
+                </Button>
+              }
+            >
+              {server.status === 'running' && (
+                <div className="space-y-2">
+                  {server.tools.length > 0 && (
+                    <div>
+                      <div className="text-xs font-medium text-[var(--text-secondary)] mb-1.5">
+                        Tools ({server.tools.length})
+                      </div>
+                      <div className="space-y-1">
+                        {server.tools.slice(0, 3).map(tool => (
+                          <div
+                            key={tool.name}
+                            className="text-xs bg-[var(--glass-bg)] px-2 py-1.5 rounded flex items-start gap-2"
+                          >
+                            <code className="text-[var(--circuit-orange)] font-mono flex-shrink-0">
+                              {tool.name}
+                            </code>
+                            {tool.description && (
+                              <span className="text-[var(--text-muted)] text-[10px] line-clamp-1">
+                                {tool.description}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                        {server.tools.length > 3 && (
+                          <div className="text-[10px] text-[var(--text-muted)] px-2">
+                            +{server.tools.length - 3} more tools
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {server.error && (
+                    <div className="text-xs text-[var(--circuit-error)] bg-[var(--glass-bg)] p-2 rounded">
+                      {server.error}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {server.status === 'stopped' && (
+                <div className="text-xs text-[var(--text-muted)]">
+                  Click Start to activate this MCP server
+                </div>
+              )}
+
+              {server.status === 'error' && server.error && (
+                <div className="text-xs text-[var(--circuit-error)] bg-[var(--glass-bg)] p-2 rounded">
+                  {server.error}
+                </div>
+              )}
+            </WorkflowCard>
+          ))}
+        </div>
+      )}
+
+      {/* Detected Apps Info */}
+      {detectedApps.length > 0 && (
+        <div className="glass-card p-3 rounded-lg border border-[var(--glass-border)]">
+          <div className="flex items-center gap-2 mb-2">
+            <ExternalLink className="h-3.5 w-3.5 text-[var(--text-muted)]" />
+            <span className="text-xs font-medium text-[var(--text-secondary)]">
+              Detected Apps
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {detectedApps.map(app => (
+              <div
+                key={app.name}
+                className="text-[10px] px-2 py-1 rounded bg-[var(--glass-bg)] text-[var(--text-muted)]"
+              >
+                {app.name} ({app.servers.length} MCPs)
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
