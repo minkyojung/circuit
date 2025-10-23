@@ -22,10 +22,10 @@ export interface FeatureFlags {
 }
 
 const DEFAULT_FLAGS: FeatureFlags = {
-  // History - Start with all disabled for safety
-  historyEnabled: false,
+  // History - Enable basic history tracking
+  historyEnabled: true,
   historyRealtime: false,
-  historyAnalytics: false,
+  historyAnalytics: true,  // Enable analytics for dashboard
   historyAdvancedFilters: false,
 
   // Tool Inspector
