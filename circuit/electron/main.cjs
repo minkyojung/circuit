@@ -60,12 +60,14 @@ function createPeekWindow() {
   const { screen } = require('electron');
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+  const margin = 10;
 
   peekWindow = new BrowserWindow({
-    width: 60,  // Initial size (will be resized when shown)
+    width: 60,
     height: 60,
-    x: screenWidth - 80,  // 20px margin from right
-    y: screenHeight - 80, // 20px margin from bottom
+    // Start off-screen for smooth slide-in animation
+    x: screenWidth + 100,
+    y: screenHeight - 60 - margin,
     type: 'panel',
     frame: false,
     transparent: true,
@@ -79,7 +81,7 @@ function createPeekWindow() {
     maximizable: false,
     acceptsFirstMouse: false,
     hasShadow: false,
-    show: false,  // Start hidden
+    show: true,  // Always visible (starts off-screen, slides in)
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
@@ -93,8 +95,15 @@ function createPeekWindow() {
     peekWindow.loadFile(path.join(__dirname, '../dist/index.html'), { hash: '/peek' });
   }
 
-  // Mouse events pass through by default (for dot state)
+  // Mouse events pass through by default (for peek state)
   peekWindow.setIgnoreMouseEvents(true, { forward: true });
+
+  // After loading, slide into peek position with animation
+  peekWindow.webContents.on('did-finish-load', () => {
+    setTimeout(() => {
+      resizePeekWindow('peek', null);
+    }, 100);  // Short delay for smooth appearance
+  });
 
   // Prevent window from closing, just hide instead
   peekWindow.on('close', (e) => {
@@ -106,6 +115,7 @@ function createPeekWindow() {
 /**
  * Resize peek window based on state
  * Uses smooth animation on macOS via setBounds with animate flag
+ * Always keeps window visible with consistent slide animations
  */
 function resizePeekWindow(state, data) {
   if (!peekWindow) return;
@@ -119,45 +129,38 @@ function resizePeekWindow(state, data) {
   // Determine if we should use animation (macOS supports it)
   const shouldAnimate = process.platform === 'darwin';
 
+  // Ensure window is always visible (no-op if already shown)
+  if (!peekWindow.isVisible()) {
+    peekWindow.show();
+  }
+
   switch (state) {
     case 'peek':
       // Tab only: 60px wide, mostly off-screen, only 12px visible
       const peekBounds = {
         x: screenWidth - 12,
-        y: screenHeight - 80 - margin,
+        y: screenHeight - 60 - margin,
         width: 60,
-        height: 80
+        height: 60
       };
 
-      if (shouldAnimate) {
-        peekWindow.setBounds(peekBounds, true);  // animate: true
-      } else {
-        peekWindow.setSize(peekBounds.width, peekBounds.height);
-        peekWindow.setPosition(peekBounds.x, peekBounds.y);
-      }
-
+      // Always use setBounds for consistent animation
+      peekWindow.setBounds(peekBounds, shouldAnimate);
       peekWindow.setIgnoreMouseEvents(true, { forward: true });
-      peekWindow.show();
       break;
 
     case 'compact':
-      // Full content visible: 260x80
+      // Full content visible: 240x60 (compact Cursor-style design)
       const compactBounds = {
-        x: screenWidth - 260 - margin,
-        y: screenHeight - 80 - margin,
-        width: 260,
-        height: 80
+        x: screenWidth - 240 - margin,
+        y: screenHeight - 60 - margin,
+        width: 240,
+        height: 60
       };
 
-      if (shouldAnimate) {
-        peekWindow.setBounds(compactBounds, true);  // animate: true
-      } else {
-        peekWindow.setSize(compactBounds.width, compactBounds.height);
-        peekWindow.setPosition(compactBounds.x, compactBounds.y);
-      }
-
+      // Always use setBounds for consistent animation
+      peekWindow.setBounds(compactBounds, shouldAnimate);
       peekWindow.setIgnoreMouseEvents(false);
-      peekWindow.show();
       break;
   }
 }
@@ -205,67 +208,194 @@ ipcMain.on('peek:debug-change-state', (event, state) => {
 });
 
 // ============================================================================
-// Vercel Webhook Server for Deployment Events
+// Webhook Server for Integrations (Vercel, GitHub, etc.)
 // ============================================================================
 
 /**
- * Start HTTP server to receive Vercel deployment webhooks
+ * Handle Vercel deployment webhook
+ */
+function handleVercelWebhook(payload, res) {
+  try {
+    const deploymentData = {
+      type: 'deployment',
+      source: 'vercel',
+      status: transformVercelStatus(payload.deployment.state),
+      projectName: payload.deployment.projectSettings?.name || payload.deployment.name,
+      branch: payload.deployment.meta?.githubCommitRef || 'main',
+      commit: payload.deployment.meta?.githubCommitSha?.slice(0, 7) || 'unknown',
+      timestamp: Date.now(),
+      duration: payload.deployment.ready ? Date.now() - payload.deployment.createdAt : undefined,
+      url: payload.deployment.url ? `https://${payload.deployment.url}` : undefined,
+      logUrl: payload.deployment.inspectorUrl,
+      error: payload.deployment.errorMessage ? {
+        message: payload.deployment.errorMessage,
+      } : undefined
+    };
+
+    // Send to peek panel
+    if (peekWindow) {
+      peekWindow.webContents.send('deployment:event', deploymentData);
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ received: true }));
+  } catch (error) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: error.message }));
+  }
+}
+
+/**
+ * Handle GitHub webhook events
+ */
+function handleGitHubWebhook(payload, eventType, res) {
+  try {
+    let githubData = null;
+
+    // Push event
+    if (eventType === 'push') {
+      githubData = {
+        type: 'github',
+        eventType: 'push',
+        repository: payload.repository.full_name,
+        timestamp: Date.now(),
+        push: {
+          ref: payload.ref.replace('refs/heads/', ''),
+          pusher: payload.pusher.name,
+          commits: payload.commits.map(c => ({
+            sha: c.id.slice(0, 7),
+            message: c.message.split('\n')[0],  // First line only
+            author: c.author.name
+          })),
+          compareUrl: payload.compare
+        }
+      };
+    }
+
+    // Pull Request event
+    else if (eventType === 'pull_request') {
+      githubData = {
+        type: 'github',
+        eventType: 'pull_request',
+        repository: payload.repository.full_name,
+        timestamp: Date.now(),
+        pullRequest: {
+          number: payload.pull_request.number,
+          title: payload.pull_request.title,
+          action: payload.action,
+          author: payload.pull_request.user.login,
+          state: payload.pull_request.state,
+          merged: payload.pull_request.merged || false,
+          mergeable: payload.pull_request.mergeable,
+          url: payload.pull_request.html_url
+        }
+      };
+    }
+
+    // Check Run event (CI/CD)
+    else if (eventType === 'check_run') {
+      githubData = {
+        type: 'github',
+        eventType: 'check_run',
+        repository: payload.repository.full_name,
+        timestamp: Date.now(),
+        checkRun: {
+          name: payload.check_run.name,
+          status: payload.check_run.status,
+          conclusion: payload.check_run.conclusion,
+          branch: payload.check_run.check_suite?.head_branch || payload.check_run.head_branch || 'unknown',
+          commit: payload.check_run.head_sha ? payload.check_run.head_sha.slice(0, 7) : 'unknown',
+          detailsUrl: payload.check_run.details_url || payload.check_run.html_url
+        }
+      };
+    }
+
+    // Pull Request Review event
+    else if (eventType === 'pull_request_review') {
+      githubData = {
+        type: 'github',
+        eventType: 'review',
+        repository: payload.repository.full_name,
+        timestamp: Date.now(),
+        review: {
+          pullRequestNumber: payload.pull_request.number,
+          reviewer: payload.review.user.login,
+          state: payload.review.state.toLowerCase(),
+          body: payload.review.body
+        }
+      };
+    }
+
+    if (githubData && peekWindow) {
+      peekWindow.webContents.send('github:event', githubData);
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ received: true }));
+  } catch (error) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: error.message }));
+  }
+}
+
+/**
+ * Start HTTP server to receive webhooks from various services
  * Server listens on port 3456 by default
  */
 function startWebhookServer() {
   const PORT = process.env.WEBHOOK_PORT || 3456;
 
   const server = http.createServer((req, res) => {
-    // Only handle POST requests to /webhook/vercel
-    if (req.method === 'POST' && req.url === '/webhook/vercel') {
-      let body = '';
+    if (req.method !== 'POST') {
+      res.writeHead(405, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Method not allowed' }));
+      return;
+    }
 
-      req.on('data', (chunk) => {
-        body += chunk.toString();
-      });
+    let body = '';
 
-      req.on('end', () => {
-        try {
-          const payload = JSON.parse(body);
+    req.on('data', (chunk) => {
+      body += chunk.toString();
+    });
 
-          // Transform Vercel webhook payload to DeploymentPeekData format
-          const deploymentData = {
-            type: 'deployment',
-            source: 'vercel',
-            status: transformVercelStatus(payload.deployment.state),
-            projectName: payload.deployment.projectSettings?.name || payload.deployment.name,
-            branch: payload.deployment.meta?.githubCommitRef || 'main',
-            commit: payload.deployment.meta?.githubCommitSha?.slice(0, 7) || 'unknown',
-            timestamp: Date.now(),
-            duration: payload.deployment.ready ? Date.now() - payload.deployment.createdAt : undefined,
-            url: payload.deployment.url ? `https://${payload.deployment.url}` : undefined,
-            logUrl: payload.deployment.inspectorUrl,
-            error: payload.deployment.errorMessage ? {
-              message: payload.deployment.errorMessage,
-            } : undefined
-          };
+    req.on('end', () => {
+      try {
+        const payload = JSON.parse(body);
 
-          // Send to peek panel
-          if (peekWindow) {
-            peekWindow.webContents.send('deployment:event', deploymentData);
-          }
-
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ received: true }));
-        } catch (error) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Invalid JSON' }));
+        // Route based on URL
+        if (req.url === '/webhook/vercel') {
+          handleVercelWebhook(payload, res);
         }
-      });
+        else if (req.url === '/webhook/github') {
+          // GitHub sends event type in X-GitHub-Event header
+          const eventType = req.headers['x-github-event'];
+          handleGitHubWebhook(payload, eventType, res);
+        }
+        else {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Endpoint not found' }));
+        }
+      } catch (error) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON' }));
+      }
+    });
+  });
+
+  // Handle port conflicts gracefully
+  server.on('error', (error) => {
+    if (error.code === 'EADDRINUSE') {
+      console.warn(`[Webhook] Port ${PORT} is already in use. Webhook server not started.`);
+      console.warn(`[Webhook] This likely means another instance is running. Webhooks will be handled by that instance.`);
     } else {
-      res.writeHead(404, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Not found' }));
+      console.error(`[Webhook] Server error:`, error);
     }
   });
 
   server.listen(PORT, () => {
     console.log(`[Webhook] Server listening on port ${PORT}`);
     console.log(`[Webhook] Vercel endpoint: http://localhost:${PORT}/webhook/vercel`);
+    console.log(`[Webhook] GitHub endpoint: http://localhost:${PORT}/webhook/github`);
   });
 
   // Store server reference for cleanup
@@ -748,6 +878,98 @@ ipcMain.handle('deployments:send-test-webhook', async (event, status) => {
     // Send to peek panel
     if (peekWindow && !peekWindow.isDestroyed()) {
       peekWindow.webContents.send('deployment:event', deploymentData);
+      return { success: true };
+    } else {
+      return {
+        success: false,
+        error: 'Peek panel is not available'
+      };
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+// GitHub - Test Webhook Sender
+// ============================================================================
+
+/**
+ * Send test GitHub webhook to peek panel
+ */
+ipcMain.handle('github:send-test-webhook', async (event, eventType) => {
+  try {
+    // Generate sample GitHub data based on event type
+    const sampleData = {
+      push: {
+        type: 'github',
+        eventType: 'push',
+        repository: 'user/my-awesome-app',
+        timestamp: Date.now(),
+        push: {
+          ref: 'main',
+          pusher: 'john',
+          commits: [
+            {
+              sha: 'abc1234',
+              message: 'Add new feature',
+              author: 'john'
+            },
+            {
+              sha: 'def5678',
+              message: 'Fix typo',
+              author: 'john'
+            }
+          ],
+          compareUrl: 'https://github.com/user/repo/compare/abc...def'
+        }
+      },
+      pull_request: {
+        type: 'github',
+        eventType: 'pull_request',
+        repository: 'user/my-awesome-app',
+        timestamp: Date.now(),
+        pullRequest: {
+          number: 123,
+          title: 'Add dark mode',
+          action: 'opened',
+          author: 'alice',
+          state: 'open',
+          merged: false,
+          mergeable: true,
+          url: 'https://github.com/user/repo/pull/123'
+        }
+      },
+      check_run: {
+        type: 'github',
+        eventType: 'check_run',
+        repository: 'user/my-awesome-app',
+        timestamp: Date.now(),
+        checkRun: {
+          name: 'tests',
+          status: 'completed',
+          conclusion: 'success',
+          branch: 'main',
+          commit: 'abc1234',
+          detailsUrl: 'https://github.com/user/repo/runs/456'
+        }
+      }
+    };
+
+    const githubData = sampleData[eventType];
+
+    if (!githubData) {
+      return {
+        success: false,
+        error: `Invalid event type: ${eventType}`
+      };
+    }
+
+    // Send to peek panel
+    if (peekWindow && !peekWindow.isDestroyed()) {
+      peekWindow.webContents.send('github:event', githubData);
       return { success: true };
     } else {
       return {

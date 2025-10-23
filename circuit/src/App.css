@@ -4,18 +4,86 @@
   height: 100vh;
 }
 
-/* Peek Panel slide-in animation from right */
-@keyframes slideInFromRight {
-  from {
-    transform: translateX(100%);
+/* Circuit Design System - Colors */
+:root {
+  /* Primary accent colors */
+  --circuit-orange: #D97757;
+  --circuit-orange-dim: #AE7663;
+  --circuit-brown: #846961;
+  --circuit-brown-dark: #595350;
+
+  /* Status colors */
+  --circuit-success: #4ade80;
+  --circuit-error: #ef4444;
+  --circuit-warning: #f59e0b;
+
+  /* Glass effects */
+  --glass-bg: rgba(89, 83, 80, 0.15);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-hover: rgba(89, 83, 80, 0.25);
+
+  /* Shadows with glow */
+  --glow-orange: 0 0 25px rgba(217, 119, 87, 0.9);
+  --glow-orange-dim: 0 0 20px rgba(174, 118, 99, 0.8);
+  --glow-brown: 0 0 20px rgba(132, 105, 97, 0.6);
+  --glow-success: 0 0 25px rgba(74, 222, 128, 0.9);
+  --glow-error: 0 0 25px rgba(239, 68, 68, 0.9);
+
+  /* Text colors */
+  --text-primary: rgba(255, 255, 255, 0.9);
+  --text-secondary: rgba(255, 255, 255, 0.7);
+  --text-tertiary: rgba(255, 255, 255, 0.6);
+  --text-muted: rgba(255, 255, 255, 0.5);
+  --text-subtle: rgba(255, 255, 255, 0.3);
+}
+
+/* Bounce animations with "in and out back" easing */
+@keyframes bounceIn {
+  0% {
+    transform: scale(0.9);
     opacity: 0;
   }
-  to {
-    transform: translateX(0);
+  100% {
+    transform: scale(1);
     opacity: 1;
   }
 }
 
-.slide-in-from-right {
-  animation: slideInFromRight 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+@keyframes bounceOut {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+}
+
+.bounce-in {
+  animation: bounceIn 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.bounce-out {
+  animation: bounceOut 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+/* Glass effects for main window */
+.glass-card {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.glass-sidebar {
+  background: rgba(30, 25, 23, 0.7);
+  border-right: 1px solid var(--glass-border);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* Global background */
+body {
+  background: linear-gradient(135deg, #1a1412 0%, #2d2522 100%);
 }

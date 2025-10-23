@@ -3,16 +3,17 @@ import { Card } from "@/components/ui/card"
 import { DeveloperTab } from "@/components/DeveloperTab"
 import { TestFixTab } from "@/components/TestFixTab"
 import { DeploymentsTab } from "@/components/DeploymentsTab"
+import { GitHubTab } from "@/components/GitHubTab"
 import { PeekDebugPanel } from "@/components/PeekDebugPanel"
-import { Store, Wrench, Package, Zap, Rocket } from 'lucide-react'
+import { Store, Wrench, Package, Zap, Rocket, GitBranch } from 'lucide-react'
 import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
 import './App.css'
 
-type Page = 'marketplace' | 'installed' | 'developer' | 'testfix' | 'deployments'
+type Page = 'marketplace' | 'installed' | 'developer' | 'testfix' | 'deployments' | 'github'
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('developer')
-  const [showDebug, setShowDebug] = useState<boolean>(true)  // Set to true for debugging
+  const [showDebug] = useState<boolean>(false)  // Debug panel hidden by default
 
   // Phase 0: .circuit/ 설정 읽기 시도
   useEffect(() => {
@@ -36,9 +37,9 @@ function App() {
           setCurrentPage('testfix')
         } else if (payload.type === 'deployment') {
           setCurrentPage('deployments')
+        } else if (payload.type === 'github') {
+          setCurrentPage('github')
         }
-        // Future: Add more cases for other data types
-        // if (payload.type === 'git') setCurrentPage('git-activity')
       }
 
       ipcRenderer.on('peek:data-opened', handlePeekData)
@@ -52,15 +53,15 @@ function App() {
   }, [])
 
   return (
-    <div className="h-screen flex bg-background">
+    <div className="h-screen flex bg-gradient-to-br from-[#1a1412] to-[#2d2522]">
       {/* Debug Panel */}
       {showDebug && <PeekDebugPanel />}
 
       {/* Sidebar */}
-      <aside className="w-56 bg-sidebar border-r border-sidebar-border flex flex-col">
+      <aside className="w-56 glass-sidebar flex flex-col">
         {/* Sidebar Top - Traffic Lights Area (Fully Draggable) */}
         <div
-          className="h-[44px] flex items-center px-4 border-b border-sidebar-border"
+          className="h-[44px] flex items-center px-4 border-b border-[var(--glass-border)]"
           style={{ WebkitAppRegion: 'drag' } as any}
         />
 
@@ -91,6 +92,12 @@ function App() {
             onClick={() => setCurrentPage('deployments')}
           />
           <SidebarButton
+            icon={<GitBranch className="h-4 w-4" />}
+            label="GitHub"
+            isActive={currentPage === 'github'}
+            onClick={() => setCurrentPage('github')}
+          />
+          <SidebarButton
             icon={<Wrench className="h-4 w-4" />}
             label="Developer"
             isActive={currentPage === 'developer'}
@@ -103,7 +110,7 @@ function App() {
       <main className="flex-1 overflow-hidden flex flex-col">
         {/* Main Header (Empty spaces draggable, interactive elements not) */}
         <header
-          className="h-[44px] bg-background border-b border-border flex items-center px-4 gap-4"
+          className="h-[44px] bg-transparent border-b border-[var(--glass-border)] flex items-center px-4 gap-4"
           style={{ WebkitAppRegion: 'drag' } as any}
         >
           {/* Left side - could add branch selector or other controls */}
@@ -130,9 +137,9 @@ function App() {
         <div className="flex-1 overflow-auto p-8">
           {currentPage === 'marketplace' && (
             <div className="max-w-4xl">
-              <Card className="p-6 border-border">
-                <h2 className="text-lg font-semibold mb-2">MCP Server Marketplace</h2>
-                <p className="text-sm text-muted-foreground">
+              <Card className="p-6 glass-card">
+                <h2 className="text-lg font-semibold mb-2 text-[var(--text-primary)]">MCP Server Marketplace</h2>
+                <p className="text-sm text-[var(--text-tertiary)]">
                   Discover and install MCP servers from the community.
                 </p>
               </Card>
@@ -141,9 +148,9 @@ function App() {
 
           {currentPage === 'installed' && (
             <div className="max-w-4xl">
-              <Card className="p-6 border-border">
-                <h2 className="text-lg font-semibold mb-2">Installed Servers</h2>
-                <p className="text-sm text-muted-foreground">
+              <Card className="p-6 glass-card">
+                <h2 className="text-lg font-semibold mb-2 text-[var(--text-primary)]">Installed Servers</h2>
+                <p className="text-sm text-[var(--text-tertiary)]">
                   Manage your installed MCP servers.
                 </p>
               </Card>
@@ -159,6 +166,12 @@ function App() {
           {currentPage === 'deployments' && (
             <div className="max-w-7xl">
               <DeploymentsTab />
+            </div>
+          )}
+
+          {currentPage === 'github' && (
+            <div className="max-w-7xl">
+              <GitHubTab />
             </div>
           )}
 

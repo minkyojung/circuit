@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 
 /**
  * Panel States
- * - peek: Tab only visible (60px, mostly off-screen) - default state
- * - compact: Full content visible (260x80)
+ * - peek: Tab only visible (60x60, mostly off-screen) - default state
+ * - compact: Full content visible (240x60, Cursor-style compact design)
  */
 export type PeekPanelState = 'peek' | 'compact'
 
@@ -18,6 +18,7 @@ export interface TestResultData {
   total?: number
   duration?: number
   errors?: string[]
+  timestamp?: number
 }
 
 /**
@@ -28,6 +29,7 @@ export interface CustomPeekData {
   title: string
   message: string
   variant?: 'info' | 'success' | 'warning' | 'error'
+  timestamp?: number
 }
 
 /**
@@ -100,24 +102,63 @@ export interface DeploymentPeekData {
 }
 
 /**
- * Git/GitHub Event Data (CI, PR, etc.)
+ * GitHub Event Data
  */
-export interface GitPeekData {
-  type: 'git'
-  eventType: 'push' | 'pr' | 'ci' | 'review'
-  status: 'pending' | 'running' | 'success' | 'failed' | 'cancelled'
-  title: string
-  branch: string
-  commit?: string
+export interface GitHubPeekData {
+  type: 'github'
+  eventType: 'push' | 'pull_request' | 'check_run' | 'review' | 'commit_comment'
+  repository: string
   timestamp: number
-  // CI-specific
-  checks?: {
+
+  // Push events
+  push?: {
+    ref: string  // branch name
+    pusher: string
+    commits: Array<{
+      sha: string
+      message: string
+      author: string
+    }>
+    compareUrl?: string
+  }
+
+  // Pull Request events
+  pullRequest?: {
+    number: number
+    title: string
+    action: 'opened' | 'closed' | 'reopened' | 'merged' | 'review_requested'
+    author: string
+    state: 'open' | 'closed'
+    merged: boolean
+    mergeable?: boolean
+    url: string
+  }
+
+  // Check Run events (CI/CD)
+  checkRun?: {
     name: string
-    status: 'pending' | 'running' | 'success' | 'failed'
-    conclusion?: string
-  }[]
-  // Deep link
-  url?: string
+    status: 'queued' | 'in_progress' | 'completed'
+    conclusion?: 'success' | 'failure' | 'cancelled' | 'skipped' | 'timed_out'
+    branch: string
+    commit: string
+    detailsUrl?: string
+  }
+
+  // Review events
+  review?: {
+    pullRequestNumber: number
+    reviewer: string
+    state: 'approved' | 'changes_requested' | 'commented'
+    body?: string
+  }
+
+  // Commit comment
+  commitComment?: {
+    commit: string
+    author: string
+    body: string
+    path?: string  // file path if comment on specific file
+  }
 }
 
 /**
@@ -153,7 +194,7 @@ export type PeekData =
   | MCPPeekData
   | MultiMCPPeekData
   | DeploymentPeekData
-  | GitPeekData
+  | GitHubPeekData
   | GenericEventData
   | null
 
@@ -610,6 +651,34 @@ export function usePeekPanel() {
       }
     } catch (e) {
       console.warn('IPC not available for deployment events:', e)
+    }
+  }, [show, clearAutoHideTimer, setAutoHideTimer])
+
+  /**
+   * Listen for GitHub events from Electron main process (GitHub webhooks)
+   */
+  useEffect(() => {
+    try {
+      const { ipcRenderer } = require('electron')
+
+      const handleGitHubEvent = (event: any, githubData: GitHubPeekData) => {
+        // Clear any existing auto-hide timer first
+        clearAutoHideTimer()
+
+        // Show compact view for all GitHub events
+        show('compact', githubData)
+
+        // Auto-hide after 5 seconds
+        setAutoHideTimer(5000)
+      }
+
+      ipcRenderer.on('github:event', handleGitHubEvent)
+
+      return () => {
+        ipcRenderer.removeListener('github:event', handleGitHubEvent)
+      }
+    } catch (e) {
+      console.warn('IPC not available for GitHub events:', e)
     }
   }, [show, clearAutoHideTimer, setAutoHideTimer])
 
