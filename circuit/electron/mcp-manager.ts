@@ -86,6 +86,8 @@ export interface ServerStatus {
     avgCallDuration: number
   }
   toolCount: number
+  tools: Tool[]
+  prompts: Prompt[]
   error?: string
 }
 
@@ -620,6 +622,8 @@ export class MCPServerManager {
           : 0
       },
       toolCount: server.tools.length,
+      tools: server.tools,
+      prompts: server.prompts,
       error: server.error
     }
   }

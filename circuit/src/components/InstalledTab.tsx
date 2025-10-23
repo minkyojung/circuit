@@ -7,7 +7,19 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { ChevronDown, ChevronRight, Play, Square, AlertCircle, RefreshCw, FileText, Activity, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, Play, Square, AlertCircle, RefreshCw, FileText, Activity, Trash2, Copy, Check } from 'lucide-react'
+
+interface Tool {
+  name: string
+  description?: string
+  inputSchema: any
+}
+
+interface Prompt {
+  name: string
+  description?: string
+  arguments?: any[]
+}
 
 interface ServerStatus {
   id: string
@@ -20,6 +32,8 @@ interface ServerStatus {
     avgCallDuration: number
   }
   toolCount: number
+  tools: Tool[]
+  prompts: Prompt[]
   error?: string
 }
 
@@ -27,6 +41,7 @@ export function InstalledTab() {
   const [servers, setServers] = useState<ServerStatus[]>([])
   const [expandedServer, setExpandedServer] = useState<string | null>(null)
   const [logs, setLogs] = useState<Record<string, string[]>>({})
+  const [copiedTool, setCopiedTool] = useState<string | null>(null)
 
   // Poll server status every second
   useEffect(() => {
@@ -120,6 +135,20 @@ export function InstalledTab() {
       }
     } catch (error) {
       console.error('Failed to get logs:', error)
+    }
+  }
+
+  const handleCopyPrompt = async (toolName: string, description?: string) => {
+    const prompt = description
+      ? `Use the ${toolName} tool to ${description.toLowerCase()}`
+      : `Use the ${toolName} tool`
+
+    try {
+      await navigator.clipboard.writeText(prompt)
+      setCopiedTool(toolName)
+      setTimeout(() => setCopiedTool(null), 2000)
+    } catch (error) {
+      console.error('Failed to copy to clipboard:', error)
     }
   }
 
@@ -277,6 +306,57 @@ export function InstalledTab() {
                       </span>
                     </>
                   )}
+                </div>
+              )}
+
+              {/* Available Tools */}
+              {server.status === 'running' && server.tools && server.tools.length > 0 && (
+                <div className="mt-3 border-t border-[var(--glass-border)] pt-3">
+                  <div className="text-xs font-medium text-[var(--text-secondary)] mb-2">
+                    🔧 Available Tools ({server.tools.length})
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {server.tools.slice(0, 6).map((tool) => (
+                      <div
+                        key={tool.name}
+                        className="p-2 rounded bg-[#110F0E] border border-[var(--glass-border)] hover:border-[var(--circuit-orange)]/30 transition-colors"
+                      >
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <code className="text-xs font-medium text-[var(--circuit-orange)]">
+                            {tool.name}
+                          </code>
+                          <button
+                            onClick={() => handleCopyPrompt(tool.name, tool.description)}
+                            className="flex-shrink-0 p-1 rounded hover:bg-[var(--glass-bg)] transition-colors"
+                            title="Copy prompt for Claude Code"
+                          >
+                            {copiedTool === tool.name ? (
+                              <Check className="h-3 w-3 text-[var(--circuit-success)]" />
+                            ) : (
+                              <Copy className="h-3 w-3 text-[var(--text-muted)]" />
+                            )}
+                          </button>
+                        </div>
+                        {tool.description && (
+                          <p className="text-[10px] text-[var(--text-muted)] line-clamp-2">
+                            {tool.description}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  {server.tools.length > 6 && (
+                    <div className="text-center mt-2">
+                      <span className="text-[10px] text-[var(--text-muted)]">
+                        +{server.tools.length - 6} more tools
+                      </span>
+                    </div>
+                  )}
+                  <div className="mt-3 p-2 rounded bg-[var(--circuit-orange)]/10 border border-[var(--circuit-orange)]/20">
+                    <p className="text-[10px] text-[var(--text-secondary)]">
+                      💡 <strong>Using in Claude Code:</strong> These tools are automatically available. Click the copy button to get a prompt, then paste it into Claude Code.
+                    </p>
+                  </div>
                 </div>
               )}
 
