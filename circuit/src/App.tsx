@@ -208,17 +208,14 @@ function SidebarButton({
     <button
       onClick={onClick}
       className={`
-        w-full px-2 py-1.5 flex items-center gap-2.5 text-xs font-normal transition-all duration-150 rounded relative
+        w-full px-2 py-1.5 flex items-center gap-2.5 text-xs transition-all duration-150 rounded
         ${isActive
-          ? 'bg-[var(--circuit-orange)]/20 text-[var(--circuit-orange)] font-medium'
-          : 'text-[var(--text-secondary)] hover:bg-[var(--glass-hover)] hover:text-[var(--text-primary)]'
+          ? 'bg-[var(--circuit-orange)]/25 text-[var(--circuit-orange)] font-medium'
+          : 'bg-transparent text-[var(--text-secondary)] hover:bg-[var(--glass-hover)] hover:text-[var(--text-primary)] font-normal'
         }
       `}
       style={{ WebkitAppRegion: 'no-drag' } as any}
     >
-      {isActive && (
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 bg-[var(--circuit-orange)] rounded-full" />
-      )}
       {icon}
       <span className="flex-1 text-left">{label}</span>
       {badge && (
