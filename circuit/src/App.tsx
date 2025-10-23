@@ -10,7 +10,7 @@ import { Wrench, Zap, Rocket, GitBranch, Plus } from 'lucide-react'
 import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
 import './App.css'
 
-type Page = 'mcp-servers' | 'testfix' | 'deployments' | 'github'
+type Page = 'mcp-servers' | 'testfix' | 'deployments' | 'github' | 'marketplace'
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('testfix')
@@ -90,9 +90,9 @@ function App() {
 
           {/* New Workflow Button */}
           <button
-            className="w-full px-3 py-1.5 mt-1 flex items-center gap-2.5 text-xs font-normal text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--glass-hover)] transition-all duration-150 rounded-md mx-0"
+            className="w-full px-2 py-1.5 mt-1 flex items-center gap-2.5 text-xs font-normal text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--glass-hover)] transition-all duration-150 rounded mx-2"
             style={{ WebkitAppRegion: 'no-drag' } as any}
-            onClick={() => console.log('New workflow')}
+            onClick={() => setCurrentPage('marketplace')}
           >
             <Plus className="h-4 w-4" />
             <span>New workflow</span>
@@ -174,6 +174,17 @@ function App() {
               <DeveloperTab />
             </div>
           )}
+
+          {currentPage === 'marketplace' && (
+            <div className="max-w-4xl">
+              <Card className="p-6 glass-card">
+                <h2 className="text-lg font-semibold mb-2 text-[var(--text-primary)]">Workflow Marketplace</h2>
+                <p className="text-sm text-[var(--text-tertiary)]">
+                  Discover and install workflow templates from the community.
+                </p>
+              </Card>
+            </div>
+          )}
         </div>
       </main>
     </div>
@@ -197,7 +208,7 @@ function SidebarButton({
     <button
       onClick={onClick}
       className={`
-        w-full px-3 py-1.5 flex items-center gap-2.5 text-xs font-normal transition-all duration-150
+        w-full px-2 py-1.5 mx-2 flex items-center gap-2.5 text-xs font-normal transition-all duration-150 rounded
         ${isActive
           ? 'bg-[var(--circuit-orange)]/15 text-[var(--circuit-orange)] border-l-2 border-[var(--circuit-orange)]'
           : 'text-[var(--text-secondary)] hover:bg-[var(--glass-hover)] hover:text-[var(--text-primary)]'
