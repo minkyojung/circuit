@@ -6,11 +6,11 @@ import { TestFixTab } from "@/components/TestFixTab"
 import { DeploymentsTab } from "@/components/DeploymentsTab"
 import { GitHubTab } from "@/components/GitHubTab"
 import { PeekDebugPanel } from "@/components/PeekDebugPanel"
-import { Store, Wrench, Zap, Rocket, GitBranch } from 'lucide-react'
+import { Wrench, Zap, Rocket, GitBranch, Plus } from 'lucide-react'
 import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
 import './App.css'
 
-type Page = 'browse' | 'mcp-servers' | 'testfix' | 'deployments' | 'github'
+type Page = 'mcp-servers' | 'testfix' | 'deployments' | 'github'
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('testfix')
@@ -88,6 +88,16 @@ function App() {
             onClick={() => setCurrentPage('github')}
           />
 
+          {/* New Workflow Button */}
+          <button
+            className="w-full px-3 py-1.5 mt-1 flex items-center gap-2.5 text-xs font-normal text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--glass-hover)] transition-all duration-150 rounded-md mx-0"
+            style={{ WebkitAppRegion: 'no-drag' } as any}
+            onClick={() => console.log('New workflow')}
+          >
+            <Plus className="h-4 w-4" />
+            <span>New workflow</span>
+          </button>
+
           {/* Separator */}
           <Separator className="mx-3 my-4" />
 
@@ -100,12 +110,6 @@ function App() {
             label="MCP Servers"
             isActive={currentPage === 'mcp-servers'}
             onClick={() => setCurrentPage('mcp-servers')}
-          />
-          <SidebarButton
-            icon={<Store className="h-3.5 w-3.5" />}
-            label="Marketplace"
-            isActive={currentPage === 'browse'}
-            onClick={() => setCurrentPage('browse')}
           />
         </nav>
 
@@ -168,17 +172,6 @@ function App() {
           {currentPage === 'mcp-servers' && (
             <div className="max-w-7xl">
               <DeveloperTab />
-            </div>
-          )}
-
-          {currentPage === 'browse' && (
-            <div className="max-w-4xl">
-              <Card className="p-6 glass-card">
-                <h2 className="text-lg font-semibold mb-2 text-[var(--text-primary)]">MCP Server Marketplace</h2>
-                <p className="text-sm text-[var(--text-tertiary)]">
-                  Discover and install MCP servers from the community.
-                </p>
-              </Card>
             </div>
           )}
         </div>
