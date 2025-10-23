@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Search, Star, Download, ExternalLink, Lightbulb, Package, Check } from 'lucide-react'
+import { Search, Star, Download, ExternalLink, Lightbulb, Package, Check, Loader2 } from 'lucide-react'
 
 // MCP Package type
 interface MCPPackage {
@@ -139,6 +139,7 @@ export function DiscoverTab({ onNavigateToInstalled }: DiscoverTabProps) {
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [sortBy, setSortBy] = useState<'popular' | 'recent' | 'name'>('popular')
   const [installedServers, setInstalledServers] = useState<Set<string>>(new Set())
+  const [installingServers, setInstallingServers] = useState<Set<string>>(new Set())
 
   // Load installed servers on mount
   useEffect(() => {
@@ -201,6 +202,9 @@ export function DiscoverTab({ onNavigateToInstalled }: DiscoverTabProps) {
       return
     }
 
+    // Mark as installing
+    setInstallingServers(prev => new Set(prev).add(mcp.id))
+
     try {
       const { ipcRenderer } = window.require('electron')
 
@@ -238,6 +242,13 @@ export function DiscoverTab({ onNavigateToInstalled }: DiscoverTabProps) {
     } catch (error) {
       console.error('Installation error:', error)
       alert(`Installation failed: ${error}`)
+    } finally {
+      // Remove from installing state
+      setInstallingServers(prev => {
+        const next = new Set(prev)
+        next.delete(mcp.id)
+        return next
+      })
     }
   }
 
@@ -277,29 +288,39 @@ export function DiscoverTab({ onNavigateToInstalled }: DiscoverTabProps) {
           </div>
 
           <div className="grid grid-cols-3 gap-3">
-            {recommendedMCPs.map(mcp => (
-              <button
-                key={mcp.id}
-                onClick={() => handleInstall(mcp)}
-                className="p-3 rounded-lg bg-[#110F0E] hover:bg-[#1a1816] transition-all text-left group shadow-none"
-              >
-                <div className="flex items-start gap-2 mb-2">
-                  <Package className="h-4 w-4 text-[var(--circuit-orange)] flex-shrink-0 mt-0.5" />
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-xs font-semibold text-[var(--text-primary)] mb-0.5">
-                      {mcp.displayName}
-                    </h3>
-                    <p className="text-[10px] text-[var(--text-muted)] line-clamp-2">
-                      {mcp.description}
-                    </p>
+            {recommendedMCPs.map(mcp => {
+              const isInstalling = installingServers.has(mcp.id)
+
+              return (
+                <button
+                  key={mcp.id}
+                  onClick={() => handleInstall(mcp)}
+                  disabled={isInstalling}
+                  className="p-3 rounded-lg bg-[#110F0E] hover:bg-[#1a1816] transition-all text-left group shadow-none disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div className="flex items-start gap-2 mb-2">
+                    {isInstalling ? (
+                      <Loader2 className="h-4 w-4 text-[var(--circuit-orange)] flex-shrink-0 mt-0.5 animate-spin" />
+                    ) : (
+                      <Package className="h-4 w-4 text-[var(--circuit-orange)] flex-shrink-0 mt-0.5" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-xs font-semibold text-[var(--text-primary)] mb-0.5">
+                        {mcp.displayName}
+                        {isInstalling && <span className="ml-1 text-[var(--circuit-orange)]">Installing...</span>}
+                      </h3>
+                      <p className="text-[10px] text-[var(--text-muted)] line-clamp-2">
+                        {mcp.description}
+                      </p>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-1 text-[9px] text-[var(--text-muted)]">
-                  <Star className="h-2.5 w-2.5" />
-                  <span>{(mcp.stars / 1000).toFixed(1)}k</span>
-                </div>
-              </button>
-            ))}
+                  <div className="flex items-center gap-1 text-[9px] text-[var(--text-muted)]">
+                    <Star className="h-2.5 w-2.5" />
+                    <span>{(mcp.stars / 1000).toFixed(1)}k</span>
+                  </div>
+                </button>
+              )
+            })}
           </div>
         </div>
       )}
@@ -399,7 +420,16 @@ export function DiscoverTab({ onNavigateToInstalled }: DiscoverTabProps) {
 
                 {/* Actions */}
                 <div className="flex items-center gap-2">
-                  {isInstalled(mcp.id) ? (
+                  {installingServers.has(mcp.id) ? (
+                    <Button
+                      size="sm"
+                      disabled
+                      className="gap-1.5 h-7 text-xs"
+                    >
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Installing...
+                    </Button>
+                  ) : isInstalled(mcp.id) ? (
                     <Button
                       onClick={() => handleInstall(mcp)}
                       size="sm"
