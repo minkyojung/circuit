@@ -68,6 +68,42 @@ async function installCircuitProxy() {
   }
 }
 
+/**
+ * Install built-in Memory server
+ * Auto-installs if not present, auto-starts for project context
+ */
+async function installMemoryServer(manager) {
+  try {
+    const serverId = 'circuit-memory';
+
+    // Check if already installed
+    if (manager.servers.has(serverId)) {
+      console.log('[Circuit] Memory server already installed');
+      return { success: true, alreadyInstalled: true };
+    }
+
+    // Get project path from Conductor workspace (check env var) or use cwd
+    const projectPath = process.env.CONDUCTOR_PROJECT_PATH || process.cwd();
+
+    // Install Memory server
+    const memoryServerPath = path.join(__dirname, 'memory-server.js');
+    await manager.install(serverId, {
+      command: 'node',
+      args: [memoryServerPath],
+      env: {
+        PROJECT_PATH: projectPath,
+      },
+      autoStart: true,
+    });
+
+    console.log('[Circuit] Memory server installed for project:', projectPath);
+    return { success: true };
+  } catch (error) {
+    console.error('[Circuit] Failed to install Memory server:', error);
+    return { success: false, error: error.message };
+  }
+}
+
 // macOS traffic light button positioning
 const HEADER_HEIGHT = 44;
 const TRAFFIC_LIGHTS_HEIGHT = 14;
@@ -511,8 +547,11 @@ app.whenReady().then(async () => {
     await apiServer.start();
     console.log('Circuit API Server started');
 
-    // Start MCP servers
+    // Install built-in Memory server if not already installed
     const manager = await getMCPManagerInstance();
+    await installMemoryServer(manager);
+
+    // Start MCP servers
     await manager.startAllAutoStartServers();
     console.log('Auto-start servers initialized');
   } catch (error) {
@@ -1886,6 +1925,21 @@ ipcMain.handle('circuit:reload-claude-code', async (event, openVSCode = true) =>
     console.log('[main.cjs] History handlers registered');
   } catch (error) {
     console.error('[main.cjs] Failed to register history handlers:', error);
+  }
+})();
+
+// ============================================================================
+// Project Memory
+// ============================================================================
+
+// Register memory IPC handlers
+(async () => {
+  try {
+    const { registerMemoryHandlers } = await import('../dist-electron/memoryHandlers.js');
+    registerMemoryHandlers();
+    console.log('[main.cjs] Memory handlers registered');
+  } catch (error) {
+    console.error('[main.cjs] Failed to register memory handlers:', error);
   }
 })();
 
