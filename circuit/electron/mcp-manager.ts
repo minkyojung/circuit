@@ -348,16 +348,28 @@ export class MCPServerManager {
 
       // Monitor process state
       childProcess.on('error', (error) => {
-        console.error(`[${serverId}] ❌ Process error:`, error)
+        try {
+          console.error(`[${serverId}] ❌ Process error:`, error)
+        } catch (err: any) {
+          // Ignore EPIPE during error logging
+        }
         this.handleServerError(serverId, error)
       })
 
       childProcess.on('exit', (code, signal) => {
-        console.log(`[${serverId}] 🛑 Process exited (code: ${code}, signal: ${signal})`)
+        try {
+          console.log(`[${serverId}] 🛑 Process exited (code: ${code}, signal: ${signal})`)
+        } catch (err: any) {
+          // Ignore EPIPE
+        }
         server.status = 'stopped'
 
         if (server.config.autoRestart && code !== 0) {
-          console.log(`[${serverId}] 🔄 Auto-restarting in 2s...`)
+          try {
+            console.log(`[${serverId}] 🔄 Auto-restarting in 2s...`)
+          } catch (err: any) {
+            // Ignore EPIPE
+          }
           setTimeout(() => this.start(serverId), 2000)
         }
       })
@@ -365,14 +377,37 @@ export class MCPServerManager {
       // Log stderr in real-time and detect npm errors
       if (childProcess.stderr) {
         let stderrBuffer = ''
+        let processExited = false
+
+        // Track when process exits to avoid EPIPE
+        childProcess.once('exit', () => {
+          processExited = true
+        })
+
         childProcess.stderr.on('data', (data) => {
+          // Skip logging if process already exited (avoid EPIPE)
+          if (processExited) return
+
           const output = data.toString()
           stderrBuffer += output
-          console.error(`[${serverId}] stderr:`, output.trim())
+
+          // Safely log stderr
+          try {
+            console.error(`[${serverId}] stderr:`, output.trim())
+          } catch (err: any) {
+            // Ignore EPIPE errors during logging
+            if (err.code !== 'EPIPE') {
+              console.error(`[${serverId}] Failed to log stderr:`, err.message)
+            }
+          }
 
           // Detect npm 404 errors for better error messages
           if (output.includes('npm error code E404') || output.includes('404 Not Found')) {
-            console.error(`[${serverId}] ⚠️  Package not found in npm registry`)
+            try {
+              console.error(`[${serverId}] ⚠️  Package not found in npm registry`)
+            } catch (err: any) {
+              // Ignore EPIPE
+            }
             server.error = `Package '${server.config.packageId}' not found in npm registry. Please verify the package name.`
           }
         })
@@ -731,24 +766,52 @@ export class MCPServerManager {
     }
 
     const logStream = fs.createWriteStream(logPath, { flags: 'a' })
+    let processExited = false
 
     const timestamp = () => new Date().toISOString()
 
+    // Track exit to prevent EPIPE
+    process.once('exit', () => {
+      processExited = true
+      // Safely close log stream
+      try {
+        logStream.end()
+      } catch (err: any) {
+        // Ignore errors when closing
+      }
+    })
+
     if (process.stdout) {
       process.stdout.on('data', (data) => {
-        logStream.write(`[${timestamp()}] [stdout] ${data}`)
+        // Skip if process exited (avoid EPIPE)
+        if (processExited) return
+
+        try {
+          logStream.write(`[${timestamp()}] [stdout] ${data}`)
+        } catch (err: any) {
+          // Ignore EPIPE errors
+          if (err.code !== 'EPIPE') {
+            console.error(`[${serverId}] Failed to write stdout to log:`, err.message)
+          }
+        }
       })
     }
 
     if (process.stderr) {
       process.stderr.on('data', (data) => {
-        logStream.write(`[${timestamp()}] [stderr] ${data}`)
+        // Skip if process exited (avoid EPIPE)
+        if (processExited) return
+
+        try {
+          logStream.write(`[${timestamp()}] [stderr] ${data}`)
+        } catch (err: any) {
+          // Ignore EPIPE errors
+          if (err.code !== 'EPIPE') {
+            console.error(`[${serverId}] Failed to write stderr to log:`, err.message)
+          }
+        }
       })
     }
-
-    process.on('exit', () => {
-      logStream.end()
-    })
 
     // Rotate logs if too large
     this.rotateLogs(serverId)

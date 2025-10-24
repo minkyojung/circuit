@@ -13,8 +13,11 @@ import {
   ListToolsRequestSchema,
   ListResourcesRequestSchema,
   ReadResourceRequestSchema,
+  ListPromptsRequestSchema,
+  GetPromptRequestSchema,
   Tool,
   Resource,
+  Prompt,
 } from '@modelcontextprotocol/sdk/types.js'
 import { getMemoryStorage } from './memoryStorage.js'
 import type { ProjectMemory } from './memoryStorage.js'
@@ -34,6 +37,7 @@ const server = new Server(
     capabilities: {
       tools: {},
       resources: {},
+      prompts: {},
     },
   }
 )
@@ -185,6 +189,32 @@ const RESOURCES: Resource[] = [
   },
 ]
 
+// Define prompts
+const PROMPTS: Prompt[] = [
+  {
+    name: 'chat_with_memory',
+    description: '💬 Chat with automatic project memory context - Your message will be prefixed with project conventions and rules',
+    arguments: [
+      {
+        name: 'message',
+        description: 'Your message or question',
+        required: true,
+      },
+    ],
+  },
+  {
+    name: 'code_with_memory',
+    description: '💻 Code with automatic project memory context - Your coding task will include all project conventions',
+    arguments: [
+      {
+        name: 'task',
+        description: 'What to build or modify',
+        required: true,
+      },
+    ],
+  },
+]
+
 // List tools handler
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return { tools: TOOLS }
@@ -306,6 +336,80 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
           uri,
           mimeType: 'text/plain',
           text: `Error reading resource: ${error.message}`,
+        },
+      ],
+    }
+  }
+})
+
+// List prompts handler
+server.setRequestHandler(ListPromptsRequestSchema, async () => {
+  return { prompts: PROMPTS }
+})
+
+// Get prompt handler
+server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+  const { name, arguments: args } = request.params
+
+  try {
+    const storage = await getMemoryStorage()
+
+    // Get high-priority memories
+    const memories = await storage.getMemories({
+      projectPath: PROJECT_PATH,
+      priority: 'high',
+      limit: 50,
+    })
+
+    let memoryText = ''
+    if (memories.length > 0) {
+      memoryText = '📋 **Project Context - Apply these conventions:**\n\n'
+      for (const memory of memories) {
+        memoryText += `**${memory.key}**: ${memory.value}\n\n`
+      }
+      memoryText += '---\n\n'
+    }
+
+    if (name === 'chat_with_memory') {
+      const message = (args as any).message || ''
+
+      return {
+        messages: [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text: memoryText + message,
+            },
+          },
+        ],
+      }
+    } else if (name === 'code_with_memory') {
+      const task = (args as any).task || ''
+
+      return {
+        messages: [
+          {
+            role: 'user',
+            content: {
+              type: 'text',
+              text: memoryText + `Coding task: ${task}`,
+            },
+          },
+        ],
+      }
+    } else {
+      throw new Error(`Unknown prompt: ${name}`)
+    }
+  } catch (error: any) {
+    return {
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `Error loading project memory: ${error.message}`,
+          },
         },
       ],
     }
