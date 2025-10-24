@@ -69,6 +69,7 @@ async function main() {
             protocolVersion: '2024-11-05',
             capabilities: {
               tools: {},
+              resources: {},
             },
             serverInfo: {
               name: 'circuit-proxy',
@@ -169,13 +170,71 @@ async function main() {
 
       // Handle resources/list
       if (request.method === 'resources/list') {
-        transport.send({
-          jsonrpc: '2.0',
-          id: request.id,
-          result: {
-            resources: [],
-          },
-        });
+        try {
+          const response = await fetch(`${CIRCUIT_API}/mcp/resources`);
+          if (!response.ok) {
+            throw new Error(`Circuit API returned ${response.status}`);
+          }
+          const data = await response.json();
+
+          transport.send({
+            jsonrpc: '2.0',
+            id: request.id,
+            result: {
+              resources: data.resources || [],
+            },
+          });
+        } catch (error) {
+          // SECURITY: Don't expose internal error details
+          transport.send({
+            jsonrpc: '2.0',
+            id: request.id,
+            error: {
+              code: -32603,
+              message: 'Failed to fetch resources from Circuit',
+            },
+          });
+        }
+        return;
+      }
+
+      // Handle resources/read
+      if (request.method === 'resources/read') {
+        try {
+          const { uri } = request.params;
+
+          // SECURITY: Validate input
+          if (!uri || typeof uri !== 'string') {
+            throw new Error('Invalid resource URI');
+          }
+
+          const response = await fetch(`${CIRCUIT_API}/mcp/resource/read`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ uri }),
+          });
+
+          if (!response.ok) {
+            throw new Error('Resource read failed');
+          }
+
+          const result = await response.json();
+
+          transport.send({
+            jsonrpc: '2.0',
+            id: request.id,
+            result,
+          });
+        } catch (error) {
+          transport.send({
+            jsonrpc: '2.0',
+            id: request.id,
+            error: {
+              code: -32603,
+              message: 'Resource read failed',
+            },
+          });
+        }
         return;
       }
 

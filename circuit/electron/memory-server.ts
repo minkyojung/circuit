@@ -11,7 +11,10 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
+  ListResourcesRequestSchema,
+  ReadResourceRequestSchema,
   Tool,
+  Resource,
 } from '@modelcontextprotocol/sdk/types.js'
 import { getMemoryStorage } from './memoryStorage.js'
 import type { ProjectMemory } from './memoryStorage.js'
@@ -30,6 +33,7 @@ const server = new Server(
   {
     capabilities: {
       tools: {},
+      resources: {},
     },
   }
 )
@@ -126,9 +130,147 @@ const TOOLS: Tool[] = [
   },
 ]
 
+// Define resources
+const RESOURCES: Resource[] = [
+  {
+    uri: 'memory://active-memories',
+    name: 'Active Project Memories',
+    description: 'High-priority memories that should always be applied (conventions, rules, decisions)',
+    mimeType: 'text/plain',
+  },
+  {
+    uri: 'memory://all-memories',
+    name: 'All Project Memories',
+    description: 'Complete list of all project memories',
+    mimeType: 'text/plain',
+  },
+]
+
 // List tools handler
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return { tools: TOOLS }
+})
+
+// List resources handler
+server.setRequestHandler(ListResourcesRequestSchema, async () => {
+  return { resources: RESOURCES }
+})
+
+// Read resource handler
+server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+  const { uri } = request.params
+
+  try {
+    const storage = await getMemoryStorage()
+
+    if (uri === 'memory://active-memories') {
+      // Get high-priority memories
+      const memories = await storage.getMemories({
+        projectPath: PROJECT_PATH,
+        priority: 'high',
+        limit: 50,
+      })
+
+      if (memories.length === 0) {
+        return {
+          contents: [
+            {
+              uri,
+              mimeType: 'text/plain',
+              text: 'No active memories configured for this project.',
+            },
+          ],
+        }
+      }
+
+      let output = '# Project Memories (High Priority)\n\n'
+      output += 'These are the active conventions, rules, and decisions for this project.\n'
+      output += 'Apply these automatically when relevant.\n\n'
+
+      for (const memory of memories) {
+        output += `## ${memory.key} (${memory.type})\n\n`
+        output += `${memory.value}\n\n`
+        if (memory.metadata) {
+          output += `*Metadata: ${memory.metadata}*\n\n`
+        }
+        output += '---\n\n'
+      }
+
+      return {
+        contents: [
+          {
+            uri,
+            mimeType: 'text/plain',
+            text: output,
+          },
+        ],
+      }
+    } else if (uri === 'memory://all-memories') {
+      // Get all memories
+      const memories = await storage.getMemories({
+        projectPath: PROJECT_PATH,
+        limit: 100,
+      })
+
+      if (memories.length === 0) {
+        return {
+          contents: [
+            {
+              uri,
+              mimeType: 'text/plain',
+              text: 'No memories stored for this project.',
+            },
+          ],
+        }
+      }
+
+      // Group by type and priority
+      const byType: Record<string, ProjectMemory[]> = {}
+      for (const memory of memories) {
+        if (!byType[memory.type]) {
+          byType[memory.type] = []
+        }
+        byType[memory.type].push(memory)
+      }
+
+      let output = '# All Project Memories\n\n'
+
+      for (const [type, items] of Object.entries(byType)) {
+        output += `## ${type.charAt(0).toUpperCase() + type.slice(1)}s\n\n`
+        for (const item of items) {
+          output += `### ${item.key} (${item.priority} priority)\n\n`
+          output += `${item.value}\n\n`
+          if (item.metadata) {
+            output += `*Metadata: ${item.metadata}*\n\n`
+          }
+          output += `*Used ${item.usageCount} times*\n\n`
+          output += '---\n\n'
+        }
+      }
+
+      return {
+        contents: [
+          {
+            uri,
+            mimeType: 'text/plain',
+            text: output,
+          },
+        ],
+      }
+    } else {
+      throw new Error(`Unknown resource URI: ${uri}`)
+    }
+  } catch (error: any) {
+    return {
+      contents: [
+        {
+          uri,
+          mimeType: 'text/plain',
+          text: `Error reading resource: ${error.message}`,
+        },
+      ],
+    }
+  }
 })
 
 // Call tool handler

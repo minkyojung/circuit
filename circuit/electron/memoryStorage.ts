@@ -28,6 +28,7 @@ export interface ProjectMemory {
 export interface MemoryQuery {
   projectPath?: string
   type?: string
+  priority?: string
   key?: string
   searchQuery?: string
   limit?: number
@@ -239,6 +240,7 @@ export class MemoryStorage {
     const {
       projectPath,
       type,
+      priority,
       key,
       searchQuery,
       limit = 100,
@@ -256,6 +258,11 @@ export class MemoryStorage {
     if (type) {
       sql += ' AND type = ?'
       params.push(type)
+    }
+
+    if (priority) {
+      sql += ' AND priority = ?'
+      params.push(priority)
     }
 
     if (key) {
