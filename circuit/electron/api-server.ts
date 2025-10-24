@@ -227,18 +227,24 @@ export class CircuitAPIServer {
     // List all memories
     this.app.get('/api/memory/list', async (req: Request, res: Response) => {
       try {
+        console.log('[API] /api/memory/list - Starting request');
         const serverId = getMemoryServerId();
+        console.log('[API] /api/memory/list - serverId:', serverId);
         if (!serverId) {
+          console.log('[API] /api/memory/list - No serverId, returning 503');
           return res.status(503).json({ error: 'Memory service not available' });
         }
 
         const { type, priority, limit } = req.query;
+        console.log('[API] /api/memory/list - About to call memory_get_all');
 
         const result = await this.mcpManager.callTool(serverId, 'memory_get_all', {
           type: type as string,
           priority: priority as string,
           limit: limit ? parseInt(limit as string) : 1000,
         });
+
+        console.log('[API] /api/memory/list - Got result from memory_get_all');
 
         // Extract JSON from MCP response
         const jsonText = result.content?.[0]?.text || '[]';
@@ -254,12 +260,18 @@ export class CircuitAPIServer {
     // Get memory statistics
     this.app.get('/api/memory/stats', async (req: Request, res: Response) => {
       try {
+        console.log('[API] /api/memory/stats - Starting request');
         const serverId = getMemoryServerId();
+        console.log('[API] /api/memory/stats - serverId:', serverId);
         if (!serverId) {
+          console.log('[API] /api/memory/stats - No serverId, returning 503');
           return res.status(503).json({ error: 'Memory service not available' });
         }
 
+        console.log('[API] /api/memory/stats - About to call memory_get_stats');
         const result = await this.mcpManager.callTool(serverId, 'memory_get_stats', {});
+
+        console.log('[API] /api/memory/stats - Got result from memory_get_stats');
 
         // Extract JSON from MCP response
         const jsonText = result.content?.[0]?.text || '{}';

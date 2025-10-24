@@ -139,6 +139,99 @@ export function MemoryTab() {
     }
   }
 
+  const generateCustomInstructions = () => {
+    // Get project name from path
+    const projectName = projectPath ? projectPath.split('/').pop() || 'My Project' : 'My Project'
+
+    // Group memories by type
+    const byType = memories.reduce((acc, mem) => {
+      if (!acc[mem.type]) acc[mem.type] = []
+      acc[mem.type].push(mem)
+      return acc
+    }, {} as Record<string, ProjectMemory[]>)
+
+    // Sort by priority (high -> medium -> low)
+    const priorityOrder = { high: 0, medium: 1, low: 2 }
+    Object.values(byType).forEach(mems => {
+      mems.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority])
+    })
+
+    // Build instruction text
+    let text = `# Project: ${projectName}\n\n`
+    text += `Always follow these project-specific guidelines:\n\n`
+
+    // Conventions
+    if (byType.convention?.length) {
+      text += `## 🎨 Conventions (${byType.convention.length})\n`
+      byType.convention.forEach(mem => {
+        text += `- ${mem.value}\n`
+      })
+      text += `\n`
+    }
+
+    // Architectural Decisions
+    if (byType.decision?.length) {
+      text += `## 🏗️ Architectural Decisions (${byType.decision.length})\n`
+      byType.decision.forEach(mem => {
+        text += `- ${mem.value}\n`
+      })
+      text += `\n`
+    }
+
+    // Rules (emphasize these)
+    if (byType.rule?.length) {
+      text += `## ⚠️ Rules (MUST follow)\n`
+      byType.rule.forEach(mem => {
+        text += `- ${mem.value}\n`
+      })
+      text += `\n`
+    }
+
+    // Code Snippets
+    if (byType.snippet?.length) {
+      text += `## 💻 Code Snippets\n`
+      byType.snippet.forEach(mem => {
+        text += `\n### ${mem.key}\n`
+        text += `\`\`\`\n${mem.value}\n\`\`\`\n`
+      })
+      text += `\n`
+    }
+
+    // Notes
+    if (byType.note?.length) {
+      text += `## 📝 Notes\n`
+      byType.note.forEach(mem => {
+        text += `- ${mem.value}\n`
+      })
+      text += `\n`
+    }
+
+    // Footer with important instructions
+    text += `---\n\n`
+    text += `🤖 IMPORTANT Instructions:\n`
+    text += `1. At the start of EVERY conversation, ALWAYS call the \`get_project_context\` tool\n`
+    text += `2. This ensures you have the latest project memories and conventions\n`
+    text += `3. If memory content conflicts with user request, prioritize user request but mention the discrepancy\n`
+    text += `4. These guidelines ensure consistent code quality across the project\n`
+
+    return text
+  }
+
+  const handleExportForCursor = async () => {
+    try {
+      const instructions = generateCustomInstructions()
+
+      // Copy to clipboard
+      await navigator.clipboard.writeText(instructions)
+
+      // Show success message
+      alert('✅ Custom Instructions copied to clipboard!\n\nNow:\n1. Open Cursor Settings\n2. Find "Custom Instructions" or "Rules for AI"\n3. Paste the copied text\n4. Save')
+    } catch (error) {
+      console.error('Error exporting custom instructions:', error)
+      alert('Failed to copy to clipboard')
+    }
+  }
+
   // Filter memories
   const filteredMemories = memories.filter((memory) => {
     // Type filter
@@ -195,6 +288,15 @@ export function MemoryTab() {
           </h3>
           <div className="flex flex-col gap-2">
             <Button
+              variant="default"
+              size="sm"
+              onClick={handleExportForCursor}
+              className="w-full justify-start text-xs bg-[var(--circuit-orange)] hover:bg-[var(--circuit-orange)]/90"
+              disabled={memories.length === 0}
+            >
+              📋 Export for Cursor
+            </Button>
+            <Button
               variant="outline"
               size="sm"
               onClick={handleExport}
@@ -203,6 +305,11 @@ export function MemoryTab() {
               Export JSON
             </Button>
           </div>
+          {memories.length === 0 && (
+            <p className="text-xs text-[var(--text-muted)] mt-2">
+              Add memories first to export
+            </p>
+          )}
         </div>
       </aside>
 

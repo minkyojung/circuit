@@ -524,6 +524,33 @@ function transformVercelStatus(vercelStatus) {
   return statusMap[vercelStatus] || 'building';
 }
 
+// Global error handlers to prevent app crashes from EPIPE and other uncaught exceptions
+process.on('uncaughtException', (error) => {
+  // Ignore EPIPE errors (broken pipe) which happen when child processes exit
+  if (error.code === 'EPIPE' || error.errno === 'EPIPE') {
+    console.warn('[Process] Ignoring EPIPE error (broken pipe)');
+    return;
+  }
+
+  // Log other uncaught exceptions
+  console.error('[Process] Uncaught Exception:', error);
+
+  // Don't exit the app for most errors
+  // Only exit for critical errors
+  if (error.code === 'ERR_CRITICAL') {
+    app.quit();
+  }
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[Process] Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+// Prevent default Electron crash behavior
+app.on('render-process-gone', (event, webContents, details) => {
+  console.error('[App] Render process gone:', details);
+});
+
 app.whenReady().then(async () => {
   createWindow();
   createPeekWindow();

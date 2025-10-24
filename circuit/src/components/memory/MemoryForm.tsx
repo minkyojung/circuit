@@ -134,7 +134,7 @@ Rules:
 } as const
 
 export function MemoryForm({
-  projectPath,
+  projectPath: _projectPath,
   memory,
   onSave,
   onCancel,
