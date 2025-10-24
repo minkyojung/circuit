@@ -150,10 +150,8 @@ export function MemoryForm({
   const [metadata, setMetadata] = useState(memory?.metadata || template?.metadata || '')
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [showHowItWorks, setShowHowItWorks] = useState(!memory && !template)
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async () => {
     setError(null)
 
     if (!key.trim() || !value.trim()) {
@@ -186,17 +184,17 @@ export function MemoryForm({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="glass-card w-full max-w-3xl max-h-[90vh] overflow-auto p-6">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="glass-card w-full max-w-xl p-6 max-h-[85vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-6 flex-shrink-0">
           <div>
             <h2 className="text-xl font-bold text-[var(--text-primary)]">
-              {memory ? 'Edit Memory' : template ? `New Memory: ${initialTemplate}` : 'New Memory'}
+              {memory ? 'Edit Memory' : template ? `New: ${initialTemplate}` : 'New Memory'}
             </h2>
             {template && (
-              <p className="text-sm text-[var(--text-muted)] mt-1">
-                Starting from template - customize as needed
+              <p className="text-xs text-[var(--text-muted)] mt-1">
+                Customize this template as needed
               </p>
             )}
           </div>
@@ -210,37 +208,8 @@ export function MemoryForm({
           </Button>
         </div>
 
-        {/* How It Works (Conductor style) */}
-        {showHowItWorks && (
-          <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 mb-6">
-            <div className="flex items-start gap-3">
-              <Lightbulb className="h-5 w-5 text-blue-400 mt-0.5 flex-shrink-0" />
-              <div className="flex-1">
-                <h3 className="text-sm font-semibold text-blue-400 mb-2">
-                  How Memory Works
-                </h3>
-                <ul className="text-xs text-[var(--text-secondary)] space-y-1.5">
-                  <li>• <strong>Key</strong> - Claude searches for this when generating code</li>
-                  <li>• <strong>Type</strong> - Organizes memories by category</li>
-                  <li>• <strong>Priority</strong> - High = always applied, Medium = usually applied, Low = reference only</li>
-                  <li>• <strong>Value</strong> - The exact instructions given to Claude as context</li>
-                </ul>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowHowItWorks(false)}
-                  className="text-xs text-blue-400 hover:text-blue-300 mt-2 h-auto p-0"
-                >
-                  Got it, hide this
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Form Fields - Scrollable */}
+        <div className="space-y-4 flex-1 overflow-y-auto pr-2">
           {/* Key */}
           <div>
             <Label htmlFor="key" className="text-sm font-medium mb-1.5 block">
@@ -250,93 +219,112 @@ export function MemoryForm({
               id="key"
               value={key}
               onChange={(e) => setKey(e.target.value.toLowerCase().replace(/\s+/g, '-'))}
-              placeholder="e.g., api-pattern, testing-strategy"
-              disabled={!!memory} // Can't change key when editing
+              placeholder="e.g., api-pattern"
+              disabled={!!memory}
               required
             />
-            <p className="text-xs text-[var(--text-muted)] mt-1.5">
-              Search keyword for this memory. Claude uses this to find relevant context when generating code. <strong>Must be lowercase with hyphens.</strong>
+            <p className="text-xs text-[var(--text-muted)] mt-1">
+              Claude searches by this keyword. Lowercase with hyphens.
             </p>
           </div>
 
-          {/* Type */}
-          <div>
-            <Label htmlFor="type" className="text-sm font-medium mb-1.5 block">
-              Type <span className="text-red-400">*</span>
-            </Label>
-            <Select value={type} onValueChange={setType}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="convention">Convention</SelectItem>
-                <SelectItem value="decision">Decision</SelectItem>
-                <SelectItem value="rule">Rule</SelectItem>
-                <SelectItem value="note">Note</SelectItem>
-                <SelectItem value="snippet">Snippet</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-[var(--text-muted)] mt-1.5">
-              Category for organizing memories. <strong>Convention:</strong> coding standards, <strong>Decision:</strong> architectural choices, <strong>Rule:</strong> must-follow requirements, <strong>Note:</strong> project context, <strong>Snippet:</strong> reusable code patterns.
-            </p>
-          </div>
+          {/* Type & Priority Row */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* Type */}
+            <div>
+              <Label htmlFor="type" className="text-sm font-medium mb-1.5 block">
+                Type <span className="text-red-400">*</span>
+              </Label>
+              <Select value={type} onValueChange={setType}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="convention">Convention</SelectItem>
+                  <SelectItem value="decision">Decision</SelectItem>
+                  <SelectItem value="rule">Rule</SelectItem>
+                  <SelectItem value="note">Note</SelectItem>
+                  <SelectItem value="snippet">Snippet</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-[var(--text-muted)] mt-1">
+                Category type
+              </p>
+            </div>
 
-          {/* Priority */}
-          <div>
-            <Label htmlFor="priority" className="text-sm font-medium mb-1.5 block">
-              Priority
-            </Label>
-            <Select value={priority} onValueChange={setPriority}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="high">High</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="low">Low</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-[var(--text-muted)] mt-1.5">
-              How strictly Claude should follow this. <strong>High:</strong> always applied (critical rules), <strong>Medium:</strong> usually applied (best practices), <strong>Low:</strong> reference only (optional guidance).
-            </p>
+            {/* Priority */}
+            <div>
+              <Label htmlFor="priority" className="text-sm font-medium mb-1.5 block">
+                Priority
+              </Label>
+              <Select value={priority} onValueChange={setPriority}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="high">High</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="low">Low</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-[var(--text-muted)] mt-1">
+                High = always applied
+              </p>
+            </div>
           </div>
 
           {/* Value */}
           <div>
-            <Label htmlFor="value" className="text-sm font-medium mb-1.5 block">
-              Value <span className="text-red-400">*</span>
-            </Label>
+            <div className="flex items-center justify-between mb-1.5">
+              <Label htmlFor="value" className="text-sm font-medium">
+                Value <span className="text-red-400">*</span>
+              </Label>
+              {/* Quality Indicator */}
+              <div className="flex items-center gap-2">
+                {value.length > 0 && (
+                  <>
+                    <div className="w-20 h-1.5 bg-[var(--glass-border)] rounded-full overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-300 ${
+                          value.length < 50 ? 'bg-red-400 w-1/4' :
+                          value.length < 100 ? 'bg-yellow-400 w-1/2' :
+                          value.length < 200 ? 'bg-blue-400 w-3/4' :
+                          'bg-green-400 w-full'
+                        }`}
+                      />
+                    </div>
+                    <span className={`text-xs ${
+                      value.length < 50 ? 'text-red-400' :
+                      value.length < 100 ? 'text-yellow-400' :
+                      value.length < 200 ? 'text-blue-400' :
+                      'text-green-400'
+                    }`}>
+                      {value.length < 50 ? 'Brief' :
+                       value.length < 100 ? 'Okay' :
+                       value.length < 200 ? 'Good' :
+                       'Great'}
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
             <Textarea
               id="value"
               value={value}
               onChange={(e) => setValue(e.target.value)}
-              placeholder="Be specific! The more detailed you are, the better Claude understands.
+              placeholder="Example:
+All API endpoints use REST:
+- GET /api/v1/users - List
+- POST /api/v1/users - Create
+- PUT /api/v1/users/:id - Update
 
-Example:
-All API endpoints use REST conventions:
-- GET /api/v1/users - List users
-- POST /api/v1/users - Create user
-- PUT /api/v1/users/:id - Update user
-
-Always return JSON: { success, data, error }"
-              rows={12}
+Return JSON: { success, data, error }"
+              rows={10}
               required
               className="resize-none font-mono text-sm"
             />
-            <div className="flex items-start gap-2 mt-2">
-              {value.length < 50 ? (
-                <div className="text-xs text-yellow-400 bg-yellow-500/10 border border-yellow-500/30 rounded px-2 py-1.5 flex items-start gap-2">
-                  <Sparkles className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
-                  <span>Tip: Be more specific. Include examples, code snippets, or clear rules.</span>
-                </div>
-              ) : value.length > 100 ? (
-                <div className="text-xs text-green-400 bg-green-500/10 border border-green-500/30 rounded px-2 py-1.5">
-                  ✓ Good! Detailed instructions help Claude understand exactly what you need.
-                </div>
-              ) : null}
-            </div>
-            <p className="text-xs text-[var(--text-muted)] mt-2">
-              This exact text is given to Claude as context when generating code. Be specific and include examples.
+            <p className="text-xs text-[var(--text-muted)] mt-1">
+              Given to Claude as instructions. Be specific.
             </p>
           </div>
 
@@ -349,10 +337,10 @@ Always return JSON: { success, data, error }"
               id="metadata"
               value={metadata}
               onChange={(e) => setMetadata(e.target.value)}
-              placeholder="e.g., author: team, reason: standardization, date: 2025-01-15"
+              placeholder="author: team, date: 2025-01-15"
             />
-            <p className="text-xs text-[var(--text-muted)] mt-1.5">
-              Additional context like who created this, why, or when. Helps with team collaboration and memory management.
+            <p className="text-xs text-[var(--text-muted)] mt-1">
+              Additional notes for team collaboration
             </p>
           </div>
 
@@ -362,17 +350,17 @@ Always return JSON: { success, data, error }"
               {error}
             </div>
           )}
+        </div>
 
-          {/* Actions */}
-          <div className="flex justify-end gap-3 pt-2">
-            <Button type="button" variant="outline" onClick={onCancel}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isSaving}>
-              {isSaving ? 'Saving...' : 'Save Memory'}
-            </Button>
-          </div>
-        </form>
+        {/* Actions - Fixed at bottom */}
+        <div className="flex justify-end gap-3 pt-4 mt-4 border-t border-[var(--glass-border)] flex-shrink-0">
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button onClick={handleSubmit} disabled={isSaving}>
+            {isSaving ? 'Saving...' : 'Save Memory'}
+          </Button>
+        </div>
       </div>
     </div>
   )
