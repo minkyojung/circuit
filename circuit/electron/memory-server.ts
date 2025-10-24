@@ -41,6 +41,14 @@ const server = new Server(
 // Define tools
 const TOOLS: Tool[] = [
   {
+    name: 'get_project_context',
+    description: '⚠️ IMPORTANT: Call this FIRST at the start of every conversation to load project-specific conventions, rules, and patterns that you MUST follow throughout the conversation. This ensures consistent code quality and adherence to team standards.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
     name: 'memory_store',
     description: 'Store a memory/knowledge for this project (convention, decision, pattern, rule, or note)',
     inputSchema: {
@@ -312,6 +320,57 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const storage = await getMemoryStorage()
 
     switch (name) {
+      case 'get_project_context': {
+        // Get high-priority memories (conventions, rules that must be followed)
+        const memories = await storage.getMemories({
+          projectPath: PROJECT_PATH,
+          priority: 'high',
+          limit: 50,
+        })
+
+        if (memories.length === 0) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: '📋 No project-specific conventions or rules configured yet.\n\nYou can add conventions using the memory_store tool with priority="high".',
+              },
+            ],
+          }
+        }
+
+        // Format memories for Claude to easily understand and apply
+        let output = '📋 **Project Context - Important Conventions & Rules**\n\n'
+        output += '> These are project-specific guidelines you MUST follow:\n\n'
+
+        // Group by type for better readability
+        const byType: Record<string, typeof memories> = {}
+        for (const memory of memories) {
+          if (!byType[memory.type]) byType[memory.type] = []
+          byType[memory.type].push(memory)
+        }
+
+        for (const [type, items] of Object.entries(byType)) {
+          output += `### ${type.charAt(0).toUpperCase() + type.slice(1)}s\n\n`
+          for (const item of items) {
+            output += `**${item.key}**:\n`
+            output += `${item.value}\n\n`
+          }
+        }
+
+        output += '\n---\n'
+        output += `✅ Loaded ${memories.length} project ${memories.length === 1 ? 'rule' : 'rules'}. Apply these throughout our conversation.`
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: output,
+            },
+          ],
+        }
+      }
+
       case 'memory_store': {
         const { key, value, type, priority = 'medium', metadata } = args as any
 
