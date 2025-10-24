@@ -76,17 +76,19 @@ async function installMemoryServer(manager) {
   try {
     const serverId = 'circuit-memory';
 
-    // Check if already installed
+    // Uninstall if already exists (to ensure latest path)
     if (manager.servers.has(serverId)) {
-      console.log('[Circuit] Memory server already installed');
-      return { success: true, alreadyInstalled: true };
+      console.log('[Circuit] Uninstalling existing Memory server...');
+      await manager.uninstall(serverId);
     }
 
     // Get project path from Conductor workspace (check env var) or use cwd
     const projectPath = process.env.CONDUCTOR_PROJECT_PATH || process.cwd();
 
-    // Install Memory server
-    const memoryServerPath = path.join(__dirname, 'memory-server.js');
+    // Install Memory server (built file is in dist-electron)
+    const memoryServerPath = path.join(__dirname, '../dist-electron/memory-server.js');
+    console.log('[Circuit] Installing Memory server from:', memoryServerPath);
+
     await manager.install(serverId, {
       command: 'node',
       args: [memoryServerPath],
@@ -133,7 +135,7 @@ function createWindow() {
   // Load from Vite dev server in development, or built files in production
   if (process.env.VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
-    mainWindow.webContents.openDevTools();
+    // mainWindow.webContents.openDevTools(); // Disabled auto-open DevTools
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
