@@ -19,7 +19,7 @@ import { MemoryForm } from '@/components/memory/MemoryForm'
 import { useProjectPath } from '@/App'
 import type { ProjectMemory, MemoryStats as Stats } from '../../electron/memoryStorage'
 
-const { ipcRenderer } = window.require('electron')
+const API_BASE_URL = 'http://localhost:3737'
 
 export function MemoryTab() {
   const { projectPath, isLoading: isLoadingPath } = useProjectPath()
@@ -49,10 +49,8 @@ export function MemoryTab() {
   const loadMemories = async () => {
     try {
       setIsLoading(true)
-      const result = await ipcRenderer.invoke('circuit:memory-list', {
-        projectPath,
-        limit: 1000,
-      })
+      const response = await fetch(`${API_BASE_URL}/api/memory/list?limit=1000`)
+      const result = await response.json()
 
       if (result.success) {
         setMemories(result.memories || [])
@@ -68,7 +66,8 @@ export function MemoryTab() {
 
   const loadStats = async () => {
     try {
-      const result = await ipcRenderer.invoke('circuit:memory-stats', projectPath)
+      const response = await fetch(`${API_BASE_URL}/api/memory/stats`)
+      const result = await response.json()
 
       if (result.success) {
         setStats(result.stats)
@@ -100,11 +99,10 @@ export function MemoryTab() {
     if (!confirm(`Delete "${memory.key}"?`)) return
 
     try {
-      const result = await ipcRenderer.invoke(
-        'circuit:memory-delete',
-        projectPath,
-        memory.key
-      )
+      const response = await fetch(`${API_BASE_URL}/api/memory/${encodeURIComponent(memory.key)}`, {
+        method: 'DELETE',
+      })
+      const result = await response.json()
 
       if (result.success) {
         await loadMemories()
@@ -127,19 +125,15 @@ export function MemoryTab() {
 
   const handleExport = async () => {
     try {
-      const result = await ipcRenderer.invoke('circuit:memory-export', projectPath)
-
-      if (result.success) {
-        // Create download
-        const dataStr = JSON.stringify(result.memories, null, 2)
-        const dataBlob = new Blob([dataStr], { type: 'application/json' })
-        const url = URL.createObjectURL(dataBlob)
-        const link = document.createElement('a')
-        link.href = url
-        link.download = `circuit-memory-${Date.now()}.json`
-        link.click()
-        URL.revokeObjectURL(url)
-      }
+      // Export current memories
+      const dataStr = JSON.stringify(memories, null, 2)
+      const dataBlob = new Blob([dataStr], { type: 'application/json' })
+      const url = URL.createObjectURL(dataBlob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `circuit-memory-${Date.now()}.json`
+      link.click()
+      URL.revokeObjectURL(url)
     } catch (error) {
       console.error('Error exporting:', error)
     }

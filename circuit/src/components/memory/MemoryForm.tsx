@@ -17,7 +17,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { X } from 'lucide-react'
 import type { ProjectMemory } from '../../../electron/memoryStorage'
 
-const { ipcRenderer } = window.require('electron')
+const API_BASE_URL = 'http://localhost:3737'
 
 interface MemoryFormProps {
   projectPath: string
@@ -162,14 +162,21 @@ export function MemoryForm({
     setIsSaving(true)
 
     try {
-      const result = await ipcRenderer.invoke('circuit:memory-store', {
-        projectPath,
-        type,
-        key: key.trim(),
-        value: value.trim(),
-        priority,
-        metadata: metadata.trim() || undefined,
+      const response = await fetch(`${API_BASE_URL}/api/memory`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type,
+          key: key.trim(),
+          value: value.trim(),
+          priority,
+          metadata: metadata.trim() || undefined,
+        }),
       })
+
+      const result = await response.json()
 
       if (result.success) {
         onSave()
