@@ -143,6 +143,74 @@ export class CircuitAPIServer {
         res.status(500).json({ error: 'Failed to get logs' });
       }
     });
+
+    // List all resources from all running servers
+    this.app.get('/mcp/resources', async (req: Request, res: Response) => {
+      try {
+        const allResources: any[] = [];
+
+        for (const [serverId, server] of this.mcpManager.servers) {
+          if (server.status !== 'running') continue;
+
+          try {
+            const resources = server.resources || [];
+            allResources.push(...resources.map((r: any) => ({
+              ...r,
+              _serverId: serverId,
+              _serverName: server.name,
+            })));
+          } catch (error) {
+            // Skip servers with errors, continue processing others
+          }
+        }
+
+        res.json({ resources: allResources });
+      } catch (error: any) {
+        res.status(500).json({ error: 'Failed to list resources' });
+      }
+    });
+
+    // Read a specific resource
+    this.app.post('/mcp/resource/read', async (req: Request, res: Response) => {
+      try {
+        const { uri, serverId } = req.body;
+
+        // SECURITY: Input validation
+        if (!uri || typeof uri !== 'string') {
+          return res.status(400).json({ error: 'uri is required and must be a string' });
+        }
+
+        // If serverId is provided, use it directly
+        let targetServerId = serverId;
+
+        // Otherwise, find which server has this resource
+        if (!targetServerId) {
+          for (const [id, server] of this.mcpManager.servers) {
+            if (server.status !== 'running') continue;
+            const hasResource = server.resources?.some((r: any) => r.uri === uri);
+            if (hasResource) {
+              targetServerId = id;
+              break;
+            }
+          }
+        }
+
+        if (!targetServerId) {
+          return res.status(404).json({ error: 'Resource not found or server not running' });
+        }
+
+        const server = this.mcpManager.servers.get(targetServerId);
+        if (!server || !server.client) {
+          return res.status(404).json({ error: 'Server not available' });
+        }
+
+        const result = await server.client.readResource({ uri });
+        res.json(result);
+      } catch (error: any) {
+        // SECURITY: Don't expose internal error details
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
   }
 
   async start(): Promise<void> {

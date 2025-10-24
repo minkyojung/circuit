@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { X, Lightbulb, Sparkles } from 'lucide-react'
+import { X } from 'lucide-react'
 import type { ProjectMemory } from '../../../electron/memoryStorage'
 
 const { ipcRenderer } = window.require('electron')
@@ -141,7 +141,7 @@ export function MemoryForm({
   initialTemplate,
 }: MemoryFormProps) {
   // Load template if provided
-  const template = initialTemplate && TEMPLATES[initialTemplate as keyof typeof TEMPLATES]
+  const template = initialTemplate ? TEMPLATES[initialTemplate as keyof typeof TEMPLATES] : undefined
 
   const [key, setKey] = useState(memory?.key || template?.key || '')
   const [type, setType] = useState<string>(memory?.type || template?.type || 'convention')

@@ -512,7 +512,7 @@ export class MCPServerManager {
       server.prompts = promptsResult.prompts || []
       server.resources = resourcesResult.resources || []
 
-      console.log(`Fetched capabilities for ${serverId}: ${server.tools.length} tools, ${server.prompts.length} prompts`)
+      console.log(`Fetched capabilities for ${serverId}: ${server.tools.length} tools, ${server.prompts.length} prompts, ${server.resources.length} resources`)
 
       // Update cache
       this.toolsCache.set(serverId, {
