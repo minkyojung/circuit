@@ -1806,7 +1806,7 @@ ipcMain.handle('circuit:mcp-get-logs', async (event, serverId, lines = 100) => {
   }
 });
 
-ipcMain.handle('circuit:reload-claude-code', async (event) => {
+ipcMain.handle('circuit:reload-claude-code', async (event, openVSCode = true) => {
   try {
     const { exec } = require('child_process');
     const util = require('util');
@@ -1820,25 +1820,52 @@ ipcMain.handle('circuit:reload-claude-code', async (event) => {
     } catch (cliError) {
       // If 'code' CLI is not available, try AppleScript
       console.log('[Circuit] Code CLI not available, trying AppleScript...');
-      const script = `
-        tell application "System Events"
-          if exists (process "Code") then
+
+      if (openVSCode) {
+        // Option 1: Activate VS Code and reload
+        const script = `
+          tell application "Visual Studio Code"
+            activate
+          end tell
+          delay 0.5
+          tell application "System Events"
             tell process "Code"
               keystroke "r" using {command down, shift down}
             end tell
-            return "success"
-          else
-            return "Code not running"
-          end if
-        end tell
-      `;
+          end tell
+          return "success"
+        `;
 
-      const { stdout } = await execPromise(`osascript -e '${script}'`);
-      if (stdout.trim() === 'success') {
-        console.log('[Circuit] Claude Code reload via AppleScript');
-        return { success: true };
+        try {
+          await execPromise(`osascript -e '${script}'`);
+          console.log('[Circuit] VS Code activated and reloaded via AppleScript');
+          return { success: true };
+        } catch (err) {
+          console.error('[Circuit] AppleScript failed:', err);
+          return { success: false, error: 'Failed to activate VS Code' };
+        }
       } else {
-        return { success: false, error: 'VS Code is not running' };
+        // Option 2: Reload only if VS Code is already running
+        const script = `
+          tell application "System Events"
+            if exists (process "Code") then
+              tell process "Code"
+                keystroke "r" using {command down, shift down}
+              end tell
+              return "success"
+            else
+              return "Code not running"
+            end if
+          end tell
+        `;
+
+        const { stdout } = await execPromise(`osascript -e '${script}'`);
+        if (stdout.trim() === 'success') {
+          console.log('[Circuit] Claude Code reload via AppleScript (no activation)');
+          return { success: true };
+        } else {
+          return { success: false, error: 'VS Code is not running' };
+        }
       }
     }
   } catch (error) {
