@@ -109,6 +109,52 @@ async function installMemoryServer(manager) {
   }
 }
 
+/**
+ * Install Vercel Deployment MCP server
+ * Monitors Vercel deployments and provides error logs
+ */
+async function installVercelServer(manager) {
+  try {
+    const serverId = 'vercel-deployments';
+
+    // Uninstall if already exists
+    if (manager.servers.has(serverId)) {
+      console.log('[Circuit] Uninstalling existing Vercel server...');
+      await manager.uninstall(serverId);
+    }
+
+    // Get Vercel token from environment or electron-store
+    // For now, use environment variable (can be set in .env or system)
+    const vercelToken = process.env.VERCEL_TOKEN || '';
+    const vercelTeamId = process.env.VERCEL_TEAM_ID || '';
+
+    if (!vercelToken) {
+      console.warn('[Circuit] VERCEL_TOKEN not set - Vercel MCP will not work');
+      console.warn('[Circuit] Set VERCEL_TOKEN environment variable to use Vercel features');
+    }
+
+    // Install Vercel server (built file is in dist-electron)
+    const vercelServerPath = path.join(__dirname, '../dist-electron/vercel-mcp-server.js');
+    console.log('[Circuit] Installing Vercel server from:', vercelServerPath);
+
+    await manager.install(serverId, {
+      command: 'node',
+      args: [vercelServerPath],
+      env: {
+        VERCEL_TOKEN: vercelToken,
+        VERCEL_TEAM_ID: vercelTeamId,
+      },
+      autoStart: true,
+    });
+
+    console.log('[Circuit] Vercel server installed');
+    return { success: true };
+  } catch (error) {
+    console.error('[Circuit] Failed to install Vercel server:', error);
+    return { success: false, error: error.message };
+  }
+}
+
 // macOS traffic light button positioning
 const HEADER_HEIGHT = 44;
 const TRAFFIC_LIGHTS_HEIGHT = 14;
@@ -582,6 +628,7 @@ app.whenReady().then(async () => {
     // Install built-in Memory server if not already installed
     const manager = await getMCPManagerInstance();
     await installMemoryServer(manager);
+    await installVercelServer(manager);
 
     // Start MCP servers
     await manager.startAllAutoStartServers();
