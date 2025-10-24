@@ -128,6 +128,37 @@ const TOOLS: Tool[] = [
       properties: {},
     },
   },
+  {
+    name: 'memory_get_all',
+    description: 'Get all memories as structured JSON data (for UI)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        type: {
+          type: 'string',
+          enum: ['convention', 'decision', 'snippet', 'rule', 'note'],
+          description: 'Filter by memory type',
+        },
+        priority: {
+          type: 'string',
+          enum: ['high', 'medium', 'low'],
+          description: 'Filter by priority',
+        },
+        limit: {
+          type: 'number',
+          description: 'Maximum number of results (default: 1000)',
+        },
+      },
+    },
+  },
+  {
+    name: 'memory_get_stats',
+    description: 'Get memory statistics as structured JSON data (for UI)',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
 ]
 
 // Define resources
@@ -441,6 +472,41 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             {
               type: 'text',
               text: output,
+            },
+          ],
+        }
+      }
+
+      case 'memory_get_all': {
+        const { type, priority, limit = 1000 } = args as any
+
+        const memories = await storage.getMemories({
+          projectPath: PROJECT_PATH,
+          type,
+          priority,
+          limit,
+        })
+
+        // Return as JSON string for parsing by API
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(memories),
+            },
+          ],
+        }
+      }
+
+      case 'memory_get_stats': {
+        const stats = await storage.getStats(PROJECT_PATH)
+
+        // Return as JSON string for parsing by API
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(stats),
             },
           ],
         }

@@ -211,6 +211,149 @@ export class CircuitAPIServer {
         res.status(500).json({ error: 'Internal server error' });
       }
     });
+
+    // Memory API endpoints - proxy to circuit-memory MCP server
+
+    // Helper to get circuit-memory server ID
+    const getMemoryServerId = (): string | null => {
+      for (const [serverId, server] of this.mcpManager.servers) {
+        if (server.name === 'circuit-memory' && server.status === 'running') {
+          return serverId;
+        }
+      }
+      return null;
+    };
+
+    // List all memories
+    this.app.get('/api/memory/list', async (req: Request, res: Response) => {
+      try {
+        const serverId = getMemoryServerId();
+        if (!serverId) {
+          return res.status(503).json({ error: 'Memory service not available' });
+        }
+
+        const { type, priority, limit } = req.query;
+
+        const result = await this.mcpManager.callTool(serverId, 'memory_get_all', {
+          type: type as string,
+          priority: priority as string,
+          limit: limit ? parseInt(limit as string) : 1000,
+        });
+
+        // Extract JSON from MCP response
+        const jsonText = result.content?.[0]?.text || '[]';
+        const memories = JSON.parse(jsonText);
+
+        res.json({ success: true, memories });
+      } catch (error: any) {
+        console.error('[API] Error listing memories:', error);
+        res.status(500).json({ error: 'Failed to list memories' });
+      }
+    });
+
+    // Get memory statistics
+    this.app.get('/api/memory/stats', async (req: Request, res: Response) => {
+      try {
+        const serverId = getMemoryServerId();
+        if (!serverId) {
+          return res.status(503).json({ error: 'Memory service not available' });
+        }
+
+        const result = await this.mcpManager.callTool(serverId, 'memory_get_stats', {});
+
+        // Extract JSON from MCP response
+        const jsonText = result.content?.[0]?.text || '{}';
+        const stats = JSON.parse(jsonText);
+
+        res.json({ success: true, stats });
+      } catch (error: any) {
+        console.error('[API] Error getting memory stats:', error);
+        res.status(500).json({ error: 'Failed to get memory stats' });
+      }
+    });
+
+    // Store a new memory
+    this.app.post('/api/memory', async (req: Request, res: Response) => {
+      try {
+        const serverId = getMemoryServerId();
+        if (!serverId) {
+          return res.status(503).json({ error: 'Memory service not available' });
+        }
+
+        const { key, value, type, priority, metadata } = req.body;
+
+        // SECURITY: Input validation
+        if (!key || typeof key !== 'string') {
+          return res.status(400).json({ error: 'key is required and must be a string' });
+        }
+        if (!value || typeof value !== 'string') {
+          return res.status(400).json({ error: 'value is required and must be a string' });
+        }
+        if (!type || !['convention', 'decision', 'snippet', 'rule', 'note'].includes(type)) {
+          return res.status(400).json({ error: 'type must be one of: convention, decision, snippet, rule, note' });
+        }
+
+        const result = await this.mcpManager.callTool(serverId, 'memory_store', {
+          key,
+          value,
+          type,
+          priority: priority || 'medium',
+          metadata: metadata || undefined,
+        });
+
+        res.json({ success: true, data: result.content?.[0]?.text, rawResult: result });
+      } catch (error: any) {
+        console.error('[API] Error storing memory:', error);
+        res.status(500).json({ error: 'Failed to store memory' });
+      }
+    });
+
+    // Search/retrieve memories
+    this.app.get('/api/memory/search', async (req: Request, res: Response) => {
+      try {
+        const serverId = getMemoryServerId();
+        if (!serverId) {
+          return res.status(503).json({ error: 'Memory service not available' });
+        }
+
+        const { type, key, searchQuery, limit } = req.query;
+
+        const result = await this.mcpManager.callTool(serverId, 'memory_retrieve', {
+          type: type as string,
+          key: key as string,
+          searchQuery: searchQuery as string,
+          limit: limit ? parseInt(limit as string) : 20,
+        });
+
+        res.json({ success: true, data: result.content?.[0]?.text, rawResult: result });
+      } catch (error: any) {
+        console.error('[API] Error searching memories:', error);
+        res.status(500).json({ error: 'Failed to search memories' });
+      }
+    });
+
+    // Delete a memory
+    this.app.delete('/api/memory/:key', async (req: Request, res: Response) => {
+      try {
+        const serverId = getMemoryServerId();
+        if (!serverId) {
+          return res.status(503).json({ error: 'Memory service not available' });
+        }
+
+        const { key } = req.params;
+
+        if (!key) {
+          return res.status(400).json({ error: 'key is required' });
+        }
+
+        const result = await this.mcpManager.callTool(serverId, 'memory_forget', { key });
+
+        res.json({ success: true, data: result.content?.[0]?.text, rawResult: result });
+      } catch (error: any) {
+        console.error('[API] Error deleting memory:', error);
+        res.status(500).json({ error: 'Failed to delete memory' });
+      }
+    });
   }
 
   async start(): Promise<void> {

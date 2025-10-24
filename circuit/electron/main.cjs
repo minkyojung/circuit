@@ -82,12 +82,15 @@ async function installMemoryServer(manager) {
       await manager.uninstall(serverId);
     }
 
-    // Get project path from Conductor workspace (check env var) or use cwd
-    const projectPath = process.env.CONDUCTOR_PROJECT_PATH || process.cwd();
+    // Use same project path logic as UI (circuit:get-project-path)
+    // From: /path/to/circuit-1/.conductor/hyderabad/circuit/electron
+    // To:   /path/to/circuit-1
+    const projectPath = path.resolve(__dirname, '../../../..');
 
     // Install Memory server (built file is in dist-electron)
     const memoryServerPath = path.join(__dirname, '../dist-electron/memory-server.js');
     console.log('[Circuit] Installing Memory server from:', memoryServerPath);
+    console.log('[Circuit] Memory server project path:', projectPath);
 
     await manager.install(serverId, {
       command: 'node',
