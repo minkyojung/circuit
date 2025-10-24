@@ -6,7 +6,7 @@
  */
 
 import Database from 'better-sqlite3'
-import { app } from 'electron'
+import * as os from 'os'
 import * as path from 'path'
 import * as fs from 'fs'
 
@@ -47,11 +47,11 @@ export class MemoryStorage {
   private db: Database.Database | null = null
   private dbPath: string
   private backupDir: string
-  private schemaVersion = 1
 
   constructor() {
-    const userData = app.getPath('userData')
-    const circuitDir = path.join(userData, 'circuit-data')
+    // Use home directory instead of Electron's userData (for standalone MCP server)
+    const homeDir = os.homedir()
+    const circuitDir = path.join(homeDir, 'Library', 'Application Support', 'circuit', 'circuit-data')
 
     // Ensure directory exists
     if (!fs.existsSync(circuitDir)) {

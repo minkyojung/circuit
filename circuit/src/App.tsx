@@ -4,12 +4,13 @@ import { DiscoverTab } from "@/components/DiscoverTab"
 import { PlaygroundTab } from "@/components/PlaygroundTab"
 import { DashboardTab } from "@/components/DashboardTab"
 import { TestFixTab } from "@/components/TestFixTab"
+import { MemoryTab } from "@/components/MemoryTab"
 import { PeekDebugPanel } from "@/components/PeekDebugPanel"
-import { Package, Server, FlaskConical, LayoutDashboard, Zap } from 'lucide-react'
+import { Package, Server, FlaskConical, LayoutDashboard, Zap, Brain } from 'lucide-react'
 import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
 import './App.css'
 
-type Page = 'dashboard' | 'discover' | 'installed' | 'playground' | 'test-fix'
+type Page = 'dashboard' | 'discover' | 'installed' | 'playground' | 'test-fix' | 'memory'
 
 // Project Path Context
 interface ProjectPathContextValue {
@@ -142,6 +143,14 @@ function App() {
             isActive={currentPage === 'test-fix'}
             onClick={() => setCurrentPage('test-fix')}
           />
+
+          {/* Memory */}
+          <SidebarButton
+            icon={<Brain className="h-4 w-4" />}
+            label="Memory"
+            isActive={currentPage === 'memory'}
+            onClick={() => setCurrentPage('memory')}
+          />
         </nav>
 
         {/* Bottom Status Bar */}
@@ -209,6 +218,12 @@ function App() {
           {currentPage === 'test-fix' && (
             <div className="max-w-5xl mx-auto">
               <TestFixTab />
+            </div>
+          )}
+
+          {currentPage === 'memory' && (
+            <div className="h-full px-8 py-8">
+              <MemoryTab />
             </div>
           )}
         </div>
