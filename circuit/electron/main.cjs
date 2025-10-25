@@ -2565,3 +2565,433 @@ ipcMain.handle('workspace:read-file', async (event, workspacePath, filePath) => 
     };
   }
 });
+
+// ============================================================================
+// Git Operations - Commit & PR
+// ============================================================================
+
+/**
+ * Get git diff for workspace
+ */
+ipcMain.handle('workspace:git-diff', async (event, workspacePath) => {
+  try {
+    console.log('[Workspace] Getting git diff for:', workspacePath);
+
+    const { stdout, stderr } = await execAsync('git diff HEAD', { cwd: workspacePath });
+
+    return {
+      success: true,
+      diff: stdout
+    };
+  } catch (error) {
+    console.error('[Workspace] Git diff error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+/**
+ * Commit and push changes
+ */
+ipcMain.handle('workspace:commit-and-push', async (event, workspacePath, commitMessage) => {
+  try {
+    console.log('[Workspace] Committing and pushing:', workspacePath);
+
+    // Stage all changes
+    await execAsync('git add .', { cwd: workspacePath });
+
+    // Commit with message
+    const commitCmd = `git commit -m ${JSON.stringify(commitMessage)}`;
+    await execAsync(commitCmd, { cwd: workspacePath });
+
+    // Get current branch
+    const { stdout: branch } = await execAsync('git rev-parse --abbrev-ref HEAD', { cwd: workspacePath });
+    const branchName = branch.trim();
+
+    // Push to origin
+    await execAsync(`git push -u origin ${branchName}`, { cwd: workspacePath });
+
+    console.log('[Workspace] Successfully committed and pushed');
+
+    return {
+      success: true,
+      branch: branchName
+    };
+  } catch (error) {
+    console.error('[Workspace] Commit and push error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+/**
+ * Create pull request using gh CLI
+ */
+ipcMain.handle('workspace:create-pr', async (event, workspacePath, title, body) => {
+  try {
+    console.log('[Workspace] Creating PR for:', workspacePath);
+
+    // Get current branch
+    const { stdout: branch } = await execAsync('git rev-parse --abbrev-ref HEAD', { cwd: workspacePath });
+    const branchName = branch.trim();
+
+    // Create PR using gh CLI
+    const prCmd = `gh pr create --title ${JSON.stringify(title)} --body ${JSON.stringify(body)} --base main`;
+
+    try {
+      const { stdout } = await execAsync(prCmd, { cwd: workspacePath });
+      const prUrl = stdout.trim();
+      console.log('[Workspace] PR created:', prUrl);
+
+      return {
+        success: true,
+        prUrl,
+        branch: branchName
+      };
+    } catch (prError) {
+      // Check if PR already exists
+      if (prError.message && prError.message.includes('already exists')) {
+        console.log('[Workspace] PR already exists, fetching existing PR...');
+
+        // Extract URL from error message if present
+        const urlMatch = prError.message.match(/(https:\/\/github\.com\/[^\s]+)/);
+        if (urlMatch) {
+          const existingUrl = urlMatch[1];
+          console.log('[Workspace] Found existing PR:', existingUrl);
+          return {
+            success: true,
+            prUrl: existingUrl,
+            branch: branchName,
+            alreadyExists: true
+          };
+        }
+
+        // Fallback: Use gh pr list to find the PR
+        try {
+          const listCmd = `gh pr list --head ${branchName} --json url --jq '.[0].url'`;
+          const { stdout: existingUrl } = await execAsync(listCmd, { cwd: workspacePath });
+          console.log('[Workspace] Found existing PR via list:', existingUrl.trim());
+
+          return {
+            success: true,
+            prUrl: existingUrl.trim(),
+            branch: branchName,
+            alreadyExists: true
+          };
+        } catch (listError) {
+          console.error('[Workspace] Failed to find existing PR:', listError);
+          throw new Error('PR already exists but could not retrieve URL');
+        }
+      }
+
+      // Other error - re-throw
+      throw prError;
+    }
+  } catch (error) {
+    console.error('[Workspace] Create PR error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+/**
+ * Sync workspace with main branch (merge main into workspace)
+ */
+ipcMain.handle('workspace:sync-with-main', async (event, workspacePath) => {
+  try {
+    console.log('[Workspace] Syncing with main:', workspacePath);
+
+    // Check for uncommitted changes
+    const { stdout: statusCheck } = await execAsync('git status --porcelain', { cwd: workspacePath });
+
+    if (statusCheck.trim()) {
+      console.log('[Workspace] Uncommitted changes detected');
+
+      // Parse modified files
+      const modifiedFiles = statusCheck.trim().split('\n')
+        .map(line => line.substring(3)) // Remove status prefix
+        .filter(f => f);
+
+      return {
+        success: false,
+        hasUncommittedChanges: true,
+        modifiedFiles,
+        error: 'You have uncommitted changes. Please commit or stash them before syncing.'
+      };
+    }
+
+    // Fetch latest main
+    await execAsync('git fetch origin main', { cwd: workspacePath });
+
+    // Try to merge main into current branch
+    try {
+      await execAsync('git merge origin/main --no-edit', { cwd: workspacePath });
+
+      console.log('[Workspace] Successfully merged main');
+
+      // Get current branch
+      const { stdout: branch } = await execAsync('git rev-parse --abbrev-ref HEAD', { cwd: workspacePath });
+      const branchName = branch.trim();
+
+      // Push the merged changes
+      await execAsync(`git push origin ${branchName}`, { cwd: workspacePath });
+
+      console.log('[Workspace] Successfully synced and pushed');
+
+      return {
+        success: true,
+        hasConflicts: false
+      };
+    } catch (mergeError) {
+      // Check if it's a conflict
+      const { stdout: statusOutput } = await execAsync('git status', { cwd: workspacePath });
+
+      if (statusOutput.includes('Unmerged paths') || statusOutput.includes('both modified')) {
+        console.log('[Workspace] Merge conflicts detected');
+
+        // Get list of conflicted files
+        const { stdout: conflictFiles } = await execAsync('git diff --name-only --diff-filter=U', { cwd: workspacePath });
+
+        // DON'T abort - leave conflicts in place for analyze-conflicts to read
+
+        return {
+          success: false,
+          hasConflicts: true,
+          conflictFiles: conflictFiles.trim().split('\n').filter(f => f),
+          error: 'Merge conflicts detected. Please resolve manually.'
+        };
+      } else {
+        // Other error
+        throw mergeError;
+      }
+    }
+  } catch (error) {
+    console.error('[Workspace] Sync with main error:', error);
+    return {
+      success: false,
+      hasConflicts: false,
+      error: error.message
+    };
+  }
+});
+
+/**
+ * Analyze conflicts using Claude
+ */
+ipcMain.handle('workspace:analyze-conflicts', async (event, workspacePath) => {
+  try {
+    console.log('[Workspace] Analyzing conflicts:', workspacePath);
+
+    // Get list of conflicted files
+    const { stdout: conflictFiles } = await execAsync('git diff --name-only --diff-filter=U', { cwd: workspacePath });
+    const files = conflictFiles.trim().split('\n').filter(f => f);
+
+    if (files.length === 0) {
+      return { success: false, error: 'No conflicts found' };
+    }
+
+    const conflicts = [];
+
+    for (const file of files) {
+      // Read file with conflict markers
+      const filePath = path.join(workspacePath, file);
+      const content = await fs.readFile(filePath, 'utf8');
+
+      // Extract base, ours, theirs versions
+      const conflictRegex = /<<<<<<< HEAD\n([\s\S]*?)\n=======\n([\s\S]*?)\n>>>>>>> origin\/main/g;
+      const matches = [...content.matchAll(conflictRegex)];
+
+      if (matches.length === 0) continue;
+
+      // For simplicity, handle first conflict point
+      const match = matches[0];
+      const ours = match[1];
+      const theirs = match[2];
+
+      // Try to get base version (original before both changes)
+      let base = '# circuit'; // Default for our test case
+      try {
+        const { stdout: baseContent } = await execAsync(`git show :1:${file}`, { cwd: workspacePath });
+        base = baseContent;
+      } catch (e) {
+        // Base might not exist for new files
+      }
+
+      // Ask Claude to analyze
+      const prompt = `Analyze this Git conflict and provide resolution options.
+
+File: ${file}
+
+Base (original):
+\`\`\`
+${base}
+\`\`\`
+
+Ours (current branch):
+\`\`\`
+${ours}
+\`\`\`
+
+Theirs (main branch):
+\`\`\`
+${theirs}
+\`\`\`
+
+Return ONLY valid JSON in this exact format (no markdown, no explanation):
+{
+  "explanation": "1-2 sentence explanation in Korean (50 chars max)",
+  "options": [
+    {
+      "id": 1,
+      "title": "내 변경사항만",
+      "preview": "full resolved content here",
+      "badge": null
+    },
+    {
+      "id": 2,
+      "title": "Main 브랜치만",
+      "preview": "full resolved content here",
+      "badge": null
+    },
+    {
+      "id": 3,
+      "title": "내 것 → Main 순서",
+      "preview": "full resolved content here",
+      "badge": "추천"
+    },
+    {
+      "id": 4,
+      "title": "Main → 내 것 순서",
+      "preview": "full resolved content here",
+      "badge": null
+    },
+    {
+      "id": 5,
+      "title": "직접 수정",
+      "preview": null,
+      "badge": null
+    }
+  ]
+}`;
+
+      // Call Claude CLI
+      const claude = spawn(CLAUDE_CLI_PATH, [
+        '--print',
+        '--output-format', 'json',
+        '--model', 'sonnet'
+      ], {
+        cwd: workspacePath,
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
+
+      claude.stdin.write(JSON.stringify({
+        role: 'user',
+        content: prompt
+      }));
+      claude.stdin.end();
+
+      let stdout = '';
+      claude.stdout.on('data', (data) => {
+        stdout += data.toString();
+      });
+
+      const claudeResponse = await new Promise((resolve, reject) => {
+        claude.on('close', (code) => {
+          if (code !== 0) {
+            reject(new Error('Claude CLI failed'));
+            return;
+          }
+
+          try {
+            const response = JSON.parse(stdout);
+            if (response.type === 'result' && response.subtype === 'success') {
+              // Parse Claude's response (which should be JSON)
+              const analysisText = response.result;
+              // Extract JSON from response (Claude might wrap it in markdown)
+              const jsonMatch = analysisText.match(/\{[\s\S]*\}/);
+              if (jsonMatch) {
+                const analysis = JSON.parse(jsonMatch[0]);
+                resolve(analysis);
+              } else {
+                reject(new Error('Invalid JSON response from Claude'));
+              }
+            } else {
+              reject(new Error('Unexpected Claude response'));
+            }
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+
+      conflicts.push({
+        file,
+        analysis: claudeResponse
+      });
+    }
+
+    console.log('[Workspace] Conflict analysis complete');
+
+    return {
+      success: true,
+      conflicts
+    };
+  } catch (error) {
+    console.error('[Workspace] Analyze conflicts error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+/**
+ * Resolve conflict with selected option
+ */
+ipcMain.handle('workspace:resolve-conflict', async (event, workspacePath, file, resolvedContent) => {
+  try {
+    console.log('[Workspace] Resolving conflict:', file);
+
+    const filePath = path.join(workspacePath, file);
+
+    // Write resolved content
+    await fs.writeFile(filePath, resolvedContent, 'utf8');
+
+    // Git add
+    await execAsync(`git add ${file}`, { cwd: workspacePath });
+
+    console.log('[Workspace] Conflict resolved');
+
+    return { success: true };
+  } catch (error) {
+    console.error('[Workspace] Resolve conflict error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+/**
+ * Abort merge in workspace
+ */
+ipcMain.handle('workspace:abort-merge', async (event, workspacePath) => {
+  try {
+    console.log('[Workspace] Aborting merge:', workspacePath);
+    await execAsync('git merge --abort', { cwd: workspacePath });
+    console.log('[Workspace] Merge aborted');
+    return { success: true };
+  } catch (error) {
+    console.error('[Workspace] Abort merge error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
