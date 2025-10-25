@@ -1,0 +1,23 @@
+{
+  "name": "circuit",
+  "version": "0.1.0",
+  "description": "MCP DevTools - Debug and monitor MCP servers",
+  "main": "src/main/index.js",
+  "scripts": {
+    "dev": "electron .",
+    "start": "electron ."
+  },
+  "keywords": [
+    "mcp",
+    "devtools",
+    "electron"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^38.3.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server-github": "^2025.4.8"
+  }
+}

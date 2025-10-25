@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Circuit - MCP Hub</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: #2d2d2d;
+      padding: 16px 24px;
+      border-bottom: 1px solid #3e3e3e;
+    }
+
+    h1 {
+      font-size: 20px;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .subtitle {
+      font-size: 12px;
+      color: #888;
+      margin-top: 4px;
+    }
+
+    .tabs {
+      display: flex;
+      background: #252526;
+      border-bottom: 1px solid #3e3e3e;
+    }
+
+    .tab {
+      padding: 12px 24px;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+      font-size: 13px;
+      color: #888;
+    }
+
+    .tab:hover {
+      background: #2a2a2a;
+      color: #d4d4d4;
+    }
+
+    .tab.active {
+      color: #fff;
+      border-bottom-color: #0e639c;
+    }
+
+    main {
+      flex: 1;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .tab-content {
+      display: none;
+      flex: 1;
+      overflow: auto;
+      padding: 24px;
+    }
+
+    .tab-content.active {
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Marketplace Tab */
+    .search-bar {
+      margin-bottom: 24px;
+    }
+
+    .search-input {
+      width: 100%;
+      background: #252526;
+      border: 1px solid #3e3e3e;
+      color: #d4d4d4;
+      padding: 12px 16px;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    .search-input:focus {
+      outline: none;
+      border-color: #0e639c;
+    }
+
+    .mcp-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 16px;
+    }
+
+    .mcp-card {
+      background: #252526;
+      border: 1px solid #3e3e3e;
+      border-radius: 8px;
+      padding: 20px;
+      transition: border-color 0.2s;
+    }
+
+    .mcp-card:hover {
+      border-color: #0e639c;
+    }
+
+    .mcp-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .mcp-icon {
+      font-size: 32px;
+    }
+
+    .mcp-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .mcp-description {
+      font-size: 13px;
+      color: #888;
+      line-height: 1.5;
+      margin-bottom: 16px;
+    }
+
+    .mcp-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .mcp-stats {
+      font-size: 11px;
+      color: #666;
+    }
+
+    button {
+      background: #0e639c;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background: #1177bb;
+    }
+
+    button.secondary {
+      background: #3e3e3e;
+    }
+
+    button.secondary:hover {
+      background: #4e4e4e;
+    }
+
+    button.success {
+      background: #28a745;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Installed Tab */
+    .installed-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .installed-item {
+      background: #252526;
+      border: 1px solid #3e3e3e;
+      border-radius: 6px;
+      padding: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .installed-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .installed-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .status-badge {
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .status-badge.active {
+      background: #28a74520;
+      color: #28a745;
+    }
+
+    .status-badge.inactive {
+      background: #dc354520;
+      color: #dc3545;
+    }
+
+    /* Empty State */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #888;
+    }
+
+    .empty-state-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+    }
+
+    /* Developer Tab */
+    .dev-controls {
+      background: #252526;
+      border: 1px solid #3e3e3e;
+      border-radius: 6px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .dev-control-row {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .dev-control-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .dev-control-row label {
+      font-size: 12px;
+      color: #888;
+      min-width: 100px;
+    }
+
+    .dev-control-row select {
+      flex: 1;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      border: 1px solid #3e3e3e;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+
+    .dev-control-row select:focus {
+      outline: none;
+      border-color: #0e639c;
+    }
+
+    /* Server Explorer */
+    #devExplorer {
+      background: #252526;
+      border: 1px solid #3e3e3e;
+      border-radius: 6px;
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+
+    .explorer-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      border-bottom: 1px solid #3e3e3e;
+      background: #2d2d2d;
+    }
+
+    .explorer-content {
+      padding: 16px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 16px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .explorer-content.collapsed {
+      display: none;
+    }
+
+    .explorer-section {
+      background: #1e1e1e;
+      border: 1px solid #3e3e3e;
+      border-radius: 6px;
+      padding: 12px;
+    }
+
+    .explorer-section-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .count-badge {
+      background: #3e3e3e;
+      color: #d4d4d4;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    .explorer-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .explorer-item {
+      background: #252526;
+      border: 1px solid #3e3e3e;
+      border-radius: 4px;
+      padding: 10px;
+      transition: border-color 0.2s;
+    }
+
+    .explorer-item:hover {
+      border-color: #0e639c;
+    }
+
+    .explorer-item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .explorer-item-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: #4ec9b0;
+      font-family: 'Monaco', 'Courier New', monospace;
+    }
+
+    .explorer-item-desc {
+      font-size: 12px;
+      color: #888;
+      margin-bottom: 8px;
+      line-height: 1.4;
+    }
+
+    .explorer-item-example {
+      font-size: 11px;
+      color: #666;
+      font-family: 'Monaco', 'Courier New', monospace;
+      background: #1e1e1e;
+      padding: 4px 8px;
+      border-radius: 3px;
+      margin-bottom: 8px;
+    }
+
+    .explorer-try-btn {
+      background: #0e639c;
+      color: white;
+      border: none;
+      padding: 4px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 11px;
+      transition: background 0.2s;
+    }
+
+    .explorer-try-btn:hover {
+      background: #1177bb;
+    }
+
+    .dev-messages {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow: auto;
+    }
+
+    .dev-message {
+      background: #252526;
+      border: 1px solid #3e3e3e;
+      border-radius: 6px;
+      padding: 16px;
+    }
+
+    .dev-message-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 12px;
+      gap: 12px;
+    }
+
+    .dev-message-type {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+
+    .dev-message-type.request {
+      background: #1a3a52;
+      color: #4ec9b0;
+    }
+
+    .dev-message-type.response {
+      background: #3a2d1a;
+      color: #dcdcaa;
+    }
+
+    .dev-message-type.error {
+      background: #5a1a1a;
+      color: #f48771;
+    }
+
+    .dev-message-type.system {
+      background: #2a2a2a;
+      color: #888;
+    }
+
+    .dev-message-time {
+      font-size: 11px;
+      color: #888;
+    }
+
+    .dev-message-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .dev-message-expand-btn,
+    .dev-message-copy-btn {
+      background: none;
+      border: none;
+      color: #888;
+      cursor: pointer;
+      padding: 4px 8px;
+      font-size: 11px;
+      border-radius: 4px;
+    }
+
+    .dev-message-expand-btn:hover,
+    .dev-message-copy-btn:hover {
+      background: #3e3e3e;
+      color: #d4d4d4;
+    }
+
+    .dev-message-content {
+      background: #1e1e1e;
+      border: 1px solid #3e3e3e;
+      border-radius: 4px;
+      padding: 12px;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 12px;
+      line-height: 1.5;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .dev-message-content.collapsed {
+      max-height: 100px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .dev-message-content.collapsed::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 40px;
+      background: linear-gradient(transparent, #1e1e1e);
+    }
+
+    /* Modal */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .modal.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background: #2d2d2d;
+      border-radius: 8px;
+      padding: 24px;
+      max-width: 500px;
+      width: 90%;
+      max-height: 80vh;
+      overflow: auto;
+    }
+
+    .modal-header {
+      margin-bottom: 20px;
+    }
+
+    .modal-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+
+    .modal-subtitle {
+      font-size: 13px;
+      color: #888;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 12px;
+      color: #888;
+      margin-bottom: 6px;
+    }
+
+    .form-input {
+      width: 100%;
+      background: #1e1e1e;
+      border: 1px solid #3e3e3e;
+      color: #d4d4d4;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: #0e639c;
+    }
+
+    textarea.form-input {
+      font-family: 'Monaco', 'Courier New', monospace;
+      resize: vertical;
+    }
+
+    .checkbox-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🔌 Circuit</h1>
+    <div class="subtitle">Install, manage, and build MCP servers</div>
+  </header>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="marketplace">📦 Marketplace</div>
+    <div class="tab" data-tab="installed">⚙️ Installed</div>
+    <div class="tab" data-tab="developer">🔧 Developer</div>
+  </div>
+
+  <main>
+    <!-- Marketplace Tab -->
+    <div class="tab-content active" id="marketplace">
+      <div class="search-bar">
+        <input type="text" class="search-input" placeholder="🔍 Search MCP servers..." id="searchInput">
+      </div>
+
+      <div class="mcp-grid" id="mcpGrid">
+        <!-- MCP cards will be inserted here -->
+      </div>
+    </div>
+
+    <!-- Installed Tab -->
+    <div class="tab-content" id="installed">
+      <div class="installed-list" id="installedList">
+        <div class="empty-state">
+          <div class="empty-state-icon">📦</div>
+          <div>No MCP servers installed yet.</div>
+          <div style="margin-top: 8px; font-size: 12px;">Go to Marketplace to install your first server!</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Developer Tab -->
+    <div class="tab-content" id="developer">
+      <div class="dev-controls">
+        <div class="dev-control-row">
+          <label for="devServerSelect">Test Server:</label>
+          <select id="devServerSelect">
+            <option value="echo">Echo Server (Test)</option>
+            <option value="weather">Weather Server (Example)</option>
+            <option value="github">GitHub Server</option>
+            <option value="custom">Custom Server...</option>
+          </select>
+        </div>
+
+        <!-- Custom Server Config (hidden by default) -->
+        <div id="customServerConfig" style="display: none;">
+          <div class="dev-control-row">
+            <label for="customCommand">Command:</label>
+            <input type="text" id="customCommand" class="form-input" placeholder="node /path/to/server.js or npx my-server">
+          </div>
+          <div class="dev-control-row">
+            <label for="customEnv">Env Variables:</label>
+            <input type="text" id="customEnv" class="form-input" placeholder="KEY1=value1,KEY2=value2 (optional)">
+          </div>
+        </div>
+
+        <div class="dev-control-row">
+          <button id="devStartBtn">▶ Start Server</button>
+          <button id="devStopBtn" class="secondary" disabled>⏹ Stop</button>
+          <button id="devClearBtn" class="secondary">🗑 Clear Messages</button>
+          <button id="devSendBtn" class="secondary">📤 Send Request</button>
+        </div>
+      </div>
+
+      <!-- Server Explorer (Playground) -->
+      <div id="devExplorer" style="display: none;">
+        <div class="explorer-header">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 16px; font-weight: 600;">🔍 Server Capabilities</span>
+            <span id="explorerStatus" style="font-size: 12px; color: #888;">Exploring...</span>
+          </div>
+          <button id="explorerToggle" class="secondary" style="padding: 4px 12px; font-size: 12px;">▼ Collapse</button>
+        </div>
+
+        <div id="explorerContent" class="explorer-content">
+          <div class="explorer-section">
+            <div class="explorer-section-title">🛠️ Tools <span id="toolsCount" class="count-badge">0</span></div>
+            <div id="toolsList" class="explorer-list">
+              <div class="empty-state" style="padding: 20px;">No tools discovered yet</div>
+            </div>
+          </div>
+
+          <div class="explorer-section">
+            <div class="explorer-section-title">💬 Prompts <span id="promptsCount" class="count-badge">0</span></div>
+            <div id="promptsList" class="explorer-list">
+              <div class="empty-state" style="padding: 20px;">No prompts discovered yet</div>
+            </div>
+          </div>
+
+          <div class="explorer-section">
+            <div class="explorer-section-title">📄 Resources <span id="resourcesCount" class="count-badge">0</span></div>
+            <div id="resourcesList" class="explorer-list">
+              <div class="empty-state" style="padding: 20px;">No resources discovered yet</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Performance Summary -->
+      <div id="perfSummary" style="display: none;">
+        <div style="background: #252526; border: 1px solid #3e3e3e; border-radius: 6px; padding: 12px; margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 14px; font-weight: 600;">📊 Performance Metrics</span>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-top: 12px;">
+            <div>
+              <div style="font-size: 11px; color: #888;">Total Requests</div>
+              <div id="perfTotal" style="font-size: 16px; font-weight: 600; color: #4ec9b0;">0</div>
+            </div>
+            <div>
+              <div style="font-size: 11px; color: #888;">Avg Response</div>
+              <div id="perfAvg" style="font-size: 16px; font-weight: 600; color: #4ec9b0;">0ms</div>
+            </div>
+            <div>
+              <div style="font-size: 11px; color: #888;">Fastest</div>
+              <div id="perfFastest" style="font-size: 16px; font-weight: 600; color: #28a745;">-</div>
+            </div>
+            <div>
+              <div style="font-size: 11px; color: #888;">Slowest</div>
+              <div id="perfSlowest" style="font-size: 16px; font-weight: 600; color: #dc3545;">-</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dev-messages" id="devMessages">
+        <div class="empty-state">
+          <div class="empty-state-icon">🔍</div>
+          <div>No messages yet. Start a server to see JSON-RPC communication.</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Install Modal -->
+  <div class="modal" id="installModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title" id="modalTitle">Install MCP Server</div>
+        <div class="modal-subtitle" id="modalSubtitle"></div>
+      </div>
+
+      <div id="modalForm">
+        <!-- Form fields will be inserted here -->
+      </div>
+
+      <div class="modal-actions">
+        <button class="secondary" id="modalCancel">Cancel</button>
+        <button id="modalInstall">Install</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Request Builder Modal -->
+  <div class="modal" id="requestModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title">Send MCP Request</div>
+        <div class="modal-subtitle">Test your MCP server with custom requests</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Method</label>
+        <select id="requestMethod" class="form-input">
+          <option value="tools/list">tools/list - List available tools</option>
+          <option value="tools/call">tools/call - Call a specific tool</option>
+          <option value="prompts/list">prompts/list - List available prompts</option>
+          <option value="prompts/get">prompts/get - Get a specific prompt</option>
+          <option value="resources/list">resources/list - List available resources</option>
+          <option value="resources/read">resources/read - Read a resource</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Parameters (JSON)</label>
+        <textarea id="requestParams" class="form-input" rows="10" placeholder='{\n  "name": "example",\n  "arguments": {}\n}'></textarea>
+        <div style="font-size: 11px; color: #888; margin-top: 4px;">
+          💡 Tip: Use the method dropdown to see example parameters
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="secondary" id="requestCancel">Cancel</button>
+        <button id="requestSend">Send Request</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
