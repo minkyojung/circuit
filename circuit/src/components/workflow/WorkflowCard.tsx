@@ -60,9 +60,17 @@ export function WorkflowCard({
   return (
     <div className={`glass-card rounded-lg border-l-2 ${getColorClass()} overflow-hidden transition-all`}>
       {/* Header */}
-      <button
+      <div
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full px-4 py-3 flex items-center justify-between hover:bg-[var(--glass-hover)] transition-colors"
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            setIsExpanded(!isExpanded)
+          }
+        }}
+        role="button"
+        tabIndex={0}
+        className="w-full px-4 py-3 flex items-center justify-between hover:bg-[var(--glass-hover)] transition-colors cursor-pointer"
       >
         <div className="flex items-center gap-3">
           <h3 className="text-sm font-semibold text-[var(--text-primary)]">
@@ -86,7 +94,7 @@ export function WorkflowCard({
             <ChevronRight className="h-4 w-4 text-[var(--text-muted)]" />
           )}
         </div>
-      </button>
+      </div>
 
       {/* Expanded Content */}
       {isExpanded && children && (

@@ -125,10 +125,150 @@ const MOCK_MCPS: MCPPackage[] = [
     tags: ['test', 'reference', 'development'],
     version: '1.0.0',
     repository: 'https://github.com/modelcontextprotocol/servers'
+  },
+  {
+    id: '@modelcontextprotocol/server-github',
+    name: 'server-github',
+    displayName: 'GitHub',
+    description: 'Complete GitHub integration for repositories, issues, pull requests, and more. Manage your GitHub workflow directly from Claude.',
+    author: 'Model Context Protocol',
+    stars: 3200,
+    downloads: 18500,
+    category: 'Development',
+    official: true,
+    tags: ['github', 'git', 'repository', 'issues'],
+    version: '2.1.0',
+    repository: 'https://github.com/modelcontextprotocol/servers'
+  },
+  {
+    id: '@modelcontextprotocol/server-slack',
+    name: 'server-slack',
+    displayName: 'Slack',
+    description: 'Send messages, manage channels, and integrate with Slack workspaces. Perfect for team notifications and workflow automation.',
+    author: 'Model Context Protocol',
+    stars: 2800,
+    downloads: 15200,
+    category: 'Communication',
+    official: true,
+    tags: ['slack', 'messaging', 'notifications', 'team'],
+    version: '1.5.0',
+    repository: 'https://github.com/modelcontextprotocol/servers'
+  },
+  {
+    id: '@modelcontextprotocol/server-postgres',
+    name: 'server-postgres',
+    displayName: 'PostgreSQL',
+    description: 'Query and manage PostgreSQL databases. Execute SQL queries, inspect schemas, and manage database operations.',
+    author: 'Model Context Protocol',
+    stars: 2400,
+    downloads: 11800,
+    category: 'Database',
+    official: true,
+    tags: ['postgresql', 'database', 'sql', 'data'],
+    version: '1.3.0',
+    repository: 'https://github.com/modelcontextprotocol/servers'
+  },
+  {
+    id: '@modelcontextprotocol/server-sqlite',
+    name: 'server-sqlite',
+    displayName: 'SQLite',
+    description: 'Lightweight SQLite database integration. Perfect for local data storage and quick database prototyping.',
+    author: 'Model Context Protocol',
+    stars: 1900,
+    downloads: 9600,
+    category: 'Database',
+    official: true,
+    tags: ['sqlite', 'database', 'sql', 'local'],
+    version: '1.2.0',
+    repository: 'https://github.com/modelcontextprotocol/servers'
+  },
+  {
+    id: '@modelcontextprotocol/server-puppeteer',
+    name: 'server-puppeteer',
+    displayName: 'Puppeteer',
+    description: 'Browser automation and web scraping with Puppeteer. Take screenshots, generate PDFs, and automate web interactions.',
+    author: 'Model Context Protocol',
+    stars: 2600,
+    downloads: 13400,
+    category: 'Web',
+    official: true,
+    tags: ['puppeteer', 'browser', 'automation', 'scraping'],
+    version: '1.4.0',
+    repository: 'https://github.com/modelcontextprotocol/servers'
+  },
+  {
+    id: '@modelcontextprotocol/server-brave-search',
+    name: 'server-brave-search',
+    displayName: 'Brave Search',
+    description: 'Privacy-focused web search powered by Brave. Get search results without tracking or data collection.',
+    author: 'Model Context Protocol',
+    stars: 1700,
+    downloads: 8900,
+    category: 'Search',
+    official: true,
+    tags: ['search', 'brave', 'privacy', 'web'],
+    version: '1.1.0',
+    repository: 'https://github.com/modelcontextprotocol/servers'
+  },
+  {
+    id: '@modelcontextprotocol/server-google-drive',
+    name: 'server-google-drive',
+    displayName: 'Google Drive',
+    description: 'Access and manage files in Google Drive. Read, write, and organize documents in your Google Drive storage.',
+    author: 'Model Context Protocol',
+    stars: 2200,
+    downloads: 10700,
+    category: 'Cloud',
+    official: true,
+    tags: ['google-drive', 'cloud', 'storage', 'documents'],
+    version: '1.3.0',
+    repository: 'https://github.com/modelcontextprotocol/servers'
+  },
+  {
+    id: '@modelcontextprotocol/server-google-maps',
+    name: 'server-google-maps',
+    displayName: 'Google Maps',
+    description: 'Location services and mapping with Google Maps API. Get directions, geocode addresses, and explore places.',
+    author: 'Model Context Protocol',
+    stars: 1600,
+    downloads: 7800,
+    category: 'Utility',
+    official: true,
+    tags: ['maps', 'location', 'geocoding', 'directions'],
+    version: '1.0.2',
+    repository: 'https://github.com/modelcontextprotocol/servers'
+  },
+  {
+    id: '@modelcontextprotocol/server-sentry',
+    name: 'server-sentry',
+    displayName: 'Sentry',
+    description: 'Error tracking and monitoring with Sentry. Track application errors, performance issues, and releases.',
+    author: 'Model Context Protocol',
+    stars: 1400,
+    downloads: 6900,
+    category: 'Development',
+    official: true,
+    tags: ['sentry', 'errors', 'monitoring', 'debugging'],
+    version: '1.0.1',
+    repository: 'https://github.com/modelcontextprotocol/servers'
+  },
+  {
+    id: '@modelcontextprotocol/server-aws-kb-retrieval',
+    name: 'server-aws-kb-retrieval',
+    displayName: 'AWS Knowledge Base',
+    description: 'Retrieve information from AWS Knowledge Bases. Integrate with Amazon Bedrock Knowledge Bases for RAG applications.',
+    author: 'Model Context Protocol',
+    stars: 1100,
+    downloads: 5400,
+    category: 'Cloud',
+    official: true,
+    tags: ['aws', 'knowledge-base', 'rag', 'bedrock'],
+    version: '0.9.0',
+    repository: 'https://github.com/modelcontextprotocol/servers'
   }
 ]
 
-const CATEGORIES = ['All', 'Official', 'Development', 'AI', 'System', 'Web', 'Utility']
+const CATEGORIES = ['All', 'Official', 'Development', 'AI', 'System', 'Web', 'Utility', 'Database', 'Cloud', 'Communication', 'Search']
 
 interface DiscoverTabProps {
   onNavigateToInstalled?: () => void

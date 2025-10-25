@@ -3,7 +3,7 @@
  * Shows all installed servers with health status, metrics, and controls
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -44,6 +44,8 @@ export function InstalledTab() {
   const [expandedServer, setExpandedServer] = useState<string | null>(null)
   const [logs, setLogs] = useState<Record<string, string[]>>({})
   const [copiedTool, setCopiedTool] = useState<string | null>(null)
+  const [reloadDropdownOpen, setReloadDropdownOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Feature flag for history
   const historyEnabled = useFeatureFlag('historyEnabled')
@@ -71,6 +73,20 @@ export function InstalledTab() {
 
     return () => clearInterval(interval)
   }, [])
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setReloadDropdownOpen(false)
+      }
+    }
+
+    if (reloadDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [reloadDropdownOpen])
 
   const handleStart = async (serverId: string) => {
     try {
@@ -168,14 +184,95 @@ export function InstalledTab() {
     return `${seconds}s`
   }
 
+  const handleReloadClaudeCode = async (openVSCode: boolean = true) => {
+    setReloadDropdownOpen(false)
+
+    try {
+      const { ipcRenderer } = window.require('electron')
+      const result = await ipcRenderer.invoke('circuit:reload-claude-code', openVSCode)
+
+      if (result.success) {
+        const message = openVSCode
+          ? 'Claude Code reload command sent! ✓\n\nVS Code should open and reload now.'
+          : 'Claude Code reload command sent! ✓\n\nIf you have VS Code open, the window should reload now.'
+        alert(message)
+      } else {
+        alert(`Failed to reload: ${result.error}\n\nYou can manually reload by:\n1. Opening VS Code\n2. Cmd+Shift+P → "Reload Window"`)
+      }
+    } catch (error) {
+      console.error('Failed to reload Claude Code:', error)
+      alert('Manual reload required:\n1. Open VS Code\n2. Cmd+Shift+P → "Reload Window"')
+    }
+  }
+
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div>
-        <h1 className="text-base font-semibold leading-tight mb-1 text-[var(--text-primary)]">Installed</h1>
-        <p className="text-xs leading-normal text-[var(--text-secondary)]">
-          Manage your MCP servers • Tools are automatically available in Claude Code
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-base font-semibold leading-tight mb-1 text-[var(--text-primary)]">Installed</h1>
+          <p className="text-xs leading-normal text-[var(--text-secondary)]">
+            Manage your MCP servers • Tools are automatically available in Claude Code
+          </p>
+        </div>
+
+        {/* Reload Button with Dropdown */}
+        <div className="relative" ref={dropdownRef}>
+          <div className="flex items-center gap-0.5">
+            {/* Main Reload Button */}
+            <Button
+              onClick={() => handleReloadClaudeCode(true)}
+              size="sm"
+              variant="outline"
+              className="flex items-center gap-2 rounded-r-none border-r-0"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              Reload Claude Code
+            </Button>
+
+            {/* Dropdown Toggle */}
+            <Button
+              onClick={() => setReloadDropdownOpen(!reloadDropdownOpen)}
+              size="sm"
+              variant="outline"
+              className="px-1.5 rounded-l-none"
+            >
+              <ChevronDown className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+
+          {/* Dropdown Menu */}
+          {reloadDropdownOpen && (
+            <div className="absolute right-0 mt-1 w-56 rounded-md border border-[var(--glass-border)] bg-[var(--bg-card)] shadow-lg z-50">
+              <div className="py-1">
+                <button
+                  onClick={() => handleReloadClaudeCode(true)}
+                  className="w-full text-left px-3 py-2 text-xs hover:bg-[var(--glass-bg)] transition-colors flex items-start gap-2"
+                >
+                  <RefreshCw className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <div className="font-medium text-[var(--text-primary)]">Reload & Open VS Code</div>
+                    <div className="text-[var(--text-muted)] text-[11px] mt-0.5">
+                      Opens/focuses VS Code and reloads window
+                    </div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => handleReloadClaudeCode(false)}
+                  className="w-full text-left px-3 py-2 text-xs hover:bg-[var(--glass-bg)] transition-colors flex items-start gap-2"
+                >
+                  <RefreshCw className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <div className="font-medium text-[var(--text-primary)]">Reload Only</div>
+                    <div className="text-[var(--text-muted)] text-[11px] mt-0.5">
+                      Reloads VS Code if already open (doesn't open/focus)
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Server List */}

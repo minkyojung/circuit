@@ -253,7 +253,7 @@ export function usePeekPanel() {
       currentStep++
       const progress = (currentStep / totalSteps) * 100
       setAutoHideProgress(Math.min(progress, 100))
-    }, intervalMs)
+    }, intervalMs) as any
 
     // Set main timer to collapse to peek
     autoHideTimerRef.current = setTimeout(() => {
@@ -281,7 +281,7 @@ export function usePeekPanel() {
         return currentState
       })
       autoHideTimerRef.current = null
-    }, delayMs)
+    }, delayMs) as any
   }, [clearAutoHideTimer])
 
   /**

@@ -18,6 +18,7 @@ import { type TestResult } from '@/core/test-runner'
 import { parseAiFix, type ParsedFix } from '@/core/claude-cli'
 import { mcpClient, BUILTIN_SERVERS } from '@/lib/mcp-client'
 import type { MCPServerConfig, Tool } from '@/types/mcp'
+import { useProjectPath } from '@/App'
 
 // Electron IPC
 declare global {
@@ -56,6 +57,9 @@ interface RecommendedWorkflow {
 }
 
 export function DashboardTab() {
+  // Get project path from context
+  const { projectPath, isLoading: isLoadingPath } = useProjectPath()
+
   // Project detection
   const [detection, setDetection] = useState<DetectionResult | null>(null)
 
@@ -77,14 +81,14 @@ export function DashboardTab() {
   const [detectedApps, setDetectedApps] = useState<DetectedApp[]>([])
   const [recommendations, setRecommendations] = useState<RecommendedWorkflow[]>([])
 
-  const projectPath = '' // TODO: Get from context
-
-  // Auto-detect on mount
+  // Auto-detect on mount (when project path is loaded)
   useEffect(() => {
-    handleDetect()
-    detectLocalApps()
+    if (projectPath && !isLoadingPath) {
+      handleDetect()
+      detectLocalApps()
+    }
     initializeMCPServers()
-  }, [])
+  }, [projectPath, isLoadingPath])
 
   // Initialize MCP servers tracking
   const initializeMCPServers = () => {
