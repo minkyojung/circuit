@@ -1,10 +1,13 @@
 const { app, BrowserWindow, ipcMain, globalShortcut } = require('electron');
 const path = require('path');
-const { spawn } = require('child_process');
+const { spawn, exec } = require('child_process');
+const { promisify } = require('util');
 const fs = require('fs').promises;
 const chokidar = require('chokidar');
 const os = require('os');
 const http = require('http');
+
+const execAsync = promisify(exec);
 
 // Import MCP Server Manager (ES Module)
 let mcpManagerPromise = null;
@@ -2039,3 +2042,309 @@ app.on('before-quit', async () => {
 });
 
 // MCP/API initialization is now handled in the main app.whenReady() block above
+
+// ============================================================================
+// Git Worktree - Workspace Management
+// ============================================================================
+
+// Animal names for workspace naming
+const ANIMALS = [
+  'aardvark', 'albatross', 'alligator', 'alpaca', 'ant', 'anteater', 'antelope', 'armadillo',
+  'baboon', 'badger', 'barracuda', 'bat', 'bear', 'beaver', 'bee', 'bison', 'boar', 'buffalo',
+  'camel', 'capybara', 'caribou', 'cassowary', 'cat', 'caterpillar', 'cheetah', 'chicken', 'chimpanzee', 'chinchilla', 'chipmunk', 'cobra', 'cod', 'coyote', 'crab', 'crane', 'crocodile', 'crow',
+  'deer', 'dingo', 'dog', 'dolphin', 'donkey', 'dove', 'dragonfly', 'duck', 'dugong',
+  'eagle', 'echidna', 'eel', 'elephant', 'elk', 'emu', 'ermine',
+  'falcon', 'ferret', 'finch', 'fish', 'flamingo', 'fox', 'frog',
+  'gazelle', 'gecko', 'gerbil', 'giraffe', 'gnu', 'goat', 'goldfish', 'goose', 'gorilla', 'grasshopper', 'grizzly', 'gull',
+  'hamster', 'hare', 'hawk', 'hedgehog', 'heron', 'hippo', 'hornet', 'horse', 'hummingbird', 'hyena',
+  'ibex', 'ibis', 'iguana', 'impala',
+  'jackal', 'jaguar', 'jay', 'jellyfish',
+  'kangaroo', 'koala', 'kookaburra', 'krill',
+  'ladybug', 'lemur', 'leopard', 'lion', 'lizard', 'llama', 'lobster', 'locust', 'lynx',
+  'macaw', 'magpie', 'mallard', 'manatee', 'mandrill', 'mantis', 'meerkat', 'mink', 'mole', 'mongoose', 'monkey', 'moose', 'mosquito', 'moth', 'mouse', 'mule',
+  'narwhal', 'newt', 'nightingale',
+  'octopus', 'okapi', 'opossum', 'orangutan', 'orca', 'ostrich', 'otter', 'owl', 'ox', 'oyster',
+  'panda', 'panther', 'parrot', 'peacock', 'pelican', 'penguin', 'pheasant', 'pig', 'pigeon', 'platypus', 'pony', 'porcupine', 'possum', 'prairie-dog', 'puffin', 'puma', 'python',
+  'quail', 'quokka',
+  'rabbit', 'raccoon', 'ram', 'rat', 'raven', 'reindeer', 'rhino', 'robin', 'rooster',
+  'salamander', 'salmon', 'sandpiper', 'sardine', 'scorpion', 'seahorse', 'seal', 'shark', 'sheep', 'shrew', 'shrimp', 'skunk', 'sloth', 'snail', 'snake', 'sparrow', 'spider', 'squid', 'squirrel', 'starfish', 'stingray', 'stork', 'swallow', 'swan',
+  'tapir', 'tarsier', 'tiger', 'toad', 'tortoise', 'toucan', 'trout', 'tuna', 'turkey', 'turtle',
+  'viper', 'vulture',
+  'wallaby', 'walrus', 'wasp', 'weasel', 'whale', 'wildcat', 'wolf', 'wolverine', 'wombat', 'woodpecker', 'worm',
+  'yak',
+  'zebra'
+];
+
+function getAvailableAnimalName(usedNames = []) {
+  const availableAnimals = ANIMALS.filter(animal => !usedNames.includes(animal));
+
+  if (availableAnimals.length > 0) {
+    const randomIndex = Math.floor(Math.random() * availableAnimals.length);
+    return availableAnimals[randomIndex];
+  }
+
+  // If all animal names are used, add a numeric suffix
+  let suffix = 2;
+  while (true) {
+    const randomAnimal = ANIMALS[Math.floor(Math.random() * ANIMALS.length)];
+    const nameWithSuffix = `${randomAnimal}-${suffix}`;
+
+    if (!usedNames.includes(nameWithSuffix)) {
+      return nameWithSuffix;
+    }
+
+    suffix++;
+
+    if (suffix > 1000) {
+      return `workspace-${Date.now()}`;
+    }
+  }
+}
+
+/**
+ * Get all existing branch names in the repository
+ */
+async function getExistingBranches(projectPath) {
+  try {
+    const { stdout } = await execAsync('git branch --all --format="%(refname:short)"', {
+      cwd: projectPath
+    });
+
+    return stdout
+      .split('\n')
+      .map(b => b.trim())
+      .filter(Boolean)
+      .map(b => b.replace(/^origin\//, '')); // Remove 'origin/' prefix
+  } catch (error) {
+    console.error('[Workspace] Failed to get branches:', error);
+    return [];
+  }
+}
+
+/**
+ * Generate a unique workspace name using animal names
+ */
+async function generateWorkspaceName(projectPath) {
+  const existingBranches = await getExistingBranches(projectPath);
+  return getAvailableAnimalName(existingBranches);
+}
+
+/**
+ * Create a new Git worktree workspace
+ */
+async function createWorktree(projectPath, branchName) {
+  try {
+    const workspacesDir = path.join(projectPath, '.conductor', 'workspaces');
+    await fs.mkdir(workspacesDir, { recursive: true });
+
+    const worktreePath = path.join(workspacesDir, branchName);
+
+    // Check if worktree already exists
+    try {
+      await fs.access(worktreePath);
+      throw new Error(`Workspace ${branchName} already exists`);
+    } catch (err) {
+      // Good - it doesn't exist
+    }
+
+    // Create new worktree
+    await execAsync(`git worktree add -b ${branchName} "${worktreePath}"`, {
+      cwd: projectPath
+    });
+
+    return {
+      id: branchName,
+      name: branchName,
+      branch: branchName,
+      path: worktreePath,
+      createdAt: new Date().toISOString(),
+      isActive: false
+    };
+  } catch (error) {
+    throw new Error(`Failed to create workspace: ${error.message}`);
+  }
+}
+
+/**
+ * List all Git worktrees
+ */
+async function listWorktrees(projectPath) {
+  try {
+    const { stdout } = await execAsync('git worktree list --porcelain', {
+      cwd: projectPath
+    });
+
+    const worktrees = [];
+    const lines = stdout.split('\n');
+    let current = {};
+
+    for (const line of lines) {
+      if (line.startsWith('worktree ')) {
+        if (current.path) {
+          worktrees.push(current);
+        }
+        current = { path: line.substring(9) };
+      } else if (line.startsWith('HEAD ')) {
+        current.head = line.substring(5);
+      } else if (line.startsWith('branch ')) {
+        const branchRef = line.substring(7);
+        current.branch = branchRef.replace('refs/heads/', '');
+      } else if (line === '') {
+        if (current.path) {
+          worktrees.push(current);
+          current = {};
+        }
+      }
+    }
+
+    // Transform to our workspace format
+    return worktrees
+      .filter(wt => wt.path.includes('.conductor/workspaces'))
+      .map(wt => ({
+        id: wt.branch || path.basename(wt.path),
+        name: wt.branch || path.basename(wt.path),
+        branch: wt.branch || 'detached',
+        path: wt.path,
+        createdAt: null, // Can't determine from git worktree list
+        isActive: false // Will be determined by current workspace
+      }));
+  } catch (error) {
+    console.error('[Workspace] Failed to list worktrees:', error);
+    return [];
+  }
+}
+
+/**
+ * Delete a Git worktree
+ */
+async function deleteWorktree(projectPath, branchName) {
+  try {
+    const worktreePath = path.join(projectPath, '.conductor', 'workspaces', branchName);
+
+    // Remove worktree
+    await execAsync(`git worktree remove "${worktreePath}" --force`, {
+      cwd: projectPath
+    });
+
+    // Delete branch
+    try {
+      await execAsync(`git branch -D ${branchName}`, {
+        cwd: projectPath
+      });
+    } catch (branchError) {
+      console.warn('[Workspace] Failed to delete branch (may not exist):', branchError.message);
+    }
+
+    return true;
+  } catch (error) {
+    throw new Error(`Failed to delete workspace: ${error.message}`);
+  }
+}
+
+/**
+ * Get Git status for a worktree
+ */
+async function getWorktreeStatus(worktreePath) {
+  try {
+    const { stdout } = await execAsync('git status --porcelain', {
+      cwd: worktreePath
+    });
+
+    const lines = stdout.split('\n').filter(Boolean);
+
+    return {
+      clean: lines.length === 0,
+      modified: lines.filter(l => l.startsWith(' M')).length,
+      added: lines.filter(l => l.startsWith('A')).length,
+      deleted: lines.filter(l => l.startsWith(' D')).length,
+      untracked: lines.filter(l => l.startsWith('??')).length
+    };
+  } catch (error) {
+    console.error('[Workspace] Failed to get status:', error);
+    return { clean: true, modified: 0, added: 0, deleted: 0, untracked: 0 };
+  }
+}
+
+// IPC Handlers for Workspace Management
+
+/**
+ * Create a new workspace with auto-generated animal name
+ */
+ipcMain.handle('workspace:create', async (event) => {
+  try {
+    // Get project path
+    const projectPathResult = await new Promise((resolve) => {
+      ipcMain.handleOnce('circuit:get-project-path-internal', async () => {
+        const electronDir = __dirname;
+        const projectPath = path.resolve(electronDir, '../../../..');
+        return { success: true, projectPath };
+      });
+      // Trigger it
+      const result = {
+        success: true,
+        projectPath: path.resolve(__dirname, '../../../..')
+      };
+      resolve(result);
+    });
+
+    if (!projectPathResult.success) {
+      throw new Error('Failed to get project path');
+    }
+
+    const projectPath = projectPathResult.projectPath;
+
+    // Generate unique branch name
+    const branchName = await generateWorkspaceName(projectPath);
+
+    // Create worktree
+    const workspace = await createWorktree(projectPath, branchName);
+
+    return { success: true, workspace };
+  } catch (error) {
+    console.error('[Workspace] Create error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * List all workspaces
+ */
+ipcMain.handle('workspace:list', async (event) => {
+  try {
+    const projectPath = path.resolve(__dirname, '../../../..');
+    const workspaces = await listWorktrees(projectPath);
+
+    return { success: true, workspaces };
+  } catch (error) {
+    console.error('[Workspace] List error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Delete a workspace
+ */
+ipcMain.handle('workspace:delete', async (event, workspaceId) => {
+  try {
+    const projectPath = path.resolve(__dirname, '../../../..');
+    await deleteWorktree(projectPath, workspaceId);
+
+    return { success: true };
+  } catch (error) {
+    console.error('[Workspace] Delete error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Get workspace status (Git status)
+ */
+ipcMain.handle('workspace:get-status', async (event, workspacePath) => {
+  try {
+    const status = await getWorktreeStatus(workspacePath);
+    return { success: true, status };
+  } catch (error) {
+    console.error('[Workspace] Get status error:', error);
+    return { success: false, error: error.message };
+  }
+});

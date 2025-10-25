@@ -6,11 +6,13 @@ import { DashboardTab } from "@/components/DashboardTab"
 import { TestFixTab } from "@/components/TestFixTab"
 import { MemoryTab } from "@/components/MemoryTab"
 import { PeekDebugPanel } from "@/components/PeekDebugPanel"
-import { Package, Server, FlaskConical, LayoutDashboard, Zap, Brain } from 'lucide-react'
+import { WorkspaceManager, WorkspaceChatEditor } from "@/components/workspace"
+import type { Workspace } from "@/types/workspace"
+import { Package, Server, FlaskConical, LayoutDashboard, Zap, Brain, FolderGit2 } from 'lucide-react'
 import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
 import './App.css'
 
-type Page = 'dashboard' | 'discover' | 'installed' | 'playground' | 'test-fix' | 'memory'
+type Page = 'dashboard' | 'discover' | 'installed' | 'playground' | 'test-fix' | 'memory' | 'workspace'
 
 // Project Path Context
 interface ProjectPathContextValue {
@@ -26,10 +28,11 @@ const ProjectPathContext = createContext<ProjectPathContextValue>({
 export const useProjectPath = () => useContext(ProjectPathContext)
 
 function App() {
-  const [currentPage, setCurrentPage] = useState<Page>('dashboard')
+  const [currentPage, setCurrentPage] = useState<Page>('workspace')
   const [showDebug] = useState<boolean>(false)  // Debug panel hidden by default
   const [projectPath, setProjectPath] = useState<string>('')
   const [isLoadingPath, setIsLoadingPath] = useState<boolean>(true)
+  const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null)
 
   // Load project path from Electron main process
   useEffect(() => {
@@ -104,6 +107,17 @@ function App() {
 
         {/* Sidebar Navigation */}
         <nav className="flex-1 overflow-auto py-3 px-2">
+          {/* Workspace - Top Priority */}
+          <SidebarButton
+            icon={<FolderGit2 className="h-4 w-4" />}
+            label="Workspace"
+            isActive={currentPage === 'workspace'}
+            onClick={() => setCurrentPage('workspace')}
+          />
+
+          {/* Divider */}
+          <div className="h-px bg-[#333] my-2" />
+
           {/* Dashboard */}
           <SidebarButton
             icon={<LayoutDashboard className="h-4 w-4" />}
@@ -224,6 +238,37 @@ function App() {
           {currentPage === 'memory' && (
             <div className="h-full px-8 py-8">
               <MemoryTab />
+            </div>
+          )}
+
+          {currentPage === 'workspace' && (
+            <div className="h-full">
+              {selectedWorkspace ? (
+                <div className="h-full flex flex-col">
+                  {/* Workspace Header */}
+                  <div className="h-[60px] border-b border-[#333] flex items-center justify-between px-6">
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => setSelectedWorkspace(null)}
+                        className="text-sm text-[#888] hover:text-white transition-colors"
+                      >
+                        ← Back to Workspaces
+                      </button>
+                      <div className="h-4 w-[1px] bg-[#333]" />
+                      <FolderGit2 size={18} color="#4CAF50" />
+                      <span className="text-lg font-semibold">{selectedWorkspace.name}</span>
+                      <span className="text-sm text-[#888]">({selectedWorkspace.branch})</span>
+                    </div>
+                  </div>
+
+                  {/* Chat + Editor Layout */}
+                  <div className="flex-1 overflow-hidden">
+                    <WorkspaceChatEditor workspace={selectedWorkspace} />
+                  </div>
+                </div>
+              ) : (
+                <WorkspaceManager onSelectWorkspace={setSelectedWorkspace} />
+              )}
             </div>
           )}
         </div>
