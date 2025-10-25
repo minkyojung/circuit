@@ -1,19 +1,10 @@
 import { useState, useEffect, createContext, useContext } from 'react'
-import { InstalledTab } from "@/components/InstalledTab"
-import { DiscoverTab } from "@/components/DiscoverTab"
-import { PlaygroundTab } from "@/components/PlaygroundTab"
-import { DashboardTab } from "@/components/DashboardTab"
-import { TestFixTab } from "@/components/TestFixTab"
-import { MemoryTab } from "@/components/MemoryTab"
-import { PeekDebugPanel } from "@/components/PeekDebugPanel"
 import { WorkspaceManager, WorkspaceChatEditor } from "@/components/workspace"
 import { CommitDialog } from "@/components/workspace/CommitDialog"
 import type { Workspace } from "@/types/workspace"
-import { Package, Server, FlaskConical, LayoutDashboard, Zap, Brain, FolderGit2, GitCommit } from 'lucide-react'
+import { FolderGit2, GitCommit } from 'lucide-react'
 import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
 import './App.css'
-
-type Page = 'dashboard' | 'discover' | 'installed' | 'playground' | 'test-fix' | 'memory' | 'workspace'
 
 // Project Path Context
 interface ProjectPathContextValue {
@@ -29,12 +20,11 @@ const ProjectPathContext = createContext<ProjectPathContextValue>({
 export const useProjectPath = () => useContext(ProjectPathContext)
 
 function App() {
-  const [currentPage, setCurrentPage] = useState<Page>('workspace')
-  const [showDebug] = useState<boolean>(false)  // Debug panel hidden by default
   const [projectPath, setProjectPath] = useState<string>('')
   const [isLoadingPath, setIsLoadingPath] = useState<boolean>(true)
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null)
   const [showCommitDialog, setShowCommitDialog] = useState<boolean>(false)
+  const [chatPrefillMessage, setChatPrefillMessage] = useState<string | null>(null)
 
   // Load project path from Electron main process
   useEffect(() => {
@@ -71,34 +61,10 @@ function App() {
     checkCircuitConfig()
   }, [projectPath])
 
-  // Listen for peek panel data and auto-switch to appropriate tab
-  useEffect(() => {
-    try {
-      const { ipcRenderer } = window.require('electron')
-
-      const handlePeekData = (_event: any, payload: any) => {
-        // Auto-switch to discover for all workflow events
-        if (payload.type === 'test-result' || payload.type === 'deployment' || payload.type === 'github') {
-          setCurrentPage('discover')
-        }
-      }
-
-      ipcRenderer.on('peek:data-opened', handlePeekData)
-
-      return () => {
-        ipcRenderer.removeListener('peek:data-opened', handlePeekData)
-      }
-    } catch (e) {
-      console.warn('IPC not available for peek data listener:', e)
-    }
-  }, [])
 
   return (
     <ProjectPathContext.Provider value={{ projectPath, isLoading: isLoadingPath }}>
       <div className="h-screen flex bg-gradient-to-br from-[#0f0d0c] to-[#1a1412]">
-        {/* Debug Panel */}
-        {showDebug && <PeekDebugPanel />}
-
       {/* Sidebar */}
       <aside className="w-[200px] glass-sidebar flex flex-col">
         {/* Sidebar Top - Traffic Lights Area (Fully Draggable) */}
@@ -109,64 +75,11 @@ function App() {
 
         {/* Sidebar Navigation */}
         <nav className="flex-1 overflow-auto py-3 px-2">
-          {/* Workspace - Top Priority */}
-          <SidebarButton
-            icon={<FolderGit2 className="h-4 w-4" />}
-            label="Workspace"
-            isActive={currentPage === 'workspace'}
-            onClick={() => setCurrentPage('workspace')}
-          />
-
-          {/* Divider */}
-          <div className="h-px bg-[#333] my-2" />
-
-          {/* Dashboard */}
-          <SidebarButton
-            icon={<LayoutDashboard className="h-4 w-4" />}
-            label="Dashboard"
-            isActive={currentPage === 'dashboard'}
-            onClick={() => setCurrentPage('dashboard')}
-          />
-
-          {/* Discover */}
-          <SidebarButton
-            icon={<Package className="h-4 w-4" />}
-            label="Discover"
-            isActive={currentPage === 'discover'}
-            onClick={() => setCurrentPage('discover')}
-          />
-
-          {/* Installed */}
-          <SidebarButton
-            icon={<Server className="h-4 w-4" />}
-            label="Installed"
-            isActive={currentPage === 'installed'}
-            onClick={() => setCurrentPage('installed')}
-          />
-
-          {/* Playground */}
-          <SidebarButton
-            icon={<FlaskConical className="h-4 w-4" />}
-            label="Playground"
-            isActive={currentPage === 'playground'}
-            onClick={() => setCurrentPage('playground')}
-          />
-
-          {/* Test-Fix Loop */}
-          <SidebarButton
-            icon={<Zap className="h-4 w-4" />}
-            label="Test-Fix Loop"
-            isActive={currentPage === 'test-fix'}
-            onClick={() => setCurrentPage('test-fix')}
-          />
-
-          {/* Memory */}
-          <SidebarButton
-            icon={<Brain className="h-4 w-4" />}
-            label="Memory"
-            isActive={currentPage === 'memory'}
-            onClick={() => setCurrentPage('memory')}
-          />
+          {/* Workspace */}
+          <div className="px-2 py-1.5 flex items-center gap-2.5 text-xs bg-[var(--circuit-orange)]/25 text-[var(--circuit-orange)] font-medium rounded">
+            <FolderGit2 className="h-4 w-4" />
+            <span className="flex-1 text-left">Workspace</span>
+          </div>
         </nav>
 
         {/* Bottom Status Bar */}
@@ -207,133 +120,67 @@ function App() {
 
         {/* Main Content Area */}
         <div className="flex-1 overflow-auto p-8">
-          {currentPage === 'dashboard' && (
-            <div className="max-w-6xl mx-auto">
-              <DashboardTab />
-            </div>
-          )}
-
-          {currentPage === 'discover' && (
-            <div className="max-w-5xl mx-auto">
-              <DiscoverTab onNavigateToInstalled={() => setCurrentPage('installed')} />
-            </div>
-          )}
-
-          {currentPage === 'installed' && (
-            <div className="max-w-4xl mx-auto">
-              <InstalledTab />
-            </div>
-          )}
-
-          {currentPage === 'playground' && (
-            <div className="h-full">
-              <PlaygroundTab />
-            </div>
-          )}
-
-          {currentPage === 'test-fix' && (
-            <div className="max-w-5xl mx-auto">
-              <TestFixTab />
-            </div>
-          )}
-
-          {currentPage === 'memory' && (
-            <div className="h-full px-8 py-8">
-              <MemoryTab />
-            </div>
-          )}
-
-          {currentPage === 'workspace' && (
-            <div className="h-full">
-              {selectedWorkspace ? (
-                <div className="h-full flex flex-col">
-                  {/* Workspace Header */}
-                  <div className="h-[60px] border-b border-[#333] flex items-center justify-between px-6">
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => setSelectedWorkspace(null)}
-                        className="text-sm text-[#888] hover:text-white transition-colors"
-                      >
-                        ← Back to Workspaces
-                      </button>
-                      <div className="h-4 w-[1px] bg-[#333]" />
-                      <FolderGit2 size={18} color="#4CAF50" />
-                      <span className="text-lg font-semibold">{selectedWorkspace.name}</span>
-                      <span className="text-sm text-[#888]">({selectedWorkspace.branch})</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setShowCommitDialog(true)}
-                        className="px-4 py-2 bg-[#4CAF50] hover:bg-[#45a049] text-white text-sm font-medium rounded transition-colors flex items-center gap-2"
-                      >
-                        <GitCommit size={16} />
-                        Commit & Create PR
-                      </button>
-                    </div>
+          <div className="h-full">
+            {selectedWorkspace ? (
+              <div className="h-full flex flex-col">
+                {/* Workspace Header */}
+                <div className="h-[60px] border-b border-[#333] flex items-center justify-between px-6">
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setSelectedWorkspace(null)}
+                      className="text-sm text-[#888] hover:text-white transition-colors"
+                    >
+                      ← Back to Workspaces
+                    </button>
+                    <div className="h-4 w-[1px] bg-[#333]" />
+                    <FolderGit2 size={18} color="#4CAF50" />
+                    <span className="text-lg font-semibold">{selectedWorkspace.name}</span>
+                    <span className="text-sm text-[#888]">({selectedWorkspace.branch})</span>
                   </div>
-
-                  {/* Chat + Editor Layout */}
-                  <div className="flex-1 overflow-hidden">
-                    <WorkspaceChatEditor workspace={selectedWorkspace} />
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShowCommitDialog(true)}
+                      className="px-4 py-2 bg-[#4CAF50] hover:bg-[#45a049] text-white text-sm font-medium rounded transition-colors flex items-center gap-2"
+                    >
+                      <GitCommit size={16} />
+                      Commit & Create PR
+                    </button>
                   </div>
-
-                  {/* Commit Dialog */}
-                  {showCommitDialog && (
-                    <CommitDialog
-                      workspace={selectedWorkspace}
-                      onClose={() => setShowCommitDialog(false)}
-                      onSuccess={() => {
-                        setShowCommitDialog(false);
-                        // Optionally refresh workspace list or show success message
-                      }}
-                    />
-                  )}
                 </div>
-              ) : (
-                <WorkspaceManager onSelectWorkspace={setSelectedWorkspace} />
-              )}
-            </div>
-          )}
+
+                {/* Chat + Editor Layout */}
+                <div className="flex-1 overflow-hidden">
+                  <WorkspaceChatEditor
+                    workspace={selectedWorkspace}
+                    prefillMessage={chatPrefillMessage}
+                    onPrefillCleared={() => setChatPrefillMessage(null)}
+                  />
+                </div>
+
+                {/* Commit Dialog */}
+                {showCommitDialog && (
+                  <CommitDialog
+                    workspace={selectedWorkspace}
+                    onClose={() => setShowCommitDialog(false)}
+                    onSuccess={() => {
+                      setShowCommitDialog(false);
+                      // Optionally refresh workspace list or show success message
+                    }}
+                    onRequestDirectEdit={(message) => {
+                      setShowCommitDialog(false);
+                      setChatPrefillMessage(message);
+                    }}
+                  />
+                )}
+              </div>
+            ) : (
+              <WorkspaceManager onSelectWorkspace={setSelectedWorkspace} />
+            )}
+          </div>
         </div>
       </main>
       </div>
     </ProjectPathContext.Provider>
-  )
-}
-
-function SidebarButton({
-  icon,
-  label,
-  isActive,
-  onClick,
-  badge
-}: {
-  icon: React.ReactNode
-  label: string
-  isActive: boolean
-  onClick: () => void
-  badge?: string
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`
-        w-full px-2 py-1.5 flex items-center gap-2.5 text-xs transition-all duration-150 rounded
-        ${isActive
-          ? 'bg-[var(--circuit-orange)]/25 text-[var(--circuit-orange)] font-medium'
-          : 'bg-transparent text-[var(--text-secondary)] hover:bg-[var(--glass-hover)] hover:text-[var(--text-primary)] font-normal'
-        }
-      `}
-      style={{ WebkitAppRegion: 'no-drag' } as any}
-    >
-      {icon}
-      <span className="flex-1 text-left">{label}</span>
-      {badge && (
-        <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-[var(--glass-hover)] text-[var(--text-muted)]">
-          {badge}
-        </span>
-      )}
-    </button>
   )
 }
 

@@ -2782,32 +2782,48 @@ ipcMain.handle('workspace:sync-with-main', async (event, workspacePath) => {
 });
 
 /**
- * Analyze conflicts using Claude
+ * Get list of conflicted files
  */
-ipcMain.handle('workspace:analyze-conflicts', async (event, workspacePath) => {
+ipcMain.handle('workspace:get-conflict-files', async (event, workspacePath) => {
   try {
-    console.log('[Workspace] Analyzing conflicts:', workspacePath);
-
-    // Get list of conflicted files
+    console.log('[Workspace] Getting conflict files:', workspacePath);
     const { stdout: conflictFiles } = await execAsync('git diff --name-only --diff-filter=U', { cwd: workspacePath });
     const files = conflictFiles.trim().split('\n').filter(f => f);
 
-    if (files.length === 0) {
-      return { success: false, error: 'No conflicts found' };
+    return {
+      success: true,
+      files
+    };
+  } catch (error) {
+    console.error('[Workspace] Get conflict files error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+/**
+ * Analyze single file conflict using Claude
+ */
+ipcMain.handle('workspace:analyze-file-conflict', async (event, workspacePath, file) => {
+  try {
+    console.log('[Workspace] Analyzing file conflict:', file);
+
+    // Read file with conflict markers
+    const filePath = path.join(workspacePath, file);
+    const content = await fs.readFile(filePath, 'utf8');
+
+    // Extract base, ours, theirs versions
+    const conflictRegex = /<<<<<<< HEAD\n([\s\S]*?)\n=======\n([\s\S]*?)\n>>>>>>> origin\/main/g;
+    const matches = [...content.matchAll(conflictRegex)];
+
+    if (matches.length === 0) {
+      return {
+        success: false,
+        error: 'No conflict markers found in file'
+      };
     }
-
-    const conflicts = [];
-
-    for (const file of files) {
-      // Read file with conflict markers
-      const filePath = path.join(workspacePath, file);
-      const content = await fs.readFile(filePath, 'utf8');
-
-      // Extract base, ours, theirs versions
-      const conflictRegex = /<<<<<<< HEAD\n([\s\S]*?)\n=======\n([\s\S]*?)\n>>>>>>> origin\/main/g;
-      const matches = [...content.matchAll(conflictRegex)];
-
-      if (matches.length === 0) continue;
 
       // For simplicity, handle first conflict point
       const match = matches[0];
@@ -2930,26 +2946,22 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
         });
       });
 
-      conflicts.push({
-        file,
-        analysis: claudeResponse
-      });
-    }
-
-    console.log('[Workspace] Conflict analysis complete');
+    console.log('[Workspace] File conflict analysis complete');
 
     return {
       success: true,
-      conflicts
+      file,
+      analysis: claudeResponse
     };
   } catch (error) {
-    console.error('[Workspace] Analyze conflicts error:', error);
+    console.error('[Workspace] Analyze file conflict error:', error);
     return {
       success: false,
       error: error.message
     };
   }
 });
+
 
 /**
  * Resolve conflict with selected option

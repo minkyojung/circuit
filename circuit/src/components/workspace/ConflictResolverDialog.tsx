@@ -26,18 +26,23 @@ interface ConflictResolverDialogProps {
   workspace: Workspace;
   onClose: () => void;
   onResolved: () => void;
+  onRequestDirectEdit: (message: string) => void;
 }
 
 export const ConflictResolverDialog: React.FC<ConflictResolverDialogProps> = ({
   workspace,
   onClose,
   onResolved,
+  onRequestDirectEdit,
 }) => {
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedOptions, setSelectedOptions] = useState<Record<string, number>>({});
   const [isResolving, setIsResolving] = useState(false);
+  const [totalFiles, setTotalFiles] = useState(0);
+  const [analyzedFiles, setAnalyzedFiles] = useState(0);
+  const [currentFile, setCurrentFile] = useState<string>('');
 
   const handleClose = async () => {
     // Abort merge if closing without resolving
@@ -49,14 +54,68 @@ export const ConflictResolverDialog: React.FC<ConflictResolverDialogProps> = ({
   useEffect(() => {
     const analyzeConflicts = async () => {
       try {
-        console.log('[ConflictResolver] Analyzing conflicts...');
-        const result = await ipcRenderer.invoke('workspace:analyze-conflicts', workspace.path);
+        console.log('[ConflictResolver] Getting conflict files...');
 
-        if (result.success) {
-          setConflicts(result.conflicts);
-        } else {
-          setError(result.error);
+        // Step 1: Get list of conflicted files
+        const filesResult = await ipcRenderer.invoke('workspace:get-conflict-files', workspace.path);
+
+        if (!filesResult.success) {
+          setError(filesResult.error);
+          setIsLoading(false);
+          return;
         }
+
+        const files = filesResult.files;
+        if (files.length === 0) {
+          setError('No conflicts found');
+          setIsLoading(false);
+          return;
+        }
+
+        setTotalFiles(files.length);
+        console.log(`[ConflictResolver] Found ${files.length} conflicted files`);
+
+        // Step 2: Analyze each file individually (with progress)
+        const analyzedConflicts: Conflict[] = [];
+
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          setCurrentFile(file);
+          setAnalyzedFiles(i);
+
+          console.log(`[ConflictResolver] Analyzing ${i + 1}/${files.length}: ${file}`);
+
+          const result = await ipcRenderer.invoke('workspace:analyze-file-conflict', workspace.path, file);
+
+          if (result.success) {
+            analyzedConflicts.push({
+              file: result.file,
+              analysis: result.analysis
+            });
+          } else {
+            console.error(`[ConflictResolver] Failed to analyze ${file}:`, result.error);
+
+            // Fallback: Provide "직접 수정" option only
+            analyzedConflicts.push({
+              file,
+              analysis: {
+                explanation: `⚠️ Claude 분석 실패. Chat에서 직접 해결해주세요.`,
+                options: [
+                  {
+                    id: 5,
+                    title: "직접 수정",
+                    preview: null,
+                    badge: "필수"
+                  }
+                ]
+              }
+            });
+          }
+
+          setAnalyzedFiles(i + 1);
+        }
+
+        setConflicts(analyzedConflicts);
       } catch (err) {
         console.error('[ConflictResolver] Error:', err);
         setError(String(err));
@@ -68,10 +127,13 @@ export const ConflictResolverDialog: React.FC<ConflictResolverDialogProps> = ({
     analyzeConflicts();
   }, [workspace.path]);
 
-  const handleSelectOption = (file: string, optionId: number) => {
+  const handleSelectOption = (file: string, optionId: number, conflict?: Conflict) => {
     if (optionId === 5) {
       // "직접 수정" - 채팅으로 이동
-      alert('Chat에서 Claude에게 직접 지시하여 수정할 수 있습니다.\n\n예: "README.md의 conflict를 이렇게 해결해줘: ..."');
+      if (conflict) {
+        const message = `${file} 파일의 merge conflict를 해결해줘:\n\n${conflict.analysis.explanation}\n\n어떻게 해결할지 구체적으로 설명해줘.`;
+        onRequestDirectEdit(message);
+      }
       return;
     }
 
@@ -131,13 +193,42 @@ export const ConflictResolverDialog: React.FC<ConflictResolverDialogProps> = ({
   const allSelected = conflicts.length > 0 && conflicts.every(c => selectedOptions[c.file]);
 
   if (isLoading) {
+    const progress = totalFiles > 0 ? (analyzedFiles / totalFiles) * 100 : 0;
+
     return (
       <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-        <div className="bg-[#1a1a1a] border border-[#333] rounded-lg p-8">
-          <div className="flex items-center gap-3">
+        <div className="bg-[#1a1a1a] border border-[#333] rounded-lg p-8 w-[500px]">
+          <div className="flex items-center gap-3 mb-4">
             <Loader2 className="animate-spin text-[#4CAF50]" size={24} />
             <span className="text-lg">Claude가 conflict를 분석 중...</span>
           </div>
+
+          {totalFiles > 0 && (
+            <>
+              {/* Progress bar */}
+              <div className="mb-3">
+                <div className="h-2 bg-[#333] rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-[#4CAF50] transition-all duration-300"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Progress text */}
+              <div className="text-sm text-[#888] space-y-1">
+                <div className="flex justify-between">
+                  <span>진행률</span>
+                  <span className="text-[#4CAF50] font-medium">{analyzedFiles} / {totalFiles} 파일</span>
+                </div>
+                {currentFile && (
+                  <div className="text-xs text-[#666] truncate">
+                    분석 중: {currentFile}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
     );
@@ -186,7 +277,7 @@ export const ConflictResolverDialog: React.FC<ConflictResolverDialogProps> = ({
                 {conflict.analysis.options.map((option) => (
                   <button
                     key={option.id}
-                    onClick={() => handleSelectOption(conflict.file, option.id)}
+                    onClick={() => handleSelectOption(conflict.file, option.id, conflict)}
                     className={`p-3 rounded border-2 text-left transition-all ${
                       selectedOptions[conflict.file] === option.id
                         ? 'border-[#4CAF50] bg-[#4CAF50]/10'

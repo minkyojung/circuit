@@ -10,9 +10,15 @@ interface CommitDialogProps {
   workspace: Workspace;
   onClose: () => void;
   onSuccess: () => void;
+  onRequestDirectEdit: (message: string) => void;
 }
 
-export const CommitDialog: React.FC<CommitDialogProps> = ({ workspace, onClose, onSuccess }) => {
+export const CommitDialog: React.FC<CommitDialogProps> = ({
+  workspace,
+  onClose,
+  onSuccess,
+  onRequestDirectEdit
+}) => {
   const [diff, setDiff] = useState<string>('');
   const [isLoadingDiff, setIsLoadingDiff] = useState(true);
   const [commitMessage, setCommitMessage] = useState('');
@@ -381,6 +387,7 @@ export const CommitDialog: React.FC<CommitDialogProps> = ({ workspace, onClose, 
               setIsSubmitting(false);
             }
           }}
+          onRequestDirectEdit={onRequestDirectEdit}
         />
       )}
     </div>
