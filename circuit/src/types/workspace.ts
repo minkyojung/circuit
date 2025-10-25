@@ -38,6 +38,27 @@ export interface WorkspaceStatus {
 
   /** Number of untracked files */
   untracked: number;
+
+  /** Number of commits ahead of remote */
+  ahead: number;
+
+  /** Number of commits behind remote */
+  behind: number;
+
+  /** Whether remote branch exists */
+  hasRemote: boolean;
+
+  /** PR status: "OPEN", "CLOSED", "MERGED", or null */
+  prStatus: string | null;
+
+  /** PR URL if exists */
+  prUrl: string | null;
+
+  /** Overall status: 'merged', 'working', 'diverged', 'ahead', 'behind', 'local', 'synced', 'unknown' */
+  status: string;
+
+  /** Current branch name */
+  branch: string;
 }
 
 export interface WorkspaceCreateResult {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import type { Workspace, WorkspaceCreateResult, WorkspaceListResult } from '@/types/workspace';
+import type { Workspace, WorkspaceCreateResult, WorkspaceListResult, WorkspaceStatus } from '@/types/workspace';
 import { WorkspaceList } from './WorkspaceList';
 import { Plus, RefreshCw } from 'lucide-react';
 
@@ -12,6 +12,7 @@ interface WorkspaceManagerProps {
 
 export const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({ onSelectWorkspace }) => {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [statuses, setStatuses] = useState<Record<string, WorkspaceStatus>>({});
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
@@ -20,6 +21,37 @@ export const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({ onSelectWork
   useEffect(() => {
     loadWorkspaces();
   }, []);
+
+  // Load statuses for all workspaces
+  const loadStatuses = async (workspaceList: Workspace[]) => {
+    const newStatuses: Record<string, WorkspaceStatus> = {};
+
+    for (const workspace of workspaceList) {
+      try {
+        const result = await ipcRenderer.invoke('workspace:get-status', workspace.path);
+        if (result.success && result.status) {
+          newStatuses[workspace.id] = result.status;
+        }
+      } catch (error) {
+        console.error(`Failed to get status for ${workspace.name}:`, error);
+      }
+    }
+
+    setStatuses(newStatuses);
+  };
+
+  // Auto-refresh statuses every 30 seconds
+  useEffect(() => {
+    if (workspaces.length === 0) return;
+
+    loadStatuses(workspaces);
+
+    const interval = setInterval(() => {
+      loadStatuses(workspaces);
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [workspaces]);
 
   const loadWorkspaces = async () => {
     setIsLoading(true);
@@ -109,7 +141,12 @@ export const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({ onSelectWork
 
         <div style={{ display: 'flex', gap: '8px' }}>
           <button
-            onClick={loadWorkspaces}
+            onClick={() => {
+              loadWorkspaces();
+              if (workspaces.length > 0) {
+                loadStatuses(workspaces);
+              }
+            }}
             disabled={isLoading}
             style={{
               background: 'none',
@@ -155,6 +192,7 @@ export const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({ onSelectWork
       <div style={{ flex: 1, overflow: 'auto' }}>
         <WorkspaceList
           workspaces={workspaces}
+          statuses={statuses}
           activeWorkspaceId={activeWorkspaceId}
           onSelectWorkspace={selectWorkspace}
           onDeleteWorkspace={deleteWorkspace}

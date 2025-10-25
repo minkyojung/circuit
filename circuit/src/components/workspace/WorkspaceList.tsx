@@ -1,9 +1,10 @@
 import React from 'react';
-import type { Workspace } from '@/types/workspace';
+import type { Workspace, WorkspaceStatus } from '@/types/workspace';
 import { WorkspaceItem } from './WorkspaceItem';
 
 interface WorkspaceListProps {
   workspaces: Workspace[];
+  statuses: Record<string, WorkspaceStatus>;
   activeWorkspaceId: string | null;
   onSelectWorkspace: (workspace: Workspace) => void;
   onDeleteWorkspace: (workspaceId: string) => void;
@@ -11,6 +12,7 @@ interface WorkspaceListProps {
 
 export const WorkspaceList: React.FC<WorkspaceListProps> = ({
   workspaces,
+  statuses,
   activeWorkspaceId,
   onSelectWorkspace,
   onDeleteWorkspace,
@@ -38,6 +40,7 @@ export const WorkspaceList: React.FC<WorkspaceListProps> = ({
         <WorkspaceItem
           key={workspace.id}
           workspace={workspace}
+          status={statuses[workspace.id]}
           isActive={workspace.id === activeWorkspaceId}
           onSelect={onSelectWorkspace}
           onDelete={onDeleteWorkspace}

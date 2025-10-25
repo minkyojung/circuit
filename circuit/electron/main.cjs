@@ -2246,22 +2246,119 @@ async function deleteWorktree(projectPath, branchName) {
  */
 async function getWorktreeStatus(worktreePath) {
   try {
-    const { stdout } = await execAsync('git status --porcelain', {
+    // 1. Check dirty status
+    const { stdout: statusOutput } = await execAsync('git status --porcelain', {
       cwd: worktreePath
     });
 
-    const lines = stdout.split('\n').filter(Boolean);
+    const lines = statusOutput.split('\n').filter(Boolean);
+    const isDirty = lines.length > 0;
+
+    // 2. Get current branch
+    const { stdout: branchOutput } = await execAsync('git rev-parse --abbrev-ref HEAD', {
+      cwd: worktreePath
+    });
+    const branch = branchOutput.trim();
+
+    // 3. Check ahead/behind (requires remote tracking)
+    let ahead = 0;
+    let behind = 0;
+    let hasRemote = false;
+
+    try {
+      // Fetch to get latest remote info
+      await execAsync('git fetch origin', { cwd: worktreePath });
+
+      // Check if remote branch exists
+      const { stdout: remoteCheck } = await execAsync(`git rev-parse --verify origin/${branch}`, {
+        cwd: worktreePath
+      });
+
+      if (remoteCheck.trim()) {
+        hasRemote = true;
+
+        // Get ahead/behind counts
+        const { stdout: revList } = await execAsync(`git rev-list --left-right --count origin/${branch}...HEAD`, {
+          cwd: worktreePath
+        });
+
+        const [behindStr, aheadStr] = revList.trim().split('\t');
+        behind = parseInt(behindStr) || 0;
+        ahead = parseInt(aheadStr) || 0;
+      }
+    } catch (e) {
+      // Remote branch doesn't exist or fetch failed
+      hasRemote = false;
+    }
+
+    // 4. Check PR status (using gh CLI)
+    let prStatus = null;
+    let prUrl = null;
+
+    try {
+      const { stdout: prOutput } = await execAsync(`gh pr list --head ${branch} --json state,url,title`, {
+        cwd: worktreePath
+      });
+
+      const prs = JSON.parse(prOutput);
+      if (prs.length > 0) {
+        const pr = prs[0];
+        prStatus = pr.state; // "OPEN", "CLOSED", "MERGED"
+        prUrl = pr.url;
+      }
+    } catch (e) {
+      // No PR or gh CLI error
+    }
+
+    // Determine overall status
+    let status = 'unknown';
+
+    if (prStatus === 'MERGED') {
+      status = 'merged';
+    } else if (isDirty) {
+      status = 'working';
+    } else if (ahead > 0 && behind > 0) {
+      status = 'diverged';
+    } else if (ahead > 0) {
+      status = 'ahead';
+    } else if (behind > 0) {
+      status = 'behind';
+    } else if (!hasRemote) {
+      status = 'local';
+    } else {
+      status = 'synced';
+    }
 
     return {
-      clean: lines.length === 0,
+      clean: !isDirty,
       modified: lines.filter(l => l.startsWith(' M')).length,
       added: lines.filter(l => l.startsWith('A')).length,
       deleted: lines.filter(l => l.startsWith(' D')).length,
-      untracked: lines.filter(l => l.startsWith('??')).length
+      untracked: lines.filter(l => l.startsWith('??')).length,
+      ahead,
+      behind,
+      hasRemote,
+      prStatus,
+      prUrl,
+      status, // 'merged', 'working', 'diverged', 'ahead', 'behind', 'local', 'synced'
+      branch
     };
   } catch (error) {
     console.error('[Workspace] Failed to get status:', error);
-    return { clean: true, modified: 0, added: 0, deleted: 0, untracked: 0 };
+    return {
+      clean: true,
+      modified: 0,
+      added: 0,
+      deleted: 0,
+      untracked: 0,
+      ahead: 0,
+      behind: 0,
+      hasRemote: false,
+      prStatus: null,
+      prUrl: null,
+      status: 'unknown',
+      branch: 'unknown'
+    };
   }
 }
 
