@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Workspace, WorkspaceStatus } from '@/types/workspace';
-import { Trash2, GitBranch, FolderGit2 } from 'lucide-react';
+import { Trash2, GitBranch, FolderGit2, Check, GitMerge, ArrowUp, ArrowDown, GitCommit, Loader2 } from 'lucide-react';
 
 interface WorkspaceItemProps {
   workspace: Workspace;
@@ -9,6 +9,31 @@ interface WorkspaceItemProps {
   onSelect: (workspace: Workspace) => void;
   onDelete: (workspaceId: string) => void;
 }
+
+const getStatusBadge = (status?: WorkspaceStatus) => {
+  if (!status) {
+    return { icon: <Loader2 size={12} className="animate-spin" />, text: 'Loading...', color: '#888', bg: '#333' };
+  }
+
+  switch (status.status) {
+    case 'merged':
+      return { icon: <GitMerge size={12} />, text: 'Merged', color: '#9C27B0', bg: '#9C27B0/10' };
+    case 'working':
+      return { icon: <GitCommit size={12} />, text: 'Working', color: '#FF9800', bg: '#FF9800/10' };
+    case 'ahead':
+      return { icon: <ArrowUp size={12} />, text: `Ahead ${status.ahead}`, color: '#2196F3', bg: '#2196F3/10' };
+    case 'behind':
+      return { icon: <ArrowDown size={12} />, text: `Behind ${status.behind}`, color: '#F44336', bg: '#F44336/10' };
+    case 'diverged':
+      return { icon: <GitCommit size={12} />, text: 'Diverged', color: '#FF5722', bg: '#FF5722/10' };
+    case 'synced':
+      return { icon: <Check size={12} />, text: 'Synced', color: '#4CAF50', bg: '#4CAF50/10' };
+    case 'local':
+      return { icon: <GitBranch size={12} />, text: 'Local Only', color: '#888', bg: '#333' };
+    default:
+      return { icon: <Loader2 size={12} />, text: 'Unknown', color: '#888', bg: '#333' };
+  }
+};
 
 export const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
   workspace,
@@ -23,6 +48,8 @@ export const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
       onDelete(workspace.id);
     }
   };
+
+  const badge = getStatusBadge(status);
 
   return (
     <div
@@ -63,6 +90,22 @@ export const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
                 ACTIVE
               </span>
             )}
+            <span
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                fontSize: '10px',
+                padding: '3px 8px',
+                backgroundColor: badge.bg,
+                color: badge.color,
+                borderRadius: '4px',
+                fontWeight: 500,
+              }}
+            >
+              {badge.icon}
+              {badge.text}
+            </span>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
