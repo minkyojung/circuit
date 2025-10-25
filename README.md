@@ -9,6 +9,10 @@ Hello Albatros and welcome
 last dance
 
 real last dance
+
+test 7
+
+test8
 # Circuit - Test-Fix Loop 문서
 
 > MCP 기반 자동 테스트-수정 루프 시스템
