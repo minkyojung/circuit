@@ -11,9 +11,15 @@ const { ipcRenderer } = window.require('electron');
 
 interface WorkspaceChatEditorProps {
   workspace: Workspace;
+  prefillMessage?: string | null;
+  onPrefillCleared?: () => void;
 }
 
-export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({ workspace }) => {
+export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
+  workspace,
+  prefillMessage = null,
+  onPrefillCleared
+}) => {
   const [chatWidth, setChatWidth] = useState(40); // Percentage
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [openFiles, setOpenFiles] = useState<string[]>([]);
@@ -62,6 +68,8 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({ worksp
           workspace={workspace}
           sessionId={sessionId}
           onFileEdit={handleFileEdit}
+          prefillMessage={prefillMessage}
+          onPrefillCleared={onPrefillCleared}
         />
       </div>
 
@@ -112,12 +120,28 @@ interface ChatPanelProps {
   workspace: Workspace;
   sessionId: string | null;
   onFileEdit: (filePath: string) => void;
+  prefillMessage?: string | null;
+  onPrefillCleared?: () => void;
 }
 
-const ChatPanel: React.FC<ChatPanelProps> = ({ workspace, sessionId, onFileEdit }) => {
+const ChatPanel: React.FC<ChatPanelProps> = ({
+  workspace,
+  sessionId,
+  onFileEdit,
+  prefillMessage,
+  onPrefillCleared
+}) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
+
+  // Set prefilled message when provided
+  useEffect(() => {
+    if (prefillMessage) {
+      setInput(prefillMessage);
+      onPrefillCleared?.();
+    }
+  }, [prefillMessage, onPrefillCleared]);
 
   const parseFileChanges = (response: string): string[] => {
     const files: string[] = [];
