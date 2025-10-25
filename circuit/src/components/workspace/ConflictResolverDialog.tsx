@@ -1,0 +1,256 @@
+import React, { useState, useEffect } from 'react';
+import type { Workspace } from '@/types/workspace';
+import { X, AlertTriangle, Loader2, Check } from 'lucide-react';
+
+// @ts-ignore - Electron IPC
+const { ipcRenderer } = window.require('electron');
+
+interface ConflictAnalysis {
+  explanation: string;
+  options: ConflictOption[];
+}
+
+interface ConflictOption {
+  id: number;
+  title: string;
+  preview: string | null;
+  badge: string | null;
+}
+
+interface Conflict {
+  file: string;
+  analysis: ConflictAnalysis;
+}
+
+interface ConflictResolverDialogProps {
+  workspace: Workspace;
+  onClose: () => void;
+  onResolved: () => void;
+}
+
+export const ConflictResolverDialog: React.FC<ConflictResolverDialogProps> = ({
+  workspace,
+  onClose,
+  onResolved,
+}) => {
+  const [conflicts, setConflicts] = useState<Conflict[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedOptions, setSelectedOptions] = useState<Record<string, number>>({});
+  const [isResolving, setIsResolving] = useState(false);
+
+  const handleClose = async () => {
+    // Abort merge if closing without resolving
+    console.log('[ConflictResolver] Aborting merge...');
+    await ipcRenderer.invoke('workspace:abort-merge', workspace.path);
+    onClose();
+  };
+
+  useEffect(() => {
+    const analyzeConflicts = async () => {
+      try {
+        console.log('[ConflictResolver] Analyzing conflicts...');
+        const result = await ipcRenderer.invoke('workspace:analyze-conflicts', workspace.path);
+
+        if (result.success) {
+          setConflicts(result.conflicts);
+        } else {
+          setError(result.error);
+        }
+      } catch (err) {
+        console.error('[ConflictResolver] Error:', err);
+        setError(String(err));
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    analyzeConflicts();
+  }, [workspace.path]);
+
+  const handleSelectOption = (file: string, optionId: number) => {
+    if (optionId === 5) {
+      // "직접 수정" - 채팅으로 이동
+      alert('Chat에서 Claude에게 직접 지시하여 수정할 수 있습니다.\n\n예: "README.md의 conflict를 이렇게 해결해줘: ..."');
+      return;
+    }
+
+    setSelectedOptions({
+      ...selectedOptions,
+      [file]: optionId,
+    });
+  };
+
+  const handleResolve = async () => {
+    setIsResolving(true);
+    setError(null);
+
+    try {
+      // Resolve each conflict
+      for (const conflict of conflicts) {
+        const optionId = selectedOptions[conflict.file];
+        if (!optionId) {
+          throw new Error(`${conflict.file}에 대한 선택을 해주세요`);
+        }
+
+        const option = conflict.analysis.options.find(o => o.id === optionId);
+        if (!option || !option.preview) {
+          throw new Error('Invalid option');
+        }
+
+        console.log('[ConflictResolver] Resolving:', conflict.file);
+        const result = await ipcRenderer.invoke(
+          'workspace:resolve-conflict',
+          workspace.path,
+          conflict.file,
+          option.preview
+        );
+
+        if (!result.success) {
+          throw new Error(`Failed to resolve ${conflict.file}: ${result.error}`);
+        }
+      }
+
+      // All resolved - commit
+      await ipcRenderer.invoke(
+        'workspace:commit-and-push',
+        workspace.path,
+        'resolve: Merge conflicts'
+      );
+
+      console.log('[ConflictResolver] All conflicts resolved');
+      onResolved();
+    } catch (err) {
+      console.error('[ConflictResolver] Resolve error:', err);
+      setError(String(err));
+    } finally {
+      setIsResolving(false);
+    }
+  };
+
+  const allSelected = conflicts.length > 0 && conflicts.every(c => selectedOptions[c.file]);
+
+  if (isLoading) {
+    return (
+      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+        <div className="bg-[#1a1a1a] border border-[#333] rounded-lg p-8">
+          <div className="flex items-center gap-3">
+            <Loader2 className="animate-spin text-[#4CAF50]" size={24} />
+            <span className="text-lg">Claude가 conflict를 분석 중...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+      <div className="bg-[#1a1a1a] border border-[#333] rounded-lg w-full max-w-4xl max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-[#333]">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="text-orange-400" size={20} />
+            <h2 className="text-lg font-semibold">Merge Conflict 해결</h2>
+          </div>
+          <button onClick={handleClose} className="text-[#888] hover:text-white">
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-4">
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/30 rounded p-3 mb-4 text-sm text-red-400">
+              {error}
+            </div>
+          )}
+
+          {conflicts.map((conflict) => (
+            <div key={conflict.file} className="mb-6 last:mb-0">
+              {/* File header */}
+              <div className="bg-[#0a0a0a] border border-[#333] rounded-t p-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-mono text-[#4CAF50]">{conflict.file}</span>
+                  {selectedOptions[conflict.file] && (
+                    <span className="text-xs bg-[#4CAF50]/20 text-[#4CAF50] px-2 py-1 rounded">
+                      <Check size={12} className="inline mr-1" />
+                      선택됨
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-[#888] mt-2">{conflict.analysis.explanation}</p>
+              </div>
+
+              {/* Options grid */}
+              <div className="grid grid-cols-2 gap-2 p-3 bg-[#0f0f0f] border border-t-0 border-[#333] rounded-b">
+                {conflict.analysis.options.map((option) => (
+                  <button
+                    key={option.id}
+                    onClick={() => handleSelectOption(conflict.file, option.id)}
+                    className={`p-3 rounded border-2 text-left transition-all ${
+                      selectedOptions[conflict.file] === option.id
+                        ? 'border-[#4CAF50] bg-[#4CAF50]/10'
+                        : 'border-[#333] hover:border-[#555] bg-[#1a1a1a]'
+                    }`}
+                  >
+                    {/* Title */}
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium">{option.title}</span>
+                      {option.badge && (
+                        <span className="text-xs bg-[#4CAF50] text-white px-2 py-0.5 rounded">
+                          {option.badge}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Preview */}
+                    {option.preview && (
+                      <pre className="text-xs text-[#888] font-mono bg-[#0a0a0a] p-2 rounded overflow-auto max-h-24">
+                        {option.preview.length > 150
+                          ? option.preview.substring(0, 150) + '...'
+                          : option.preview}
+                      </pre>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between p-4 border-t border-[#333]">
+          <div className="text-xs text-[#666]">
+            {conflicts.length}개 파일 • {Object.keys(selectedOptions).length}개 선택됨
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={handleClose}
+              disabled={isResolving}
+              className="px-4 py-2 text-sm text-[#888] hover:text-white transition-colors disabled:opacity-50"
+            >
+              취소
+            </button>
+            <button
+              onClick={handleResolve}
+              disabled={!allSelected || isResolving}
+              className="px-4 py-2 bg-[#4CAF50] hover:bg-[#45a049] disabled:bg-[#333] disabled:cursor-not-allowed text-white text-sm font-medium rounded transition-colors flex items-center gap-2"
+            >
+              {isResolving ? (
+                <>
+                  <Loader2 className="animate-spin" size={14} />
+                  해결 중...
+                </>
+              ) : (
+                <>
+                  <Check size={14} />
+                  Conflict 해결
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};

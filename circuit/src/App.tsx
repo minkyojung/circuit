@@ -7,8 +7,9 @@ import { TestFixTab } from "@/components/TestFixTab"
 import { MemoryTab } from "@/components/MemoryTab"
 import { PeekDebugPanel } from "@/components/PeekDebugPanel"
 import { WorkspaceManager, WorkspaceChatEditor } from "@/components/workspace"
+import { CommitDialog } from "@/components/workspace/CommitDialog"
 import type { Workspace } from "@/types/workspace"
-import { Package, Server, FlaskConical, LayoutDashboard, Zap, Brain, FolderGit2 } from 'lucide-react'
+import { Package, Server, FlaskConical, LayoutDashboard, Zap, Brain, FolderGit2, GitCommit } from 'lucide-react'
 import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
 import './App.css'
 
@@ -33,6 +34,7 @@ function App() {
   const [projectPath, setProjectPath] = useState<string>('')
   const [isLoadingPath, setIsLoadingPath] = useState<boolean>(true)
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null)
+  const [showCommitDialog, setShowCommitDialog] = useState<boolean>(false)
 
   // Load project path from Electron main process
   useEffect(() => {
@@ -259,12 +261,33 @@ function App() {
                       <span className="text-lg font-semibold">{selectedWorkspace.name}</span>
                       <span className="text-sm text-[#888]">({selectedWorkspace.branch})</span>
                     </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setShowCommitDialog(true)}
+                        className="px-4 py-2 bg-[#4CAF50] hover:bg-[#45a049] text-white text-sm font-medium rounded transition-colors flex items-center gap-2"
+                      >
+                        <GitCommit size={16} />
+                        Commit & Create PR
+                      </button>
+                    </div>
                   </div>
 
                   {/* Chat + Editor Layout */}
                   <div className="flex-1 overflow-hidden">
                     <WorkspaceChatEditor workspace={selectedWorkspace} />
                   </div>
+
+                  {/* Commit Dialog */}
+                  {showCommitDialog && (
+                    <CommitDialog
+                      workspace={selectedWorkspace}
+                      onClose={() => setShowCommitDialog(false)}
+                      onSuccess={() => {
+                        setShowCommitDialog(false);
+                        // Optionally refresh workspace list or show success message
+                      }}
+                    />
+                  )}
                 </div>
               ) : (
                 <WorkspaceManager onSelectWorkspace={setSelectedWorkspace} />
