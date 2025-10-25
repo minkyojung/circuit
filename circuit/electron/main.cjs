@@ -2348,3 +2348,220 @@ ipcMain.handle('workspace:get-status', async (event, workspacePath) => {
     return { success: false, error: error.message };
   }
 });
+
+// ============================================================================
+// Claude CLI - Workspace Session Management
+// ============================================================================
+
+// Active Claude sessions for each workspace
+const activeSessions = new Map();
+
+/**
+ * Start a Claude CLI session for a workspace
+ */
+ipcMain.handle('claude:start-session', async (event, workspacePath) => {
+  try {
+    const sessionId = `session-${Date.now()}`;
+
+    console.log('[Claude] Starting session:', sessionId, 'at', workspacePath);
+
+    // Check if Claude CLI exists
+    try {
+      await fs.access(CLAUDE_CLI_PATH);
+    } catch (error) {
+      return {
+        success: false,
+        error: 'Claude Code CLI not found. Please install Claude Code first.'
+      };
+    }
+
+    // Store session info
+    activeSessions.set(sessionId, {
+      workspacePath,
+      messages: [],
+      createdAt: Date.now()
+    });
+
+    return {
+      success: true,
+      sessionId
+    };
+  } catch (error) {
+    console.error('[Claude] Failed to start session:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+/**
+ * Send message to Claude and get response
+ */
+ipcMain.handle('claude:send-message', async (event, sessionId, userMessage) => {
+  try {
+    const session = activeSessions.get(sessionId);
+
+    if (!session) {
+      return {
+        success: false,
+        error: 'Session not found'
+      };
+    }
+
+    console.log('[Claude] Sending message to session:', sessionId);
+    console.log('[Claude] Message:', userMessage);
+
+    // Add user message to history
+    session.messages.push({
+      role: 'user',
+      content: userMessage
+    });
+
+    // Spawn Claude CLI
+    const claude = spawn(CLAUDE_CLI_PATH, [
+      '--print',
+      '--output-format', 'json',
+      '--model', 'sonnet',
+      '--permission-mode', 'acceptEdits'  // Auto-approve file edits
+    ], {
+      cwd: session.workspacePath,
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+
+    // Send message
+    const input = JSON.stringify({
+      role: 'user',
+      content: userMessage
+    });
+
+    claude.stdin.write(input);
+    claude.stdin.end();
+
+    // Collect response
+    let stdout = '';
+    let stderr = '';
+
+    claude.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    claude.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    // Wait for completion
+    return new Promise((resolve) => {
+      claude.on('close', (code) => {
+        if (code !== 0) {
+          console.error('[Claude] Process failed:', stderr);
+          return resolve({
+            success: false,
+            error: `Claude CLI exited with code ${code}: ${stderr}`
+          });
+        }
+
+        try {
+          const response = JSON.parse(stdout);
+
+          if (response.type === 'result' && response.subtype === 'success') {
+            const assistantMessage = response.result;
+
+            // Add to session history
+            session.messages.push({
+              role: 'assistant',
+              content: assistantMessage
+            });
+
+            console.log('[Claude] Response received');
+
+            return resolve({
+              success: true,
+              message: assistantMessage,
+              sessionId,
+              cost: response.total_cost_usd
+            });
+          } else {
+            return resolve({
+              success: false,
+              error: 'Unexpected response from Claude CLI'
+            });
+          }
+        } catch (parseError) {
+          console.error('[Claude] Failed to parse response:', parseError);
+          return resolve({
+            success: false,
+            error: `Failed to parse response: ${parseError.message}`
+          });
+        }
+      });
+
+      claude.on('error', (error) => {
+        console.error('[Claude] Process error:', error);
+        return resolve({
+          success: false,
+          error: `Failed to spawn Claude CLI: ${error.message}`
+        });
+      });
+    });
+  } catch (error) {
+    console.error('[Claude] Send message error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+/**
+ * Stop a Claude session
+ */
+ipcMain.handle('claude:stop-session', async (event, sessionId) => {
+  try {
+    if (activeSessions.has(sessionId)) {
+      activeSessions.delete(sessionId);
+      console.log('[Claude] Session stopped:', sessionId);
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('[Claude] Stop session error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Read file contents from a workspace
+ */
+ipcMain.handle('workspace:read-file', async (event, workspacePath, filePath) => {
+  try {
+    const fullPath = path.join(workspacePath, filePath);
+
+    console.log('[Workspace] Reading file:', fullPath);
+
+    // Check if file exists
+    try {
+      await fs.access(fullPath);
+    } catch (error) {
+      return {
+        success: false,
+        error: 'File not found'
+      };
+    }
+
+    // Read file contents
+    const content = await fs.readFile(fullPath, 'utf8');
+
+    return {
+      success: true,
+      content,
+      filePath
+    };
+  } catch (error) {
+    console.error('[Workspace] Read file error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});

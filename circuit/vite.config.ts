@@ -10,4 +10,8 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  // Monaco Editor optimization
+  optimizeDeps: {
+    include: ['monaco-editor']
+  },
 })
