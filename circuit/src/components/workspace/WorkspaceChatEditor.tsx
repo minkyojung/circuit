@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import type { Workspace } from '@/types/workspace';
 import Editor, { loader } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
-import { Columns2, Maximize2, Save } from 'lucide-react';
+import { Columns2, Maximize2, Save, ArrowUp, Grid3x3, MessageSquare } from 'lucide-react';
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -285,58 +285,133 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     }
   };
 
+  const [selectedModel, setSelectedModel] = useState<'sonnet' | 'think' | 'agent'>('sonnet');
+
   return (
-    <div className="h-full flex flex-col">
-      {/* Messages */}
-      <div className="flex-1 overflow-auto p-4 space-y-4">
-        {messages.length === 0 ? (
-          <div className="text-center text-[#666] pt-8">
-            {/* Empty state */}
-          </div>
-        ) : (
-          messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`p-3 rounded ${
-                msg.role === 'user'
-                  ? 'bg-[#1a1a1a] ml-8'
-                  : 'bg-[#0a0a0a] mr-8 border border-[#333]'
-              }`}
-            >
-              <div className="text-xs text-[#888] mb-1">
-                {msg.role === 'user' ? 'You' : 'Claude'}
+    <div className="h-full bg-[#E0E0E0] flex flex-col">
+      {/* Messages Area */}
+      <div className="flex-1 overflow-auto p-6">
+        {messages.length > 0 && (
+          <div className="space-y-3 max-w-3xl mx-auto">
+            {messages.map((msg) => (
+              <div
+                key={msg.id}
+                className={`p-3 rounded-lg ${
+                  msg.role === 'user'
+                    ? 'bg-sidebar ml-12'
+                    : 'bg-sidebar mr-12 border border-border'
+                }`}
+              >
+                <div className="text-xs text-muted-foreground mb-1.5 font-medium">
+                  {msg.role === 'user' ? 'You' : 'Claude'}
+                </div>
+                <div className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{msg.content}</div>
               </div>
-              <div className="text-sm whitespace-pre-wrap">{msg.content}</div>
-            </div>
-          ))
-        )}
-        {isSending && (
-          <div className="p-3 rounded bg-[#0a0a0a] mr-8 border border-[#333]">
-            <div className="text-xs text-[#888] mb-1">Claude</div>
-            <div className="text-sm text-[#666]">Thinking...</div>
+            ))}
+            {isSending && (
+              <div className="p-3 rounded-lg bg-sidebar mr-12 border border-border">
+                <div className="text-xs text-muted-foreground mb-1.5 font-medium">Claude</div>
+                <div className="text-sm text-muted-foreground">Thinking...</div>
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* Input */}
-      <div className="p-4 border-t border-[#333]">
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-            placeholder={sessionId ? "Ask Claude..." : "Starting session..."}
-            disabled={isSending || !sessionId}
-            className="flex-1 bg-[#1a1a1a] border border-[#333] rounded px-3 py-2 text-sm focus:outline-none focus:border-[#4CAF50] disabled:opacity-50"
-          />
-          <button
-            onClick={handleSend}
-            disabled={!input.trim() || isSending || !sessionId}
-            className="bg-[#4CAF50] hover:bg-[#45a049] disabled:bg-[#333] disabled:cursor-not-allowed px-4 py-2 rounded text-sm font-medium transition-colors"
+      {/* Input Section - Bottom */}
+      <div className="p-6">
+        <div className="max-w-3xl mx-auto">
+          {/* Outer Card (Large Rectangle) - F4F4F4, border D3D3D3, radius 25px */}
+          <div
+            className="relative bg-[#F4F4F4] border border-[#D3D3D3]"
+            style={{
+              borderRadius: '25px',
+              boxShadow: '0px 4px 25px 0px rgba(160, 160, 160, 0.05)'
+            }}
           >
-            Send
-          </button>
+            {/* Top Section - Context Area (50px height) */}
+            <div className="h-[50px] px-4 flex items-center">
+              <div className="flex items-center gap-2">
+                <div className="grid grid-cols-3 gap-0.5 w-4">
+                  {[...Array(9)].map((_, i) => (
+                    <div key={i} className="w-1 h-1 rounded-full bg-pink-500" />
+                  ))}
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  Check plan from {workspace.branch}
+                </span>
+              </div>
+            </div>
+
+            {/* Inner Card (Small Rectangle) - F9F9F9, radius 22px */}
+            <div
+              className="bg-[#F9F9F9] mx-4 mb-4 p-4"
+              style={{ borderRadius: '22px' }}
+            >
+              {/* Textarea */}
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    handleSend();
+                  }
+                }}
+                placeholder="Make something wonderful..."
+                disabled={isSending || !sessionId}
+                className="w-full text-base text-foreground placeholder-muted-foreground bg-transparent border-none outline-none resize-none mb-4 leading-relaxed"
+                rows={2}
+              />
+
+              {/* Control Bar */}
+              <div className="flex items-center justify-between">
+                {/* Left: Mode Toggles */}
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setSelectedModel('sonnet')}
+                    className={`px-6 py-3 rounded-full text-sm font-medium transition-colors border ${
+                      selectedModel === 'sonnet'
+                        ? 'bg-[#E8E8E8] border-[#E8E8E8] text-foreground'
+                        : 'bg-transparent border-transparent text-muted-foreground hover:bg-[#E8E8E8]/50'
+                    }`}
+                  >
+                    Sonnet
+                  </button>
+                  <button
+                    onClick={() => setSelectedModel('think')}
+                    className={`px-6 py-3 rounded-full text-sm font-medium transition-colors flex items-center gap-2 border ${
+                      selectedModel === 'think'
+                        ? 'bg-[#E8E8E8] border-[#E8E8E8] text-foreground'
+                        : 'bg-transparent border-transparent text-muted-foreground hover:bg-[#E8E8E8]/50'
+                    }`}
+                  >
+                    <Grid3x3 size={16} />
+                    Think
+                  </button>
+                  <button
+                    onClick={() => setSelectedModel('agent')}
+                    className={`px-6 py-3 rounded-full text-sm font-medium transition-colors flex items-center gap-2 border ${
+                      selectedModel === 'agent'
+                        ? 'bg-[#E8E8E8] border-[#E8E8E8] text-foreground'
+                        : 'bg-transparent border-transparent text-muted-foreground hover:bg-[#E8E8E8]/50'
+                    }`}
+                  >
+                    <MessageSquare size={16} />
+                    Agent
+                  </button>
+                </div>
+
+                {/* Right: Send Button */}
+                <button
+                  onClick={handleSend}
+                  disabled={!input.trim() || isSending || !sessionId}
+                  className="w-12 h-12 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-muted disabled:to-muted disabled:cursor-not-allowed flex items-center justify-center transition-all"
+                >
+                  <ArrowUp size={20} className="text-white" strokeWidth={2.5} />
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
