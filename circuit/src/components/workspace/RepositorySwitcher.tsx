@@ -10,6 +10,25 @@ interface RepositorySwitcherProps {
   onCreateRepository?: () => void;
 }
 
+// Generate consistent color from string (repository name)
+const getAvatarColor = (name: string): string => {
+  const colors = [
+    'oklch(0.58 0.10 40)',   // Muted orange
+    'oklch(0.55 0.15 250)',  // Blue
+    'oklch(0.55 0.15 150)',  // Green
+    'oklch(0.55 0.18 290)',  // Purple
+    'oklch(0.55 0.20 25)',   // Red
+    'oklch(0.62 0.12 60)',   // Yellow
+  ];
+
+  // Simple hash function to get consistent color index
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return colors[Math.abs(hash) % colors.length];
+};
+
 export const RepositorySwitcher: React.FC<RepositorySwitcherProps> = ({
   currentRepository,
   repositories = [],
@@ -17,6 +36,10 @@ export const RepositorySwitcher: React.FC<RepositorySwitcherProps> = ({
   onCreateRepository,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+
+  // Get first letter for avatar
+  const firstLetter = currentRepository.name.charAt(0).toUpperCase();
+  const avatarColor = getAvatarColor(currentRepository.name);
 
   return (
     <div className="relative">
@@ -30,9 +53,14 @@ export const RepositorySwitcher: React.FC<RepositorySwitcherProps> = ({
           "group"
         )}
       >
-        {/* Repository Icon */}
-        <div className="flex-shrink-0 w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
-          <FolderGit2 size={14} className="text-primary-foreground" />
+        {/* Repository Avatar (First Letter) */}
+        <div
+          className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center"
+          style={{ backgroundColor: avatarColor }}
+        >
+          <span className="text-white text-base font-bold select-none">
+            {firstLetter}
+          </span>
         </div>
 
         {/* Repository Info */}
@@ -41,7 +69,7 @@ export const RepositorySwitcher: React.FC<RepositorySwitcherProps> = ({
             {currentRepository.name}
           </span>
           <span className="text-xs text-sidebar-foreground-muted truncate w-full text-left">
-            {repositories.length} workspace(s)
+            {currentRepository.defaultBranch || 'main'}
           </span>
         </div>
 
@@ -70,15 +98,20 @@ export const RepositorySwitcher: React.FC<RepositorySwitcherProps> = ({
             <div className="p-2 border-b border-border">
               <div className="px-3 py-2 rounded-md bg-sidebar-accent">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-md bg-primary flex items-center justify-center">
-                    <FolderGit2 size={16} className="text-primary-foreground" />
+                  <div
+                    className="w-8 h-8 rounded-md flex items-center justify-center"
+                    style={{ backgroundColor: avatarColor }}
+                  >
+                    <span className="text-white text-base font-bold select-none">
+                      {firstLetter}
+                    </span>
                   </div>
                   <div className="flex flex-col flex-1 min-w-0">
                     <span className="text-sm font-medium text-foreground truncate">
                       {currentRepository.name}
                     </span>
                     <span className="text-xs text-muted-foreground truncate">
-                      Current repository
+                      {currentRepository.defaultBranch || 'main'}
                     </span>
                   </div>
                 </div>
@@ -93,32 +126,42 @@ export const RepositorySwitcher: React.FC<RepositorySwitcherProps> = ({
                 </div>
                 {repositories
                   .filter((repo) => repo.id !== currentRepository.id)
-                  .map((repo) => (
-                    <button
-                      key={repo.id}
-                      onClick={() => {
-                        onSelectRepository?.(repo);
-                        setIsOpen(false);
-                      }}
-                      className={cn(
-                        "w-full flex items-center gap-3 px-3 py-2 rounded-md",
-                        "transition-all duration-200",
-                        "hover:bg-sidebar-hover"
-                      )}
-                    >
-                      <div className="w-8 h-8 rounded-md bg-muted flex items-center justify-center">
-                        <FolderGit2 size={16} className="text-muted-foreground" />
-                      </div>
-                      <div className="flex flex-col items-start flex-1 min-w-0">
-                        <span className="text-sm font-medium text-foreground truncate w-full">
-                          {repo.name}
-                        </span>
-                        <span className="text-xs text-muted-foreground truncate w-full">
-                          {repo.path}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
+                  .map((repo) => {
+                    const repoFirstLetter = repo.name.charAt(0).toUpperCase();
+                    const repoColor = getAvatarColor(repo.name);
+
+                    return (
+                      <button
+                        key={repo.id}
+                        onClick={() => {
+                          onSelectRepository?.(repo);
+                          setIsOpen(false);
+                        }}
+                        className={cn(
+                          "w-full flex items-center gap-3 px-3 py-2 rounded-md",
+                          "transition-all duration-200",
+                          "hover:bg-sidebar-hover"
+                        )}
+                      >
+                        <div
+                          className="w-8 h-8 rounded-md flex items-center justify-center"
+                          style={{ backgroundColor: repoColor }}
+                        >
+                          <span className="text-white text-base font-bold select-none">
+                            {repoFirstLetter}
+                          </span>
+                        </div>
+                        <div className="flex flex-col items-start flex-1 min-w-0">
+                          <span className="text-sm font-medium text-foreground truncate w-full">
+                            {repo.name}
+                          </span>
+                          <span className="text-xs text-muted-foreground truncate w-full">
+                            {repo.defaultBranch || 'main'}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
               </div>
             )}
 
