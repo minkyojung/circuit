@@ -295,9 +295,9 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                       className="h-auto py-2.5 px-3 pr-8 group"
                     >
                       {/* Improved layout */}
-                      <div className="flex items-center gap-3 w-full min-w-0">
+                      <div className="flex items-start gap-3 w-full min-w-0">
                         {/* Icon */}
-                        <FolderGit2 size={16} className="flex-shrink-0" />
+                        <FolderGit2 size={16} className="flex-shrink-0 text-sidebar-foreground-muted/40 mt-0.5" />
 
                         {/* Content */}
                         <div className="flex-1 min-w-0 space-y-1">
@@ -315,39 +315,43 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                             </div>
                           </div>
 
-                          {/* Bottom row: Secondary info (progressive disclosure) */}
-                          <div className="flex items-center gap-2 text-xs text-sidebar-foreground-muted">
-                            {showBranch && (
+                          {/* Bottom row: Branch info with stats */}
+                          {showBranch && (
+                            <div className="flex items-center gap-1.5 text-xs text-sidebar-foreground-muted">
                               <div className="flex items-center gap-1 truncate">
-                                <GitBranch size={12} className="flex-shrink-0" />
-                                <span className="truncate">{workspace.branch}</span>
+                                <GitBranch size={11} className="flex-shrink-0" />
+                                <span className="truncate text-[11px]">{workspace.branch}</span>
                               </div>
-                            )}
-                            {status && !status.clean && (
-                              <div className="flex items-center gap-1.5 text-status-working flex-shrink-0">
-                                {status.modified > 0 && <span>{status.modified}M</span>}
-                                {status.added > 0 && <span>{status.added}A</span>}
-                                {status.deleted > 0 && <span>{status.deleted}D</span>}
-                                {status.untracked > 0 && <span>{status.untracked}U</span>}
-                              </div>
-                            )}
-                            {status && (status.ahead > 0 || status.behind > 0) && (
-                              <div className="flex items-center gap-1.5 flex-shrink-0">
-                                {status.ahead > 0 && (
-                                  <span className="flex items-center gap-0.5 text-status-ahead">
-                                    <ArrowUp size={12} />
-                                    {status.ahead}
-                                  </span>
-                                )}
-                                {status.behind > 0 && (
-                                  <span className="flex items-center gap-0.5 text-status-behind">
-                                    <ArrowDown size={12} />
-                                    {status.behind}
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                          </div>
+
+                              {/* Code stats - files changed */}
+                              {status && !status.clean && (
+                                <div className="flex items-center gap-1 flex-shrink-0">
+                                  {(status.added > 0 || status.modified > 0) && (
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-status-synced/10 text-status-synced text-[10px] font-mono font-medium">
+                                      +{status.added + status.modified}
+                                    </span>
+                                  )}
+                                  {status.deleted > 0 && (
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-status-behind/10 text-status-behind text-[10px] font-mono font-medium">
+                                      -{status.deleted}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Creation time */}
+                              <span className="flex-shrink-0 text-[10px]">
+                                {new Date(workspace.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              </span>
+
+                              {/* Original workspace name - only show if different from display name */}
+                              {workspace.name !== workspace.branch && (
+                                <span className="flex-shrink-0 text-[10px] opacity-50 truncate max-w-[100px]">
+                                  ({workspace.branch})
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </SidebarMenuButton>
