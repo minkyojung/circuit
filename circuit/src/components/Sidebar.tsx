@@ -22,9 +22,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ selectedWorkspaceId, onSelectW
   const [isLoading, setIsLoading] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
 
-  // Create a temporary repository from project path
-  // TODO: Later, fetch actual repositories from backend
-  const repository: Repository = useMemo(() => {
+  // Repository state management
+  const [repositories, setRepositories] = useState<Repository[]>([]);
+  const [currentRepository, setCurrentRepository] = useState<Repository | null>(null);
+  const [isLoadingRepos, setIsLoadingRepos] = useState(false);
+
+  // Create a temporary repository from project path as fallback
+  const fallbackRepository: Repository = useMemo(() => {
     const projectName = projectPath.split('/').filter(Boolean).pop() || 'Unknown Project';
     return {
       id: 'temp-repo-1',
@@ -35,6 +39,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ selectedWorkspaceId, onSelectW
       createdAt: new Date().toISOString(),
     };
   }, [projectPath]);
+
+  // Load repositories on mount
+  useEffect(() => {
+    loadRepositories();
+  }, []);
 
   // Load workspaces on mount
   useEffect(() => {
@@ -71,6 +80,30 @@ export const Sidebar: React.FC<SidebarProps> = ({ selectedWorkspaceId, onSelectW
 
     return () => clearInterval(interval);
   }, [workspaces]);
+
+  const loadRepositories = async () => {
+    setIsLoadingRepos(true);
+    try {
+      const result = await ipcRenderer.invoke('repository:list');
+
+      if (result.success && result.repositories) {
+        setRepositories(result.repositories);
+
+        // Select first repository or restore last selected from localStorage
+        if (result.repositories.length > 0) {
+          const lastSelectedId = localStorage.getItem('lastSelectedRepositoryId');
+          const lastSelected = result.repositories.find((r: Repository) => r.id === lastSelectedId);
+          setCurrentRepository(lastSelected || result.repositories[0]);
+        }
+      } else {
+        console.error('Failed to load repositories:', result.error);
+      }
+    } catch (error) {
+      console.error('Error loading repositories:', error);
+    } finally {
+      setIsLoadingRepos(false);
+    }
+  };
 
   const loadWorkspaces = async () => {
     setIsLoading(true);
@@ -131,6 +164,56 @@ export const Sidebar: React.FC<SidebarProps> = ({ selectedWorkspaceId, onSelectW
     }
   };
 
+  const handleCreateRepository = async () => {
+    try {
+      const result = await ipcRenderer.invoke('repository:create');
+
+      if (result.success && result.repository) {
+        console.log('✅ Repository added:', result.repository.name);
+        setRepositories([...repositories, result.repository]);
+        setCurrentRepository(result.repository);
+        localStorage.setItem('lastSelectedRepositoryId', result.repository.id);
+      } else if (result.error !== 'User canceled selection') {
+        alert(`Failed to add repository: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Error adding repository:', error);
+      alert(`Error: ${error}`);
+    }
+  };
+
+  const handleCloneRepository = async () => {
+    try {
+      const gitUrl = prompt('Enter Git repository URL:');
+      if (!gitUrl) return;
+
+      const result = await ipcRenderer.invoke('repository:clone', gitUrl);
+
+      if (result.success && result.repository) {
+        console.log('✅ Repository cloned:', result.repository.name);
+        setRepositories([...repositories, result.repository]);
+        setCurrentRepository(result.repository);
+        localStorage.setItem('lastSelectedRepositoryId', result.repository.id);
+      } else {
+        alert(`Failed to clone repository: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Error cloning repository:', error);
+      alert(`Error: ${error}`);
+    }
+  };
+
+  const handleSelectRepository = (repo: Repository) => {
+    setCurrentRepository(repo);
+    localStorage.setItem('lastSelectedRepositoryId', repo.id);
+  };
+
+  // Filter workspaces by current repository
+  const filteredWorkspaces = useMemo(() => {
+    if (!currentRepository) return workspaces;
+    return workspaces.filter(w => w.repositoryId === currentRepository.id);
+  }, [workspaces, currentRepository]);
+
   return (
     <aside className="w-[250px] bg-sidebar border-r border-sidebar-border flex flex-col">
       {/* Sidebar Top - Traffic Lights Area (Fully Draggable) */}
@@ -142,12 +225,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ selectedWorkspaceId, onSelectW
       {/* Repository Switcher */}
       <div className="p-3 border-b border-sidebar-border">
         <RepositorySwitcher
-          currentRepository={repository}
-          repositories={[repository]}
-          onCreateRepository={() => {
-            // TODO: Implement repository creation
-            console.log('Create new repository');
-          }}
+          currentRepository={currentRepository || fallbackRepository}
+          repositories={repositories.length > 0 ? repositories : [fallbackRepository]}
+          onSelectRepository={handleSelectRepository}
+          onCreateRepository={handleCreateRepository}
+          onCloneRepository={handleCloneRepository}
         />
       </div>
 
@@ -167,13 +249,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ selectedWorkspaceId, onSelectW
 
       {/* Workspace List */}
       <div className="flex-1 overflow-auto py-2">
-        {workspaces.length === 0 ? (
+        {filteredWorkspaces.length === 0 ? (
           <div className="p-6 text-center text-sidebar-foreground-muted">
             <p className="text-sm">No workspaces yet</p>
             <p className="text-xs mt-2">Create your first workspace</p>
           </div>
         ) : (
-          workspaces.map((workspace) => (
+          filteredWorkspaces.map((workspace) => (
             <WorkspaceItem
               key={workspace.id}
               workspace={workspace}
@@ -189,7 +271,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ selectedWorkspaceId, onSelectW
       {/* Bottom Status */}
       <div className="p-3 border-t border-sidebar-border">
         <div className="flex items-center justify-between text-xs text-sidebar-foreground-muted">
-          <span>{workspaces.length} workspace(s)</span>
+          <span>{filteredWorkspaces.length} workspace(s)</span>
           <div className="flex items-center gap-2">
             <div className="h-2 w-2 rounded-full bg-status-synced" />
             <span>Ready</span>
