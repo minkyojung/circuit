@@ -2,6 +2,12 @@ import React, { useState, useEffect } from 'react';
 import type { Workspace } from '@/types/workspace';
 import Editor, { loader } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
+import { FileExplorer } from './FileExplorer';
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from '@/components/ui/resizable';
 
 // Configure Monaco Editor to use local files instead of CDN
 loader.config({ monaco });
@@ -20,9 +26,9 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
   prefillMessage = null,
   onPrefillCleared
 }) => {
-  const [chatWidth, setChatWidth] = useState(40); // Percentage
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [openFiles, setOpenFiles] = useState<string[]>([]);
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
 
   // Start Claude session when workspace changes
   useEffect(() => {
@@ -57,13 +63,31 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
     }
   };
 
+  const handleFileSelect = (filePath: string) => {
+    console.log('[WorkspaceChatEditor] File selected:', filePath);
+    setSelectedFile(filePath);
+
+    // Also add to open files if not already there
+    if (!openFiles.includes(filePath)) {
+      setOpenFiles([...openFiles, filePath]);
+    }
+  };
+
   return (
-    <div className="h-full flex">
-      {/* Left: Chat Panel */}
-      <div
-        style={{ width: `${chatWidth}%` }}
-        className="border-r border-[#333] flex flex-col bg-[#0a0a0a]"
-      >
+    <ResizablePanelGroup direction="horizontal" className="h-full">
+      {/* File Explorer Panel */}
+      <ResizablePanel defaultSize={20} minSize={15} maxSize={30}>
+        <FileExplorer
+          workspacePath={workspace.path}
+          onFileSelect={handleFileSelect}
+          selectedFile={selectedFile}
+        />
+      </ResizablePanel>
+
+      <ResizableHandle withHandle />
+
+      {/* Chat Panel */}
+      <ResizablePanel defaultSize={selectedFile ? 40 : 80} minSize={30}>
         <ChatPanel
           workspace={workspace}
           sessionId={sessionId}
@@ -71,37 +95,23 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
           prefillMessage={prefillMessage}
           onPrefillCleared={onPrefillCleared}
         />
-      </div>
+      </ResizablePanel>
 
-      {/* Resizer */}
-      <div
-        className="w-1 bg-[#333] hover:bg-[#4CAF50] cursor-col-resize transition-colors"
-        onMouseDown={(e) => {
-          e.preventDefault();
-          const startX = e.clientX;
-          const startWidth = chatWidth;
-
-          const handleMouseMove = (moveE: MouseEvent) => {
-            const deltaX = moveE.clientX - startX;
-            const newWidth = startWidth + (deltaX / window.innerWidth) * 100;
-            setChatWidth(Math.max(20, Math.min(80, newWidth)));
-          };
-
-          const handleMouseUp = () => {
-            document.removeEventListener('mousemove', handleMouseMove);
-            document.removeEventListener('mouseup', handleMouseUp);
-          };
-
-          document.addEventListener('mousemove', handleMouseMove);
-          document.addEventListener('mouseup', handleMouseUp);
-        }}
-      />
-
-      {/* Right: Editor Panel */}
-      <div className="flex-1 flex flex-col bg-[#1a1a1a]">
-        <EditorPanel workspace={workspace} openFiles={openFiles} />
-      </div>
-    </div>
+      {/* Editor Panel (conditional) */}
+      {selectedFile && (
+        <>
+          <ResizableHandle withHandle />
+          <ResizablePanel defaultSize={40} minSize={30}>
+            <EditorPanel
+              workspace={workspace}
+              openFiles={openFiles}
+              selectedFile={selectedFile}
+              onFileSelect={setSelectedFile}
+            />
+          </ResizablePanel>
+        </>
+      )}
+    </ResizablePanelGroup>
   );
 };
 
@@ -330,19 +340,20 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 interface EditorPanelProps {
   workspace: Workspace;
   openFiles: string[];
+  selectedFile: string | null;
+  onFileSelect: (filePath: string) => void;
 }
 
-const EditorPanel: React.FC<EditorPanelProps> = ({ workspace, openFiles }) => {
-  const [activeFile, setActiveFile] = useState<string | null>(null);
+const EditorPanel: React.FC<EditorPanelProps> = ({
+  workspace,
+  openFiles,
+  selectedFile,
+  onFileSelect,
+}) => {
   const [fileContent, setFileContent] = useState<string>('');
   const [isLoadingFile, setIsLoadingFile] = useState(false);
 
-  // Auto-select first file when files are opened
-  useEffect(() => {
-    if (openFiles.length > 0 && !activeFile) {
-      setActiveFile(openFiles[0]);
-    }
-  }, [openFiles, activeFile]);
+  const activeFile = selectedFile;
 
   // Load file contents when active file changes
   useEffect(() => {
@@ -392,7 +403,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({ workspace, openFiles }) => {
           {openFiles.map((file) => (
             <div
               key={file}
-              onClick={() => setActiveFile(file)}
+              onClick={() => onFileSelect(file)}
               className={`px-3 py-1 rounded text-xs cursor-pointer whitespace-nowrap ${
                 activeFile === file
                   ? 'bg-[#1a1a1a] text-white'

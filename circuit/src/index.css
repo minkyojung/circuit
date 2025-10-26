@@ -100,11 +100,31 @@
 @layer base {
   * {
     @apply border-border;
-
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
 
+/* Sidebar layout fixes */
+@layer components {
+  /* Prevent sidebar overlap when collapsed */
+  .group\/sidebar-wrapper:has([data-state="collapsed"][data-variant="inset"]) {
+    @apply bg-sidebar;
   }
 
+  /* Ensure SidebarInset respects collapsed state */
+  [data-state="collapsed"][data-variant="inset"] ~ main {
+    margin-left: 0;
+  }
+
+  /* Fix traffic lights area - ensure it's always draggable */
+  [data-webkit-app-region="drag"] {
+    -webkit-app-region: drag;
+    user-select: none;
+  }
+
+  [data-webkit-app-region="no-drag"] {
+    -webkit-app-region: no-drag;
+  }
 }
