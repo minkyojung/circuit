@@ -181,9 +181,9 @@ export const DotMatrixAvatar: React.FC<DotMatrixAvatarProps> = ({
 
   // Size configurations
   const sizes = {
-    sm: { container: 'w-6 h-6', dot: 'w-1 h-1', gap: 'gap-0.5' },
-    md: { container: 'w-8 h-8', dot: 'w-1.5 h-1.5', gap: 'gap-0.5' },
-    lg: { container: 'w-10 h-10', dot: 'w-2 h-2', gap: 'gap-1' },
+    sm: { container: 'w-6 h-6', dot: 'w-1 h-1', gap: 'gap-[2px]' },
+    md: { container: 'w-8 h-8', dot: 'w-[3px] h-[3px]', gap: 'gap-[2px]' },
+    lg: { container: 'w-10 h-10', dot: 'w-1 h-1', gap: 'gap-[3px]' },
   };
 
   const sizeConfig = sizes[size];
@@ -191,14 +191,11 @@ export const DotMatrixAvatar: React.FC<DotMatrixAvatarProps> = ({
   return (
     <div
       className={cn(
-        'rounded-lg flex items-center justify-center p-1.5',
+        'rounded-lg flex items-center justify-center p-1',
+        'bg-black/90 dark:bg-black/95',
         sizeConfig.container,
         className
       )}
-      style={{
-        backgroundColor: 'oklch(0.12 0 0)',
-        border: '1px solid oklch(0.20 0 0)'
-      }}
     >
       <div className={cn('grid grid-cols-4', sizeConfig.gap)}>
         {pattern.flat().map((filled, index) => {
@@ -216,10 +213,10 @@ export const DotMatrixAvatar: React.FC<DotMatrixAvatarProps> = ({
                 animate && filled && 'animate-pulse-glow'
               )}
               style={{
-                backgroundColor: filled ? color : 'oklch(0.25 0 0)',
-                opacity: filled ? 1 : 0.3,
+                backgroundColor: filled ? color : '#333',
+                opacity: filled ? 1 : 0.25,
                 boxShadow: filled
-                  ? `0 0 4px ${color}, 0 0 8px ${color}80`
+                  ? `0 0 3px ${color}, 0 0 6px ${color}`
                   : undefined,
                 animationDelay: animate && filled ? `${delay}ms` : undefined,
               }}
