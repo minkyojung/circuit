@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import type { Workspace, WorkspaceCreateResult, WorkspaceListResult, WorkspaceStatus } from '@/types/workspace';
 import { WorkspaceList } from './WorkspaceList';
 import { Plus, RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 // @ts-ignore - Electron IPC
 const { ipcRenderer } = window.require('electron');
@@ -119,28 +121,15 @@ export const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({ onSelectWork
   };
 
   return (
-    <div
-      style={{
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        backgroundColor: '#0a0a0a',
-      }}
-    >
+    <div className="h-full flex flex-col bg-background">
       {/* Header */}
-      <div
-        style={{
-          padding: '16px',
-          borderBottom: '1px solid #333',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>Workspaces</h2>
+      <div className="p-4 border-b border-border flex items-center justify-between">
+        <h2 className="m-0 text-lg font-semibold text-foreground">Workspaces</h2>
 
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => {
               loadWorkspaces();
               if (workspaces.length > 0) {
@@ -148,48 +137,25 @@ export const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({ onSelectWork
               }
             }}
             disabled={isLoading}
-            style={{
-              background: 'none',
-              border: '1px solid #333',
-              borderRadius: '6px',
-              padding: '8px 12px',
-              color: '#fff',
-              cursor: isLoading ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              transition: 'all 0.2s ease',
-            }}
           >
-            <RefreshCw size={16} className={isLoading ? 'spin' : ''} />
+            <RefreshCw size={16} className={cn(isLoading && 'animate-spin')} />
             Refresh
-          </button>
+          </Button>
 
-          <button
+          <Button
+            variant="default"
+            size="sm"
             onClick={createWorkspace}
             disabled={isCreating}
-            style={{
-              background: '#4CAF50',
-              border: 'none',
-              borderRadius: '6px',
-              padding: '8px 16px',
-              color: '#000',
-              fontWeight: 600,
-              cursor: isCreating ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              transition: 'all 0.2s ease',
-            }}
           >
             <Plus size={16} />
             {isCreating ? 'Creating...' : 'New Workspace'}
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* Workspace List */}
-      <div style={{ flex: 1, overflow: 'auto' }}>
+      <div className="flex-1 overflow-auto">
         <WorkspaceList
           workspaces={workspaces}
           statuses={statuses}
@@ -200,16 +166,7 @@ export const WorkspaceManager: React.FC<WorkspaceManagerProps> = ({ onSelectWork
       </div>
 
       {/* Footer Info */}
-      <div
-        style={{
-          padding: '12px 16px',
-          borderTop: '1px solid #333',
-          fontSize: '12px',
-          color: '#666',
-          display: 'flex',
-          justifyContent: 'space-between',
-        }}
-      >
+      <div className="px-4 py-3 border-t border-border text-xs text-muted-foreground flex justify-between">
         <span>{workspaces.length} workspace(s)</span>
         <span>Git Worktree Isolation</span>
       </div>

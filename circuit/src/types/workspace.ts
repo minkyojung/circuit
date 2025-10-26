@@ -1,14 +1,49 @@
 /**
  * Workspace Type Definitions
- * Git worktree-based workspace isolation
+ * Git worktree-based workspace isolation with Repository grouping
  */
 
-export interface Workspace {
-  /** Unique identifier (same as branch name) */
+/**
+ * Repository: One cloned Git repository that contains multiple workspaces
+ */
+export interface Repository {
+  /** Unique identifier (UUID) */
   id: string;
 
-  /** Display name for the workspace */
+  /** Repository display name */
   name: string;
+
+  /** Absolute path to main repository */
+  path: string;
+
+  /** Git remote URL */
+  remoteUrl: string | null;
+
+  /** Default branch (main/master) */
+  defaultBranch: string;
+
+  /** ISO timestamp of creation */
+  createdAt: string;
+}
+
+/**
+ * Workspace: Branch-based isolated working environment
+ */
+export interface Workspace {
+  /** Unique identifier (UUID, immutable) */
+  id: string;
+
+  /** Repository this workspace belongs to */
+  repositoryId: string;
+
+  /** User-friendly display name (editable) */
+  displayName: string;
+
+  /** Optional description */
+  description?: string;
+
+  /** Optional emoji for visual distinction */
+  emoji?: string;
 
   /** Git branch name */
   branch: string;
@@ -17,10 +52,25 @@ export interface Workspace {
   path: string;
 
   /** ISO timestamp of creation */
-  createdAt: string | null;
+  createdAt: string;
+
+  /** ISO timestamp of last update */
+  updatedAt: string;
+
+  /** Who created this workspace */
+  createdBy: 'user' | 'ai';
+
+  /** Purpose/type of workspace */
+  purpose?: 'feature' | 'bugfix' | 'experiment' | 'refactor';
+
+  /** Tags for organization */
+  tags?: string[];
 
   /** Whether this workspace is currently active */
   isActive: boolean;
+
+  /** Legacy: kept for backwards compatibility, same as displayName */
+  name: string;
 }
 
 export interface WorkspaceStatus {

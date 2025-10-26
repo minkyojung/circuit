@@ -196,33 +196,33 @@ export const ConflictResolverDialog: React.FC<ConflictResolverDialogProps> = ({
     const progress = totalFiles > 0 ? (analyzedFiles / totalFiles) * 100 : 0;
 
     return (
-      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-        <div className="bg-[#1a1a1a] border border-[#333] rounded-lg p-8 w-[500px]">
+      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+        <div className="bg-card border border-border rounded-lg p-8 w-[500px] shadow-xl">
           <div className="flex items-center gap-3 mb-4">
-            <Loader2 className="animate-spin text-[#4CAF50]" size={24} />
-            <span className="text-lg">Claude가 conflict를 분석 중...</span>
+            <Loader2 className="animate-spin text-primary" size={24} />
+            <span className="text-lg text-foreground">Claude가 conflict를 분석 중...</span>
           </div>
 
           {totalFiles > 0 && (
             <>
               {/* Progress bar */}
               <div className="mb-3">
-                <div className="h-2 bg-[#333] rounded-full overflow-hidden">
+                <div className="h-2 bg-secondary rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-[#4CAF50] transition-all duration-300"
+                    className="h-full bg-primary transition-all duration-300"
                     style={{ width: `${progress}%` }}
                   />
                 </div>
               </div>
 
               {/* Progress text */}
-              <div className="text-sm text-[#888] space-y-1">
+              <div className="text-sm text-muted-foreground space-y-1">
                 <div className="flex justify-between">
                   <span>진행률</span>
-                  <span className="text-[#4CAF50] font-medium">{analyzedFiles} / {totalFiles} 파일</span>
+                  <span className="text-primary font-medium">{analyzedFiles} / {totalFiles} 파일</span>
                 </div>
                 {currentFile && (
-                  <div className="text-xs text-[#666] truncate">
+                  <div className="text-xs text-muted-foreground truncate">
                     분석 중: {currentFile}
                   </div>
                 )}
@@ -235,23 +235,23 @@ export const ConflictResolverDialog: React.FC<ConflictResolverDialogProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-[#1a1a1a] border border-[#333] rounded-lg w-full max-w-4xl max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <div className="bg-card border border-border rounded-lg w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-[#333]">
+        <div className="flex items-center justify-between p-4 border-b border-border">
           <div className="flex items-center gap-2">
-            <AlertTriangle className="text-orange-400" size={20} />
-            <h2 className="text-lg font-semibold">Merge Conflict 해결</h2>
+            <AlertTriangle className="text-status-working" size={20} />
+            <h2 className="text-lg font-semibold text-foreground">Merge Conflict 해결</h2>
           </div>
-          <button onClick={handleClose} className="text-[#888] hover:text-white">
+          <button onClick={handleClose} className="text-muted-foreground hover:text-foreground transition-colors">
             <X size={20} />
           </button>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 overflow-y-auto p-4 bg-background">
           {error && (
-            <div className="bg-red-500/10 border border-red-500/30 rounded p-3 mb-4 text-sm text-red-400">
+            <div className="bg-destructive/10 border border-destructive/30 rounded p-3 mb-4 text-sm text-destructive">
               {error}
             </div>
           )}
@@ -259,36 +259,36 @@ export const ConflictResolverDialog: React.FC<ConflictResolverDialogProps> = ({
           {conflicts.map((conflict) => (
             <div key={conflict.file} className="mb-6 last:mb-0">
               {/* File header */}
-              <div className="bg-[#0a0a0a] border border-[#333] rounded-t p-3">
+              <div className="bg-card border border-border rounded-t p-3">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-mono text-[#4CAF50]">{conflict.file}</span>
+                  <span className="text-sm font-mono text-primary">{conflict.file}</span>
                   {selectedOptions[conflict.file] && (
-                    <span className="text-xs bg-[#4CAF50]/20 text-[#4CAF50] px-2 py-1 rounded">
-                      <Check size={12} className="inline mr-1" />
+                    <span className="text-xs bg-primary/20 text-primary px-2 py-1 rounded-md flex items-center gap-1">
+                      <Check size={12} />
                       선택됨
                     </span>
                   )}
                 </div>
-                <p className="text-sm text-[#888] mt-2">{conflict.analysis.explanation}</p>
+                <p className="text-sm text-muted-foreground mt-2">{conflict.analysis.explanation}</p>
               </div>
 
               {/* Options grid */}
-              <div className="grid grid-cols-2 gap-2 p-3 bg-[#0f0f0f] border border-t-0 border-[#333] rounded-b">
+              <div className="grid grid-cols-2 gap-2 p-3 bg-muted border border-t-0 border-border rounded-b">
                 {conflict.analysis.options.map((option) => (
                   <button
                     key={option.id}
                     onClick={() => handleSelectOption(conflict.file, option.id, conflict)}
-                    className={`p-3 rounded border-2 text-left transition-all ${
+                    className={`p-3 rounded-lg border-2 text-left transition-all ${
                       selectedOptions[conflict.file] === option.id
-                        ? 'border-[#4CAF50] bg-[#4CAF50]/10'
-                        : 'border-[#333] hover:border-[#555] bg-[#1a1a1a]'
+                        ? 'border-primary bg-primary/10'
+                        : 'border-border hover:border-primary/50 bg-card'
                     }`}
                   >
                     {/* Title */}
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium">{option.title}</span>
+                      <span className="text-sm font-medium text-foreground">{option.title}</span>
                       {option.badge && (
-                        <span className="text-xs bg-[#4CAF50] text-white px-2 py-0.5 rounded">
+                        <span className="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded-md">
                           {option.badge}
                         </span>
                       )}
@@ -296,7 +296,7 @@ export const ConflictResolverDialog: React.FC<ConflictResolverDialogProps> = ({
 
                     {/* Preview */}
                     {option.preview && (
-                      <pre className="text-xs text-[#888] font-mono bg-[#0a0a0a] p-2 rounded overflow-auto max-h-24">
+                      <pre className="text-xs text-muted-foreground font-mono bg-background p-2 rounded overflow-auto max-h-24">
                         {option.preview.length > 150
                           ? option.preview.substring(0, 150) + '...'
                           : option.preview}
@@ -310,22 +310,22 @@ export const ConflictResolverDialog: React.FC<ConflictResolverDialogProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between p-4 border-t border-[#333]">
-          <div className="text-xs text-[#666]">
+        <div className="flex items-center justify-between p-4 border-t border-border bg-card">
+          <div className="text-xs text-muted-foreground">
             {conflicts.length}개 파일 • {Object.keys(selectedOptions).length}개 선택됨
           </div>
           <div className="flex gap-2">
             <button
               onClick={handleClose}
               disabled={isResolving}
-              className="px-4 py-2 text-sm text-[#888] hover:text-white transition-colors disabled:opacity-50"
+              className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
             >
               취소
             </button>
             <button
               onClick={handleResolve}
               disabled={!allSelected || isResolving}
-              className="px-4 py-2 bg-[#4CAF50] hover:bg-[#45a049] disabled:bg-[#333] disabled:cursor-not-allowed text-white text-sm font-medium rounded transition-colors flex items-center gap-2"
+              className="px-4 py-2 bg-primary hover:bg-primary/90 disabled:bg-secondary disabled:cursor-not-allowed text-primary-foreground text-sm font-medium rounded-lg transition-colors flex items-center gap-2"
             >
               {isResolving ? (
                 <>

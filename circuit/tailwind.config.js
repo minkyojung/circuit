@@ -59,12 +59,23 @@ export default {
   			sidebar: {
   				DEFAULT: 'var(--sidebar)',
   				foreground: 'var(--sidebar-foreground)',
+  				'foreground-muted': 'var(--sidebar-foreground-muted)',
   				primary: 'var(--sidebar-primary)',
   				'primary-foreground': 'var(--sidebar-primary-foreground)',
   				accent: 'var(--sidebar-accent)',
   				'accent-foreground': 'var(--sidebar-accent-foreground)',
+  				hover: 'var(--sidebar-hover)',
   				border: 'var(--sidebar-border)',
   				ring: 'var(--sidebar-ring)'
+  			},
+  			status: {
+  				merged: 'var(--status-merged)',
+  				working: 'var(--status-working)',
+  				ahead: 'var(--status-ahead)',
+  				behind: 'var(--status-behind)',
+  				diverged: 'var(--status-diverged)',
+  				synced: 'var(--status-synced)',
+  				local: 'var(--status-local)'
   			}
   		},
   		keyframes: {

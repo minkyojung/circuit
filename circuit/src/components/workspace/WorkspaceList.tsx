@@ -19,15 +19,9 @@ export const WorkspaceList: React.FC<WorkspaceListProps> = ({
 }) => {
   if (workspaces.length === 0) {
     return (
-      <div
-        style={{
-          padding: '32px',
-          textAlign: 'center',
-          color: '#888',
-        }}
-      >
+      <div className="p-8 text-center text-muted-foreground">
         <p>No workspaces yet</p>
-        <p style={{ fontSize: '14px', marginTop: '8px' }}>
+        <p className="text-sm mt-2">
           Create your first workspace to get started
         </p>
       </div>
@@ -35,7 +29,7 @@ export const WorkspaceList: React.FC<WorkspaceListProps> = ({
   }
 
   return (
-    <div style={{ padding: '16px' }}>
+    <div className="py-2">
       {workspaces.map((workspace) => (
         <WorkspaceItem
           key={workspace.id}

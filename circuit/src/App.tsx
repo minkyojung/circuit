@@ -1,6 +1,7 @@
 import { useState, useEffect, createContext, useContext } from 'react'
-import { WorkspaceManager, WorkspaceChatEditor } from "@/components/workspace"
+import { WorkspaceChatEditor } from "@/components/workspace"
 import { CommitDialog } from "@/components/workspace/CommitDialog"
+import { Sidebar } from "@/components/Sidebar"
 import type { Workspace } from "@/types/workspace"
 import { FolderGit2, GitCommit } from 'lucide-react'
 import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
@@ -64,121 +65,102 @@ function App() {
 
   return (
     <ProjectPathContext.Provider value={{ projectPath, isLoading: isLoadingPath }}>
-      <div className="h-screen flex bg-gradient-to-br from-[#0f0d0c] to-[#1a1412]">
-      {/* Sidebar */}
-      <aside className="w-[200px] glass-sidebar flex flex-col">
-        {/* Sidebar Top - Traffic Lights Area (Fully Draggable) */}
-        <div
-          className="h-[44px] flex items-center px-4"
-          style={{ WebkitAppRegion: 'drag' } as any}
+      <div className="h-screen flex bg-background">
+        {/* Sidebar with Workspace Management */}
+        <Sidebar
+          selectedWorkspaceId={selectedWorkspace?.id || null}
+          onSelectWorkspace={setSelectedWorkspace}
         />
 
-        {/* Sidebar Navigation */}
-        <nav className="flex-1 overflow-auto py-3 px-2">
-          {/* Workspace */}
-          <div className="px-2 py-1.5 flex items-center gap-2.5 text-xs bg-[var(--circuit-orange)]/25 text-[var(--circuit-orange)] font-medium rounded">
-            <FolderGit2 className="h-4 w-4" />
-            <span className="flex-1 text-left">Workspace</span>
-          </div>
-        </nav>
-
-        {/* Bottom Status Bar */}
-        <div className="p-3">
-          <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
-            <div className="h-1.5 w-1.5 rounded-full bg-[var(--circuit-success)]" />
-            <span>Ready</span>
-          </div>
-        </div>
-      </aside>
-
-      {/* Main Content */}
-      <main className="flex-1 overflow-hidden flex flex-col">
-        {/* Main Header (Empty spaces draggable, interactive elements not) */}
-        <header
-          className="h-[44px] bg-transparent flex items-center px-4 gap-4"
-          style={{ WebkitAppRegion: 'drag' } as any}
-        >
-          {/* Left side - could add branch selector or other controls */}
-          <div
-            className="flex items-center gap-2"
-            style={{ WebkitAppRegion: 'no-drag' } as any}
+        {/* Main Content */}
+        <main className="flex-1 overflow-hidden flex flex-col bg-background">
+          {/* Main Header (Empty spaces draggable, interactive elements not) */}
+          <header
+            className="h-[44px] border-b border-border flex items-center px-6 gap-4"
+            style={{ WebkitAppRegion: 'drag' } as any}
           >
-            {/* Placeholder for future controls */}
-          </div>
+            {/* Left side - could add branch selector or other controls */}
+            <div
+              className="flex items-center gap-2"
+              style={{ WebkitAppRegion: 'no-drag' } as any}
+            >
+              {/* Placeholder for future controls */}
+            </div>
 
-          {/* Center - Empty space for dragging */}
-          <div className="flex-1" />
+            {/* Center - Empty space for dragging */}
+            <div className="flex-1" />
 
-          {/* Right side - could add buttons */}
-          <div
-            className="flex items-center gap-2"
-            style={{ WebkitAppRegion: 'no-drag' } as any}
-          >
-            {/* Placeholder for future buttons */}
-          </div>
-        </header>
+            {/* Right side - could add buttons */}
+            <div
+              className="flex items-center gap-2"
+              style={{ WebkitAppRegion: 'no-drag' } as any}
+            >
+              {/* Placeholder for future buttons */}
+            </div>
+          </header>
 
-        {/* Main Content Area */}
-        <div className="flex-1 overflow-auto p-8">
-          <div className="h-full">
-            {selectedWorkspace ? (
-              <div className="h-full flex flex-col">
-                {/* Workspace Header */}
-                <div className="h-[60px] border-b border-[#333] flex items-center justify-between px-6">
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => setSelectedWorkspace(null)}
-                      className="text-sm text-[#888] hover:text-white transition-colors"
-                    >
-                      ← Back to Workspaces
-                    </button>
-                    <div className="h-4 w-[1px] bg-[#333]" />
-                    <FolderGit2 size={18} color="#4CAF50" />
-                    <span className="text-lg font-semibold">{selectedWorkspace.name}</span>
-                    <span className="text-sm text-[#888]">({selectedWorkspace.branch})</span>
+          {/* Main Content Area */}
+          <div className="flex-1 overflow-auto p-8">
+            <div className="h-full">
+              {selectedWorkspace ? (
+                <div className="h-full flex flex-col bg-card">
+                  {/* Workspace Header */}
+                  <div className="h-[60px] border-b border-border flex items-center justify-between px-6 bg-card">
+                    <div className="flex items-center gap-3">
+                      <FolderGit2 size={18} className="text-status-synced" />
+                      <span className="text-lg font-semibold text-foreground">{selectedWorkspace.name}</span>
+                      <span className="text-sm text-muted-foreground">({selectedWorkspace.branch})</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setShowCommitDialog(true)}
+                        className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium rounded-lg transition-colors flex items-center gap-2"
+                      >
+                        <GitCommit size={16} />
+                        Commit & Create PR
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setShowCommitDialog(true)}
-                      className="px-4 py-2 bg-[#4CAF50] hover:bg-[#45a049] text-white text-sm font-medium rounded transition-colors flex items-center gap-2"
-                    >
-                      <GitCommit size={16} />
-                      Commit & Create PR
-                    </button>
+
+                  {/* Chat + Editor Layout */}
+                  <div className="flex-1 overflow-hidden">
+                    <WorkspaceChatEditor
+                      workspace={selectedWorkspace}
+                      prefillMessage={chatPrefillMessage}
+                      onPrefillCleared={() => setChatPrefillMessage(null)}
+                    />
+                  </div>
+
+                  {/* Commit Dialog */}
+                  {showCommitDialog && (
+                    <CommitDialog
+                      workspace={selectedWorkspace}
+                      onClose={() => setShowCommitDialog(false)}
+                      onSuccess={() => {
+                        setShowCommitDialog(false);
+                        // Optionally refresh workspace list or show success message
+                      }}
+                      onRequestDirectEdit={(message) => {
+                        setShowCommitDialog(false);
+                        setChatPrefillMessage(message);
+                      }}
+                    />
+                  )}
+                </div>
+              ) : (
+                <div className="h-full flex items-center justify-center text-center">
+                  <div>
+                    <FolderGit2 size={48} className="mx-auto text-muted-foreground mb-4" />
+                    <h2 className="text-xl font-semibold text-foreground mb-2">No Workspace Selected</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Select a workspace from the sidebar to start coding
+                    </p>
                   </div>
                 </div>
-
-                {/* Chat + Editor Layout */}
-                <div className="flex-1 overflow-hidden">
-                  <WorkspaceChatEditor
-                    workspace={selectedWorkspace}
-                    prefillMessage={chatPrefillMessage}
-                    onPrefillCleared={() => setChatPrefillMessage(null)}
-                  />
-                </div>
-
-                {/* Commit Dialog */}
-                {showCommitDialog && (
-                  <CommitDialog
-                    workspace={selectedWorkspace}
-                    onClose={() => setShowCommitDialog(false)}
-                    onSuccess={() => {
-                      setShowCommitDialog(false);
-                      // Optionally refresh workspace list or show success message
-                    }}
-                    onRequestDirectEdit={(message) => {
-                      setShowCommitDialog(false);
-                      setChatPrefillMessage(message);
-                    }}
-                  />
-                )}
-              </div>
-            ) : (
-              <WorkspaceManager onSelectWorkspace={setSelectedWorkspace} />
-            )}
+              )}
+            </div>
           </div>
-        </div>
-      </main>
+        </main>
       </div>
     </ProjectPathContext.Provider>
   )

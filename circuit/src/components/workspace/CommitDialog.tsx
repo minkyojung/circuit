@@ -154,37 +154,37 @@ export const CommitDialog: React.FC<CommitDialogProps> = ({
   if (prUrl) {
     // Success state - show PR URL
     return (
-      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-        <div className="bg-[#1a1a1a] border border-[#333] rounded-lg w-[600px] p-6">
+      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+        <div className="bg-card border border-border rounded-lg w-[600px] p-6 shadow-2xl">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <GitPullRequest className="text-[#4CAF50]" size={24} />
-              <h2 className="text-xl font-semibold">PR Created Successfully!</h2>
+              <GitPullRequest className="text-primary" size={24} />
+              <h2 className="text-xl font-semibold text-foreground">PR Created Successfully!</h2>
             </div>
-            <button onClick={onClose} className="text-[#888] hover:text-white">
+            <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
               <X size={20} />
             </button>
           </div>
 
-          <div className="bg-[#0a0a0a] border border-[#333] rounded p-4 mb-4">
+          <div className="bg-muted border border-border rounded p-4 mb-4">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-[#888]">Pull Request URL:</span>
+              <span className="text-sm text-muted-foreground">Pull Request URL:</span>
               <a
                 href={prUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-[#4CAF50] hover:text-[#45a049] flex items-center gap-1 text-sm"
+                className="text-primary hover:text-primary/90 flex items-center gap-1 text-sm"
               >
                 Open in GitHub <ExternalLink size={14} />
               </a>
             </div>
-            <div className="mt-2 text-sm break-all">{prUrl}</div>
+            <div className="mt-2 text-sm break-all text-foreground">{prUrl}</div>
           </div>
 
           <div className="flex gap-2">
             <button
               onClick={onSuccess}
-              className="flex-1 px-4 py-2 bg-[#4CAF50] hover:bg-[#45a049] text-white font-medium rounded transition-colors"
+              className="flex-1 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-lg transition-colors"
             >
               Done
             </button>
@@ -195,29 +195,29 @@ export const CommitDialog: React.FC<CommitDialogProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-      <div className="bg-[#1a1a1a] border border-[#333] rounded-lg w-[800px] max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+      <div className="bg-card border border-border rounded-lg w-[800px] max-h-[90vh] flex flex-col shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-[#333]">
+        <div className="flex items-center justify-between p-4 border-b border-border">
           <div className="flex items-center gap-2">
-            <GitCommit className="text-[#4CAF50]" size={20} />
-            <h2 className="text-lg font-semibold">Commit & Create Pull Request</h2>
+            <GitCommit className="text-primary" size={20} />
+            <h2 className="text-lg font-semibold text-foreground">Commit & Create Pull Request</h2>
           </div>
-          <button onClick={onClose} className="text-[#888] hover:text-white">
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
             <X size={20} />
           </button>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-background">
           {/* Sync with main button */}
-          <div className="bg-[#0a0a0a] border border-[#333] rounded p-3">
+          <div className="bg-muted border border-border rounded-lg p-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <GitMerge size={16} className="text-[#888]" />
+                <GitMerge size={16} className="text-muted-foreground" />
                 <div>
-                  <p className="text-sm font-medium">Sync with Main Branch (Optional)</p>
-                  <p className="text-xs text-[#666] mt-1">
+                  <p className="text-sm font-medium text-foreground">Sync with Main Branch (Optional)</p>
+                  <p className="text-xs text-muted-foreground mt-1">
                     Test merge before creating PR. PR creation will auto-sync anyway.
                   </p>
                 </div>
@@ -225,7 +225,7 @@ export const CommitDialog: React.FC<CommitDialogProps> = ({
               <button
                 onClick={handleSyncWithMain}
                 disabled={isSyncing}
-                className="px-4 py-2 bg-[#333] hover:bg-[#444] disabled:bg-[#222] disabled:cursor-not-allowed text-white text-sm font-medium rounded transition-colors flex items-center gap-2"
+                className="px-4 py-2 bg-secondary hover:bg-secondary/80 disabled:bg-muted disabled:cursor-not-allowed text-secondary-foreground text-sm font-medium rounded-lg transition-colors flex items-center gap-2"
               >
                 {isSyncing ? (
                   <>
@@ -244,21 +244,21 @@ export const CommitDialog: React.FC<CommitDialogProps> = ({
 
           {/* Error message */}
           {error && (
-            <div className="bg-red-500/10 border border-red-500/30 rounded p-3 text-sm">
-              <div className="flex items-center gap-2 text-red-400 mb-2">
+            <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3 text-sm">
+              <div className="flex items-center gap-2 text-destructive mb-2">
                 <AlertTriangle size={16} />
                 <span className="font-medium">Error</span>
               </div>
-              <p className="text-red-400">{error}</p>
+              <p className="text-destructive">{error}</p>
               {conflictFiles.length > 0 && (
                 <div className="mt-2">
-                  <p className="text-xs text-red-300 mb-1">Conflicted files:</p>
-                  <ul className="list-disc list-inside text-xs text-red-300 space-y-1">
+                  <p className="text-xs text-destructive/80 mb-1">Conflicted files:</p>
+                  <ul className="list-disc list-inside text-xs text-destructive/80 space-y-1">
                     {conflictFiles.map((file) => (
                       <li key={file}>{file}</li>
                     ))}
                   </ul>
-                  <p className="text-xs text-red-300 mt-2">
+                  <p className="text-xs text-destructive/80 mt-2">
                     Resolve conflicts manually in the workspace, then try syncing again.
                   </p>
                 </div>
@@ -268,77 +268,77 @@ export const CommitDialog: React.FC<CommitDialogProps> = ({
 
           {/* Diff Preview */}
           <div>
-            <label className="block text-sm font-medium mb-2">Changes</label>
-            <div className="bg-[#0a0a0a] border border-[#333] rounded p-3 max-h-[200px] overflow-y-auto">
+            <label className="block text-sm font-medium text-foreground mb-2">Changes</label>
+            <div className="bg-muted border border-border rounded-lg p-3 max-h-[200px] overflow-y-auto">
               {isLoadingDiff ? (
-                <div className="flex items-center gap-2 text-sm text-[#666]">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Loader2 className="animate-spin" size={14} />
                   Loading changes...
                 </div>
               ) : (
-                <pre className="text-xs font-mono whitespace-pre-wrap">{diff}</pre>
+                <pre className="text-xs font-mono whitespace-pre-wrap text-foreground">{diff}</pre>
               )}
             </div>
           </div>
 
           {/* Commit Message */}
           <div>
-            <label className="block text-sm font-medium mb-2">
-              Commit Message <span className="text-red-400">*</span>
+            <label className="block text-sm font-medium text-foreground mb-2">
+              Commit Message <span className="text-destructive">*</span>
             </label>
             <textarea
               value={commitMessage}
               onChange={(e) => setCommitMessage(e.target.value)}
               placeholder="feat: Add new feature..."
-              className="w-full bg-[#0a0a0a] border border-[#333] rounded px-3 py-2 text-sm focus:outline-none focus:border-[#4CAF50] resize-none"
+              className="w-full bg-background border border-input rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-input resize-none"
               rows={3}
             />
           </div>
 
           {/* PR Title */}
           <div>
-            <label className="block text-sm font-medium mb-2">
-              Pull Request Title <span className="text-red-400">*</span>
+            <label className="block text-sm font-medium text-foreground mb-2">
+              Pull Request Title <span className="text-destructive">*</span>
             </label>
             <input
               type="text"
               value={prTitle}
               onChange={(e) => setPrTitle(e.target.value)}
               placeholder="Add new feature"
-              className="w-full bg-[#0a0a0a] border border-[#333] rounded px-3 py-2 text-sm focus:outline-none focus:border-[#4CAF50]"
+              className="w-full bg-background border border-input rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-input"
             />
           </div>
 
           {/* PR Body */}
           <div>
-            <label className="block text-sm font-medium mb-2">Pull Request Description (optional)</label>
+            <label className="block text-sm font-medium text-foreground mb-2">Pull Request Description (optional)</label>
             <textarea
               value={prBody}
               onChange={(e) => setPrBody(e.target.value)}
               placeholder="Describe your changes..."
-              className="w-full bg-[#0a0a0a] border border-[#333] rounded px-3 py-2 text-sm focus:outline-none focus:border-[#4CAF50] resize-none"
+              className="w-full bg-background border border-input rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-input resize-none"
               rows={4}
             />
           </div>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between p-4 border-t border-[#333]">
-          <div className="text-xs text-[#666]">
-            Branch: <span className="text-white">{workspace.branch}</span>
+        <div className="flex items-center justify-between p-4 border-t border-border bg-card">
+          <div className="text-xs text-muted-foreground">
+            Branch: <span className="text-foreground font-medium">{workspace.branch}</span>
           </div>
           <div className="flex gap-2">
             <button
               onClick={onClose}
               disabled={isSubmitting}
-              className="px-4 py-2 text-sm text-[#888] hover:text-white transition-colors disabled:opacity-50"
+              className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               onClick={handleCreatePR}
               disabled={!commitMessage.trim() || !prTitle.trim() || isSubmitting}
-              className="px-4 py-2 bg-[#4CAF50] hover:bg-[#45a049] disabled:bg-[#333] disabled:cursor-not-allowed text-white text-sm font-medium rounded transition-colors flex items-center gap-2"
+              className="px-4 py-2 bg-primary hover:bg-primary/90 disabled:bg-secondary disabled:cursor-not-allowed text-primary-foreground text-sm font-medium rounded-lg transition-colors flex items-center gap-2"
             >
               {isSubmitting ? (
                 <>
