@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useState, useEffect, useMemo } from 'react'
 import type { Workspace, WorkspaceCreateResult, WorkspaceListResult, WorkspaceStatus, Repository } from '@/types/workspace'
-import { Plus, RefreshCw, Trash2, GitBranch, FolderGit2, Check, GitMerge, ArrowUp, ArrowDown, GitCommit, Loader2, Archive } from 'lucide-react'
+import { Plus, Trash2, GitBranch, FolderGit2, Check, GitMerge, ArrowUp, ArrowDown, GitCommit, Loader2, Archive, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useProjectPath } from '@/App'
 import { RepositorySwitcher } from './workspace/RepositorySwitcher'
@@ -20,8 +20,7 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
-import { ThemeToggleIcon } from '@/components/ThemeToggle'
-import { DensityToggleIcon } from '@/components/DensityToggle'
+import { SettingsDialog } from './SettingsDialog'
 
 // @ts-ignore - Electron IPC
 const { ipcRenderer } = window.require('electron')
@@ -35,11 +34,12 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 }
 
 const getStatusBadge = (status?: WorkspaceStatus) => {
+  // If no status yet, show Clean by default (will update when loaded)
   if (!status) {
     return {
-      icon: <Loader2 size={12} className="animate-spin" />,
-      text: 'Loading...',
-      className: 'bg-muted text-muted-foreground',
+      icon: <Check size={12} />,
+      text: 'Clean',
+      className: 'bg-status-synced/10 text-status-synced',
       isMerged: false
     }
   }
@@ -86,6 +86,7 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
   const [isCreating, setIsCreating] = useState(false)
   const [fileTree, setFileTree] = useState<FileNode[]>([])
   const [isLoadingFiles, setIsLoadingFiles] = useState(false)
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 
   // Repository management
   const [repositories, setRepositories] = useState<Repository[]>([])
@@ -115,6 +116,15 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
   // Load workspaces on mount
   useEffect(() => {
     loadWorkspaces()
+  }, [])
+
+  // Auto-refresh workspaces and statuses every 5 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadWorkspaces()
+    }, 5000)
+
+    return () => clearInterval(interval)
   }, [])
 
   // Load statuses for all workspaces
@@ -443,9 +453,9 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                                 const now = Date.now()
                                 const created = new Date(workspace.createdAt).getTime()
 
-                                // Validate date - if invalid or too old (before 2020), show "방금 전"
+                                // Validate date - if invalid or too old (before 2020), show "just now"
                                 if (isNaN(created) || created < new Date('2020-01-01').getTime()) {
-                                  return '방금 전'
+                                  return 'just now'
                                 }
 
                                 const diff = now - created
@@ -453,13 +463,13 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                                 const hours = Math.floor(diff / 3600000)
                                 const days = Math.floor(diff / 86400000)
 
-                                if (minutes < 1) return '방금 전'
-                                if (minutes < 60) return `${minutes}분 전`
-                                if (hours < 24) return `${hours}시간 전`
-                                if (days < 7) return `${days}일 전`
-                                if (days < 30) return `${Math.floor(days / 7)}주 전`
-                                if (days < 365) return `${Math.floor(days / 30)}개월 전`
-                                return `${Math.floor(days / 365)}년 전`
+                                if (minutes < 1) return 'just now'
+                                if (minutes < 60) return `${minutes}m`
+                                if (hours < 24) return `${hours}h`
+                                if (days < 7) return `${days}d`
+                                if (days < 30) return `${Math.floor(days / 7)}w`
+                                if (days < 365) return `${Math.floor(days / 30)}mo`
+                                return `${Math.floor(days / 365)}y`
                               })()}
                             </span>
                           </div>
@@ -479,7 +489,7 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
             variant="ghost"
             onClick={createWorkspace}
             disabled={isCreating}
-            className="w-full h-auto py-2 px-2 justify-start text-sm text-sidebar-foreground-muted hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all duration-200"
+            className="w-full h-auto py-2 px-2 justify-start text-sm text-sidebar-foreground-muted hover:text-sidebar-foreground hover:bg-sidebar-hover transition-all duration-200"
           >
             <Plus size={16} />
             {isCreating ? 'Creating...' : 'New Workspace'}
@@ -498,33 +508,21 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
       </SidebarContent>
 
       <SidebarFooter>
-        <div className="flex items-center justify-between text-sm px-2 py-2">
-          {/* Left: GitHub Status */}
-          <div className="flex items-center gap-2 text-sidebar-foreground-muted">
-            <div className="h-2.5 w-2.5 rounded-full bg-status-synced animate-pulse" />
-            <span className="font-medium">Ready</span>
-          </div>
-
-          {/* Right: Action Buttons */}
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => {
-                loadWorkspaces()
-                if (workspaces.length > 0) {
-                  loadStatuses(workspaces)
-                }
-              }}
-              disabled={isLoading}
-              className="p-1.5 hover:bg-sidebar-accent rounded transition-colors disabled:opacity-50 text-sidebar-foreground-muted hover:text-sidebar-foreground"
-              title="Refresh workspaces"
-            >
-              <RefreshCw size={16} className={cn(isLoading && 'animate-spin')} />
-            </button>
-            <DensityToggleIcon className="hover:bg-sidebar-accent" />
-            <ThemeToggleIcon className="hover:bg-sidebar-accent" />
-          </div>
+        <div className="flex items-center justify-end px-2 py-2">
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            className="p-1.5 hover:bg-sidebar-hover rounded transition-colors text-sidebar-foreground-muted hover:text-sidebar-foreground"
+            title="Settings"
+          >
+            <Settings size={16} />
+          </button>
         </div>
       </SidebarFooter>
+
+      <SettingsDialog
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+      />
     </Sidebar>
   )
 }
