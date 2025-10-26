@@ -1,79 +1,30 @@
+/**
+ * Circuit Design System - Main Stylesheet
+ * Import order matters: tokens → Tailwind → components
+ */
+
+/* Design tokens (colors, spacing, typography) */
+@import './design-tokens.css';
+
+/* Tailwind layers */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ===== BASE STYLES ===== */
 @layer base {
-  :root {
-    --radius: 0.65rem;
-
-    /* Light theme - neutral gray palette */
-    --background: oklch(0.88 0 0);            /* #E0E0E0 - Main background */
-    --foreground: oklch(0.24 0 0);            /* #383838 - Selected text */
-    --foreground-muted: oklch(0.41 0 0);      /* #626262 - Normal text */
-
-    --card: oklch(1 0 0);                     /* #FFFFFF - Cards/surfaces */
-    --card-foreground: oklch(0.24 0 0);       /* #383838 */
-
-    --popover: oklch(1 0 0);                  /* #FFFFFF */
-    --popover-foreground: oklch(0.24 0 0);    /* #383838 */
-
-    --primary: oklch(0.58 0.10 40);           /* Muted orange-brown - harmonious with gray bg */
-    --primary-foreground: oklch(1 0 0);       /* #FFFFFF */
-
-    --secondary: oklch(0.92 0 0);             /* #EBEBEB - Light gray for buttons */
-    --secondary-foreground: oklch(0.24 0 0);  /* #383838 */
-
-    --muted: oklch(0.84 0 0);                 /* #D2D2D2 - Sidebar bg */
-    --muted-foreground: oklch(0.41 0 0);      /* #626262 - Normal text */
-
-    --accent: oklch(0.92 0.02 40);            /* Very light orange tint */
-    --accent-foreground: oklch(0.58 0.10 40); /* Muted orange */
-
-    --destructive: oklch(0.55 0.22 25);       /* Red for destructive actions */
-    --destructive-foreground: oklch(1 0 0);   /* White */
-
-    --border: oklch(0.80 0 0);                /* #CCCCCC - Border */
-    --input: oklch(0.92 0 0);                 /* #EBEBEB - Input background */
-    --ring: oklch(0.58 0.10 40);              /* Muted orange - Focus ring */
-
-    --chart-1: oklch(0.837 0.128 66.29);
-    --chart-2: oklch(0.705 0.213 47.604);
-    --chart-3: oklch(0.646 0.222 41.116);
-    --chart-4: oklch(0.553 0.195 38.402);
-    --chart-5: oklch(0.47 0.157 37.304);
-
-    /* Sidebar colors */
-    --sidebar: oklch(0.84 0 0);               /* #D2D2D2 - Sidebar bg */
-    --sidebar-foreground: oklch(0.24 0 0);    /* #383838 - Selected text */
-    --sidebar-foreground-muted: oklch(0.41 0 0); /* #626262 - Normal text */
-    --sidebar-primary: oklch(0.58 0.10 40);   /* Muted orange */
-    --sidebar-primary-foreground: oklch(1 0 0);
-    --sidebar-accent: oklch(0.95 0 0);        /* #F3F3F3 - Selected workspace bg */
-    --sidebar-accent-foreground: oklch(0.24 0 0); /* #383838 */
-    --sidebar-hover: oklch(0.78 0 0);         /* #C5C5C5 - Hover bg (darker) */
-    --sidebar-border: oklch(0.80 0 0);        /* #CCCCCC */
-    --sidebar-ring: oklch(0.58 0.10 40);
-
-    /* shadcn sidebar compat (HSL format) */
-    --sidebar-background: 0 0% 82%;           /* #D2D2D2 converted to HSL */
-
-    /* Git status colors (light theme) */
-    --status-merged: oklch(0.55 0.18 290);    /* Purple */
-    --status-working: oklch(0.62 0.12 60);    /* Muted yellow-orange */
-    --status-ahead: oklch(0.55 0.15 250);     /* Blue */
-    --status-behind: oklch(0.55 0.20 25);     /* Red */
-    --status-diverged: oklch(0.58 0.12 40);   /* Muted orange */
-    --status-synced: oklch(0.55 0.15 150);    /* Green */
-    --status-local: oklch(0.55 0.05 250);     /* Gray */
-  }
-
-}
-
-@layer base {
-  /* Default font - SF Pro Medium */
+  /* Default typography */
   * {
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    font-weight: 500; /* Medium weight */
+    font-weight: var(--font-medium);
+  }
+
+  /* Body defaults */
+  body {
+    @apply bg-background text-foreground;
+    color: var(--foreground);
+    font-size: var(--font-base);
+    line-height: var(--leading-normal);
   }
 
   /* Only apply background to non-peek-panel windows */
@@ -81,7 +32,7 @@
     background-color: var(--background);
   }
 
-  /* Force transparency for peek panel */
+  /* Force transparency for peek panel (Electron specific) */
   html.peek-panel,
   html.peek-panel body,
   html.peek-panel #root {
@@ -89,36 +40,24 @@
     background: transparent !important;
   }
 
-  body {
-    color: var(--foreground);
-    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', system-ui, sans-serif;
-  }
-}
-
-
-
-@layer base {
+  /* Border color utility */
   * {
     @apply border-border;
   }
-  body {
-    @apply bg-background text-foreground;
-  }
 }
 
-/* Sidebar layout fixes */
+/* ===== COMPONENT LAYER ===== */
 @layer components {
-  /* Prevent sidebar overlap when collapsed */
+  /* Sidebar layout fixes */
   .group\/sidebar-wrapper:has([data-state="collapsed"][data-variant="inset"]) {
     @apply bg-sidebar;
   }
 
-  /* Ensure SidebarInset respects collapsed state */
   [data-state="collapsed"][data-variant="inset"] ~ main {
     margin-left: 0;
   }
 
-  /* Fix traffic lights area - ensure it's always draggable */
+  /* Electron app region (macOS traffic lights) */
   [data-webkit-app-region="drag"] {
     -webkit-app-region: drag;
     user-select: none;
@@ -127,4 +66,14 @@
   [data-webkit-app-region="no-drag"] {
     -webkit-app-region: no-drag;
   }
+
+  /* Typography utilities */
+  .text-xs { font-size: var(--font-xs); }
+  .text-sm { font-size: var(--font-sm); }
+  .text-base { font-size: var(--font-base); }
+  .text-md { font-size: var(--font-md); }
+  .text-lg { font-size: var(--font-lg); }
+  .text-xl { font-size: var(--font-xl); }
+  .text-2xl { font-size: var(--font-2xl); }
+  .text-3xl { font-size: var(--font-3xl); }
 }
