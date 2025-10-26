@@ -257,11 +257,11 @@
     --chart-5: oklch(0.37 0.177 37.304);
 
     /* Window glassmorphism - dark variant */
-    --window-glass: rgba(46, 46, 46, 0.7);    /* Dark mode window glass - glassmorphism effect */
+    --window-glass: rgba(28, 28, 28, 0.85);   /* Dark mode window glass - Apple-style glassmorphism */
 
     /* Sidebar colors - dark variant */
     --sidebar: oklch(0.20 0 0);               /* #2E2E2E */
-    --sidebar-glass: rgba(46, 46, 46, 0.7);   /* Glassmorphism backdrop dark */
+    --sidebar-glass: rgba(28, 28, 28, 0.85);  /* Glassmorphism backdrop dark - Apple-style */
     --sidebar-foreground: oklch(0.98 0 0);    /* Brighter for glassmorphism contrast */
     --sidebar-foreground-muted: oklch(0.75 0 0); /* Brighter muted text */
     --sidebar-primary: oklch(0.65 0.12 40);   /* Brighter orange */
