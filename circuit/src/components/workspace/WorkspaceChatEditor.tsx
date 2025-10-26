@@ -300,8 +300,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     }
   };
 
-  const [selectedModel, setSelectedModel] = useState<'sonnet' | 'think' | 'agent'>('sonnet');
-
   return (
     <div className="h-full bg-[#E0E0E0] flex flex-col">
       {/* Messages Area */}
