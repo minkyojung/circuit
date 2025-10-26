@@ -171,6 +171,9 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
+    transparent: true,
+    vibrancy: 'under-window',  // macOS native glassmorphism
+    visualEffectState: 'active',
     titleBarStyle: process.platform === 'darwin' ? 'hidden' : 'default',
     ...(process.platform === 'darwin' && {
       trafficLightPosition: {
