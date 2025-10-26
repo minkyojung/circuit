@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
  * Theme toggle button with 3-state cycle: light → dark → system
  * Visual feedback shows current theme with appropriate icon
  */
-export const ThemeToggle: React.FC<{ className?: string }> = ({ className }) => {
+export const ThemeToggle: React.FC<{ className?: string; style?: React.CSSProperties }> = ({ className, style }) => {
   const { theme, resolvedTheme, toggleTheme } = useTheme();
 
   const getIcon = () => {
@@ -33,6 +33,7 @@ export const ThemeToggle: React.FC<{ className?: string }> = ({ className }) => 
       size="sm"
       onClick={toggleTheme}
       className={cn('gap-2', className)}
+      style={style}
       title={`Current theme: ${getLabel()}. Click to cycle.`}
     >
       {getIcon()}

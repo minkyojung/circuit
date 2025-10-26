@@ -352,7 +352,7 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
           <SidebarGroupLabel>Workspaces</SidebarGroupLabel>
           <SidebarMenu>
             {workspaces.length === 0 ? (
-              <div className="px-4 py-6 text-center text-white/80 dark:text-gray-600">
+              <div className="px-4 py-6 text-center" style={{ color: 'var(--sidebar-foreground-muted)' }}>
                 <p className="text-sm">No workspaces yet</p>
                 <p className="text-xs mt-2">Create your first workspace</p>
               </div>
@@ -373,13 +373,13 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                       {/* Improved layout */}
                       <div className="flex items-start gap-3 w-full min-w-0">
                         {/* Icon */}
-                        <FolderGit2 size={16} className="flex-shrink-0 text-white/90 dark:text-gray-600 mt-0.5" />
+                        <FolderGit2 size={16} className="flex-shrink-0 mt-0.5" style={{ color: 'var(--sidebar-foreground)' }} />
 
                         {/* Content */}
                         <div className="flex-1 min-w-0 space-y-1">
                           {/* Top row: Name + Status Badge */}
                           <div className="flex items-center gap-2">
-                            <span className="text-base font-semibold text-white/95 dark:text-gray-900 truncate flex-1">
+                            <span className="text-base font-semibold truncate flex-1" style={{ color: 'var(--sidebar-foreground)' }}>
                               {workspace.name}
                             </span>
 
@@ -415,7 +415,7 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                           </div>
 
                           {/* Bottom row: Metadata and stats (always visible) */}
-                          <div className="flex items-center gap-1 text-xs text-white/80 dark:text-gray-600">
+                          <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--sidebar-foreground-muted)' }}>
                             {/* Branch name - always show */}
                             <span className="text-xs flex-shrink-0">{workspace.branch}</span>
 
@@ -477,7 +477,8 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
             variant="ghost"
             onClick={createWorkspace}
             disabled={isCreating}
-            className="w-full h-auto py-2 px-2 justify-start text-sm text-white/90 dark:text-gray-700 hover:text-white dark:hover:text-gray-900 hover:bg-sidebar-hover transition-all duration-200"
+            className="w-full h-auto py-2 px-2 justify-start text-sm hover:bg-sidebar-hover transition-all duration-200"
+            style={{ color: 'var(--sidebar-foreground)' }}
           >
             <Plus size={16} />
             {isCreating ? 'Creating...' : 'New Workspace'}
@@ -496,7 +497,7 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
       </SidebarContent>
 
       <SidebarFooter>
-        <ThemeToggle className="w-full justify-start text-white/90 dark:text-gray-700 hover:text-white dark:hover:text-gray-900" />
+        <ThemeToggle className="w-full justify-start" style={{ color: 'var(--sidebar-foreground)' }} />
       </SidebarFooter>
     </Sidebar>
   )
