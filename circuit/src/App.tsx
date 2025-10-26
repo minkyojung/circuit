@@ -38,6 +38,7 @@ function App() {
   const [projectPath, setProjectPath] = useState<string>('')
   const [isLoadingPath, setIsLoadingPath] = useState<boolean>(true)
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null)
+  const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [showCommitDialog, setShowCommitDialog] = useState<boolean>(false)
   const [chatPrefillMessage, setChatPrefillMessage] = useState<string | null>(null)
 
@@ -81,12 +82,26 @@ function App() {
     return projectPath.split('/').filter(Boolean).pop() || 'Unknown Repository'
   }, [projectPath])
 
+  // Handle file selection from sidebar
+  const handleFileSelect = (filePath: string) => {
+    console.log('[App] File selected:', filePath)
+    setSelectedFile(filePath)
+  }
+
+  // Reset selected file when workspace changes
+  useEffect(() => {
+    setSelectedFile(null)
+  }, [selectedWorkspace?.id])
+
   return (
     <ProjectPathContext.Provider value={{ projectPath, isLoading: isLoadingPath }}>
       <SidebarProvider>
         <AppSidebar
           selectedWorkspaceId={selectedWorkspace?.id || null}
+          selectedWorkspace={selectedWorkspace}
           onSelectWorkspace={setSelectedWorkspace}
+          selectedFile={selectedFile}
+          onFileSelect={handleFileSelect}
         />
         <SidebarInset>
           {/* Main Header with Breadcrumb */}
@@ -164,6 +179,7 @@ function App() {
               <>
                 <WorkspaceChatEditor
                   workspace={selectedWorkspace}
+                  selectedFile={selectedFile}
                   prefillMessage={chatPrefillMessage}
                   onPrefillCleared={() => setChatPrefillMessage(null)}
                 />

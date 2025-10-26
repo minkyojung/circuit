@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useState, useEffect, useMemo } from 'react'
 import type { Workspace, WorkspaceCreateResult, WorkspaceListResult, WorkspaceStatus, Repository } from '@/types/workspace'
-import { Plus, RefreshCw, Trash2, GitBranch, FolderGit2, Check, GitMerge, ArrowUp, ArrowDown, GitCommit, Loader2 } from 'lucide-react'
+import { Plus, RefreshCw, Trash2, GitBranch, FolderGit2, Check, GitMerge, ArrowUp, ArrowDown, GitCommit, Loader2, File, Folder, ChevronRight, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useProjectPath } from '@/App'
 import { RepositorySwitcher } from './workspace/RepositorySwitcher'
@@ -10,6 +10,7 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
+  SidebarGroupContent,
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
@@ -18,13 +19,17 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 
 // @ts-ignore - Electron IPC
 const { ipcRenderer } = window.require('electron')
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   selectedWorkspaceId: string | null
+  selectedWorkspace: Workspace | null
   onSelectWorkspace: (workspace: Workspace) => void
+  selectedFile: string | null
+  onFileSelect: (filePath: string) => void
 }
 
 const getStatusBadge = (status?: WorkspaceStatus) => {
@@ -52,7 +57,113 @@ const getStatusBadge = (status?: WorkspaceStatus) => {
   }
 }
 
-export function AppSidebar({ selectedWorkspaceId, onSelectWorkspace, ...props }: AppSidebarProps) {
+// File tree structure for workspace files
+interface FileNode {
+  name: string
+  path: string
+  type: 'file' | 'folder'
+  children?: FileNode[]
+  modified?: boolean
+  added?: boolean
+}
+
+// Mock file tree - will be replaced with actual IPC call
+const MOCK_FILE_TREE: FileNode[] = [
+  {
+    name: 'apps',
+    path: 'apps',
+    type: 'folder',
+    children: [
+      { name: 'page.tsx', path: 'apps/page.tsx', type: 'file', modified: true },
+      { name: 'layout.tsx', path: 'apps/layout.tsx', type: 'file' },
+    ],
+  },
+  {
+    name: 'src',
+    path: 'src',
+    type: 'folder',
+    children: [
+      { name: 'App.tsx', path: 'src/App.tsx', type: 'file', modified: true },
+      { name: 'index.tsx', path: 'src/index.tsx', type: 'file' },
+    ],
+  },
+  { name: 'package.json', path: 'package.json', type: 'file' },
+]
+
+// File Tree Item Component
+const FileTreeItem: React.FC<{
+  node: FileNode
+  depth: number
+  onSelect?: (path: string) => void
+  selectedFile?: string | null
+}> = ({ node, depth, onSelect, selectedFile }) => {
+  const [isOpen, setIsOpen] = useState(depth === 0) // Auto-expand root folders
+
+  if (node.type === 'folder') {
+    return (
+      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+        <SidebarMenuItem>
+          <CollapsibleTrigger asChild>
+            <SidebarMenuButton
+              className="w-full"
+              style={{ paddingLeft: `${depth * 12 + 8}px` }}
+            >
+              {isOpen ? (
+                <ChevronDown size={14} className="flex-shrink-0" />
+              ) : (
+                <ChevronRight size={14} className="flex-shrink-0" />
+              )}
+              <Folder size={14} className="flex-shrink-0 text-sidebar-foreground-muted" />
+              <span className="text-sm truncate">{node.name}</span>
+            </SidebarMenuButton>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            {node.children?.map((child) => (
+              <FileTreeItem
+                key={child.path}
+                node={child}
+                depth={depth + 1}
+                onSelect={onSelect}
+                selectedFile={selectedFile}
+              />
+            ))}
+          </CollapsibleContent>
+        </SidebarMenuItem>
+      </Collapsible>
+    )
+  }
+
+  // File node
+  const isSelected = selectedFile === node.path
+
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        onClick={() => onSelect?.(node.path)}
+        isActive={isSelected}
+        className="w-full"
+        style={{ paddingLeft: `${depth * 12 + 8}px` }}
+      >
+        <File size={14} className="flex-shrink-0 text-sidebar-foreground-muted" />
+        <span className="text-sm truncate flex-1">{node.name}</span>
+
+        {/* Git status badges */}
+        {node.modified && (
+          <span className="text-[10px] px-1 rounded bg-status-working/20 text-status-working font-medium">
+            M
+          </span>
+        )}
+        {node.added && (
+          <span className="text-[10px] px-1 rounded bg-status-synced/20 text-status-synced font-medium">
+            A
+          </span>
+        )}
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  )
+}
+
+export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWorkspace, selectedFile, onFileSelect, ...props }: AppSidebarProps) {
   const { projectPath } = useProjectPath()
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [statuses, setStatuses] = useState<Record<string, WorkspaceStatus>>({})
@@ -281,6 +392,26 @@ export function AppSidebar({ selectedWorkspaceId, onSelectWorkspace, ...props }:
             )}
           </SidebarMenu>
         </SidebarGroup>
+
+        {/* Files Section (only when workspace selected) */}
+        {selectedWorkspace && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Files</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {MOCK_FILE_TREE.map((node) => (
+                  <FileTreeItem
+                    key={node.path}
+                    node={node}
+                    depth={0}
+                    onSelect={onFileSelect}
+                    selectedFile={selectedFile}
+                  />
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
 
       <SidebarFooter>
