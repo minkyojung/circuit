@@ -301,57 +301,81 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
 
                         {/* Content */}
                         <div className="flex-1 min-w-0 space-y-1">
-                          {/* Top row: Name + Badge */}
+                          {/* Top row: Name + Status Badge */}
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-medium truncate flex-1">
                               {workspace.name}
                             </span>
-                            <div className={cn(
-                              "inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded font-medium flex-shrink-0",
-                              badge.className
-                            )}>
-                              {badge.icon}
-                              <span>{badge.text}</span>
-                            </div>
+
+                            {/* Clean status: hoverable archive button */}
+                            {status?.status === 'merged' || (status?.clean && !isMerged) ? (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteWorkspace(e, workspace.id, workspace.name, true);
+                                }}
+                                className={cn(
+                                  "group/badge inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md font-medium flex-shrink-0 transition-all",
+                                  status?.status === 'merged'
+                                    ? "bg-status-merged/10 text-status-merged hover:bg-orange-500/20 hover:text-orange-600"
+                                    : "bg-status-synced/10 text-status-synced hover:bg-orange-500/20 hover:text-orange-600"
+                                )}
+                              >
+                                <Archive size={12} className="opacity-0 group-hover/badge:opacity-100 -ml-1 group-hover/badge:ml-0 transition-all" />
+                                <span className="group-hover/badge:hidden">
+                                  {status?.status === 'merged' ? 'Merged' : 'Clean'}
+                                </span>
+                                <span className="hidden group-hover/badge:inline">Archive</span>
+                              </button>
+                            ) : (
+                              <div className={cn(
+                                "inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md font-medium flex-shrink-0",
+                                badge.className
+                              )}>
+                                {badge.icon}
+                                <span>{badge.text}</span>
+                              </div>
+                            )}
                           </div>
 
-                          {/* Bottom row: Branch info with stats */}
-                          {showBranch && (
-                            <div className="flex items-center gap-1.5 text-xs text-sidebar-foreground-muted">
+                          {/* Bottom row: Metadata and stats (always visible) */}
+                          <div className="flex items-center gap-1.5 text-xs text-sidebar-foreground-muted">
+                            {/* Branch name (only if different) */}
+                            {showBranch && (
                               <div className="flex items-center gap-1 truncate">
                                 <GitBranch size={11} className="flex-shrink-0" />
                                 <span className="truncate text-[11px]">{workspace.branch}</span>
                               </div>
+                            )}
 
-                              {/* Code stats - files changed */}
-                              {status && !status.clean && (
-                                <div className="flex items-center gap-1 flex-shrink-0">
-                                  {(status.added > 0 || status.modified > 0) && (
-                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-status-synced/10 text-status-synced text-[10px] font-mono font-medium">
-                                      +{status.added + status.modified}
-                                    </span>
-                                  )}
-                                  {status.deleted > 0 && (
-                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-status-behind/10 text-status-behind text-[10px] font-mono font-medium">
-                                      -{status.deleted}
-                                    </span>
-                                  )}
-                                </div>
-                              )}
+                            {/* Code stats - files changed */}
+                            {status && !status.clean && (
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                {(status.added > 0 || status.modified > 0) && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-status-synced/10 text-status-synced text-[10px] font-mono font-medium">
+                                    +{status.added + status.modified}
+                                  </span>
+                                )}
+                                {status.deleted > 0 && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-status-behind/10 text-status-behind text-[10px] font-mono font-medium">
+                                    -{status.deleted}
+                                  </span>
+                                )}
+                              </div>
+                            )}
 
-                              {/* Creation time */}
-                              <span className="flex-shrink-0 text-[10px]">
-                                {new Date(workspace.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            {/* Creation time - always show */}
+                            <span className="flex-shrink-0 text-[10px]">
+                              {new Date(workspace.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            </span>
+
+                            {/* Original workspace name - only show if different from display name */}
+                            {showBranch && workspace.name !== workspace.branch && (
+                              <span className="flex-shrink-0 text-[10px] opacity-50 truncate max-w-[100px]">
+                                ({workspace.branch})
                               </span>
-
-                              {/* Original workspace name - only show if different from display name */}
-                              {workspace.name !== workspace.branch && (
-                                <span className="flex-shrink-0 text-[10px] opacity-50 truncate max-w-[100px]">
-                                  ({workspace.branch})
-                                </span>
-                              )}
-                            </div>
-                          )}
+                            )}
+                          </div>
                         </div>
                       </div>
                     </SidebarMenuButton>
