@@ -317,7 +317,7 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                     <SidebarMenuAction
                       showOnHover
                       onClick={(e) => handleDeleteWorkspace(e, workspace.id, workspace.name)}
-                      className="text-sidebar-foreground-muted hover:text-destructive"
+                      className="text-sidebar-foreground-muted hover:text-destructive top-1/2 -translate-y-1/2"
                     >
                       <Trash2 size={12} />
                       <span className="sr-only">Delete</span>
