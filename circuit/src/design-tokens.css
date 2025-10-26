@@ -202,8 +202,8 @@
     /* Sidebar colors */
     --sidebar: oklch(0.915 0 0);                     /* #E9E9E9 */
     --sidebar-glass: var(--material-regular);        /* Glassmorphism backdrop */
-    --sidebar-foreground: oklch(0.55 0 0);           /* Lighter gray - softer appearance */
-    --sidebar-foreground-muted: oklch(0.65 0 0);     /* Even lighter gray for muted text */
+    --sidebar-foreground: oklch(0.38 0.005 25);      /* #555352 - darker gray for primary text */
+    --sidebar-foreground-muted: oklch(0.60 0.003 25); /* #888786 - lighter gray for muted text */
     --sidebar-primary: oklch(0.58 0.10 40);          /* Muted orange */
     --sidebar-primary-foreground: oklch(1 0 0);
     --sidebar-accent: oklch(0.97 0 0);               /* Selected - very bright for glassmorphism */
