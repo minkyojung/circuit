@@ -21,15 +21,11 @@
 
   /* Body defaults */
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
     color: var(--foreground);
     font-size: var(--font-base);
     line-height: var(--leading-normal);
-  }
-
-  /* Only apply background to non-peek-panel windows */
-  html:not(.peek-panel) body {
-    background-color: var(--background);
+    background-color: transparent;
   }
 
   /* Force transparency for peek panel (Electron specific) */
