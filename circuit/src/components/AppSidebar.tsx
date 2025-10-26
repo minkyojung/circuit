@@ -267,41 +267,50 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                     <SidebarMenuButton
                       onClick={() => onSelectWorkspace(workspace)}
                       isActive={isActive}
-                      className="flex-col items-start h-auto py-[var(--list-item-padding-y)] px-[var(--list-item-padding-x)] gap-1"
+                      className="h-auto py-[var(--list-item-padding-y)] px-[var(--list-item-padding-x)] pr-8"
                     >
-                      <div className="flex items-center gap-2 w-full">
-                        <FolderGit2 size={14} className="flex-shrink-0" />
-                        <span className="text-sm font-medium truncate flex-1">
-                          {workspace.name}
-                        </span>
-                      </div>
+                      {/* Wrapper for icon + content */}
+                      <div className="flex items-start gap-2 w-full min-w-0">
+                        {/* Icon */}
+                        <FolderGit2 size={14} className="flex-shrink-0 mt-0.5" />
 
-                      {showBranch && (
-                        <div className="flex items-center gap-1.5 ml-5 w-full">
-                          <GitBranch size={10} className="text-sidebar-foreground-muted flex-shrink-0" />
-                          <span className="text-[11px] text-sidebar-foreground-muted truncate">
-                            {workspace.branch}
+                        {/* Content stack */}
+                        <div className="flex flex-col gap-1 flex-1 min-w-0">
+                          {/* Workspace name */}
+                          <span className="text-sm font-medium truncate">
+                            {workspace.name}
                           </span>
-                        </div>
-                      )}
 
-                      <div className="ml-5 flex items-center gap-2 flex-wrap w-full">
-                        <div className={cn(
-                          "inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-medium",
-                          badge.className
-                        )}>
-                          {badge.icon}
-                          <span>{badge.text}</span>
-                        </div>
+                          {/* Branch (if different from name) */}
+                          {showBranch && (
+                            <div className="flex items-center gap-1.5">
+                              <GitBranch size={10} className="text-sidebar-foreground-muted flex-shrink-0" />
+                              <span className="text-[11px] text-sidebar-foreground-muted truncate">
+                                {workspace.branch}
+                              </span>
+                            </div>
+                          )}
 
-                        {status && !status.clean && (
-                          <div className="text-[10px] text-status-working">
-                            {status.modified > 0 && `${status.modified}M`}
-                            {status.added > 0 && ` ${status.added}A`}
-                            {status.deleted > 0 && ` ${status.deleted}D`}
-                            {status.untracked > 0 && ` ${status.untracked}U`}
+                          {/* Status badges */}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <div className={cn(
+                              "inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-medium",
+                              badge.className
+                            )}>
+                              {badge.icon}
+                              <span>{badge.text}</span>
+                            </div>
+
+                            {status && !status.clean && (
+                              <div className="text-[10px] text-status-working">
+                                {status.modified > 0 && `${status.modified}M`}
+                                {status.added > 0 && ` ${status.added}A`}
+                                {status.deleted > 0 && ` ${status.deleted}D`}
+                                {status.untracked > 0 && ` ${status.untracked}U`}
+                              </div>
+                            )}
                           </div>
-                        )}
+                        </div>
                       </div>
                     </SidebarMenuButton>
 

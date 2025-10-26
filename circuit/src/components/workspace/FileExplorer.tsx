@@ -42,7 +42,7 @@ const FileTreeItem: React.FC<{
         <SidebarMenuItem className="my-0">
           <CollapsibleTrigger asChild>
             <SidebarMenuButton
-              className="w-full h-[var(--list-item-height)] py-[var(--list-item-padding-y)] gap-1.5"
+              className="w-full h-[var(--list-item-height)] py-[var(--list-item-padding-y)] gap-2"
               style={{ paddingLeft: `${depth * 12 + 8}px` }}
             >
               {isOpen ? (
@@ -78,7 +78,7 @@ const FileTreeItem: React.FC<{
       <SidebarMenuButton
         onClick={() => onSelect?.(node.path)}
         isActive={isSelected}
-        className="w-full h-[var(--list-item-height)] py-[var(--list-item-padding-y)] gap-1.5"
+        className="w-full h-[var(--list-item-height)] py-[var(--list-item-padding-y)] gap-2"
         style={{ paddingLeft: `${depth * 12 + 8}px` }}
       >
         <File size={14} className="flex-shrink-0 text-sidebar-foreground-muted" />
