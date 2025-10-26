@@ -206,9 +206,9 @@
     --sidebar-foreground-muted: rgba(0, 0, 0, 0.50); /* Apple HIG: 50% black for secondary text */
     --sidebar-primary: oklch(0.58 0.10 40);          /* Muted orange */
     --sidebar-primary-foreground: oklch(1 0 0);
-    --sidebar-accent: oklch(0.97 0 0);               /* Selected - very bright for glassmorphism */
-    --sidebar-accent-foreground: oklch(0.24 0 0);
-    --sidebar-hover: oklch(0.95 0 0);                /* Hover - medium bright */
+    --sidebar-accent: rgba(0, 0, 0, 0.08);           /* Selected: 8% black overlay on glass */
+    --sidebar-accent-foreground: rgba(0, 0, 0, 0.95); /* Selected text: 95% black for contrast */
+    --sidebar-hover: rgba(0, 0, 0, 0.04);            /* Hover: 4% black overlay on glass */
     --sidebar-border: var(--separator-opaque);
     --sidebar-ring: oklch(0.58 0.10 40);
 
@@ -334,9 +334,9 @@
     --sidebar-foreground-muted: rgba(255, 255, 255, 0.55); /* Apple HIG: 55% white for secondary text */
     --sidebar-primary: oklch(0.65 0.12 40);          /* Brighter orange */
     --sidebar-primary-foreground: oklch(0.12 0 0);
-    --sidebar-accent: oklch(0.35 0 0);               /* Selected - brighter for glassmorphism */
-    --sidebar-accent-foreground: oklch(0.95 0 0);
-    --sidebar-hover: oklch(0.38 0 0);                /* Hover - visible on glass */
+    --sidebar-accent: rgba(255, 255, 255, 0.12);     /* Selected: 12% white overlay on glass */
+    --sidebar-accent-foreground: rgba(255, 255, 255, 0.95); /* Selected text: 95% white for contrast */
+    --sidebar-hover: rgba(255, 255, 255, 0.06);      /* Hover: 6% white overlay on glass */
     --sidebar-border: var(--separator-opaque);
     --sidebar-ring: oklch(0.65 0.12 40);
 
