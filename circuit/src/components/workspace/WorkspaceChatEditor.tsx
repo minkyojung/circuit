@@ -301,7 +301,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   };
 
   return (
-    <div className="h-full bg-background flex flex-col">
+    <div
+      className="h-full bg-background flex flex-col"
+      style={{ backgroundColor: 'var(--background)', opacity: 1 }}
+    >
       {/* Messages Area */}
       <div className="flex-1 overflow-auto p-6">
         {messages.length > 0 && (

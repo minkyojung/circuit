@@ -177,10 +177,10 @@
     --sidebar-foreground-muted: oklch(0.41 0 0); /* #626262 */
     --sidebar-primary: oklch(0.58 0.10 40);   /* Muted orange */
     --sidebar-primary-foreground: oklch(1 0 0);
-    --sidebar-accent: oklch(0.93 0 0);        /* #EFEFEF - Selected (lighter) */
+    --sidebar-accent: oklch(0.97 0 0);        /* Selected - very bright for glassmorphism */
     --sidebar-accent-foreground: oklch(0.24 0 0);
-    --sidebar-hover: oklch(0.93 0 0);         /* #EFEFEF - Hover */
-    --sidebar-border: oklch(0.82 0 0);        /* Softer border for glass effect */
+    --sidebar-hover: oklch(0.95 0 0);         /* Hover - medium bright */
+    --sidebar-border: oklch(0.72 0 0);        /* Stronger border for glass effect */
     --sidebar-ring: oklch(0.58 0.10 40);
 
     /* Chat UI colors */
@@ -266,10 +266,10 @@
     --sidebar-foreground-muted: oklch(0.65 0 0); /* #A0A0A0 */
     --sidebar-primary: oklch(0.65 0.12 40);   /* Brighter orange */
     --sidebar-primary-foreground: oklch(0.12 0 0);
-    --sidebar-accent: oklch(0.28 0 0);        /* #424242 - Selected dark */
+    --sidebar-accent: oklch(0.35 0 0);        /* Selected - brighter for glassmorphism */
     --sidebar-accent-foreground: oklch(0.95 0 0);
-    --sidebar-hover: oklch(0.32 0 0);         /* #4C4C4C */
-    --sidebar-border: oklch(0.38 0 0);        /* Softer border for glass effect */
+    --sidebar-hover: oklch(0.38 0 0);         /* Hover - visible on glass */
+    --sidebar-border: oklch(0.48 0 0);        /* Stronger border for glass effect */
     --sidebar-ring: oklch(0.65 0.12 40);
 
     /* Chat UI colors - dark variant */
