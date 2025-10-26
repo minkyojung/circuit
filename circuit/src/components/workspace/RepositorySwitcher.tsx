@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { ChevronDown, Plus, FolderGit2 } from 'lucide-react';
+import { ChevronDown, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Repository } from '@/types/workspace';
+import { DotMatrixAvatar } from './DotMatrixAvatar';
 
 interface RepositorySwitcherProps {
   currentRepository: Repository;
@@ -53,15 +54,13 @@ export const RepositorySwitcher: React.FC<RepositorySwitcherProps> = ({
           "group"
         )}
       >
-        {/* Repository Avatar (First Letter) */}
-        <div
-          className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center"
-          style={{ backgroundColor: avatarColor }}
-        >
-          <span className="text-white text-base font-bold select-none">
-            {firstLetter}
-          </span>
-        </div>
+        {/* Repository Avatar (Dot Matrix) */}
+        <DotMatrixAvatar
+          letter={firstLetter}
+          color={avatarColor}
+          size="md"
+          animate={true}
+        />
 
         {/* Repository Info */}
         <div className="flex flex-col items-start flex-1 min-w-0">
@@ -98,14 +97,12 @@ export const RepositorySwitcher: React.FC<RepositorySwitcherProps> = ({
             <div className="p-2 border-b border-border">
               <div className="px-3 py-2 rounded-md bg-sidebar-accent">
                 <div className="flex items-center gap-3">
-                  <div
-                    className="w-8 h-8 rounded-md flex items-center justify-center"
-                    style={{ backgroundColor: avatarColor }}
-                  >
-                    <span className="text-white text-base font-bold select-none">
-                      {firstLetter}
-                    </span>
-                  </div>
+                  <DotMatrixAvatar
+                    letter={firstLetter}
+                    color={avatarColor}
+                    size="md"
+                    animate={false}
+                  />
                   <div className="flex flex-col flex-1 min-w-0">
                     <span className="text-sm font-medium text-foreground truncate">
                       {currentRepository.name}
@@ -143,14 +140,12 @@ export const RepositorySwitcher: React.FC<RepositorySwitcherProps> = ({
                           "hover:bg-sidebar-hover"
                         )}
                       >
-                        <div
-                          className="w-8 h-8 rounded-md flex items-center justify-center"
-                          style={{ backgroundColor: repoColor }}
-                        >
-                          <span className="text-white text-base font-bold select-none">
-                            {repoFirstLetter}
-                          </span>
-                        </div>
+                        <DotMatrixAvatar
+                          letter={repoFirstLetter}
+                          color={repoColor}
+                          size="md"
+                          animate={false}
+                        />
                         <div className="flex flex-col items-start flex-1 min-w-0">
                           <span className="text-sm font-medium text-foreground truncate w-full">
                             {repo.name}

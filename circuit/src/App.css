@@ -81,6 +81,17 @@
   }
 }
 
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(0.95);
+  }
+}
+
 /* Animation utility classes */
 .bounce-in {
   animation: bounceIn var(--transition-bounce);
@@ -108,4 +119,8 @@
 
 .animate-spin {
   animation: spin 1s linear infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
 }
