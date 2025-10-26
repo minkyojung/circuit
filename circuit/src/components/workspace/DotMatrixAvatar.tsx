@@ -191,8 +191,7 @@ export const DotMatrixAvatar: React.FC<DotMatrixAvatarProps> = ({
   return (
     <div
       className={cn(
-        'rounded-lg flex items-center justify-center p-1',
-        'bg-black/90 dark:bg-black/95',
+        'flex items-center justify-center',
         sizeConfig.container,
         className
       )}
