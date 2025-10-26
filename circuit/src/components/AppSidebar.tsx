@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useState, useEffect, useMemo } from 'react'
 import type { Workspace, WorkspaceCreateResult, WorkspaceListResult, WorkspaceStatus, Repository } from '@/types/workspace'
-import { Plus, RefreshCw, Trash2, GitBranch, FolderGit2, Check, GitMerge, ArrowUp, ArrowDown, GitCommit, Loader2 } from 'lucide-react'
+import { Plus, RefreshCw, Trash2, GitBranch, FolderGit2, Check, GitMerge, ArrowUp, ArrowDown, GitCommit, Loader2, Archive } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useProjectPath } from '@/App'
 import { RepositorySwitcher } from './workspace/RepositorySwitcher'
@@ -36,26 +36,45 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 
 const getStatusBadge = (status?: WorkspaceStatus) => {
   if (!status) {
-    return { icon: <Loader2 size={12} className="animate-spin" />, text: 'Loading...', className: 'bg-muted text-muted-foreground' }
+    return {
+      icon: <Loader2 size={12} className="animate-spin" />,
+      text: 'Loading...',
+      className: 'bg-muted text-muted-foreground',
+      isMerged: false
+    }
   }
 
-  switch (status.status) {
-    case 'merged':
-      return { icon: <GitMerge size={12} />, text: 'Merged', className: 'bg-status-merged/10 text-status-merged' }
-    case 'working':
-      return { icon: <GitCommit size={12} />, text: 'Working', className: 'bg-status-working/10 text-status-working' }
-    case 'ahead':
-      return { icon: <ArrowUp size={12} />, text: `Ahead ${status.ahead}`, className: 'bg-status-ahead/10 text-status-ahead' }
-    case 'behind':
-      return { icon: <ArrowDown size={12} />, text: `Behind ${status.behind}`, className: 'bg-status-behind/10 text-status-behind' }
-    case 'diverged':
-      return { icon: <GitCommit size={12} />, text: 'Diverged', className: 'bg-status-diverged/10 text-status-diverged' }
-    case 'synced':
-      return { icon: <Check size={12} />, text: 'Synced', className: 'bg-status-synced/10 text-status-synced' }
-    case 'local':
-      return { icon: <GitBranch size={12} />, text: 'Local Only', className: 'bg-muted text-muted-foreground' }
-    default:
-      return { icon: <Loader2 size={12} />, text: 'Unknown', className: 'bg-muted text-muted-foreground' }
+  // Check if workspace is merged
+  if (status.status === 'merged') {
+    return {
+      icon: <GitMerge size={12} />,
+      text: 'Merged',
+      className: 'bg-status-merged/10 text-status-merged',
+      isMerged: true
+    }
+  }
+
+  // Simplified status: Clean or Modified
+  const hasChanges = !status.clean ||
+    status.modified > 0 ||
+    status.added > 0 ||
+    status.deleted > 0 ||
+    status.untracked > 0
+
+  if (hasChanges) {
+    return {
+      icon: <GitCommit size={12} />,
+      text: 'Modified',
+      className: 'bg-status-working/10 text-status-working',
+      isMerged: false
+    }
+  }
+
+  return {
+    icon: <Check size={12} />,
+    text: 'Clean',
+    className: 'bg-status-synced/10 text-status-synced',
+    isMerged: false
   }
 }
 
@@ -205,9 +224,14 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
     }
   }
 
-  const handleDeleteWorkspace = (e: React.MouseEvent, workspaceId: string, workspaceName: string) => {
+  const handleDeleteWorkspace = (e: React.MouseEvent, workspaceId: string, workspaceName: string, isMerged: boolean = false) => {
     e.stopPropagation()
-    if (confirm(`Delete workspace "${workspaceName}"?`)) {
+    const action = isMerged ? 'Archive' : 'Delete'
+    const message = isMerged
+      ? `Archive workspace "${workspaceName}"? This will remove it from the list.`
+      : `Delete workspace "${workspaceName}"?`
+
+    if (confirm(message)) {
       deleteWorkspace(workspaceId)
     }
   }
@@ -261,9 +285,10 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                 const badge = getStatusBadge(status)
                 const isActive = workspace.id === selectedWorkspaceId
                 const showBranch = workspace.name !== workspace.branch
+                const isMerged = badge.isMerged
 
                 return (
-                  <SidebarMenuItem key={workspace.id} className="my-0">
+                  <SidebarMenuItem key={workspace.id} className={cn("my-0", isMerged && "opacity-60")}>
                     <SidebarMenuButton
                       onClick={() => onSelectWorkspace(workspace)}
                       isActive={isActive}
@@ -291,7 +316,7 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                             </div>
                           )}
 
-                          {/* Status badges */}
+                          {/* Status badge */}
                           <div className="flex items-center gap-2 flex-wrap">
                             <div className={cn(
                               "inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-medium",
@@ -300,15 +325,6 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                               {badge.icon}
                               <span>{badge.text}</span>
                             </div>
-
-                            {status && !status.clean && (
-                              <div className="text-[10px] text-status-working">
-                                {status.modified > 0 && `${status.modified}M`}
-                                {status.added > 0 && ` ${status.added}A`}
-                                {status.deleted > 0 && ` ${status.deleted}D`}
-                                {status.untracked > 0 && ` ${status.untracked}U`}
-                              </div>
-                            )}
                           </div>
                         </div>
                       </div>
@@ -316,11 +332,17 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
 
                     <SidebarMenuAction
                       showOnHover
-                      onClick={(e) => handleDeleteWorkspace(e, workspace.id, workspace.name)}
-                      className="text-sidebar-foreground-muted hover:text-destructive top-1/2 -translate-y-1/2"
+                      onClick={(e) => handleDeleteWorkspace(e, workspace.id, workspace.name, isMerged)}
+                      className={cn(
+                        "top-1/2 -translate-y-1/2",
+                        isMerged
+                          ? "text-sidebar-foreground-muted hover:text-orange-500"
+                          : "text-sidebar-foreground-muted hover:text-destructive"
+                      )}
+                      title={isMerged ? "Archive workspace" : "Delete workspace"}
                     >
-                      <Trash2 size={12} />
-                      <span className="sr-only">Delete</span>
+                      {isMerged ? <Archive size={12} /> : <Trash2 size={12} />}
+                      <span className="sr-only">{isMerged ? "Archive" : "Delete"}</span>
                     </SidebarMenuAction>
                   </SidebarMenuItem>
                 )
