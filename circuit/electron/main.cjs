@@ -2025,6 +2025,21 @@ ipcMain.handle('circuit:reload-claude-code', async (event, openVSCode = true) =>
   }
 })();
 
+// ============================================================================
+// Repository Management
+// ============================================================================
+
+// Register repository IPC handlers
+(async () => {
+  try {
+    const { registerRepositoryHandlers } = await import('../dist-electron/repositoryHandlers.js');
+    registerRepositoryHandlers();
+    console.log('[main.cjs] Repository handlers registered');
+  } catch (error) {
+    console.error('[main.cjs] Failed to register repository handlers:', error);
+  }
+})();
+
 // Cleanup on app quit
 app.on('before-quit', async () => {
   try {
