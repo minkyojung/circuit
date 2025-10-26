@@ -169,6 +169,7 @@
 
     /* Sidebar colors */
     --sidebar: oklch(0.915 0 0);              /* #E9E9E9 */
+    --sidebar-glass: rgba(233, 233, 233, 0.7); /* Glassmorphism backdrop */
     --sidebar-foreground: oklch(0.24 0 0);    /* #383838 */
     --sidebar-foreground-muted: oklch(0.41 0 0); /* #626262 */
     --sidebar-primary: oklch(0.58 0.10 40);   /* Muted orange */
@@ -176,12 +177,12 @@
     --sidebar-accent: oklch(0.93 0 0);        /* #EFEFEF - Selected (lighter) */
     --sidebar-accent-foreground: oklch(0.24 0 0);
     --sidebar-hover: oklch(0.93 0 0);         /* #EFEFEF - Hover */
-    --sidebar-border: oklch(0.80 0 0);        /* #CCCCCC */
+    --sidebar-border: oklch(0.82 0 0);        /* Softer border for glass effect */
     --sidebar-ring: oklch(0.58 0.10 40);
 
     /* Chat UI colors */
     --chat-input-outer: oklch(0.945 0 0);     /* Clear separation from background */
-    --chat-input-border: oklch(0.74 0 0);     /* Defined but not harsh border */
+    --chat-input-border: oklch(0.80 0 0);     /* Softer, more subtle border */
     --chat-input-inner: oklch(0.985 0 0);     /* Bright, elevated surface */
     --chat-button-selected: oklch(0.88 0 0);  /* Clear selected state */
     --chat-button-default: oklch(0.96 0 0);   /* Subtle, matches inner surface */
@@ -254,6 +255,7 @@
 
     /* Sidebar colors - dark variant */
     --sidebar: oklch(0.20 0 0);               /* #2E2E2E */
+    --sidebar-glass: rgba(46, 46, 46, 0.7);   /* Glassmorphism backdrop dark */
     --sidebar-foreground: oklch(0.95 0 0);    /* #F2F2F2 */
     --sidebar-foreground-muted: oklch(0.65 0 0); /* #A0A0A0 */
     --sidebar-primary: oklch(0.65 0.12 40);   /* Brighter orange */
@@ -261,12 +263,12 @@
     --sidebar-accent: oklch(0.28 0 0);        /* #424242 - Selected dark */
     --sidebar-accent-foreground: oklch(0.95 0 0);
     --sidebar-hover: oklch(0.32 0 0);         /* #4C4C4C */
-    --sidebar-border: oklch(0.35 0 0);        /* #545454 */
+    --sidebar-border: oklch(0.38 0 0);        /* Softer border for glass effect */
     --sidebar-ring: oklch(0.65 0.12 40);
 
     /* Chat UI colors - dark variant */
     --chat-input-outer: oklch(0.23 0 0);      /* Clear separation from background */
-    --chat-input-border: oklch(0.38 0 0);     /* Defined but not harsh border */
+    --chat-input-border: oklch(0.35 0 0);     /* Softer, more subtle border */
     --chat-input-inner: oklch(0.29 0 0);      /* Elevated, brighter than outer */
     --chat-button-selected: oklch(0.33 0 0);  /* Clear selected state */
     --chat-button-default: oklch(0.27 0 0);   /* Subtle, matches inner surface */
