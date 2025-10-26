@@ -331,27 +331,22 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
       </SidebarContent>
 
       <SidebarFooter>
-        <div className="flex items-center justify-between text-xs text-sidebar-foreground-muted px-2 gap-2">
-          <span className="flex-shrink-0">{workspaces.length} workspace(s)</span>
-          <div className="flex items-center gap-2 flex-1 justify-end">
-            <div className="h-2 w-2 rounded-full bg-status-synced" />
-            <span>Ready</span>
-            <button
-              onClick={() => {
-                loadWorkspaces()
-                if (workspaces.length > 0) {
-                  loadStatuses(workspaces)
-                }
-              }}
-              disabled={isLoading}
-              className="ml-1 p-1 hover:bg-sidebar-accent rounded transition-colors disabled:opacity-50"
-              title="Refresh workspaces"
-            >
-              <RefreshCw size={12} className={cn(isLoading && 'animate-spin')} />
-            </button>
-            <div className="border-l border-sidebar-border h-4 mx-1" />
-            <ThemeToggleIcon className="h-6 w-6" />
-          </div>
+        <div className="flex items-center justify-end text-xs text-sidebar-foreground-muted px-2 gap-2">
+          <button
+            onClick={() => {
+              loadWorkspaces()
+              if (workspaces.length > 0) {
+                loadStatuses(workspaces)
+              }
+            }}
+            disabled={isLoading}
+            className="p-1 hover:bg-sidebar-accent rounded transition-colors disabled:opacity-50"
+            title="Refresh workspaces"
+          >
+            <RefreshCw size={14} className={cn(isLoading && 'animate-spin')} />
+          </button>
+          <div className="border-l border-sidebar-border h-4" />
+          <ThemeToggleIcon className="h-6 w-6" />
         </div>
       </SidebarFooter>
     </Sidebar>
