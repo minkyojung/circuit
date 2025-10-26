@@ -18,10 +18,10 @@ export const DensityToggleIcon: React.FC<{ className?: string }> = ({ className 
       variant="ghost"
       size="icon"
       onClick={toggleDensity}
-      className={cn('h-7 w-7', className)}
+      className={cn('h-8 w-8', className)}
       title={`${label}. Click to toggle.`}
     >
-      <Icon className="h-4 w-4" />
+      <Icon className="h-[18px] w-[18px]" />
     </Button>
   );
 };

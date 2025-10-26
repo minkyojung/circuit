@@ -260,12 +260,11 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
         <div className="px-2">
           <Button
             variant="ghost"
-            size="sm"
             onClick={createWorkspace}
             disabled={isCreating}
-            className="w-full justify-start text-sidebar-foreground-muted hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all duration-200"
+            className="w-full h-auto py-2 px-2 justify-start text-sm text-sidebar-foreground-muted hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all duration-200"
           >
-            <Plus size={14} />
+            <Plus size={16} />
             {isCreating ? 'Creating...' : 'New Workspace'}
           </Button>
         </div>
@@ -315,13 +314,13 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                                   handleDeleteWorkspace(e, workspace.id, workspace.name, true);
                                 }}
                                 className={cn(
-                                  "group/badge inline-flex items-center gap-1.5 text-sm px-2.5 py-1 rounded-md font-medium flex-shrink-0 transition-all",
+                                  "group/badge inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md font-medium flex-shrink-0 transition-all",
                                   status?.status === 'merged'
                                     ? "bg-status-merged/10 text-status-merged hover:bg-orange-500/20 hover:text-orange-600"
                                     : "bg-status-synced/10 text-status-synced hover:bg-orange-500/20 hover:text-orange-600"
                                 )}
                               >
-                                <Archive size={14} className="opacity-0 group-hover/badge:opacity-100 -ml-1 group-hover/badge:ml-0 transition-all" />
+                                <Archive size={12} className="opacity-0 group-hover/badge:opacity-100 -ml-1 group-hover/badge:ml-0 transition-all" />
                                 <span className="group-hover/badge:hidden">
                                   {status?.status === 'merged' ? 'Merged' : 'Clean'}
                                 </span>
@@ -329,7 +328,7 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                               </button>
                             ) : (
                               <div className={cn(
-                                "inline-flex items-center gap-1.5 text-sm px-2.5 py-1 rounded-md font-medium flex-shrink-0",
+                                "inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md font-medium flex-shrink-0",
                                 badge.className
                               )}>
                                 {badge.icon}
@@ -398,15 +397,15 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
       </SidebarContent>
 
       <SidebarFooter>
-        <div className="flex items-center justify-between text-xs px-2 py-2">
+        <div className="flex items-center justify-between text-sm px-2 py-2">
           {/* Left: GitHub Status */}
           <div className="flex items-center gap-2 text-sidebar-foreground-muted">
-            <div className="h-2 w-2 rounded-full bg-status-synced animate-pulse" />
+            <div className="h-2.5 w-2.5 rounded-full bg-status-synced animate-pulse" />
             <span className="font-medium">Ready</span>
           </div>
 
           {/* Right: Action Buttons */}
-          <div className="flex items-center gap-0.5">
+          <div className="flex items-center gap-1">
             <button
               onClick={() => {
                 loadWorkspaces()
@@ -418,7 +417,7 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
               className="p-1.5 hover:bg-sidebar-accent rounded transition-colors disabled:opacity-50 text-sidebar-foreground-muted hover:text-sidebar-foreground"
               title="Refresh workspaces"
             >
-              <RefreshCw size={14} className={cn(isLoading && 'animate-spin')} />
+              <RefreshCw size={16} className={cn(isLoading && 'animate-spin')} />
             </button>
             <DensityToggleIcon className="hover:bg-sidebar-accent" />
             <ThemeToggleIcon className="hover:bg-sidebar-accent" />

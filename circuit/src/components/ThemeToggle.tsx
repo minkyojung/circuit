@@ -49,12 +49,12 @@ export const ThemeToggleIcon: React.FC<{ className?: string }> = ({ className })
 
   const getIcon = () => {
     if (theme === 'system') {
-      return <Monitor className="h-4 w-4" />;
+      return <Monitor className="h-[18px] w-[18px]" />;
     }
     return resolvedTheme === 'dark' ? (
-      <Moon className="h-4 w-4" />
+      <Moon className="h-[18px] w-[18px]" />
     ) : (
-      <Sun className="h-4 w-4" />
+      <Sun className="h-[18px] w-[18px]" />
     );
   };
 
@@ -68,7 +68,7 @@ export const ThemeToggleIcon: React.FC<{ className?: string }> = ({ className })
       variant="ghost"
       size="icon"
       onClick={toggleTheme}
-      className={cn('h-9 w-9', className)}
+      className={cn('h-8 w-8', className)}
       title={`${getLabel()}. Click to cycle.`}
     >
       {getIcon()}
