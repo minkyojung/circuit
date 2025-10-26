@@ -39,10 +39,10 @@ const FileTreeItem: React.FC<{
   if (node.type === 'folder') {
     return (
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-        <SidebarMenuItem>
+        <SidebarMenuItem className="my-0">
           <CollapsibleTrigger asChild>
             <SidebarMenuButton
-              className="w-full"
+              className="w-full h-[var(--list-item-height)] py-[var(--list-item-padding-y)] gap-1.5"
               style={{ paddingLeft: `${depth * 12 + 8}px` }}
             >
               {isOpen ? (
@@ -74,11 +74,11 @@ const FileTreeItem: React.FC<{
   const isSelected = selectedFile === node.path
 
   return (
-    <SidebarMenuItem>
+    <SidebarMenuItem className="my-0">
       <SidebarMenuButton
         onClick={() => onSelect?.(node.path)}
         isActive={isSelected}
-        className="w-full"
+        className="w-full h-[var(--list-item-height)] py-[var(--list-item-padding-y)] gap-1.5"
         style={{ paddingLeft: `${depth * 12 + 8}px` }}
       >
         <File size={14} className="flex-shrink-0 text-sidebar-foreground-muted" />

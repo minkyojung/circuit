@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
 import { ThemeToggleIcon } from '@/components/ThemeToggle'
+import { DensityToggleIcon } from '@/components/DensityToggle'
 
 // @ts-ignore - Electron IPC
 const { ipcRenderer } = window.require('electron')
@@ -262,11 +263,11 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                 const showBranch = workspace.name !== workspace.branch
 
                 return (
-                  <SidebarMenuItem key={workspace.id}>
+                  <SidebarMenuItem key={workspace.id} className="my-0">
                     <SidebarMenuButton
                       onClick={() => onSelectWorkspace(workspace)}
                       isActive={isActive}
-                      className="flex-col items-start h-auto py-2"
+                      className="flex-col items-start h-auto py-[var(--list-item-padding-y)] px-[var(--list-item-padding-x)] gap-1"
                     >
                       <div className="flex items-center gap-2 w-full">
                         <FolderGit2 size={14} className="flex-shrink-0" />
@@ -339,7 +340,7 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
           </div>
 
           {/* Right: Action Buttons */}
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-0.5">
             <button
               onClick={() => {
                 loadWorkspaces()
@@ -353,7 +354,8 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
             >
               <RefreshCw size={14} className={cn(isLoading && 'animate-spin')} />
             </button>
-            <ThemeToggleIcon className="h-7 w-7 hover:bg-sidebar-accent" />
+            <DensityToggleIcon className="hover:bg-sidebar-accent" />
+            <ThemeToggleIcon className="hover:bg-sidebar-accent" />
           </div>
         </div>
       </SidebarFooter>

@@ -81,6 +81,35 @@
     --z-modal: 1300;
     --z-popover: 1400;
     --z-tooltip: 1500;
+
+    /* ===== UI DENSITY (Compact Mode - Default) ===== */
+    /* List/Menu item spacing */
+    --list-item-gap: 0.125rem;        /* 2px - compact */
+    --list-item-padding-y: 0.25rem;   /* 4px - compact */
+    --list-item-padding-x: 0.5rem;    /* 8px - compact */
+    --list-item-height: 1.75rem;      /* 28px - compact */
+
+    /* Button/Interactive element spacing */
+    --interactive-padding-y: 0.375rem; /* 6px - compact */
+    --interactive-padding-x: 0.75rem;  /* 12px - compact */
+
+    /* Section/Group spacing */
+    --section-gap: 0.5rem;     /* 8px - compact */
+    --group-gap: 0.25rem;      /* 4px - compact */
+  }
+
+  /* ===== COMFORTABLE MODE ===== */
+  .comfortable {
+    --list-item-gap: 0.375rem;        /* 6px - comfortable */
+    --list-item-padding-y: 0.5rem;    /* 8px - comfortable */
+    --list-item-padding-x: 0.75rem;   /* 12px - comfortable */
+    --list-item-height: 2.25rem;      /* 36px - comfortable */
+
+    --interactive-padding-y: 0.5rem;  /* 8px - comfortable */
+    --interactive-padding-x: 1rem;    /* 16px - comfortable */
+
+    --section-gap: 0.75rem;    /* 12px - comfortable */
+    --group-gap: 0.5rem;       /* 8px - comfortable */
   }
 
   /* ===== LIGHT MODE COLORS ===== */
