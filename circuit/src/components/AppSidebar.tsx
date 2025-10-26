@@ -256,6 +256,35 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
     }
   }
 
+  const cloneRepository = async () => {
+    try {
+      // Prompt user for Git URL
+      const url = prompt('Enter Git repository URL:', 'https://github.com/user/repo.git')
+
+      if (!url) {
+        return // User canceled
+      }
+
+      // Show loading state
+      const loadingToast = alert('Cloning repository...\nThis may take a few minutes.')
+
+      const result = await ipcRenderer.invoke('repository:clone', url)
+
+      if (result.success && result.repository) {
+        console.log('✅ Repository cloned:', result.repository.name)
+        setRepositories([...repositories, result.repository])
+        setCurrentRepository(result.repository)
+        alert(`Repository cloned successfully: ${result.repository.name}`)
+      } else {
+        console.error('Failed to clone repository:', result.error)
+        alert(`Failed to clone repository: ${result.error}`)
+      }
+    } catch (error) {
+      console.error('Error cloning repository:', error)
+      alert(`Error cloning repository: ${error}`)
+    }
+  }
+
   const switchRepository = async (repo: Repository) => {
     setCurrentRepository(repo)
     // Reload workspaces for the new repository
@@ -311,23 +340,11 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
           repositories={repositories.length > 0 ? repositories : [repository]}
           onSelectRepository={switchRepository}
           onCreateRepository={createRepository}
+          onCloneRepository={cloneRepository}
         />
       </SidebarHeader>
 
       <SidebarContent>
-        {/* New Workspace Button */}
-        <div className="px-2">
-          <Button
-            variant="ghost"
-            onClick={createWorkspace}
-            disabled={isCreating}
-            className="w-full h-auto py-2 px-2 justify-start text-sm text-sidebar-foreground-muted hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all duration-200"
-          >
-            <Plus size={16} />
-            {isCreating ? 'Creating...' : 'New Workspace'}
-          </Button>
-        </div>
-
         {/* Workspaces */}
         <SidebarGroup>
           <SidebarGroupLabel>Workspaces</SidebarGroupLabel>
@@ -397,14 +414,12 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                           </div>
 
                           {/* Bottom row: Metadata and stats (always visible) */}
-                          <div className="flex items-center gap-1.5 text-xs text-sidebar-foreground-muted">
-                            {/* Branch name (only if different) */}
-                            {showBranch && (
-                              <div className="flex items-center gap-1 truncate">
-                                <GitBranch size={11} className="flex-shrink-0" />
-                                <span className="truncate text-[11px]">{workspace.branch}</span>
-                              </div>
-                            )}
+                          <div className="flex items-center gap-1 text-xs text-sidebar-foreground-muted">
+                            {/* Branch name - always show */}
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <GitBranch size={11} className="flex-shrink-0" />
+                              <span className="text-[11px]">{workspace.branch}</span>
+                            </div>
 
                             {/* Code stats - files changed */}
                             {status && !status.clean && (
@@ -422,17 +437,31 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                               </div>
                             )}
 
-                            {/* Creation time - always show */}
+                            {/* Creation time - relative format */}
                             <span className="flex-shrink-0 text-[10px]">
-                              {new Date(workspace.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                            </span>
+                              {(() => {
+                                const now = Date.now()
+                                const created = new Date(workspace.createdAt).getTime()
 
-                            {/* Original workspace name - only show if different from display name */}
-                            {showBranch && workspace.name !== workspace.branch && (
-                              <span className="flex-shrink-0 text-[10px] opacity-50 truncate max-w-[100px]">
-                                ({workspace.branch})
-                              </span>
-                            )}
+                                // Validate date - if invalid or too old (before 2020), show "방금 전"
+                                if (isNaN(created) || created < new Date('2020-01-01').getTime()) {
+                                  return '방금 전'
+                                }
+
+                                const diff = now - created
+                                const minutes = Math.floor(diff / 60000)
+                                const hours = Math.floor(diff / 3600000)
+                                const days = Math.floor(diff / 86400000)
+
+                                if (minutes < 1) return '방금 전'
+                                if (minutes < 60) return `${minutes}분 전`
+                                if (hours < 24) return `${hours}시간 전`
+                                if (days < 7) return `${days}일 전`
+                                if (days < 30) return `${Math.floor(days / 7)}주 전`
+                                if (days < 365) return `${Math.floor(days / 30)}개월 전`
+                                return `${Math.floor(days / 365)}년 전`
+                              })()}
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -443,6 +472,19 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
             )}
           </SidebarMenu>
         </SidebarGroup>
+
+        {/* New Workspace Button */}
+        <div className="px-2 pb-2">
+          <Button
+            variant="ghost"
+            onClick={createWorkspace}
+            disabled={isCreating}
+            className="w-full h-auto py-2 px-2 justify-start text-sm text-sidebar-foreground-muted hover:text-sidebar-foreground hover:bg-sidebar-accent transition-all duration-200"
+          >
+            <Plus size={16} />
+            {isCreating ? 'Creating...' : 'New Workspace'}
+          </Button>
+        </div>
 
         {/* Files Section (only when workspace selected) */}
         {selectedWorkspace && (

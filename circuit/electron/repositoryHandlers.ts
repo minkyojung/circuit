@@ -140,6 +140,87 @@ export function registerRepositoryHandlers(): void {
   })
 
   /**
+   * Clone repository from Git URL
+   */
+  ipcMain.handle('repository:clone', async (event, gitUrl: string) => {
+    try {
+      // Open directory picker for clone destination
+      const result = await dialog.showOpenDialog({
+        properties: ['openDirectory', 'createDirectory'],
+        title: 'Select Clone Destination',
+        message: 'Choose where to clone the repository'
+      })
+
+      if (result.canceled || result.filePaths.length === 0) {
+        return { success: false, error: 'User canceled selection' }
+      }
+
+      const parentPath = result.filePaths[0]
+
+      // Extract repository name from URL
+      // e.g., https://github.com/user/repo.git -> repo
+      const urlMatch = gitUrl.match(/\/([^\/]+?)(\.git)?$/)
+      if (!urlMatch) {
+        return { success: false, error: 'Invalid Git URL format' }
+      }
+
+      const repoName = urlMatch[1]
+      const repoPath = path.join(parentPath, repoName)
+
+      // Check if directory already exists
+      const pathExists = await fs.access(repoPath).then(() => true).catch(() => false)
+      if (pathExists) {
+        return { success: false, error: `Directory ${repoName} already exists` }
+      }
+
+      // Clone the repository
+      console.log(`[RepositoryHandlers] Cloning ${gitUrl} to ${repoPath}...`)
+      const git = simpleGit(parentPath)
+      await git.clone(gitUrl, repoName)
+
+      // Get repository info from cloned repo
+      const clonedGit = simpleGit(repoPath)
+      const remotes = await clonedGit.getRemotes(true)
+      const remoteUrl = remotes.length > 0 ? remotes[0].refs.fetch : gitUrl
+
+      // Get default branch
+      let defaultBranch = 'main'
+      try {
+        const branches = await clonedGit.branch()
+        defaultBranch = branches.current || 'main'
+      } catch (e) {
+        console.warn('[RepositoryHandlers] Could not determine default branch:', e)
+      }
+
+      // Create repository object
+      const repository: Repository = {
+        id: uuidv4(),
+        name: repoName,
+        path: repoPath,
+        remoteUrl,
+        defaultBranch,
+        createdAt: new Date().toISOString()
+      }
+
+      // Load existing repositories
+      const listResult = await loadRepositories()
+      const repositories = listResult.repositories || []
+
+      // Add new repository
+      repositories.push(repository)
+
+      // Save to config
+      await saveRepositories(repositories)
+
+      console.log('[RepositoryHandlers] Repository cloned:', repository.name)
+      return { success: true, repository }
+    } catch (error: any) {
+      console.error('[RepositoryHandlers] Error cloning repository:', error)
+      return { success: false, error: error.message }
+    }
+  })
+
+  /**
    * Delete repository (removes from list, doesn't delete files)
    */
   ipcMain.handle('repository:delete', async (event, repositoryId: string) => {

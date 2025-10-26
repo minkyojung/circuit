@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronDown, Plus } from 'lucide-react';
+import { ChevronDown, Plus, GitBranch, FolderPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Repository } from '@/types/workspace';
 import { DotMatrixAvatar } from './DotMatrixAvatar';
@@ -9,6 +9,7 @@ interface RepositorySwitcherProps {
   repositories?: Repository[];
   onSelectRepository?: (repo: Repository) => void;
   onCreateRepository?: () => void;
+  onCloneRepository?: () => void;
 }
 
 // Generate consistent color from string (repository name)
@@ -35,6 +36,7 @@ export const RepositorySwitcher: React.FC<RepositorySwitcherProps> = ({
   repositories = [],
   onSelectRepository,
   onCreateRepository,
+  onCloneRepository,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -48,29 +50,16 @@ export const RepositorySwitcher: React.FC<RepositorySwitcherProps> = ({
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "w-full flex items-center gap-3 px-3 py-2.5 rounded-md",
+          "w-full flex items-center justify-between px-2 py-2 rounded-md",
           "transition-all duration-200 ease-out",
           "hover:bg-sidebar-hover active:bg-sidebar-hover",
           "group"
         )}
       >
-        {/* Repository Avatar (Dot Matrix) */}
-        <DotMatrixAvatar
-          letter={firstLetter}
-          color={avatarColor}
-          size="sm"
-          animate={false}
-        />
-
-        {/* Repository Info */}
-        <div className="flex flex-col items-start flex-1 min-w-0">
-          <span className="text-sm font-semibold text-sidebar-foreground truncate w-full text-left">
-            {currentRepository.name}
-          </span>
-          <span className="text-xs text-sidebar-foreground-muted truncate w-full text-left">
-            {currentRepository.defaultBranch || 'main'}
-          </span>
-        </div>
+        {/* Repository Info - Single Line */}
+        <span className="text-sm font-medium text-sidebar-foreground-muted truncate">
+          {currentRepository.name} - {currentRepository.defaultBranch || 'main'}
+        </span>
 
         {/* Chevron */}
         <ChevronDown
@@ -160,8 +149,8 @@ export const RepositorySwitcher: React.FC<RepositorySwitcherProps> = ({
               </div>
             )}
 
-            {/* Add New Repository */}
-            <div className="p-2">
+            {/* Add Repository Options */}
+            <div className="p-2 space-y-1">
               <button
                 onClick={() => {
                   onCreateRepository?.();
@@ -174,8 +163,24 @@ export const RepositorySwitcher: React.FC<RepositorySwitcherProps> = ({
                   "text-sidebar-foreground-muted hover:text-sidebar-foreground"
                 )}
               >
-                <Plus size={16} />
-                <span className="text-sm font-medium">Add Repository</span>
+                <FolderPlus size={16} />
+                <span className="text-sm font-medium">Add Local Repository</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  onCloneRepository?.();
+                  setIsOpen(false);
+                }}
+                className={cn(
+                  "w-full flex items-center gap-2 px-3 py-2 rounded-md",
+                  "transition-all duration-200",
+                  "hover:bg-sidebar-hover",
+                  "text-sidebar-foreground-muted hover:text-sidebar-foreground"
+                )}
+              >
+                <GitBranch size={16} />
+                <span className="text-sm font-medium">Clone from Git</span>
               </button>
             </div>
           </div>

@@ -2213,16 +2213,29 @@ async function listWorktrees(projectPath) {
     }
 
     // Transform to our workspace format
-    return worktrees
+    const workspacePromises = worktrees
       .filter(wt => wt.path.includes('.conductor/workspaces'))
-      .map(wt => ({
-        id: wt.branch || path.basename(wt.path),
-        name: wt.branch || path.basename(wt.path),
-        branch: wt.branch || 'detached',
-        path: wt.path,
-        createdAt: null, // Can't determine from git worktree list
-        isActive: false // Will be determined by current workspace
-      }));
+      .map(async wt => {
+        // Get directory creation time as fallback for createdAt
+        let createdAt = new Date().toISOString();
+        try {
+          const stats = await fs.stat(wt.path);
+          createdAt = stats.birthtime.toISOString();
+        } catch (err) {
+          console.warn('[Workspace] Could not get creation time for', wt.path);
+        }
+
+        return {
+          id: wt.branch || path.basename(wt.path),
+          name: wt.branch || path.basename(wt.path),
+          branch: wt.branch || 'detached',
+          path: wt.path,
+          createdAt,
+          isActive: false // Will be determined by current workspace
+        };
+      });
+
+    return await Promise.all(workspacePromises);
   } catch (error) {
     console.error('[Workspace] Failed to list worktrees:', error);
     return [];
