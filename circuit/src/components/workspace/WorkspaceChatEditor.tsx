@@ -287,25 +287,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
   return (
     <div className="h-full flex flex-col">
-      {/* Chat Header */}
-      <div className="h-[50px] border-b border-[#333] flex items-center justify-between px-4">
-        <span className="text-sm font-medium">Chat</span>
-        {sessionId && (
-          <span className="text-xs text-[#666]">
-            {workspace.branch}
-          </span>
-        )}
-      </div>
-
       {/* Messages */}
       <div className="flex-1 overflow-auto p-4 space-y-4">
         {messages.length === 0 ? (
           <div className="text-center text-[#666] pt-8">
-            <p>Start a conversation with Claude</p>
-            <p className="text-xs mt-2">Ask about code, request changes, or get help</p>
-            <p className="text-xs text-[#888] mt-4">
-              Working directory: {workspace.path.split('/').pop()}
-            </p>
+            {/* Empty state */}
           </div>
         ) : (
           messages.map((msg) => (

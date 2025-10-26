@@ -57,6 +57,16 @@
     margin-left: 0;
   }
 
+  /* Hide scrollbars */
+  * {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+  }
+
+  *::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+  }
+
   /* Electron app region (macOS traffic lights) */
   [data-webkit-app-region="drag"] {
     -webkit-app-region: drag;
