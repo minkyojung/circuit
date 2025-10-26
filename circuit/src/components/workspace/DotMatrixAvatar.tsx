@@ -191,11 +191,14 @@ export const DotMatrixAvatar: React.FC<DotMatrixAvatarProps> = ({
   return (
     <div
       className={cn(
-        'rounded-lg flex items-center justify-center p-1',
-        'bg-gradient-to-br from-black/5 to-black/10',
+        'rounded-lg flex items-center justify-center p-1.5',
         sizeConfig.container,
         className
       )}
+      style={{
+        backgroundColor: 'oklch(0.12 0 0)',
+        border: '1px solid oklch(0.20 0 0)'
+      }}
     >
       <div className={cn('grid grid-cols-4', sizeConfig.gap)}>
         {pattern.flat().map((filled, index) => {
@@ -210,17 +213,13 @@ export const DotMatrixAvatar: React.FC<DotMatrixAvatarProps> = ({
               className={cn(
                 'rounded-full transition-all duration-300',
                 sizeConfig.dot,
-                filled
-                  ? cn(
-                      'opacity-100',
-                      animate && 'animate-pulse-glow'
-                    )
-                  : 'opacity-20 bg-gray-400'
+                animate && filled && 'animate-pulse-glow'
               )}
               style={{
-                backgroundColor: filled ? color : undefined,
+                backgroundColor: filled ? color : 'oklch(0.25 0 0)',
+                opacity: filled ? 1 : 0.3,
                 boxShadow: filled
-                  ? `0 0 4px ${color}40, 0 0 8px ${color}20`
+                  ? `0 0 4px ${color}, 0 0 8px ${color}80`
                   : undefined,
                 animationDelay: animate && filled ? `${delay}ms` : undefined,
               }}
