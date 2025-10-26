@@ -301,7 +301,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   };
 
   return (
-    <div className="h-full bg-[#E0E0E0] flex flex-col">
+    <div className="h-full bg-background flex flex-col">
       {/* Messages Area */}
       <div className="flex-1 overflow-auto p-6">
         {messages.length > 0 && (
@@ -334,10 +334,12 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       {/* Input Section - Bottom */}
       <div className="p-4">
         <div className="max-w-2xl mx-auto">
-          {/* Outer Card (Large Rectangle) - F4F4F4, border D3D3D3, radius 25px */}
+          {/* Outer Card (Large Rectangle) - Design token based */}
           <div
-            className="relative bg-[#F4F4F4] border border-[#D3D3D3]"
+            className="relative border"
             style={{
+              backgroundColor: 'var(--chat-input-outer)',
+              borderColor: 'var(--chat-input-border)',
               borderRadius: '25px',
               boxShadow: '0px 4px 25px 0px rgba(160, 160, 160, 0.05)'
             }}
@@ -358,10 +360,13 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
               </div>
             )}
 
-            {/* Inner Card (Small Rectangle) - F9F9F9, radius 22px */}
+            {/* Inner Card (Small Rectangle) - Design token based */}
             <div
-              className={`bg-[#F9F9F9] p-3 ${showContext ? 'mx-3 mb-3' : 'm-3'}`}
-              style={{ borderRadius: '22px' }}
+              className={`p-3 ${showContext ? 'mx-3 mb-3' : 'm-3'}`}
+              style={{
+                backgroundColor: 'var(--chat-input-inner)',
+                borderRadius: '22px'
+              }}
             >
               {/* Textarea */}
               <textarea
@@ -384,32 +389,44 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 <div className="flex gap-2">
                   <button
                     onClick={() => setSelectedModel('sonnet')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors border ${
+                    className={`px-4 py-2 rounded-lg text-base font-medium transition-colors border ${
                       selectedModel === 'sonnet'
-                        ? 'bg-[#E8E8E8] border-[#E8E8E8] text-foreground'
-                        : 'bg-[#F3F3F3] border-[#E8E8E8] text-muted-foreground hover:bg-[#E8E8E8]/50'
+                        ? 'text-foreground'
+                        : 'text-muted-foreground'
                     }`}
+                    style={{
+                      backgroundColor: selectedModel === 'sonnet' ? 'var(--chat-button-selected)' : 'var(--chat-button-default)',
+                      borderColor: 'var(--chat-button-selected)'
+                    }}
                   >
                     Sonnet
                   </button>
                   <button
                     onClick={() => setSelectedModel('think')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 border ${
+                    className={`px-4 py-2 rounded-lg text-base font-medium transition-colors flex items-center gap-1.5 border ${
                       selectedModel === 'think'
-                        ? 'bg-[#E8E8E8] border-[#E8E8E8] text-foreground'
-                        : 'bg-[#F3F3F3] border-[#E8E8E8] text-muted-foreground hover:bg-[#E8E8E8]/50'
+                        ? 'text-foreground'
+                        : 'text-muted-foreground'
                     }`}
+                    style={{
+                      backgroundColor: selectedModel === 'think' ? 'var(--chat-button-selected)' : 'var(--chat-button-default)',
+                      borderColor: 'var(--chat-button-selected)'
+                    }}
                   >
                     <Grid3x3 size={14} />
                     Think
                   </button>
                   <button
                     onClick={() => setSelectedModel('agent')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 border ${
+                    className={`px-4 py-2 rounded-lg text-base font-medium transition-colors flex items-center gap-1.5 border ${
                       selectedModel === 'agent'
-                        ? 'bg-[#E8E8E8] border-[#E8E8E8] text-foreground'
-                        : 'bg-[#F3F3F3] border-[#E8E8E8] text-muted-foreground hover:bg-[#E8E8E8]/50'
+                        ? 'text-foreground'
+                        : 'text-muted-foreground'
                     }`}
+                    style={{
+                      backgroundColor: selectedModel === 'agent' ? 'var(--chat-button-selected)' : 'var(--chat-button-default)',
+                      borderColor: 'var(--chat-button-selected)'
+                    }}
                   >
                     <MessageSquare size={14} />
                     Agent
