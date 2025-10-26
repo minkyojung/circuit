@@ -168,6 +168,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<'sonnet' | 'think' | 'agent'>('sonnet');
+
+  // Context area state
+  const [showContext, setShowContext] = useState(false);
+  const [contextMessage, setContextMessage] = useState('');
 
   // Set prefilled message when provided
   useEffect(() => {
@@ -176,6 +181,16 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       onPrefillCleared?.();
     }
   }, [prefillMessage, onPrefillCleared]);
+
+  // Show/hide context when AI is thinking
+  useEffect(() => {
+    if (isSending) {
+      setContextMessage('Analyzing request...');
+      setShowContext(true);
+    } else {
+      setShowContext(false);
+    }
+  }, [isSending]);
 
   const parseFileChanges = (response: string): string[] => {
     const files: string[] = [];
@@ -320,7 +335,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
       {/* Input Section - Bottom */}
       <div className="p-4">
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-2xl mx-auto">
           {/* Outer Card (Large Rectangle) - F4F4F4, border D3D3D3, radius 25px */}
           <div
             className="relative bg-[#F4F4F4] border border-[#D3D3D3]"
@@ -329,23 +344,25 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
               boxShadow: '0px 4px 25px 0px rgba(160, 160, 160, 0.05)'
             }}
           >
-            {/* Top Section - Context Area (40px height) */}
-            <div className="h-[40px] px-3 flex items-center">
-              <div className="flex items-center gap-2">
-                <div className="grid grid-cols-3 gap-0.5 w-4">
-                  {[...Array(9)].map((_, i) => (
-                    <div key={i} className="w-1 h-1 rounded-full bg-pink-500" />
-                  ))}
+            {/* Top Section - Context Area (dynamic: 50px when shown, 0px when hidden) */}
+            {showContext && (
+              <div className="h-[50px] px-3 flex items-center">
+                <div className="flex items-center gap-2">
+                  <div className="grid grid-cols-3 gap-0.5 w-4">
+                    {[...Array(9)].map((_, i) => (
+                      <div key={i} className="w-1 h-1 rounded-full bg-pink-500 animate-pulse" />
+                    ))}
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    {contextMessage}
+                  </span>
                 </div>
-                <span className="text-xs text-muted-foreground">
-                  Check plan from {workspace.branch}
-                </span>
               </div>
-            </div>
+            )}
 
             {/* Inner Card (Small Rectangle) - F9F9F9, radius 22px */}
             <div
-              className="bg-[#F9F9F9] mx-3 mb-3 p-3"
+              className={`bg-[#F9F9F9] p-3 ${showContext ? 'mx-3 mb-3' : 'm-3'}`}
               style={{ borderRadius: '22px' }}
             >
               {/* Textarea */}
@@ -359,8 +376,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 }}
                 placeholder="Make something wonderful..."
                 disabled={isSending || !sessionId}
-                className="w-full text-base text-foreground placeholder-muted-foreground bg-transparent border-none outline-none resize-none mb-3 leading-relaxed"
-                rows={1}
+                className="w-full text-base text-foreground placeholder-muted-foreground bg-transparent border-none outline-none resize-none mb-3 leading-relaxed min-h-[60px]"
+                rows={2}
               />
 
               {/* Control Bar */}
@@ -369,20 +386,20 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 <div className="flex gap-2">
                   <button
                     onClick={() => setSelectedModel('sonnet')}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors border ${
                       selectedModel === 'sonnet'
                         ? 'bg-[#E8E8E8] border-[#E8E8E8] text-foreground'
-                        : 'bg-transparent border-transparent text-muted-foreground hover:bg-[#E8E8E8]/50'
+                        : 'bg-[#F3F3F3] border-[#E8E8E8] text-muted-foreground hover:bg-[#E8E8E8]/50'
                     }`}
                   >
                     Sonnet
                   </button>
                   <button
                     onClick={() => setSelectedModel('think')}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors flex items-center gap-1.5 border ${
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 border ${
                       selectedModel === 'think'
                         ? 'bg-[#E8E8E8] border-[#E8E8E8] text-foreground'
-                        : 'bg-transparent border-transparent text-muted-foreground hover:bg-[#E8E8E8]/50'
+                        : 'bg-[#F3F3F3] border-[#E8E8E8] text-muted-foreground hover:bg-[#E8E8E8]/50'
                     }`}
                   >
                     <Grid3x3 size={14} />
@@ -390,10 +407,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                   </button>
                   <button
                     onClick={() => setSelectedModel('agent')}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors flex items-center gap-1.5 border ${
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 border ${
                       selectedModel === 'agent'
                         ? 'bg-[#E8E8E8] border-[#E8E8E8] text-foreground'
-                        : 'bg-transparent border-transparent text-muted-foreground hover:bg-[#E8E8E8]/50'
+                        : 'bg-[#F3F3F3] border-[#E8E8E8] text-muted-foreground hover:bg-[#E8E8E8]/50'
                     }`}
                   >
                     <MessageSquare size={14} />
@@ -405,9 +422,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 <button
                   onClick={handleSend}
                   disabled={!input.trim() || isSending || !sessionId}
-                  className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-muted disabled:to-muted disabled:cursor-not-allowed flex items-center justify-center transition-all"
+                  className="px-4 py-2 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-muted disabled:to-muted disabled:cursor-not-allowed flex items-center justify-center transition-all shadow-sm"
                 >
-                  <ArrowUp size={18} className="text-white" strokeWidth={2.5} />
+                  <ArrowUp size={16} className="text-white" strokeWidth={2.5} />
                 </button>
               </div>
             </div>
