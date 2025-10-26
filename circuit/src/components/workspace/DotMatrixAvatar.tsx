@@ -214,9 +214,6 @@ export const DotMatrixAvatar: React.FC<DotMatrixAvatarProps> = ({
               style={{
                 backgroundColor: filled ? color : '#333',
                 opacity: filled ? 1 : 0.25,
-                boxShadow: filled
-                  ? `0 0 3px ${color}, 0 0 6px ${color}`
-                  : undefined,
                 animationDelay: animate && filled ? `${delay}ms` : undefined,
               }}
             />
