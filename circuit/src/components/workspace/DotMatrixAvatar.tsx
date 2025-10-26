@@ -13,7 +13,7 @@ export const DotMatrixAvatar: React.FC<DotMatrixAvatarProps> = ({
   letter,
   color,
   size = 'md',
-  animate = false,
+  animate: _animate = false,
   className,
 }) => {
   const upperLetter = letter.toUpperCase();

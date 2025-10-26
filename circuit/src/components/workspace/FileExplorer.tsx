@@ -1,6 +1,5 @@
 import React, { useState } from 'react'
 import { File, Folder, ChevronRight, ChevronDown, Loader2 } from 'lucide-react'
-import { cn } from '@/lib/utils'
 import {
   SidebarGroup,
   SidebarGroupContent,

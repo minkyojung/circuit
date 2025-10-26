@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { ChevronRight, ChevronDown, FolderGit2, MoreHorizontal } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import type { Repository, Workspace, WorkspaceStatus } from '@/types/workspace';
 import { WorkspaceItem } from './WorkspaceItem';
 

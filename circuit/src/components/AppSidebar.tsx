@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useState, useEffect, useMemo } from 'react'
 import type { Workspace, WorkspaceCreateResult, WorkspaceListResult, WorkspaceStatus, Repository } from '@/types/workspace'
-import { Plus, Trash2, GitBranch, FolderGit2, Check, GitMerge, ArrowUp, ArrowDown, GitCommit, Loader2, Archive } from 'lucide-react'
+import { Plus, FolderGit2, Check, GitMerge, GitCommit, Archive } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useProjectPath } from '@/App'
 import { RepositorySwitcher } from './workspace/RepositorySwitcher'
@@ -10,11 +10,9 @@ import {
   Sidebar,
   SidebarContent,
   SidebarGroup,
-  SidebarGroupContent,
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
@@ -80,7 +78,6 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
   const { projectPath } = useProjectPath()
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [statuses, setStatuses] = useState<Record<string, WorkspaceStatus>>({})
-  const [isLoading, setIsLoading] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [fileTree, setFileTree] = useState<FileNode[]>([])
   const [isLoadingFiles, setIsLoadingFiles] = useState(false)
@@ -209,7 +206,6 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
   }
 
   const loadWorkspaces = async () => {
-    setIsLoading(true)
     try {
       const result: WorkspaceListResult = await ipcRenderer.invoke('workspace:list')
 
@@ -220,8 +216,6 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
       }
     } catch (error) {
       console.error('Error loading workspaces:', error)
-    } finally {
-      setIsLoading(false)
     }
   }
 
@@ -273,7 +267,7 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
       }
 
       // Show loading state
-      const loadingToast = alert('Cloning repository...\nThis may take a few minutes.')
+      alert('Cloning repository...\nThis may take a few minutes.')
 
       const result = await ipcRenderer.invoke('repository:clone', url)
 
@@ -322,7 +316,6 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
 
   const handleDeleteWorkspace = (e: React.MouseEvent, workspaceId: string, workspaceName: string, isMerged: boolean = false) => {
     e.stopPropagation()
-    const action = isMerged ? 'Archive' : 'Delete'
     const message = isMerged
       ? `Archive workspace "${workspaceName}"? This will remove it from the list.`
       : `Delete workspace "${workspaceName}"?`
@@ -366,7 +359,6 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                 const status = statuses[workspace.id]
                 const badge = getStatusBadge(status)
                 const isActive = workspace.id === selectedWorkspaceId
-                const showBranch = workspace.name !== workspace.branch
                 const isMerged = badge.isMerged
 
                 return (

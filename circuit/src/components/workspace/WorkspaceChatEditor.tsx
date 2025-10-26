@@ -159,7 +159,7 @@ interface ChatPanelProps {
 }
 
 const ChatPanel: React.FC<ChatPanelProps> = ({
-  workspace,
+  workspace: _workspace,
   sessionId,
   onFileEdit,
   prefillMessage,
@@ -464,7 +464,7 @@ interface EditorPanelProps {
 
 const EditorPanel: React.FC<EditorPanelProps> = ({
   workspace,
-  openFiles,
+  openFiles: _openFiles,
   selectedFile,
   onToggleSplit,
   isSplitMode = false,

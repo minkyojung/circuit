@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronDown, Plus, GitBranch, FolderPlus } from 'lucide-react';
+import { ChevronDown, GitBranch, FolderPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Repository } from '@/types/workspace';
 import { DotMatrixAvatar } from './DotMatrixAvatar';
