@@ -12,6 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rounded corners/border design for inset sidebar
 - Transparent body element for native vibrancy effects
 - Direct Tailwind color utilities for better text visibility on glassmorphism
+- Apple Human Interface Guidelines-based semantic color token system
+  - Background hierarchy: primary, secondary, tertiary levels
+  - Label hierarchy: primary (100%), secondary (90%), tertiary (30%), quaternary (18%) opacity
+  - Fill hierarchy: primary, secondary, tertiary, quaternary for interactive elements
+  - Separator tokens: opaque and translucent variants
+  - Material tokens: thin, regular, thick, ultra-thick for glassmorphism effects
+- Dark mode depth perception with base (dimmer) vs elevated (brighter) background variants
+- Legacy token mapping for backward compatibility
 
 ### Changed
 - Improved sidebar text/icon contrast for glassmorphism backgrounds
@@ -22,6 +30,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Dark mode: accent (0.35) and hover (0.38) vs previous (0.28/0.32)
 - Applied opaque backgrounds to main content area and chat panel
 - Moved glassmorphism from sidebar to entire window for unified effect
+- Reorganized color tokens to follow Apple's semantic naming conventions
+  - Background colors now use semantic purpose-based naming
+  - Text colors follow label hierarchy instead of foreground/muted
+  - Interactive elements use fill hierarchy
+  - Separators use dedicated opaque/translucent tokens
+- Dark mode glassmorphism now uses Apple-style darker base (#1C1C1C) with higher opacity (0.85)
 
 ### Removed
 - Unused imports (Trash2, GitBranch, ArrowUp, ArrowDown, Loader2, Plus, cn utilities)

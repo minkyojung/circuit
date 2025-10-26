@@ -116,49 +116,78 @@
   :root {
     --radius: var(--radius-lg);
 
-    /* Neutral grays */
-    --background: oklch(0.88 0 0);            /* #E0E0E0 - Main background */
-    --foreground: oklch(0.24 0 0);            /* #383838 - Selected text */
-    --foreground-muted: oklch(0.41 0 0);      /* #626262 - Normal text */
+    /* ===== APPLE-STYLE SEMANTIC COLOR SYSTEM ===== */
+
+    /* Background Hierarchy (Light Mode) */
+    --background-primary: oklch(0.88 0 0);           /* #E0E0E0 - Main window background */
+    --background-secondary: oklch(1 0 0);            /* #FFFFFF - Elevated cards/panels */
+    --background-tertiary: oklch(0.965 0 0);         /* #F5F5F5 - Nested elevated surfaces */
+
+    /* Label Hierarchy (Light Mode) - Apple semantic naming */
+    --label-primary: rgba(0, 0, 0, 1.0);             /* 100% - Main text */
+    --label-secondary: rgba(0, 0, 0, 0.9);           /* 90% - Supporting text */
+    --label-tertiary: rgba(0, 0, 0, 0.3);            /* 30% - Subtle text/placeholders */
+    --label-quaternary: rgba(0, 0, 0, 0.18);         /* 18% - Very subtle text */
+
+    /* Fill Hierarchy (Light Mode) - Interactive elements */
+    --fill-primary: rgba(120, 120, 128, 0.36);       /* Buttons, controls - level 1 */
+    --fill-secondary: rgba(120, 120, 128, 0.32);     /* Level 2 */
+    --fill-tertiary: rgba(118, 118, 128, 0.24);      /* Level 3 */
+    --fill-quaternary: rgba(116, 116, 128, 0.18);    /* Level 4 */
+
+    /* Separators (Light Mode) */
+    --separator-opaque: rgba(0, 0, 0, 0.1);          /* Solid dividers */
+    --separator-translucent: rgba(0, 0, 0, 0.05);    /* Subtle dividers */
+
+    /* Materials - Glassmorphism Hierarchy (Light Mode) */
+    --material-thin: rgba(233, 233, 233, 0.5);       /* Subtle glass effect */
+    --material-regular: rgba(233, 233, 233, 0.7);    /* Standard glass effect */
+    --material-thick: rgba(233, 233, 233, 0.85);     /* Strong glass effect */
+    --material-ultra-thick: rgba(233, 233, 233, 0.95); /* Maximum glass effect */
+
+    /* ===== LEGACY TOKENS (mapped to new system) ===== */
+    --background: var(--background-primary);
+    --foreground: var(--label-primary);
+    --foreground-muted: var(--label-secondary);
 
     /* Surface colors */
-    --card: oklch(1 0 0);                     /* #FFFFFF - Cards/surfaces */
-    --card-foreground: oklch(0.24 0 0);       /* #383838 */
+    --card: var(--background-secondary);
+    --card-foreground: var(--label-primary);
 
-    --popover: oklch(1 0 0);                  /* #FFFFFF */
-    --popover-foreground: oklch(0.24 0 0);    /* #383838 */
+    --popover: var(--background-secondary);
+    --popover-foreground: var(--label-primary);
 
     /* Brand colors */
-    --primary: oklch(0.58 0.10 40);           /* Muted orange-brown */
-    --primary-foreground: oklch(1 0 0);       /* #FFFFFF */
+    --primary: oklch(0.58 0.10 40);                  /* Muted orange-brown */
+    --primary-foreground: oklch(1 0 0);              /* #FFFFFF */
 
-    --secondary: oklch(0.92 0 0);             /* #EBEBEB - Light gray */
-    --secondary-foreground: oklch(0.24 0 0);  /* #383838 */
+    --secondary: oklch(0.92 0 0);                    /* #EBEBEB - Light gray */
+    --secondary-foreground: oklch(0.24 0 0);         /* #383838 */
 
     /* Muted/subtle colors */
-    --muted: oklch(0.84 0 0);                 /* #D2D2D2 - Sidebar bg */
-    --muted-foreground: oklch(0.41 0 0);      /* #626262 */
+    --muted: oklch(0.84 0 0);                        /* #D2D2D2 - Sidebar bg */
+    --muted-foreground: oklch(0.41 0 0);             /* #626262 */
 
-    --accent: oklch(0.92 0.02 40);            /* Very light orange tint */
-    --accent-foreground: oklch(0.58 0.10 40); /* Muted orange */
+    --accent: oklch(0.92 0.02 40);                   /* Very light orange tint */
+    --accent-foreground: oklch(0.58 0.10 40);        /* Muted orange */
 
     /* Semantic colors */
-    --destructive: oklch(0.55 0.22 25);       /* Red */
-    --destructive-foreground: oklch(1 0 0);   /* White */
+    --destructive: oklch(0.55 0.22 25);              /* Red */
+    --destructive-foreground: oklch(1 0 0);          /* White */
 
-    --success: oklch(0.55 0.15 150);          /* Green */
+    --success: oklch(0.55 0.15 150);                 /* Green */
     --success-foreground: oklch(1 0 0);
 
-    --warning: oklch(0.65 0.15 80);           /* Yellow-orange */
+    --warning: oklch(0.65 0.15 80);                  /* Yellow-orange */
     --warning-foreground: oklch(0.2 0 0);
 
-    --info: oklch(0.55 0.15 250);             /* Blue */
+    --info: oklch(0.55 0.15 250);                    /* Blue */
     --info-foreground: oklch(1 0 0);
 
     /* UI elements */
-    --border: oklch(0.80 0 0);                /* #CCCCCC */
-    --input: oklch(0.92 0 0);                 /* #EBEBEB */
-    --ring: oklch(0.58 0.10 40);              /* Muted orange - Focus ring */
+    --border: var(--separator-opaque);
+    --input: oklch(0.92 0 0);                        /* #EBEBEB */
+    --ring: oklch(0.58 0.10 40);                     /* Muted orange - Focus ring */
 
     /* Chart colors */
     --chart-1: oklch(0.837 0.128 66.29);
@@ -168,86 +197,125 @@
     --chart-5: oklch(0.47 0.157 37.304);
 
     /* Window glassmorphism */
-    --window-glass: rgba(233, 233, 233, 0.7); /* Light mode window glass - glassmorphism effect */
+    --window-glass: var(--material-regular);         /* Standard glass effect for window */
 
     /* Sidebar colors */
-    --sidebar: oklch(0.915 0 0);              /* #E9E9E9 */
-    --sidebar-glass: rgba(233, 233, 233, 0.7); /* Glassmorphism backdrop */
-    --sidebar-foreground: oklch(0.15 0 0);    /* Darker for glassmorphism contrast */
-    --sidebar-foreground-muted: oklch(0.30 0 0); /* Darker muted text */
-    --sidebar-primary: oklch(0.58 0.10 40);   /* Muted orange */
+    --sidebar: oklch(0.915 0 0);                     /* #E9E9E9 */
+    --sidebar-glass: var(--material-regular);        /* Glassmorphism backdrop */
+    --sidebar-foreground: oklch(0.15 0 0);           /* Darker for glassmorphism contrast */
+    --sidebar-foreground-muted: oklch(0.30 0 0);     /* Darker muted text */
+    --sidebar-primary: oklch(0.58 0.10 40);          /* Muted orange */
     --sidebar-primary-foreground: oklch(1 0 0);
-    --sidebar-accent: oklch(0.97 0 0);        /* Selected - very bright for glassmorphism */
+    --sidebar-accent: oklch(0.97 0 0);               /* Selected - very bright for glassmorphism */
     --sidebar-accent-foreground: oklch(0.24 0 0);
-    --sidebar-hover: oklch(0.95 0 0);         /* Hover - medium bright */
-    --sidebar-border: oklch(0.72 0 0);        /* Stronger border for glass effect */
+    --sidebar-hover: oklch(0.95 0 0);                /* Hover - medium bright */
+    --sidebar-border: var(--separator-opaque);
     --sidebar-ring: oklch(0.58 0.10 40);
 
     /* Chat UI colors */
-    --chat-input-outer: oklch(0.945 0 0);     /* Clear separation from background */
-    --chat-input-border: oklch(0.80 0 0);     /* Softer, more subtle border */
-    --chat-input-inner: oklch(0.985 0 0);     /* Bright, elevated surface */
-    --chat-button-selected: oklch(0.88 0 0);  /* Clear selected state */
-    --chat-button-default: oklch(0.96 0 0);   /* Subtle, matches inner surface */
+    --chat-input-outer: oklch(0.945 0 0);            /* Clear separation from background */
+    --chat-input-border: var(--separator-opaque);
+    --chat-input-inner: oklch(0.985 0 0);            /* Bright, elevated surface */
+    --chat-button-selected: oklch(0.88 0 0);         /* Clear selected state */
+    --chat-button-default: oklch(0.96 0 0);          /* Subtle, matches inner surface */
 
     /* shadcn sidebar compat (HSL) */
-    --sidebar-background: 0 0% 91%;           /* #E9E9E9 */
+    --sidebar-background: 0 0% 91%;                  /* #E9E9E9 */
 
     /* Git status colors */
-    --status-merged: oklch(0.55 0.18 290);    /* Purple */
-    --status-working: oklch(0.62 0.12 60);    /* Muted yellow-orange */
-    --status-ahead: oklch(0.55 0.15 250);     /* Blue */
-    --status-behind: oklch(0.55 0.20 25);     /* Red */
-    --status-diverged: oklch(0.58 0.12 40);   /* Muted orange */
-    --status-synced: oklch(0.55 0.15 150);    /* Green */
-    --status-local: oklch(0.55 0.05 250);     /* Gray */
+    --status-merged: oklch(0.55 0.18 290);           /* Purple */
+    --status-working: oklch(0.62 0.12 60);           /* Muted yellow-orange */
+    --status-ahead: oklch(0.55 0.15 250);            /* Blue */
+    --status-behind: oklch(0.55 0.20 25);            /* Red */
+    --status-diverged: oklch(0.58 0.12 40);          /* Muted orange */
+    --status-synced: oklch(0.55 0.15 150);           /* Green */
+    --status-local: oklch(0.55 0.05 250);            /* Gray */
   }
 
   /* ===== DARK MODE COLORS ===== */
   .dark {
-    /* Neutral grays - inverted but maintaining readability */
-    --background: oklch(0.18 0 0);            /* #272727 - Dark background */
-    --foreground: oklch(0.95 0 0);            /* #F2F2F2 - Main text */
-    --foreground-muted: oklch(0.65 0 0);      /* #A0A0A0 - Secondary text */
+    /* ===== APPLE-STYLE SEMANTIC COLOR SYSTEM (DARK) ===== */
+
+    /* Background Hierarchy - Base (dimmer, for background layers) */
+    --background-base-primary: oklch(0.15 0 0);      /* #1C1C1C - Deepest background */
+    --background-base-secondary: oklch(0.18 0 0);    /* #272727 - Base layer 2 */
+    --background-base-tertiary: oklch(0.20 0 0);     /* #2E2E2E - Base layer 3 */
+
+    /* Background Hierarchy - Elevated (brighter, for foreground layers) */
+    --background-elevated-primary: oklch(0.22 0 0);  /* #333333 - Elevated surface 1 */
+    --background-elevated-secondary: oklch(0.25 0 0); /* #3A3A3A - Elevated surface 2 */
+    --background-elevated-tertiary: oklch(0.28 0 0); /* #424242 - Elevated surface 3 */
+
+    /* Default background tokens (using base for main background) */
+    --background-primary: var(--background-base-secondary);      /* #272727 - Main window */
+    --background-secondary: var(--background-elevated-primary);  /* #333333 - Cards */
+    --background-tertiary: var(--background-elevated-secondary); /* #3A3A3A - Nested */
+
+    /* Label Hierarchy (Dark Mode) - Apple semantic naming */
+    --label-primary: rgba(255, 255, 255, 1.0);       /* 100% - Main text */
+    --label-secondary: rgba(255, 255, 255, 0.9);     /* 90% - Supporting text */
+    --label-tertiary: rgba(255, 255, 255, 0.3);      /* 30% - Subtle text/placeholders */
+    --label-quaternary: rgba(255, 255, 255, 0.18);   /* 18% - Very subtle text */
+
+    /* Fill Hierarchy (Dark Mode) - Interactive elements */
+    --fill-primary: rgba(120, 120, 128, 0.36);       /* Buttons, controls - level 1 */
+    --fill-secondary: rgba(120, 120, 128, 0.32);     /* Level 2 */
+    --fill-tertiary: rgba(118, 118, 128, 0.24);      /* Level 3 */
+    --fill-quaternary: rgba(116, 116, 128, 0.18);    /* Level 4 */
+
+    /* Separators (Dark Mode) */
+    --separator-opaque: rgba(255, 255, 255, 0.1);    /* Solid dividers */
+    --separator-translucent: rgba(255, 255, 255, 0.05); /* Subtle dividers */
+
+    /* Materials - Glassmorphism Hierarchy (Dark Mode) */
+    --material-thin: rgba(28, 28, 28, 0.7);          /* Subtle glass effect */
+    --material-regular: rgba(28, 28, 28, 0.85);      /* Standard glass effect */
+    --material-thick: rgba(28, 28, 28, 0.92);        /* Strong glass effect */
+    --material-ultra-thick: rgba(28, 28, 28, 0.97);  /* Maximum glass effect */
+
+    /* ===== LEGACY TOKENS (mapped to new system) ===== */
+    --background: var(--background-primary);
+    --foreground: var(--label-primary);
+    --foreground-muted: var(--label-secondary);
 
     /* Surface colors */
-    --card: oklch(0.22 0 0);                  /* #333333 - Elevated surfaces */
-    --card-foreground: oklch(0.95 0 0);       /* #F2F2F2 */
+    --card: var(--background-secondary);
+    --card-foreground: var(--label-primary);
 
-    --popover: oklch(0.20 0 0);               /* #2E2E2E */
-    --popover-foreground: oklch(0.95 0 0);    /* #F2F2F2 */
+    --popover: var(--background-elevated-primary);
+    --popover-foreground: var(--label-primary);
 
     /* Brand colors - slightly brightened for dark mode */
-    --primary: oklch(0.65 0.12 40);           /* Brighter orange-brown */
-    --primary-foreground: oklch(0.12 0 0);    /* Dark text on primary */
+    --primary: oklch(0.65 0.12 40);                  /* Brighter orange-brown */
+    --primary-foreground: oklch(0.12 0 0);           /* Dark text on primary */
 
-    --secondary: oklch(0.28 0 0);             /* #424242 - Dark gray */
-    --secondary-foreground: oklch(0.95 0 0);  /* #F2F2F2 */
+    --secondary: var(--background-elevated-tertiary); /* #424242 - Dark gray */
+    --secondary-foreground: var(--label-primary);
 
     /* Muted/subtle colors */
-    --muted: oklch(0.25 0 0);                 /* #3A3A3A - Sidebar bg dark */
-    --muted-foreground: oklch(0.65 0 0);      /* #A0A0A0 */
+    --muted: var(--background-elevated-secondary);   /* #3A3A3A - Sidebar bg dark */
+    --muted-foreground: var(--label-secondary);
 
-    --accent: oklch(0.30 0.04 40);            /* Dark orange tint */
-    --accent-foreground: oklch(0.65 0.12 40); /* Brighter orange */
+    --accent: oklch(0.30 0.04 40);                   /* Dark orange tint */
+    --accent-foreground: oklch(0.65 0.12 40);        /* Brighter orange */
 
     /* Semantic colors - adjusted for dark backgrounds */
-    --destructive: oklch(0.60 0.25 25);       /* Brighter red */
+    --destructive: oklch(0.60 0.25 25);              /* Brighter red */
     --destructive-foreground: oklch(0.98 0 0);
 
-    --success: oklch(0.60 0.18 150);          /* Brighter green */
+    --success: oklch(0.60 0.18 150);                 /* Brighter green */
     --success-foreground: oklch(0.98 0 0);
 
-    --warning: oklch(0.70 0.18 80);           /* Brighter yellow */
+    --warning: oklch(0.70 0.18 80);                  /* Brighter yellow */
     --warning-foreground: oklch(0.15 0 0);
 
-    --info: oklch(0.60 0.18 250);             /* Brighter blue */
+    --info: oklch(0.60 0.18 250);                    /* Brighter blue */
     --info-foreground: oklch(0.98 0 0);
 
     /* UI elements */
-    --border: oklch(0.35 0 0);                /* #545454 - Visible on dark */
-    --input: oklch(0.25 0 0);                 /* #3A3A3A */
-    --ring: oklch(0.65 0.12 40);              /* Brighter orange ring */
+    --border: var(--separator-opaque);
+    --input: var(--background-elevated-secondary);   /* #3A3A3A */
+    --ring: oklch(0.65 0.12 40);                     /* Brighter orange ring */
 
     /* Chart colors - brightened */
     --chart-1: oklch(0.737 0.148 66.29);
@@ -256,39 +324,39 @@
     --chart-4: oklch(0.453 0.215 38.402);
     --chart-5: oklch(0.37 0.177 37.304);
 
-    /* Window glassmorphism - dark variant */
-    --window-glass: rgba(28, 28, 28, 0.85);   /* Dark mode window glass - Apple-style glassmorphism */
+    /* Window glassmorphism */
+    --window-glass: var(--material-regular);         /* Standard glass effect - Apple-style */
 
     /* Sidebar colors - dark variant */
-    --sidebar: oklch(0.20 0 0);               /* #2E2E2E */
-    --sidebar-glass: rgba(28, 28, 28, 0.85);  /* Glassmorphism backdrop dark - Apple-style */
-    --sidebar-foreground: oklch(0.98 0 0);    /* Brighter for glassmorphism contrast */
-    --sidebar-foreground-muted: oklch(0.75 0 0); /* Brighter muted text */
-    --sidebar-primary: oklch(0.65 0.12 40);   /* Brighter orange */
+    --sidebar: var(--background-base-tertiary);      /* #2E2E2E */
+    --sidebar-glass: var(--material-regular);        /* Glassmorphism backdrop - Apple-style */
+    --sidebar-foreground: oklch(0.98 0 0);           /* Brighter for glassmorphism contrast */
+    --sidebar-foreground-muted: oklch(0.75 0 0);     /* Brighter muted text */
+    --sidebar-primary: oklch(0.65 0.12 40);          /* Brighter orange */
     --sidebar-primary-foreground: oklch(0.12 0 0);
-    --sidebar-accent: oklch(0.35 0 0);        /* Selected - brighter for glassmorphism */
+    --sidebar-accent: oklch(0.35 0 0);               /* Selected - brighter for glassmorphism */
     --sidebar-accent-foreground: oklch(0.95 0 0);
-    --sidebar-hover: oklch(0.38 0 0);         /* Hover - visible on glass */
-    --sidebar-border: oklch(0.48 0 0);        /* Stronger border for glass effect */
+    --sidebar-hover: oklch(0.38 0 0);                /* Hover - visible on glass */
+    --sidebar-border: var(--separator-opaque);
     --sidebar-ring: oklch(0.65 0.12 40);
 
     /* Chat UI colors - dark variant */
-    --chat-input-outer: oklch(0.23 0 0);      /* Clear separation from background */
-    --chat-input-border: oklch(0.35 0 0);     /* Softer, more subtle border */
-    --chat-input-inner: oklch(0.29 0 0);      /* Elevated, brighter than outer */
-    --chat-button-selected: oklch(0.33 0 0);  /* Clear selected state */
-    --chat-button-default: oklch(0.27 0 0);   /* Subtle, matches inner surface */
+    --chat-input-outer: oklch(0.23 0 0);             /* Clear separation from background */
+    --chat-input-border: var(--separator-opaque);
+    --chat-input-inner: oklch(0.29 0 0);             /* Elevated, brighter than outer */
+    --chat-button-selected: oklch(0.33 0 0);         /* Clear selected state */
+    --chat-button-default: oklch(0.27 0 0);          /* Subtle, matches inner surface */
 
     /* shadcn sidebar compat (HSL) */
-    --sidebar-background: 0 0% 12%;           /* Dark sidebar */
+    --sidebar-background: 0 0% 12%;                  /* Dark sidebar */
 
     /* Git status colors - brightened for visibility */
-    --status-merged: oklch(0.65 0.20 290);    /* Brighter purple */
-    --status-working: oklch(0.72 0.14 60);    /* Brighter yellow */
-    --status-ahead: oklch(0.65 0.18 250);     /* Brighter blue */
-    --status-behind: oklch(0.65 0.22 25);     /* Brighter red */
-    --status-diverged: oklch(0.68 0.14 40);   /* Brighter orange */
-    --status-synced: oklch(0.65 0.18 150);    /* Brighter green */
-    --status-local: oklch(0.65 0.08 250);     /* Brighter gray */
+    --status-merged: oklch(0.65 0.20 290);           /* Brighter purple */
+    --status-working: oklch(0.72 0.14 60);           /* Brighter yellow */
+    --status-ahead: oklch(0.65 0.18 250);            /* Brighter blue */
+    --status-behind: oklch(0.65 0.22 25);            /* Brighter red */
+    --status-diverged: oklch(0.68 0.14 40);          /* Brighter orange */
+    --status-synced: oklch(0.65 0.18 150);           /* Brighter green */
+    --status-local: oklch(0.65 0.08 250);            /* Brighter gray */
   }
 }
