@@ -48,7 +48,7 @@ export const RepositorySwitcher: React.FC<RepositorySwitcherProps> = ({
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg",
+          "w-full flex items-center gap-2 px-2 py-1.5 rounded-md",
           "transition-all duration-200 ease-out",
           "hover:bg-sidebar-hover active:bg-sidebar-hover",
           "group"
@@ -58,23 +58,23 @@ export const RepositorySwitcher: React.FC<RepositorySwitcherProps> = ({
         <DotMatrixAvatar
           letter={firstLetter}
           color={avatarColor}
-          size="md"
-          animate={true}
+          size="sm"
+          animate={false}
         />
 
         {/* Repository Info */}
         <div className="flex flex-col items-start flex-1 min-w-0">
-          <span className="text-sm font-semibold text-sidebar-foreground truncate w-full text-left">
+          <span className="text-xs font-semibold text-sidebar-foreground truncate w-full text-left">
             {currentRepository.name}
           </span>
-          <span className="text-xs text-sidebar-foreground-muted truncate w-full text-left">
+          <span className="text-[10px] text-sidebar-foreground-muted truncate w-full text-left">
             {currentRepository.defaultBranch || 'main'}
           </span>
         </div>
 
         {/* Chevron */}
         <ChevronDown
-          size={16}
+          size={12}
           className={cn(
             "flex-shrink-0 text-sidebar-foreground-muted transition-transform duration-200",
             isOpen && "rotate-180"
@@ -92,22 +92,22 @@ export const RepositorySwitcher: React.FC<RepositorySwitcherProps> = ({
           />
 
           {/* Menu */}
-          <div className="absolute top-full left-0 right-0 mt-1 z-20 bg-card border border-border rounded-lg shadow-lg overflow-hidden">
+          <div className="absolute top-full left-0 right-0 mt-1 z-20 bg-card border border-border rounded-md shadow-lg overflow-hidden">
             {/* Current Repository */}
-            <div className="p-2 border-b border-border">
-              <div className="px-3 py-2 rounded-md bg-sidebar-accent">
-                <div className="flex items-center gap-3">
+            <div className="p-1.5 border-b border-border">
+              <div className="px-2 py-1.5 rounded-sm bg-sidebar-accent">
+                <div className="flex items-center gap-2">
                   <DotMatrixAvatar
                     letter={firstLetter}
                     color={avatarColor}
-                    size="md"
+                    size="sm"
                     animate={false}
                   />
                   <div className="flex flex-col flex-1 min-w-0">
-                    <span className="text-sm font-medium text-foreground truncate">
+                    <span className="text-xs font-medium text-foreground truncate">
                       {currentRepository.name}
                     </span>
-                    <span className="text-xs text-muted-foreground truncate">
+                    <span className="text-[10px] text-muted-foreground truncate">
                       {currentRepository.defaultBranch || 'main'}
                     </span>
                   </div>
@@ -117,8 +117,8 @@ export const RepositorySwitcher: React.FC<RepositorySwitcherProps> = ({
 
             {/* Other Repositories */}
             {repositories.length > 1 && (
-              <div className="p-2 border-b border-border">
-                <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+              <div className="p-1.5 border-b border-border">
+                <div className="px-2 py-1 text-[10px] font-medium text-muted-foreground">
                   Switch Repository
                 </div>
                 {repositories
@@ -135,7 +135,7 @@ export const RepositorySwitcher: React.FC<RepositorySwitcherProps> = ({
                           setIsOpen(false);
                         }}
                         className={cn(
-                          "w-full flex items-center gap-3 px-3 py-2 rounded-md",
+                          "w-full flex items-center gap-2 px-2 py-1.5 rounded-sm",
                           "transition-all duration-200",
                           "hover:bg-sidebar-hover"
                         )}
@@ -143,14 +143,14 @@ export const RepositorySwitcher: React.FC<RepositorySwitcherProps> = ({
                         <DotMatrixAvatar
                           letter={repoFirstLetter}
                           color={repoColor}
-                          size="md"
+                          size="sm"
                           animate={false}
                         />
                         <div className="flex flex-col items-start flex-1 min-w-0">
-                          <span className="text-sm font-medium text-foreground truncate w-full">
+                          <span className="text-xs font-medium text-foreground truncate w-full">
                             {repo.name}
                           </span>
-                          <span className="text-xs text-muted-foreground truncate w-full">
+                          <span className="text-[10px] text-muted-foreground truncate w-full">
                             {repo.defaultBranch || 'main'}
                           </span>
                         </div>
@@ -161,21 +161,21 @@ export const RepositorySwitcher: React.FC<RepositorySwitcherProps> = ({
             )}
 
             {/* Add New Repository */}
-            <div className="p-2">
+            <div className="p-1.5">
               <button
                 onClick={() => {
                   onCreateRepository?.();
                   setIsOpen(false);
                 }}
                 className={cn(
-                  "w-full flex items-center gap-2 px-3 py-2 rounded-md",
+                  "w-full flex items-center gap-2 px-2 py-1.5 rounded-sm",
                   "transition-all duration-200",
                   "hover:bg-sidebar-hover",
                   "text-sidebar-foreground-muted hover:text-sidebar-foreground"
                 )}
               >
-                <Plus size={16} />
-                <span className="text-sm font-medium">Add Repository</span>
+                <Plus size={14} />
+                <span className="text-xs font-medium">Add Repository</span>
               </button>
             </div>
           </div>

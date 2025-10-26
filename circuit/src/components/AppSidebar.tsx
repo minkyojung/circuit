@@ -292,39 +292,60 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                     <SidebarMenuButton
                       onClick={() => onSelectWorkspace(workspace)}
                       isActive={isActive}
-                      className="h-auto py-[var(--list-item-padding-y)] px-[var(--list-item-padding-x)] pr-8"
+                      className="h-auto py-1.5 px-2 pr-8"
                     >
-                      {/* Wrapper for icon + content */}
-                      <div className="flex items-start gap-2 w-full min-w-0">
+                      {/* Compact layout */}
+                      <div className="flex items-center gap-1.5 w-full min-w-0">
                         {/* Icon */}
-                        <FolderGit2 size={14} className="flex-shrink-0 mt-0.5" />
+                        <FolderGit2 size={12} className="flex-shrink-0" />
 
-                        {/* Content stack */}
-                        <div className="flex flex-col gap-1 flex-1 min-w-0">
-                          {/* Workspace name */}
-                          <span className="text-sm font-medium truncate">
-                            {workspace.name}
-                          </span>
-
-                          {/* Branch (if different from name) */}
-                          {showBranch && (
-                            <div className="flex items-center gap-1.5">
-                              <GitBranch size={10} className="text-sidebar-foreground-muted flex-shrink-0" />
-                              <span className="text-[11px] text-sidebar-foreground-muted truncate">
-                                {workspace.branch}
-                              </span>
-                            </div>
-                          )}
-
-                          {/* Status badge */}
-                          <div className="flex items-center gap-2 flex-wrap">
+                        {/* Content */}
+                        <div className="flex-1 min-w-0">
+                          {/* Top row: Name + Badge */}
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <span className="text-xs font-medium truncate flex-1">
+                              {workspace.name}
+                            </span>
                             <div className={cn(
-                              "inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-medium",
+                              "inline-flex items-center gap-0.5 text-[9px] px-1 py-0.5 rounded font-medium flex-shrink-0",
                               badge.className
                             )}>
                               {badge.icon}
-                              <span>{badge.text}</span>
                             </div>
+                          </div>
+
+                          {/* Bottom row: Branch + File changes */}
+                          <div className="flex items-center gap-2 text-[10px] text-sidebar-foreground-muted">
+                            {showBranch && (
+                              <div className="flex items-center gap-1 truncate">
+                                <GitBranch size={8} className="flex-shrink-0" />
+                                <span className="truncate">{workspace.branch}</span>
+                              </div>
+                            )}
+                            {status && !status.clean && (
+                              <div className="flex items-center gap-1 text-status-working flex-shrink-0">
+                                {status.modified > 0 && <span>{status.modified}M</span>}
+                                {status.added > 0 && <span>{status.added}A</span>}
+                                {status.deleted > 0 && <span>{status.deleted}D</span>}
+                                {status.untracked > 0 && <span>{status.untracked}U</span>}
+                              </div>
+                            )}
+                            {status && (status.ahead > 0 || status.behind > 0) && (
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                {status.ahead > 0 && (
+                                  <span className="flex items-center gap-0.5 text-status-ahead">
+                                    <ArrowUp size={8} />
+                                    {status.ahead}
+                                  </span>
+                                )}
+                                {status.behind > 0 && (
+                                  <span className="flex items-center gap-0.5 text-status-behind">
+                                    <ArrowDown size={8} />
+                                    {status.behind}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -341,7 +362,7 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                       )}
                       title={isMerged ? "Archive workspace" : "Delete workspace"}
                     >
-                      {isMerged ? <Archive size={12} /> : <Trash2 size={12} />}
+                      {isMerged ? <Archive size={10} /> : <Trash2 size={10} />}
                       <span className="sr-only">{isMerged ? "Archive" : "Delete"}</span>
                     </SidebarMenuAction>
                   </SidebarMenuItem>
