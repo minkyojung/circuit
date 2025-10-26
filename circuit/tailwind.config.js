@@ -8,7 +8,14 @@ export default {
   theme: {
   	extend: {
   		fontFamily: {
-  			sans: ['-apple-system', 'BlinkMacSystemFont', 'SF Pro Display', 'SF Pro Text', 'system-ui', 'sans-serif'],
+  			sans: [
+  				'-apple-system',
+  				'BlinkMacSystemFont',
+  				'SF Pro Display',
+  				'SF Pro Text',
+  				'system-ui',
+  				'sans-serif'
+  			]
   		},
   		borderRadius: {
   			lg: 'var(--radius)',
