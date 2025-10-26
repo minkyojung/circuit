@@ -388,7 +388,7 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                         <div className="flex-1 min-w-0 space-y-1">
                           {/* Top row: Name + Status Badge */}
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium truncate flex-1">
+                            <span className="text-base font-medium text-sidebar-foreground-muted truncate flex-1">
                               {workspace.name}
                             </span>
 
@@ -426,21 +426,18 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                           {/* Bottom row: Metadata and stats (always visible) */}
                           <div className="flex items-center gap-1 text-xs text-sidebar-foreground-muted">
                             {/* Branch name - always show */}
-                            <div className="flex items-center gap-1 flex-shrink-0">
-                              <GitBranch size={11} className="flex-shrink-0" />
-                              <span className="text-[11px]">{workspace.branch}</span>
-                            </div>
+                            <span className="text-xs flex-shrink-0">{workspace.branch}</span>
 
                             {/* Code stats - files changed */}
                             {status && !status.clean && (
                               <div className="flex items-center gap-1 flex-shrink-0">
                                 {(status.added > 0 || status.modified > 0) && (
-                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-status-synced/10 text-status-synced text-[10px] font-mono font-medium">
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-status-synced/10 text-status-synced text-[11px] font-mono font-medium">
                                     +{status.added + status.modified}
                                   </span>
                                 )}
                                 {status.deleted > 0 && (
-                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-status-behind/10 text-status-behind text-[10px] font-mono font-medium">
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-status-behind/10 text-status-behind text-[11px] font-mono font-medium">
                                     -{status.deleted}
                                   </span>
                                 )}
@@ -448,7 +445,7 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                             )}
 
                             {/* Creation time - relative format */}
-                            <span className="flex-shrink-0 text-[10px]">
+                            <span className="flex-shrink-0 text-[11px]">
                               {(() => {
                                 const now = Date.now()
                                 const created = new Date(workspace.createdAt).getTime()
