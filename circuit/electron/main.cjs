@@ -2362,6 +2362,80 @@ async function getWorktreeStatus(worktreePath) {
   }
 }
 
+/**
+ * Get file tree for a workspace
+ */
+async function getFileTree(worktreePath) {
+  try {
+    // Get git status to mark modified/added files
+    const { stdout: statusOutput } = await execAsync('git status --porcelain', {
+      cwd: worktreePath
+    });
+
+    // Parse git status to get file statuses
+    const fileStatuses = new Map();
+    const lines = statusOutput.split('\n').filter(Boolean);
+    for (const line of lines) {
+      const status = line.substring(0, 2);
+      const filePath = line.substring(3);
+
+      if (status.includes('M')) {
+        fileStatuses.set(filePath, 'modified');
+      } else if (status.includes('A')) {
+        fileStatuses.set(filePath, 'added');
+      }
+    }
+
+    // Recursively build file tree
+    async function buildTree(dirPath, relativePath = '') {
+      const entries = await fs.readdir(dirPath, { withFileTypes: true });
+      const nodes = [];
+
+      for (const entry of entries) {
+        // Skip .git and node_modules
+        if (entry.name === '.git' || entry.name === 'node_modules' || entry.name === '.conductor') {
+          continue;
+        }
+
+        const entryPath = path.join(dirPath, entry.name);
+        const entryRelativePath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
+
+        if (entry.isDirectory()) {
+          const children = await buildTree(entryPath, entryRelativePath);
+          nodes.push({
+            name: entry.name,
+            path: entryRelativePath,
+            type: 'folder',
+            children
+          });
+        } else {
+          const status = fileStatuses.get(entryRelativePath);
+          nodes.push({
+            name: entry.name,
+            path: entryRelativePath,
+            type: 'file',
+            modified: status === 'modified',
+            added: status === 'added'
+          });
+        }
+      }
+
+      // Sort: folders first, then files, alphabetically
+      return nodes.sort((a, b) => {
+        if (a.type === 'folder' && b.type !== 'folder') return -1;
+        if (a.type !== 'folder' && b.type === 'folder') return 1;
+        return a.name.localeCompare(b.name);
+      });
+    }
+
+    const fileTree = await buildTree(worktreePath);
+    return fileTree;
+  } catch (error) {
+    console.error('[Workspace] Failed to get file tree:', error);
+    return [];
+  }
+}
+
 // IPC Handlers for Workspace Management
 
 /**
@@ -2442,6 +2516,19 @@ ipcMain.handle('workspace:get-status', async (event, workspacePath) => {
     return { success: true, status };
   } catch (error) {
     console.error('[Workspace] Get status error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Get file tree for a workspace
+ */
+ipcMain.handle('workspace:get-file-tree', async (event, workspacePath) => {
+  try {
+    const fileTree = await getFileTree(workspacePath);
+    return { success: true, fileTree };
+  } catch (error) {
+    console.error('[Workspace] Get file tree error:', error);
     return { success: false, error: error.message };
   }
 });

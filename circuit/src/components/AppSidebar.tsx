@@ -67,29 +67,6 @@ interface FileNode {
   added?: boolean
 }
 
-// Mock file tree - will be replaced with actual IPC call
-const MOCK_FILE_TREE: FileNode[] = [
-  {
-    name: 'apps',
-    path: 'apps',
-    type: 'folder',
-    children: [
-      { name: 'page.tsx', path: 'apps/page.tsx', type: 'file', modified: true },
-      { name: 'layout.tsx', path: 'apps/layout.tsx', type: 'file' },
-    ],
-  },
-  {
-    name: 'src',
-    path: 'src',
-    type: 'folder',
-    children: [
-      { name: 'App.tsx', path: 'src/App.tsx', type: 'file', modified: true },
-      { name: 'index.tsx', path: 'src/index.tsx', type: 'file' },
-    ],
-  },
-  { name: 'package.json', path: 'package.json', type: 'file' },
-]
-
 // File Tree Item Component
 const FileTreeItem: React.FC<{
   node: FileNode
@@ -169,6 +146,8 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
   const [statuses, setStatuses] = useState<Record<string, WorkspaceStatus>>({})
   const [isLoading, setIsLoading] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
+  const [fileTree, setFileTree] = useState<FileNode[]>([])
+  const [isLoadingFiles, setIsLoadingFiles] = useState(false)
 
   // Create a temporary repository from project path
   const repository: Repository = useMemo(() => {
@@ -218,6 +197,35 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
 
     return () => clearInterval(interval)
   }, [workspaces])
+
+  // Load file tree when workspace is selected
+  useEffect(() => {
+    if (!selectedWorkspace) {
+      setFileTree([])
+      return
+    }
+
+    const loadFileTree = async () => {
+      setIsLoadingFiles(true)
+      try {
+        const result = await ipcRenderer.invoke('workspace:get-file-tree', selectedWorkspace.path)
+
+        if (result.success && result.fileTree) {
+          setFileTree(result.fileTree)
+        } else {
+          console.error('Failed to load file tree:', result.error)
+          setFileTree([])
+        }
+      } catch (error) {
+        console.error('Error loading file tree:', error)
+        setFileTree([])
+      } finally {
+        setIsLoadingFiles(false)
+      }
+    }
+
+    loadFileTree()
+  }, [selectedWorkspace?.path])
 
   const loadWorkspaces = async () => {
     setIsLoading(true)
@@ -399,15 +407,26 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
             <SidebarGroupLabel>Files</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {MOCK_FILE_TREE.map((node) => (
-                  <FileTreeItem
-                    key={node.path}
-                    node={node}
-                    depth={0}
-                    onSelect={onFileSelect}
-                    selectedFile={selectedFile}
-                  />
-                ))}
+                {isLoadingFiles ? (
+                  <div className="px-4 py-6 text-center text-sidebar-foreground-muted">
+                    <Loader2 size={16} className="mx-auto animate-spin mb-2" />
+                    <p className="text-xs">Loading files...</p>
+                  </div>
+                ) : fileTree.length === 0 ? (
+                  <div className="px-4 py-6 text-center text-sidebar-foreground-muted">
+                    <p className="text-xs">No files found</p>
+                  </div>
+                ) : (
+                  fileTree.map((node) => (
+                    <FileTreeItem
+                      key={node.path}
+                      node={node}
+                      depth={0}
+                      onSelect={onFileSelect}
+                      selectedFile={selectedFile}
+                    />
+                  ))
+                )}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
