@@ -109,7 +109,7 @@ function App() {
           selectedFile={selectedFile}
           onFileSelect={handleFileSelect}
         />
-        <SidebarInset>
+        <SidebarInset className="bg-card">
           {/* Main Header with Breadcrumb */}
           <header
             className="flex h-[44px] shrink-0 items-center gap-2 border-b border-border px-4"
