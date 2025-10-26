@@ -292,38 +292,39 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                     <SidebarMenuButton
                       onClick={() => onSelectWorkspace(workspace)}
                       isActive={isActive}
-                      className="h-auto py-1.5 px-2 pr-8"
+                      className="h-auto py-2.5 px-3 pr-8 group"
                     >
-                      {/* Compact layout */}
-                      <div className="flex items-center gap-1.5 w-full min-w-0">
+                      {/* Improved layout */}
+                      <div className="flex items-center gap-3 w-full min-w-0">
                         {/* Icon */}
-                        <FolderGit2 size={12} className="flex-shrink-0" />
+                        <FolderGit2 size={16} className="flex-shrink-0" />
 
                         {/* Content */}
-                        <div className="flex-1 min-w-0">
+                        <div className="flex-1 min-w-0 space-y-1">
                           {/* Top row: Name + Badge */}
-                          <div className="flex items-center gap-1.5 mb-0.5">
-                            <span className="text-xs font-medium truncate flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium truncate flex-1">
                               {workspace.name}
                             </span>
                             <div className={cn(
-                              "inline-flex items-center gap-0.5 text-[9px] px-1 py-0.5 rounded font-medium flex-shrink-0",
+                              "inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded font-medium flex-shrink-0",
                               badge.className
                             )}>
                               {badge.icon}
+                              <span>{badge.text}</span>
                             </div>
                           </div>
 
-                          {/* Bottom row: Branch + File changes */}
-                          <div className="flex items-center gap-2 text-[10px] text-sidebar-foreground-muted">
+                          {/* Bottom row: Secondary info (progressive disclosure) */}
+                          <div className="flex items-center gap-2 text-xs text-sidebar-foreground-muted">
                             {showBranch && (
                               <div className="flex items-center gap-1 truncate">
-                                <GitBranch size={8} className="flex-shrink-0" />
+                                <GitBranch size={12} className="flex-shrink-0" />
                                 <span className="truncate">{workspace.branch}</span>
                               </div>
                             )}
                             {status && !status.clean && (
-                              <div className="flex items-center gap-1 text-status-working flex-shrink-0">
+                              <div className="flex items-center gap-1.5 text-status-working flex-shrink-0">
                                 {status.modified > 0 && <span>{status.modified}M</span>}
                                 {status.added > 0 && <span>{status.added}A</span>}
                                 {status.deleted > 0 && <span>{status.deleted}D</span>}
@@ -331,16 +332,16 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                               </div>
                             )}
                             {status && (status.ahead > 0 || status.behind > 0) && (
-                              <div className="flex items-center gap-1 flex-shrink-0">
+                              <div className="flex items-center gap-1.5 flex-shrink-0">
                                 {status.ahead > 0 && (
                                   <span className="flex items-center gap-0.5 text-status-ahead">
-                                    <ArrowUp size={8} />
+                                    <ArrowUp size={12} />
                                     {status.ahead}
                                   </span>
                                 )}
                                 {status.behind > 0 && (
                                   <span className="flex items-center gap-0.5 text-status-behind">
-                                    <ArrowDown size={8} />
+                                    <ArrowDown size={12} />
                                     {status.behind}
                                   </span>
                                 )}
@@ -362,7 +363,7 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                       )}
                       title={isMerged ? "Archive workspace" : "Delete workspace"}
                     >
-                      {isMerged ? <Archive size={10} /> : <Trash2 size={10} />}
+                      {isMerged ? <Archive size={14} /> : <Trash2 size={14} />}
                       <span className="sr-only">{isMerged ? "Archive" : "Delete"}</span>
                     </SidebarMenuAction>
                   </SidebarMenuItem>
