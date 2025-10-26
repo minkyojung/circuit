@@ -292,7 +292,7 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                     <SidebarMenuButton
                       onClick={() => onSelectWorkspace(workspace)}
                       isActive={isActive}
-                      className="h-auto py-2.5 px-3 pr-8 group"
+                      className="h-auto py-2.5 px-3 group"
                     >
                       {/* Improved layout */}
                       <div className="flex items-start gap-3 w-full min-w-0">
@@ -315,13 +315,13 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                                   handleDeleteWorkspace(e, workspace.id, workspace.name, true);
                                 }}
                                 className={cn(
-                                  "group/badge inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md font-medium flex-shrink-0 transition-all",
+                                  "group/badge inline-flex items-center gap-1.5 text-sm px-2.5 py-1 rounded-md font-medium flex-shrink-0 transition-all",
                                   status?.status === 'merged'
                                     ? "bg-status-merged/10 text-status-merged hover:bg-orange-500/20 hover:text-orange-600"
                                     : "bg-status-synced/10 text-status-synced hover:bg-orange-500/20 hover:text-orange-600"
                                 )}
                               >
-                                <Archive size={12} className="opacity-0 group-hover/badge:opacity-100 -ml-1 group-hover/badge:ml-0 transition-all" />
+                                <Archive size={14} className="opacity-0 group-hover/badge:opacity-100 -ml-1 group-hover/badge:ml-0 transition-all" />
                                 <span className="group-hover/badge:hidden">
                                   {status?.status === 'merged' ? 'Merged' : 'Clean'}
                                 </span>
@@ -329,7 +329,7 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                               </button>
                             ) : (
                               <div className={cn(
-                                "inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md font-medium flex-shrink-0",
+                                "inline-flex items-center gap-1.5 text-sm px-2.5 py-1 rounded-md font-medium flex-shrink-0",
                                 badge.className
                               )}>
                                 {badge.icon}
@@ -379,21 +379,6 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                         </div>
                       </div>
                     </SidebarMenuButton>
-
-                    <SidebarMenuAction
-                      showOnHover
-                      onClick={(e) => handleDeleteWorkspace(e, workspace.id, workspace.name, isMerged)}
-                      className={cn(
-                        "top-1/2 -translate-y-1/2",
-                        isMerged
-                          ? "text-sidebar-foreground-muted hover:text-orange-500"
-                          : "text-sidebar-foreground-muted hover:text-destructive"
-                      )}
-                      title={isMerged ? "Archive workspace" : "Delete workspace"}
-                    >
-                      {isMerged ? <Archive size={14} /> : <Trash2 size={14} />}
-                      <span className="sr-only">{isMerged ? "Archive" : "Delete"}</span>
-                    </SidebarMenuAction>
                   </SidebarMenuItem>
                 )
               })
