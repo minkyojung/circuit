@@ -319,7 +319,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       </div>
 
       {/* Input Section - Bottom */}
-      <div className="p-6">
+      <div className="p-4">
         <div className="max-w-3xl mx-auto">
           {/* Outer Card (Large Rectangle) - F4F4F4, border D3D3D3, radius 25px */}
           <div
@@ -329,8 +329,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
               boxShadow: '0px 4px 25px 0px rgba(160, 160, 160, 0.05)'
             }}
           >
-            {/* Top Section - Context Area (50px height) */}
-            <div className="h-[50px] px-4 flex items-center">
+            {/* Top Section - Context Area (40px height) */}
+            <div className="h-[40px] px-3 flex items-center">
               <div className="flex items-center gap-2">
                 <div className="grid grid-cols-3 gap-0.5 w-4">
                   {[...Array(9)].map((_, i) => (
@@ -345,7 +345,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
             {/* Inner Card (Small Rectangle) - F9F9F9, radius 22px */}
             <div
-              className="bg-[#F9F9F9] mx-4 mb-4 p-4"
+              className="bg-[#F9F9F9] mx-3 mb-3 p-3"
               style={{ borderRadius: '22px' }}
             >
               {/* Textarea */}
@@ -359,17 +359,17 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 }}
                 placeholder="Make something wonderful..."
                 disabled={isSending || !sessionId}
-                className="w-full text-base text-foreground placeholder-muted-foreground bg-transparent border-none outline-none resize-none mb-4 leading-relaxed"
-                rows={2}
+                className="w-full text-base text-foreground placeholder-muted-foreground bg-transparent border-none outline-none resize-none mb-3 leading-relaxed"
+                rows={1}
               />
 
               {/* Control Bar */}
               <div className="flex items-center justify-between">
                 {/* Left: Mode Toggles */}
-                <div className="flex gap-3">
+                <div className="flex gap-2">
                   <button
                     onClick={() => setSelectedModel('sonnet')}
-                    className={`px-6 py-3 rounded-full text-sm font-medium transition-colors border ${
+                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${
                       selectedModel === 'sonnet'
                         ? 'bg-[#E8E8E8] border-[#E8E8E8] text-foreground'
                         : 'bg-transparent border-transparent text-muted-foreground hover:bg-[#E8E8E8]/50'
@@ -379,24 +379,24 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                   </button>
                   <button
                     onClick={() => setSelectedModel('think')}
-                    className={`px-6 py-3 rounded-full text-sm font-medium transition-colors flex items-center gap-2 border ${
+                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors flex items-center gap-1.5 border ${
                       selectedModel === 'think'
                         ? 'bg-[#E8E8E8] border-[#E8E8E8] text-foreground'
                         : 'bg-transparent border-transparent text-muted-foreground hover:bg-[#E8E8E8]/50'
                     }`}
                   >
-                    <Grid3x3 size={16} />
+                    <Grid3x3 size={14} />
                     Think
                   </button>
                   <button
                     onClick={() => setSelectedModel('agent')}
-                    className={`px-6 py-3 rounded-full text-sm font-medium transition-colors flex items-center gap-2 border ${
+                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors flex items-center gap-1.5 border ${
                       selectedModel === 'agent'
                         ? 'bg-[#E8E8E8] border-[#E8E8E8] text-foreground'
                         : 'bg-transparent border-transparent text-muted-foreground hover:bg-[#E8E8E8]/50'
                     }`}
                   >
-                    <MessageSquare size={16} />
+                    <MessageSquare size={14} />
                     Agent
                   </button>
                 </div>
@@ -405,9 +405,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 <button
                   onClick={handleSend}
                   disabled={!input.trim() || isSending || !sessionId}
-                  className="w-12 h-12 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-muted disabled:to-muted disabled:cursor-not-allowed flex items-center justify-center transition-all"
+                  className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-muted disabled:to-muted disabled:cursor-not-allowed flex items-center justify-center transition-all"
                 >
-                  <ArrowUp size={20} className="text-white" strokeWidth={2.5} />
+                  <ArrowUp size={18} className="text-white" strokeWidth={2.5} />
                 </button>
               </div>
             </div>
