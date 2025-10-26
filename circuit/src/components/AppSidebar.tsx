@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useState, useEffect, useMemo } from 'react'
 import type { Workspace, WorkspaceCreateResult, WorkspaceListResult, WorkspaceStatus, Repository } from '@/types/workspace'
-import { Plus, Trash2, GitBranch, FolderGit2, Check, GitMerge, ArrowUp, ArrowDown, GitCommit, Loader2, Archive, Settings } from 'lucide-react'
+import { Plus, Trash2, GitBranch, FolderGit2, Check, GitMerge, ArrowUp, ArrowDown, GitCommit, Loader2, Archive } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useProjectPath } from '@/App'
 import { RepositorySwitcher } from './workspace/RepositorySwitcher'
@@ -9,7 +9,6 @@ import { FileExplorer, type FileNode } from './workspace/FileExplorer'
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -20,7 +19,6 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
-import { SettingsDialog } from './SettingsDialog'
 
 // @ts-ignore - Electron IPC
 const { ipcRenderer } = window.require('electron')
@@ -86,7 +84,6 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
   const [isCreating, setIsCreating] = useState(false)
   const [fileTree, setFileTree] = useState<FileNode[]>([])
   const [isLoadingFiles, setIsLoadingFiles] = useState(false)
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 
   // Repository management
   const [repositories, setRepositories] = useState<Repository[]>([])
@@ -503,23 +500,6 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
           />
         )}
       </SidebarContent>
-
-      <SidebarFooter>
-        <div className="flex items-center justify-end px-2 py-2">
-          <button
-            onClick={() => setIsSettingsOpen(true)}
-            className="p-1.5 hover:bg-sidebar-hover rounded transition-colors text-sidebar-foreground-muted hover:text-sidebar-foreground"
-            title="Settings"
-          >
-            <Settings size={16} />
-          </button>
-        </div>
-      </SidebarFooter>
-
-      <SettingsDialog
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-      />
     </Sidebar>
   )
 }
