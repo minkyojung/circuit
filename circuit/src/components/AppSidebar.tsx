@@ -9,6 +9,7 @@ import { FileExplorer, type FileNode } from './workspace/FileExplorer'
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupLabel,
   SidebarHeader,
@@ -17,6 +18,7 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
+import { ThemeToggle } from '@/components/ThemeToggle'
 
 // @ts-ignore - Electron IPC
 const { ipcRenderer } = window.require('electron')
@@ -492,6 +494,10 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
           />
         )}
       </SidebarContent>
+
+      <SidebarFooter>
+        <ThemeToggle className="w-full justify-start text-white/90 dark:text-gray-700 hover:text-white dark:hover:text-gray-900" />
+      </SidebarFooter>
     </Sidebar>
   )
 }
