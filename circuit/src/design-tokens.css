@@ -172,16 +172,16 @@
     --accent-foreground: oklch(0.58 0.10 40);        /* Muted orange */
 
     /* Semantic colors */
-    --destructive: oklch(0.55 0.22 25);              /* Red */
+    --destructive: oklch(0.55 0.30 25);              /* Red - more vibrant */
     --destructive-foreground: oklch(1 0 0);          /* White */
 
-    --success: oklch(0.55 0.15 150);                 /* Green */
+    --success: oklch(0.55 0.22 150);                 /* Green - more vibrant */
     --success-foreground: oklch(1 0 0);
 
-    --warning: oklch(0.65 0.15 80);                  /* Yellow-orange */
+    --warning: oklch(0.65 0.22 80);                  /* Yellow-orange - more vibrant */
     --warning-foreground: oklch(0.2 0 0);
 
-    --info: oklch(0.55 0.15 250);                    /* Blue */
+    --info: oklch(0.55 0.22 250);                    /* Blue - more vibrant */
     --info-foreground: oklch(1 0 0);
 
     /* UI elements */
@@ -202,8 +202,8 @@
     /* Sidebar colors */
     --sidebar: oklch(0.915 0 0);                     /* #E9E9E9 */
     --sidebar-glass: var(--material-regular);        /* Glassmorphism backdrop */
-    --sidebar-foreground: oklch(0.15 0 0);           /* Darker for glassmorphism contrast */
-    --sidebar-foreground-muted: oklch(0.30 0 0);     /* Darker muted text */
+    --sidebar-foreground: oklch(0.35 0 0);           /* #504E4F - Dark gray for glassmorphism contrast */
+    --sidebar-foreground-muted: oklch(0.45 0 0);     /* Slightly lighter muted text */
     --sidebar-primary: oklch(0.58 0.10 40);          /* Muted orange */
     --sidebar-primary-foreground: oklch(1 0 0);
     --sidebar-accent: oklch(0.97 0 0);               /* Selected - very bright for glassmorphism */
@@ -223,13 +223,13 @@
     --sidebar-background: 0 0% 91%;                  /* #E9E9E9 */
 
     /* Git status colors */
-    --status-merged: oklch(0.55 0.18 290);           /* Purple */
-    --status-working: oklch(0.62 0.12 60);           /* Muted yellow-orange */
-    --status-ahead: oklch(0.55 0.15 250);            /* Blue */
-    --status-behind: oklch(0.55 0.20 25);            /* Red */
-    --status-diverged: oklch(0.58 0.12 40);          /* Muted orange */
-    --status-synced: oklch(0.55 0.15 150);           /* Green */
-    --status-local: oklch(0.55 0.05 250);            /* Gray */
+    --status-merged: oklch(0.55 0.25 290);           /* Purple - more vibrant */
+    --status-working: oklch(0.62 0.18 60);           /* Yellow-orange - more vibrant */
+    --status-ahead: oklch(0.55 0.22 250);            /* Blue - more vibrant */
+    --status-behind: oklch(0.55 0.28 25);            /* Red - more vibrant */
+    --status-diverged: oklch(0.58 0.18 40);          /* Orange - more vibrant */
+    --status-synced: oklch(0.55 0.22 150);           /* Green - more vibrant */
+    --status-local: oklch(0.55 0.12 250);            /* Gray - more vibrant */
   }
 
   /* ===== DARK MODE COLORS ===== */
@@ -300,16 +300,16 @@
     --accent-foreground: oklch(0.65 0.12 40);        /* Brighter orange */
 
     /* Semantic colors - adjusted for dark backgrounds */
-    --destructive: oklch(0.60 0.25 25);              /* Brighter red */
+    --destructive: oklch(0.60 0.33 25);              /* Brighter red - more vibrant */
     --destructive-foreground: oklch(0.98 0 0);
 
-    --success: oklch(0.60 0.18 150);                 /* Brighter green */
+    --success: oklch(0.60 0.25 150);                 /* Brighter green - more vibrant */
     --success-foreground: oklch(0.98 0 0);
 
-    --warning: oklch(0.70 0.18 80);                  /* Brighter yellow */
+    --warning: oklch(0.70 0.25 80);                  /* Brighter yellow - more vibrant */
     --warning-foreground: oklch(0.15 0 0);
 
-    --info: oklch(0.60 0.18 250);                    /* Brighter blue */
+    --info: oklch(0.60 0.25 250);                    /* Brighter blue - more vibrant */
     --info-foreground: oklch(0.98 0 0);
 
     /* UI elements */
@@ -330,8 +330,8 @@
     /* Sidebar colors - dark variant */
     --sidebar: var(--background-base-tertiary);      /* #2E2E2E */
     --sidebar-glass: var(--material-regular);        /* Glassmorphism backdrop - Apple-style */
-    --sidebar-foreground: oklch(0.98 0 0);           /* Brighter for glassmorphism contrast */
-    --sidebar-foreground-muted: oklch(0.75 0 0);     /* Brighter muted text */
+    --sidebar-foreground: oklch(0.92 0 0);           /* #EAEAEB - Light gray for glassmorphism contrast */
+    --sidebar-foreground-muted: oklch(0.82 0 0);     /* Slightly dimmer muted text */
     --sidebar-primary: oklch(0.65 0.12 40);          /* Brighter orange */
     --sidebar-primary-foreground: oklch(0.12 0 0);
     --sidebar-accent: oklch(0.35 0 0);               /* Selected - brighter for glassmorphism */
@@ -351,12 +351,12 @@
     --sidebar-background: 0 0% 12%;                  /* Dark sidebar */
 
     /* Git status colors - brightened for visibility */
-    --status-merged: oklch(0.65 0.20 290);           /* Brighter purple */
-    --status-working: oklch(0.72 0.14 60);           /* Brighter yellow */
-    --status-ahead: oklch(0.65 0.18 250);            /* Brighter blue */
-    --status-behind: oklch(0.65 0.22 25);            /* Brighter red */
-    --status-diverged: oklch(0.68 0.14 40);          /* Brighter orange */
-    --status-synced: oklch(0.65 0.18 150);           /* Brighter green */
-    --status-local: oklch(0.65 0.08 250);            /* Brighter gray */
+    --status-merged: oklch(0.65 0.28 290);           /* Brighter purple - more vibrant */
+    --status-working: oklch(0.72 0.20 60);           /* Brighter yellow - more vibrant */
+    --status-ahead: oklch(0.65 0.25 250);            /* Brighter blue - more vibrant */
+    --status-behind: oklch(0.65 0.30 25);            /* Brighter red - more vibrant */
+    --status-diverged: oklch(0.68 0.20 40);          /* Brighter orange - more vibrant */
+    --status-synced: oklch(0.65 0.25 150);           /* Brighter green - more vibrant */
+    --status-local: oklch(0.65 0.15 250);            /* Brighter gray - more vibrant */
   }
 }
