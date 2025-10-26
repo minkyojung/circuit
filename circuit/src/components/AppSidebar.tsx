@@ -1,10 +1,11 @@
 import * as React from 'react'
 import { useState, useEffect, useMemo } from 'react'
 import type { Workspace, WorkspaceCreateResult, WorkspaceListResult, WorkspaceStatus, Repository } from '@/types/workspace'
-import { Plus, RefreshCw, Trash2, GitBranch, FolderGit2, Check, GitMerge, ArrowUp, ArrowDown, GitCommit, Loader2, File, Folder, ChevronRight, ChevronDown } from 'lucide-react'
+import { Plus, RefreshCw, Trash2, GitBranch, FolderGit2, Check, GitMerge, ArrowUp, ArrowDown, GitCommit, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useProjectPath } from '@/App'
 import { RepositorySwitcher } from './workspace/RepositorySwitcher'
+import { FileExplorer, type FileNode } from './workspace/FileExplorer'
 import {
   Sidebar,
   SidebarContent,
@@ -19,7 +20,7 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { ThemeToggleIcon } from '@/components/ThemeToggle'
 
 // @ts-ignore - Electron IPC
 const { ipcRenderer } = window.require('electron')
@@ -55,89 +56,6 @@ const getStatusBadge = (status?: WorkspaceStatus) => {
     default:
       return { icon: <Loader2 size={12} />, text: 'Unknown', className: 'bg-muted text-muted-foreground' }
   }
-}
-
-// File tree structure for workspace files
-interface FileNode {
-  name: string
-  path: string
-  type: 'file' | 'folder'
-  children?: FileNode[]
-  modified?: boolean
-  added?: boolean
-}
-
-// File Tree Item Component
-const FileTreeItem: React.FC<{
-  node: FileNode
-  depth: number
-  onSelect?: (path: string) => void
-  selectedFile?: string | null
-}> = ({ node, depth, onSelect, selectedFile }) => {
-  const [isOpen, setIsOpen] = useState(depth === 0) // Auto-expand root folders
-
-  if (node.type === 'folder') {
-    return (
-      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-        <SidebarMenuItem>
-          <CollapsibleTrigger asChild>
-            <SidebarMenuButton
-              className="w-full"
-              style={{ paddingLeft: `${depth * 12 + 8}px` }}
-            >
-              {isOpen ? (
-                <ChevronDown size={14} className="flex-shrink-0" />
-              ) : (
-                <ChevronRight size={14} className="flex-shrink-0" />
-              )}
-              <Folder size={14} className="flex-shrink-0 text-sidebar-foreground-muted" />
-              <span className="text-sm truncate">{node.name}</span>
-            </SidebarMenuButton>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            {node.children?.map((child) => (
-              <FileTreeItem
-                key={child.path}
-                node={child}
-                depth={depth + 1}
-                onSelect={onSelect}
-                selectedFile={selectedFile}
-              />
-            ))}
-          </CollapsibleContent>
-        </SidebarMenuItem>
-      </Collapsible>
-    )
-  }
-
-  // File node
-  const isSelected = selectedFile === node.path
-
-  return (
-    <SidebarMenuItem>
-      <SidebarMenuButton
-        onClick={() => onSelect?.(node.path)}
-        isActive={isSelected}
-        className="w-full"
-        style={{ paddingLeft: `${depth * 12 + 8}px` }}
-      >
-        <File size={14} className="flex-shrink-0 text-sidebar-foreground-muted" />
-        <span className="text-sm truncate flex-1">{node.name}</span>
-
-        {/* Git status badges */}
-        {node.modified && (
-          <span className="text-[10px] px-1 rounded bg-status-working/20 text-status-working font-medium">
-            M
-          </span>
-        )}
-        {node.added && (
-          <span className="text-[10px] px-1 rounded bg-status-synced/20 text-status-synced font-medium">
-            A
-          </span>
-        )}
-      </SidebarMenuButton>
-    </SidebarMenuItem>
-  )
 }
 
 export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWorkspace, selectedFile, onFileSelect, ...props }: AppSidebarProps) {
@@ -403,40 +321,19 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
 
         {/* Files Section (only when workspace selected) */}
         {selectedWorkspace && (
-          <SidebarGroup>
-            <SidebarGroupLabel>Files</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {isLoadingFiles ? (
-                  <div className="px-4 py-6 text-center text-sidebar-foreground-muted">
-                    <Loader2 size={16} className="mx-auto animate-spin mb-2" />
-                    <p className="text-xs">Loading files...</p>
-                  </div>
-                ) : fileTree.length === 0 ? (
-                  <div className="px-4 py-6 text-center text-sidebar-foreground-muted">
-                    <p className="text-xs">No files found</p>
-                  </div>
-                ) : (
-                  fileTree.map((node) => (
-                    <FileTreeItem
-                      key={node.path}
-                      node={node}
-                      depth={0}
-                      onSelect={onFileSelect}
-                      selectedFile={selectedFile}
-                    />
-                  ))
-                )}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+          <FileExplorer
+            fileTree={fileTree}
+            isLoading={isLoadingFiles}
+            onFileSelect={onFileSelect}
+            selectedFile={selectedFile}
+          />
         )}
       </SidebarContent>
 
       <SidebarFooter>
-        <div className="flex items-center justify-between text-xs text-sidebar-foreground-muted px-2">
-          <span>{workspaces.length} workspace(s)</span>
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between text-xs text-sidebar-foreground-muted px-2 gap-2">
+          <span className="flex-shrink-0">{workspaces.length} workspace(s)</span>
+          <div className="flex items-center gap-2 flex-1 justify-end">
             <div className="h-2 w-2 rounded-full bg-status-synced" />
             <span>Ready</span>
             <button
@@ -452,6 +349,8 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
             >
               <RefreshCw size={12} className={cn(isLoading && 'animate-spin')} />
             </button>
+            <div className="border-l border-sidebar-border h-4 mx-1" />
+            <ThemeToggleIcon className="h-6 w-6" />
           </div>
         </div>
       </SidebarFooter>
