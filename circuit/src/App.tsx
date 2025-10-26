@@ -95,7 +95,13 @@ function App() {
 
   return (
     <ProjectPathContext.Provider value={{ projectPath, isLoading: isLoadingPath }}>
-      <SidebarProvider>
+      <div
+        className="min-h-screen backdrop-blur-xl backdrop-saturate-150"
+        style={{
+          backgroundColor: 'var(--window-glass)'
+        }}
+      >
+        <SidebarProvider>
         <AppSidebar
           selectedWorkspaceId={selectedWorkspace?.id || null}
           selectedWorkspace={selectedWorkspace}
@@ -214,6 +220,7 @@ function App() {
           </div>
         </SidebarInset>
       </SidebarProvider>
+      </div>
     </ProjectPathContext.Provider>
   )
 }

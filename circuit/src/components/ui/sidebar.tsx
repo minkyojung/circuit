@@ -184,13 +184,10 @@ const Sidebar = React.forwardRef<
       return (
         <div
           className={cn(
-            "flex h-full w-[--sidebar-width] flex-col backdrop-blur-xl backdrop-saturate-150 text-sidebar-foreground",
+            "flex h-full w-[--sidebar-width] flex-col text-sidebar-foreground",
             className
           )}
           ref={ref}
-          style={{
-            backgroundColor: 'var(--sidebar-glass)'
-          }}
           {...props}
         >
           {children}
@@ -204,11 +201,10 @@ const Sidebar = React.forwardRef<
           <SheetContent
             data-sidebar="sidebar"
             data-mobile="true"
-            className="w-[--sidebar-width] backdrop-blur-xl backdrop-saturate-150 p-0 text-sidebar-foreground [&>button]:hidden"
+            className="w-[--sidebar-width] p-0 text-sidebar-foreground [&>button]:hidden"
             style={
               {
-                "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
-                backgroundColor: 'var(--sidebar-glass)'
+                "--sidebar-width": SIDEBAR_WIDTH_MOBILE
               } as React.CSSProperties
             }
             side={side}
@@ -259,10 +255,7 @@ const Sidebar = React.forwardRef<
         >
           <div
             data-sidebar="sidebar"
-            className="flex h-full w-full flex-col backdrop-blur-xl backdrop-saturate-150 group-data-[variant=floating]:rounded-lg group-data-[variant=inset]:rounded-lg group-data-[variant=floating]:border group-data-[variant=inset]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=inset]:border-sidebar-border group-data-[variant=floating]:shadow"
-            style={{
-              backgroundColor: 'var(--sidebar-glass)'
-            }}
+            className="flex h-full w-full flex-col group-data-[variant=floating]:rounded-lg group-data-[variant=inset]:rounded-lg group-data-[variant=floating]:border group-data-[variant=inset]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=inset]:border-sidebar-border group-data-[variant=floating]:shadow"
           >
             {children}
           </div>
@@ -336,7 +329,7 @@ const SidebarInset = React.forwardRef<
     <main
       ref={ref}
       className={cn(
-        "relative flex w-full flex-1 flex-col bg-background",
+        "relative flex w-full flex-1 flex-col",
         "md:peer-data-[variant=inset]:m-2 md:peer-data-[state=collapsed]:peer-data-[variant=inset]:ml-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:overflow-hidden md:peer-data-[variant=inset]:shadow",
         className
       )}

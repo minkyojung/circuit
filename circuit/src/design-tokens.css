@@ -167,6 +167,9 @@
     --chart-4: oklch(0.553 0.195 38.402);
     --chart-5: oklch(0.47 0.157 37.304);
 
+    /* Window glassmorphism */
+    --window-glass: rgba(255, 255, 255, 0.7); /* Light mode window glass */
+
     /* Sidebar colors */
     --sidebar: oklch(0.915 0 0);              /* #E9E9E9 */
     --sidebar-glass: rgba(233, 233, 233, 0.7); /* Glassmorphism backdrop */
@@ -252,6 +255,9 @@
     --chart-3: oklch(0.546 0.242 41.116);
     --chart-4: oklch(0.453 0.215 38.402);
     --chart-5: oklch(0.37 0.177 37.304);
+
+    /* Window glassmorphism - dark variant */
+    --window-glass: rgba(30, 30, 30, 0.7);    /* Dark mode window glass */
 
     /* Sidebar colors - dark variant */
     --sidebar: oklch(0.20 0 0);               /* #2E2E2E */
