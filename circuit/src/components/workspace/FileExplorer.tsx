@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { File, Folder, ChevronRight, ChevronDown } from 'lucide-react'
+import { File, Folder, ChevronRight, ChevronDown, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   SidebarGroup,
@@ -11,8 +11,8 @@ import {
 } from '@/components/ui/sidebar'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 
-// Temporary mock data structure
-interface FileNode {
+// File tree structure
+export interface FileNode {
   name: string
   path: string
   type: 'file' | 'folder'
@@ -22,43 +22,11 @@ interface FileNode {
 }
 
 interface FileExplorerProps {
-  workspacePath: string
+  fileTree: FileNode[]
+  isLoading?: boolean
   onFileSelect?: (filePath: string) => void
   selectedFile?: string | null
 }
-
-// Mock file tree - replace with actual IPC call later
-const MOCK_FILE_TREE: FileNode[] = [
-  {
-    name: 'src',
-    path: 'src',
-    type: 'folder',
-    children: [
-      { name: 'App.tsx', path: 'src/App.tsx', type: 'file', modified: true },
-      { name: 'App.css', path: 'src/App.css', type: 'file' },
-      { name: 'index.tsx', path: 'src/index.tsx', type: 'file' },
-      {
-        name: 'components',
-        path: 'src/components',
-        type: 'folder',
-        children: [
-          { name: 'Sidebar.tsx', path: 'src/components/Sidebar.tsx', type: 'file' },
-          { name: 'AppSidebar.tsx', path: 'src/components/AppSidebar.tsx', type: 'file', added: true },
-        ],
-      },
-    ],
-  },
-  {
-    name: 'public',
-    path: 'public',
-    type: 'folder',
-    children: [
-      { name: 'index.html', path: 'public/index.html', type: 'file' },
-    ],
-  },
-  { name: 'package.json', path: 'package.json', type: 'file' },
-  { name: 'tsconfig.json', path: 'tsconfig.json', type: 'file' },
-]
 
 const FileTreeItem: React.FC<{
   node: FileNode
@@ -133,10 +101,27 @@ const FileTreeItem: React.FC<{
 }
 
 export const FileExplorer: React.FC<FileExplorerProps> = ({
-  workspacePath,
+  fileTree,
+  isLoading = false,
   onFileSelect,
   selectedFile,
 }) => {
+  // Calculate git status summary from fileTree
+  const gitStats = React.useMemo(() => {
+    const stats = { modified: 0, added: 0 }
+
+    const countGitStatus = (nodes: FileNode[]) => {
+      nodes.forEach(node => {
+        if (node.modified) stats.modified++
+        if (node.added) stats.added++
+        if (node.children) countGitStatus(node.children)
+      })
+    }
+
+    countGitStatus(fileTree)
+    return stats
+  }, [fileTree])
+
   return (
     <div className="h-full flex flex-col bg-sidebar border-r border-sidebar-border">
       <SidebarGroup>
@@ -145,29 +130,46 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
         </SidebarGroupLabel>
         <SidebarGroupContent>
           <SidebarMenu>
-            {MOCK_FILE_TREE.map((node) => (
-              <FileTreeItem
-                key={node.path}
-                node={node}
-                depth={0}
-                onSelect={onFileSelect}
-                selectedFile={selectedFile}
-              />
-            ))}
+            {isLoading ? (
+              <div className="px-4 py-6 text-center text-sidebar-foreground-muted">
+                <Loader2 size={16} className="mx-auto animate-spin mb-2" />
+                <p className="text-xs">Loading files...</p>
+              </div>
+            ) : fileTree.length === 0 ? (
+              <div className="px-4 py-6 text-center text-sidebar-foreground-muted">
+                <p className="text-xs">No files found</p>
+              </div>
+            ) : (
+              fileTree.map((node) => (
+                <FileTreeItem
+                  key={node.path}
+                  node={node}
+                  depth={0}
+                  onSelect={onFileSelect}
+                  selectedFile={selectedFile}
+                />
+              ))
+            )}
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>
 
-      {/* Git Status Summary (placeholder) */}
-      <div className="mt-auto p-3 border-t border-sidebar-border">
-        <div className="text-xs text-sidebar-foreground-muted">
-          <div className="flex items-center gap-2">
-            <span className="text-status-working">2 modified</span>
-            <span>•</span>
-            <span className="text-status-synced">1 added</span>
+      {/* Git Status Summary */}
+      {!isLoading && (gitStats.modified > 0 || gitStats.added > 0) && (
+        <div className="mt-auto p-3 border-t border-sidebar-border">
+          <div className="text-xs text-sidebar-foreground-muted">
+            <div className="flex items-center gap-2">
+              {gitStats.modified > 0 && (
+                <span className="text-status-working">{gitStats.modified} modified</span>
+              )}
+              {gitStats.modified > 0 && gitStats.added > 0 && <span>•</span>}
+              {gitStats.added > 0 && (
+                <span className="text-status-synced">{gitStats.added} added</span>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

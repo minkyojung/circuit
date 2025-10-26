@@ -2,6 +2,12 @@ import React, { useState, useEffect } from 'react';
 import type { Workspace } from '@/types/workspace';
 import Editor, { loader } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
+import { Columns2, Maximize2, Save } from 'lucide-react';
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from '@/components/ui/resizable';
 
 // Configure Monaco Editor to use local files instead of CDN
 loader.config({ monaco });
@@ -16,6 +22,8 @@ interface WorkspaceChatEditorProps {
   onPrefillCleared?: () => void;
 }
 
+type ViewMode = 'chat' | 'editor' | 'split';
+
 export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
   workspace,
   selectedFile,
@@ -24,6 +32,16 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
 }) => {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [openFiles, setOpenFiles] = useState<string[]>([]);
+  const [viewMode, setViewMode] = useState<ViewMode>('chat');
+
+  // Auto-switch to editor mode when file is selected
+  useEffect(() => {
+    if (selectedFile && viewMode === 'chat') {
+      setViewMode('editor');
+    } else if (!selectedFile && viewMode !== 'chat') {
+      setViewMode('chat');
+    }
+  }, [selectedFile]);
 
   // Start Claude session when workspace changes
   useEffect(() => {
@@ -66,23 +84,56 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
   }, [selectedFile]);
 
   return (
-    <div className="h-full flex flex-col">
-      {selectedFile ? (
-        /* Editor Mode - Show only editor when file is selected */
-        <EditorPanel
-          workspace={workspace}
-          openFiles={openFiles}
-          selectedFile={selectedFile}
-        />
-      ) : (
-        /* Chat Mode - Show only chat when no file selected */
-        <ChatPanel
-          workspace={workspace}
-          sessionId={sessionId}
-          onFileEdit={handleFileEdit}
-          prefillMessage={prefillMessage}
-          onPrefillCleared={onPrefillCleared}
-        />
+    <div className="h-full">
+      {viewMode === 'chat' && (
+        /* Chat Only Mode */
+        <div className="h-full">
+          <ChatPanel
+            workspace={workspace}
+            sessionId={sessionId}
+            onFileEdit={handleFileEdit}
+            prefillMessage={prefillMessage}
+            onPrefillCleared={onPrefillCleared}
+          />
+        </div>
+      )}
+
+      {viewMode === 'editor' && (
+        /* Editor Only Mode */
+        <div className="h-full">
+          <EditorPanel
+            workspace={workspace}
+            openFiles={openFiles}
+            selectedFile={selectedFile}
+            onToggleSplit={() => setViewMode('split')}
+            isSplitMode={false}
+          />
+        </div>
+      )}
+
+      {viewMode === 'split' && (
+        /* Split View - Chat and Editor side by side */
+        <ResizablePanelGroup direction="horizontal" className="h-full">
+          <ResizablePanel defaultSize={50} minSize={30}>
+            <ChatPanel
+              workspace={workspace}
+              sessionId={sessionId}
+              onFileEdit={handleFileEdit}
+              prefillMessage={prefillMessage}
+              onPrefillCleared={onPrefillCleared}
+            />
+          </ResizablePanel>
+          <ResizableHandle />
+          <ResizablePanel defaultSize={50} minSize={30}>
+            <EditorPanel
+              workspace={workspace}
+              openFiles={openFiles}
+              selectedFile={selectedFile}
+              onToggleSplit={() => setViewMode('editor')}
+              isSplitMode={true}
+            />
+          </ResizablePanel>
+        </ResizablePanelGroup>
       )}
     </div>
   );
@@ -235,7 +286,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   };
 
   return (
-    <>
+    <div className="h-full flex flex-col">
       {/* Chat Header */}
       <div className="h-[50px] border-b border-[#333] flex items-center justify-between px-4">
         <span className="text-sm font-medium">Chat</span>
@@ -302,7 +353,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           </button>
         </div>
       </div>
-    </>
+    </div>
   );
 };
 
@@ -314,15 +365,21 @@ interface EditorPanelProps {
   workspace: Workspace;
   openFiles: string[];
   selectedFile: string | null;
+  onToggleSplit?: () => void;
+  isSplitMode?: boolean;
 }
 
 const EditorPanel: React.FC<EditorPanelProps> = ({
   workspace,
   openFiles,
   selectedFile,
+  onToggleSplit,
+  isSplitMode = false,
 }) => {
   const [fileContent, setFileContent] = useState<string>('');
   const [isLoadingFile, setIsLoadingFile] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const activeFile = selectedFile;
 
@@ -330,11 +387,13 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
   useEffect(() => {
     if (!activeFile) {
       setFileContent('');
+      setHasUnsavedChanges(false);
       return;
     }
 
     const loadFileContent = async () => {
       setIsLoadingFile(true);
+      setHasUnsavedChanges(false);
       try {
         console.log('[EditorPanel] Loading file:', activeFile);
         const result = await ipcRenderer.invoke('workspace:read-file', workspace.path, activeFile);
@@ -356,16 +415,96 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
     loadFileContent();
   }, [activeFile, workspace.path]);
 
+  // Save file
+  const handleSaveFile = async () => {
+    if (!activeFile || !hasUnsavedChanges) return;
+
+    setIsSaving(true);
+    try {
+      console.log('[EditorPanel] Saving file:', activeFile);
+      const result = await ipcRenderer.invoke('workspace:write-file', workspace.path, activeFile, fileContent);
+
+      if (result.success) {
+        console.log('[EditorPanel] File saved successfully');
+        setHasUnsavedChanges(false);
+      } else {
+        console.error('[EditorPanel] Failed to save file:', result.error);
+        alert(`Failed to save file: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('[EditorPanel] Error saving file:', error);
+      alert(`Error saving file: ${error}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Handle Cmd+S / Ctrl+S
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault();
+        handleSaveFile();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeFile, hasUnsavedChanges, fileContent]);
+
   return (
-    <>
+    <div className="h-full flex flex-col">
       {/* Editor Header */}
-      <div className="h-[50px] border-b border-[#333] flex items-center px-4">
-        <span className="text-sm font-medium">Editor</span>
-        {activeFile && (
-          <span className="text-xs text-[#666] ml-2">
-            {activeFile}
-          </span>
-        )}
+      <div className="h-[50px] border-b border-[#333] flex items-center justify-between px-4">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium">Editor</span>
+          {activeFile && (
+            <>
+              <span className="text-xs text-[#666]">
+                {activeFile}
+              </span>
+              {hasUnsavedChanges && (
+                <span className="text-xs text-[#FFA500]">• (unsaved)</span>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Save Button */}
+          {hasUnsavedChanges && (
+            <button
+              onClick={handleSaveFile}
+              disabled={isSaving}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-[#4CAF50] hover:bg-[#45a049] disabled:bg-[#333] disabled:cursor-not-allowed text-white rounded transition-colors"
+              title="Save file (Cmd+S)"
+            >
+              <Save size={14} />
+              <span>{isSaving ? 'Saving...' : 'Save'}</span>
+            </button>
+          )}
+
+          {/* Split View Toggle Button */}
+          {onToggleSplit && (
+            <button
+              onClick={onToggleSplit}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-[#666] hover:text-white hover:bg-[#333] rounded transition-colors"
+              title={isSplitMode ? "Hide chat" : "Show chat"}
+            >
+              {isSplitMode ? (
+                <>
+                  <Maximize2 size={14} />
+                  <span>Editor Only</span>
+                </>
+              ) : (
+                <>
+                  <Columns2 size={14} />
+                  <span>Show Chat</span>
+                </>
+              )}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Editor Content */}
@@ -387,21 +526,29 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
                 defaultLanguage={getLanguageFromFilePath(activeFile || '')}
                 language={getLanguageFromFilePath(activeFile || '')}
                 value={fileContent}
+                onChange={(value) => {
+                  if (value !== undefined && value !== fileContent) {
+                    setFileContent(value);
+                    setHasUnsavedChanges(true);
+                  }
+                }}
                 theme="vs-dark"
                 options={{
-                  readOnly: true,
+                  readOnly: false,
                   minimap: { enabled: false },
                   fontSize: 13,
                   lineNumbers: 'on',
                   scrollBeyondLastLine: false,
                   automaticLayout: true,
+                  tabSize: 2,
+                  insertSpaces: true,
                 }}
               />
             )}
           </div>
         )}
       </div>
-    </>
+    </div>
   );
 };
 

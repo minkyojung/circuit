@@ -2750,6 +2750,35 @@ ipcMain.handle('workspace:read-file', async (event, workspacePath, filePath) => 
   }
 });
 
+/**
+ * Write file contents
+ */
+ipcMain.handle('workspace:write-file', async (event, workspacePath, filePath, content) => {
+  try {
+    const fullPath = path.join(workspacePath, filePath);
+
+    console.log('[Workspace] Writing file:', fullPath);
+
+    // Ensure directory exists
+    const dirPath = path.dirname(fullPath);
+    await fs.mkdir(dirPath, { recursive: true });
+
+    // Write file contents
+    await fs.writeFile(fullPath, content, 'utf8');
+
+    return {
+      success: true,
+      filePath
+    };
+  } catch (error) {
+    console.error('[Workspace] Write file error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
 // ============================================================================
 // Git Operations - Commit & PR
 // ============================================================================
