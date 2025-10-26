@@ -26,7 +26,7 @@ const { ipcRenderer } = window.require('electron')
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   selectedWorkspaceId: string | null
   selectedWorkspace: Workspace | null
-  onSelectWorkspace: (workspace: Workspace) => void
+  onSelectWorkspace: (workspace: Workspace | null) => void
   selectedFile: string | null
   onFileSelect: (filePath: string) => void
 }
@@ -125,18 +125,25 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
 
   // Load statuses for all workspaces
   const loadStatuses = async (workspaceList: Workspace[]) => {
-    const newStatuses: Record<string, WorkspaceStatus> = {}
-
-    for (const workspace of workspaceList) {
+    const statusPromises = workspaceList.map(async (workspace) => {
       try {
         const result = await ipcRenderer.invoke('workspace:get-status', workspace.path)
         if (result.success && result.status) {
-          newStatuses[workspace.id] = result.status
+          return { id: workspace.id, status: result.status }
         }
       } catch (error) {
         console.error(`Failed to get status for ${workspace.name}:`, error)
       }
-    }
+      return null
+    })
+
+    const results = await Promise.all(statusPromises)
+    const newStatuses: Record<string, WorkspaceStatus> = {}
+    results.forEach((result) => {
+      if (result) {
+        newStatuses[result.id] = result.status
+      }
+    })
 
     setStatuses(newStatuses)
   }
@@ -227,7 +234,6 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
       const result: WorkspaceCreateResult = await ipcRenderer.invoke('workspace:create')
 
       if (result.success && result.workspace) {
-        console.log('✅ Workspace created:', result.workspace.name)
         setWorkspaces([...workspaces, result.workspace])
       } else {
         console.error('Failed to create workspace:', result.error)
@@ -246,7 +252,6 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
       const result = await ipcRenderer.invoke('repository:create')
 
       if (result.success && result.repository) {
-        console.log('✅ Repository created:', result.repository.name)
         setRepositories([...repositories, result.repository])
         setCurrentRepository(result.repository)
       } else {
@@ -274,7 +279,6 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
       const result = await ipcRenderer.invoke('repository:clone', url)
 
       if (result.success && result.repository) {
-        console.log('✅ Repository cloned:', result.repository.name)
         setRepositories([...repositories, result.repository])
         setCurrentRepository(result.repository)
         alert(`Repository cloned successfully: ${result.repository.name}`)
@@ -299,12 +303,11 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
       const result = await ipcRenderer.invoke('workspace:delete', workspaceId)
 
       if (result.success) {
-        console.log('✅ Workspace deleted:', workspaceId)
         setWorkspaces(workspaces.filter((w) => w.id !== workspaceId))
 
         // Clear active workspace if it was deleted
         if (selectedWorkspaceId === workspaceId) {
-          onSelectWorkspace(null as any)
+          onSelectWorkspace(null)
         }
       } else {
         console.error('Failed to delete workspace:', result.error)
@@ -368,18 +371,18 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                     <SidebarMenuButton
                       onClick={() => onSelectWorkspace(workspace)}
                       isActive={isActive}
-                      className="h-auto py-2.5 px-3 group"
+                      className="h-auto py-2 px-2 group transition-all duration-200 ease-out"
                     >
                       {/* Improved layout */}
                       <div className="flex items-start gap-3 w-full min-w-0">
                         {/* Icon */}
-                        <FolderGit2 size={16} className="flex-shrink-0 mt-0.5" style={{ color: 'var(--sidebar-foreground)' }} />
+                        <FolderGit2 size={16} className="flex-shrink-0 mt-0.5 text-sidebar-foreground-muted" />
 
                         {/* Content */}
                         <div className="flex-1 min-w-0 space-y-1">
                           {/* Top row: Name + Status Badge */}
                           <div className="flex items-center gap-2">
-                            <span className="text-base font-semibold truncate flex-1" style={{ color: 'var(--sidebar-foreground)' }}>
+                            <span className="text-sm font-medium text-sidebar-foreground-muted truncate flex-1">
                               {workspace.name}
                             </span>
 
@@ -477,8 +480,7 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
             variant="ghost"
             onClick={createWorkspace}
             disabled={isCreating}
-            className="w-full h-auto py-2 px-2 justify-start text-sm hover:bg-sidebar-hover transition-all duration-200"
-            style={{ color: 'var(--sidebar-foreground)' }}
+            className="w-full h-auto py-2 px-2 justify-start text-sm text-sidebar-foreground-muted hover:bg-sidebar-hover transition-all duration-200 ease-out"
           >
             <Plus size={16} />
             {isCreating ? 'Creating...' : 'New Workspace'}
@@ -497,7 +499,7 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
       </SidebarContent>
 
       <SidebarFooter>
-        <ThemeToggle className="w-full justify-start" style={{ color: 'var(--sidebar-foreground)' }} />
+        <ThemeToggle className="w-full justify-start text-sidebar-foreground-muted transition-all duration-200 ease-out hover:bg-sidebar-hover" />
       </SidebarFooter>
     </Sidebar>
   )
