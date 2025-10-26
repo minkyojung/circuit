@@ -180,11 +180,11 @@
     --sidebar-ring: oklch(0.58 0.10 40);
 
     /* Chat UI colors */
-    --chat-input-outer: oklch(0.93 0 0);      /* Slightly darker for better contrast */
-    --chat-input-border: oklch(0.77 0 0);     /* Darker border for clear definition */
-    --chat-input-inner: oklch(0.97 0 0);      /* Slightly darker, maintains elevation */
-    --chat-button-selected: oklch(0.89 0 0);  /* Darker for better contrast */
-    --chat-button-default: oklch(0.92 0 0);   /* Darker for better visibility */
+    --chat-input-outer: oklch(0.945 0 0);     /* Clear separation from background */
+    --chat-input-border: oklch(0.74 0 0);     /* Defined but not harsh border */
+    --chat-input-inner: oklch(0.985 0 0);     /* Bright, elevated surface */
+    --chat-button-selected: oklch(0.88 0 0);  /* Clear selected state */
+    --chat-button-default: oklch(0.96 0 0);   /* Subtle, matches inner surface */
 
     /* shadcn sidebar compat (HSL) */
     --sidebar-background: 0 0% 91%;           /* #E9E9E9 */
@@ -265,11 +265,11 @@
     --sidebar-ring: oklch(0.65 0.12 40);
 
     /* Chat UI colors - dark variant */
-    --chat-input-outer: oklch(0.24 0 0);      /* Slightly darker for subtle contrast */
-    --chat-input-border: oklch(0.40 0 0);     /* Brighter border for clear definition */
-    --chat-input-inner: oklch(0.28 0 0);      /* Brighter than outer, proper elevation */
-    --chat-button-selected: oklch(0.31 0 0);  /* Brighter for better contrast */
-    --chat-button-default: oklch(0.26 0 0);   /* Slightly brighter for visibility */
+    --chat-input-outer: oklch(0.23 0 0);      /* Clear separation from background */
+    --chat-input-border: oklch(0.38 0 0);     /* Defined but not harsh border */
+    --chat-input-inner: oklch(0.29 0 0);      /* Elevated, brighter than outer */
+    --chat-button-selected: oklch(0.33 0 0);  /* Clear selected state */
+    --chat-button-default: oklch(0.27 0 0);   /* Subtle, matches inner surface */
 
     /* shadcn sidebar compat (HSL) */
     --sidebar-background: 0 0% 12%;           /* Dark sidebar */
