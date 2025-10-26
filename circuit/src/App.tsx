@@ -1,7 +1,7 @@
 import { useState, useEffect, createContext, useContext, useMemo } from 'react'
 import { WorkspaceChatEditor } from "@/components/workspace"
 import { CommitDialog } from "@/components/workspace/CommitDialog"
-import { Sidebar } from "@/components/Sidebar"
+import { AppSidebar } from "@/components/AppSidebar"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -11,6 +11,11 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
 import { Separator } from "@/components/ui/separator"
+import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar"
 import type { Workspace } from "@/types/workspace"
 import { FolderGit2, GitCommit } from 'lucide-react'
 import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
@@ -78,24 +83,23 @@ function App() {
 
   return (
     <ProjectPathContext.Provider value={{ projectPath, isLoading: isLoadingPath }}>
-      <div className="h-screen flex bg-background">
-        {/* Sidebar with Workspace Management */}
-        <Sidebar
+      <SidebarProvider>
+        <AppSidebar
           selectedWorkspaceId={selectedWorkspace?.id || null}
           onSelectWorkspace={setSelectedWorkspace}
         />
-
-        {/* Main Content */}
-        <main className="flex-1 overflow-hidden flex flex-col bg-background">
+        <SidebarInset>
           {/* Main Header with Breadcrumb */}
           <header
-            className="h-[44px] border-b border-border flex items-center px-6 gap-2"
+            className="flex h-[44px] shrink-0 items-center gap-2 border-b border-border px-4"
             style={{ WebkitAppRegion: 'drag' } as any}
           >
             <div
               className="flex items-center gap-2"
               style={{ WebkitAppRegion: 'no-drag' } as any}
             >
+              <SidebarTrigger className="-ml-1" />
+              <Separator orientation="vertical" className="mr-2 h-4" />
               {selectedWorkspace ? (
                 <Breadcrumb>
                   <BreadcrumbList>
@@ -155,7 +159,7 @@ function App() {
           </header>
 
           {/* Main Content Area */}
-          <div className="flex-1 overflow-hidden">
+          <div className="flex flex-1 flex-col overflow-hidden">
             {selectedWorkspace ? (
               <>
                 <WorkspaceChatEditor
@@ -181,7 +185,7 @@ function App() {
                 )}
               </>
             ) : (
-              <div className="h-full flex items-center justify-center text-center p-8">
+              <div className="flex flex-1 items-center justify-center text-center p-8">
                 <div>
                   <FolderGit2 size={48} className="mx-auto text-muted-foreground mb-4" />
                   <h2 className="text-xl font-semibold text-foreground mb-2">No Workspace Selected</h2>
@@ -192,8 +196,8 @@ function App() {
               </div>
             )}
           </div>
-        </main>
-      </div>
+        </SidebarInset>
+      </SidebarProvider>
     </ProjectPathContext.Provider>
   )
 }
