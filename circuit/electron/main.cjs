@@ -1,10 +1,13 @@
 const { app, BrowserWindow, ipcMain, globalShortcut } = require('electron');
 const path = require('path');
-const { spawn } = require('child_process');
+const { spawn, exec } = require('child_process');
+const { promisify } = require('util');
 const fs = require('fs').promises;
 const chokidar = require('chokidar');
 const os = require('os');
 const http = require('http');
+
+const execAsync = promisify(exec);
 
 // Import MCP Server Manager (ES Module)
 let mcpManagerPromise = null;
@@ -68,6 +71,93 @@ async function installCircuitProxy() {
   }
 }
 
+/**
+ * Install built-in Memory server
+ * Auto-installs if not present, auto-starts for project context
+ */
+async function installMemoryServer(manager) {
+  try {
+    const serverId = 'circuit-memory';
+
+    // Uninstall if already exists (to ensure latest path)
+    if (manager.servers.has(serverId)) {
+      console.log('[Circuit] Uninstalling existing Memory server...');
+      await manager.uninstall(serverId);
+    }
+
+    // Use same project path logic as UI (circuit:get-project-path)
+    // From: /path/to/circuit-1/.conductor/hyderabad/circuit/electron
+    // To:   /path/to/circuit-1
+    const projectPath = path.resolve(__dirname, '../../../..');
+
+    // Install Memory server (built file is in dist-electron)
+    const memoryServerPath = path.join(__dirname, '../dist-electron/memory-server.js');
+    console.log('[Circuit] Installing Memory server from:', memoryServerPath);
+    console.log('[Circuit] Memory server project path:', projectPath);
+
+    await manager.install(serverId, {
+      command: 'node',
+      args: [memoryServerPath],
+      env: {
+        PROJECT_PATH: projectPath,
+      },
+      autoStart: true,
+    });
+
+    console.log('[Circuit] Memory server installed for project:', projectPath);
+    return { success: true };
+  } catch (error) {
+    console.error('[Circuit] Failed to install Memory server:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Install Vercel Deployment MCP server
+ * Monitors Vercel deployments and provides error logs
+ */
+async function installVercelServer(manager) {
+  try {
+    const serverId = 'vercel-deployments';
+
+    // Uninstall if already exists
+    if (manager.servers.has(serverId)) {
+      console.log('[Circuit] Uninstalling existing Vercel server...');
+      await manager.uninstall(serverId);
+    }
+
+    // Get Vercel token from environment or electron-store
+    // For now, use environment variable (can be set in .env or system)
+    const vercelToken = process.env.VERCEL_TOKEN || '';
+    const vercelTeamId = process.env.VERCEL_TEAM_ID || '';
+
+    if (!vercelToken) {
+      console.warn('[Circuit] VERCEL_TOKEN not set - Vercel MCP will not work');
+      console.warn('[Circuit] Set VERCEL_TOKEN environment variable to use Vercel features');
+    }
+
+    // Install Vercel server (built file is in dist-electron)
+    const vercelServerPath = path.join(__dirname, '../dist-electron/vercel-mcp-server.js');
+    console.log('[Circuit] Installing Vercel server from:', vercelServerPath);
+
+    await manager.install(serverId, {
+      command: 'node',
+      args: [vercelServerPath],
+      env: {
+        VERCEL_TOKEN: vercelToken,
+        VERCEL_TEAM_ID: vercelTeamId,
+      },
+      autoStart: true,
+    });
+
+    console.log('[Circuit] Vercel server installed');
+    return { success: true };
+  } catch (error) {
+    console.error('[Circuit] Failed to install Vercel server:', error);
+    return { success: false, error: error.message };
+  }
+}
+
 // macOS traffic light button positioning
 const HEADER_HEIGHT = 44;
 const TRAFFIC_LIGHTS_HEIGHT = 14;
@@ -81,6 +171,9 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
+    transparent: true,
+    vibrancy: 'under-window',  // macOS native glassmorphism
+    visualEffectState: 'active',
     titleBarStyle: process.platform === 'darwin' ? 'hidden' : 'default',
     ...(process.platform === 'darwin' && {
       trafficLightPosition: {
@@ -97,7 +190,7 @@ function createWindow() {
   // Load from Vite dev server in development, or built files in production
   if (process.env.VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
-    mainWindow.webContents.openDevTools();
+    // mainWindow.webContents.openDevTools(); // Disabled auto-open DevTools
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
@@ -483,6 +576,33 @@ function transformVercelStatus(vercelStatus) {
   return statusMap[vercelStatus] || 'building';
 }
 
+// Global error handlers to prevent app crashes from EPIPE and other uncaught exceptions
+process.on('uncaughtException', (error) => {
+  // Ignore EPIPE errors (broken pipe) which happen when child processes exit
+  if (error.code === 'EPIPE' || error.errno === 'EPIPE') {
+    console.warn('[Process] Ignoring EPIPE error (broken pipe)');
+    return;
+  }
+
+  // Log other uncaught exceptions
+  console.error('[Process] Uncaught Exception:', error);
+
+  // Don't exit the app for most errors
+  // Only exit for critical errors
+  if (error.code === 'ERR_CRITICAL') {
+    app.quit();
+  }
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[Process] Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+// Prevent default Electron crash behavior
+app.on('render-process-gone', (event, webContents, details) => {
+  console.error('[App] Render process gone:', details);
+});
+
 app.whenReady().then(async () => {
   createWindow();
   createPeekWindow();
@@ -511,8 +631,12 @@ app.whenReady().then(async () => {
     await apiServer.start();
     console.log('Circuit API Server started');
 
-    // Start MCP servers
+    // Install built-in Memory server if not already installed
     const manager = await getMCPManagerInstance();
+    await installMemoryServer(manager);
+    await installVercelServer(manager);
+
+    // Start MCP servers
     await manager.startAllAutoStartServers();
     console.log('Auto-start servers initialized');
   } catch (error) {
@@ -1062,6 +1186,37 @@ ipcMain.handle('github:send-test-webhook', async (event, eventType) => {
       success: false,
       error: error.message
     };
+  }
+});
+
+// ============================================================================
+// Circuit Test-Fix Loop - Phase 1: Project Path Detection
+// ============================================================================
+
+/**
+ * Get the actual project path from the Conductor workspace
+ * Resolves from: /path/to/project/.conductor/workspace/circuit/electron
+ * To: /path/to/project
+ */
+ipcMain.handle('circuit:get-project-path', async () => {
+  try {
+    // Get the electron directory path
+    // e.g., /Users/williamjung/conductor/circuit-1/.conductor/hyderabad/circuit/electron
+    const electronDir = __dirname;
+
+    // Navigate up to find the actual project root
+    // From: /Users/.../circuit-1/.conductor/hyderabad/circuit/electron
+    // To:   /Users/.../circuit-1
+    // That's 5 levels up: electron -> circuit -> hyderabad -> .conductor -> circuit-1
+    const projectPath = path.resolve(electronDir, '../../../..');
+
+    console.log('[Circuit] Electron dir:', electronDir);
+    console.log('[Circuit] Resolved project path:', projectPath);
+
+    return { success: true, projectPath };
+  } catch (error) {
+    console.error('[Circuit] Failed to get project path:', error);
+    return { success: false, error: error.message };
   }
 });
 
@@ -1775,6 +1930,74 @@ ipcMain.handle('circuit:mcp-get-logs', async (event, serverId, lines = 100) => {
   }
 });
 
+ipcMain.handle('circuit:reload-claude-code', async (event, openVSCode = true) => {
+  try {
+    const { exec } = require('child_process');
+    const util = require('util');
+    const execPromise = util.promisify(exec);
+
+    // Try to reload VS Code using the 'code' CLI
+    try {
+      await execPromise('code --command workbench.action.reloadWindow');
+      console.log('[Circuit] Claude Code reload command sent');
+      return { success: true };
+    } catch (cliError) {
+      // If 'code' CLI is not available, try AppleScript
+      console.log('[Circuit] Code CLI not available, trying AppleScript...');
+
+      if (openVSCode) {
+        // Option 1: Activate VS Code and reload
+        const script = `
+          tell application "Visual Studio Code"
+            activate
+          end tell
+          delay 0.5
+          tell application "System Events"
+            tell process "Code"
+              keystroke "r" using {command down, shift down}
+            end tell
+          end tell
+          return "success"
+        `;
+
+        try {
+          await execPromise(`osascript -e '${script}'`);
+          console.log('[Circuit] VS Code activated and reloaded via AppleScript');
+          return { success: true };
+        } catch (err) {
+          console.error('[Circuit] AppleScript failed:', err);
+          return { success: false, error: 'Failed to activate VS Code' };
+        }
+      } else {
+        // Option 2: Reload only if VS Code is already running
+        const script = `
+          tell application "System Events"
+            if exists (process "Code") then
+              tell process "Code"
+                keystroke "r" using {command down, shift down}
+              end tell
+              return "success"
+            else
+              return "Code not running"
+            end if
+          end tell
+        `;
+
+        const { stdout } = await execPromise(`osascript -e '${script}'`);
+        if (stdout.trim() === 'success') {
+          console.log('[Circuit] Claude Code reload via AppleScript (no activation)');
+          return { success: true };
+        } else {
+          return { success: false, error: 'VS Code is not running' };
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[Circuit] Failed to reload Claude Code:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // ============================================================================
 // MCP Call History
 // ============================================================================
@@ -1787,6 +2010,36 @@ ipcMain.handle('circuit:mcp-get-logs', async (event, serverId, lines = 100) => {
     console.log('[main.cjs] History handlers registered');
   } catch (error) {
     console.error('[main.cjs] Failed to register history handlers:', error);
+  }
+})();
+
+// ============================================================================
+// Project Memory
+// ============================================================================
+
+// Register memory IPC handlers
+(async () => {
+  try {
+    const { registerMemoryHandlers } = await import('../dist-electron/memoryHandlers.js');
+    registerMemoryHandlers();
+    console.log('[main.cjs] Memory handlers registered');
+  } catch (error) {
+    console.error('[main.cjs] Failed to register memory handlers:', error);
+  }
+})();
+
+// ============================================================================
+// Repository Management
+// ============================================================================
+
+// Register repository IPC handlers
+(async () => {
+  try {
+    const { registerRepositoryHandlers } = await import('../dist-electron/repositoryHandlers.js');
+    registerRepositoryHandlers();
+    console.log('[main.cjs] Repository handlers registered');
+  } catch (error) {
+    console.error('[main.cjs] Failed to register repository handlers:', error);
   }
 })();
 
@@ -1807,3 +2060,1194 @@ app.on('before-quit', async () => {
 });
 
 // MCP/API initialization is now handled in the main app.whenReady() block above
+
+// ============================================================================
+// Git Worktree - Workspace Management
+// ============================================================================
+
+// Animal names for workspace naming
+const ANIMALS = [
+  'aardvark', 'albatross', 'alligator', 'alpaca', 'ant', 'anteater', 'antelope', 'armadillo',
+  'baboon', 'badger', 'barracuda', 'bat', 'bear', 'beaver', 'bee', 'bison', 'boar', 'buffalo',
+  'camel', 'capybara', 'caribou', 'cassowary', 'cat', 'caterpillar', 'cheetah', 'chicken', 'chimpanzee', 'chinchilla', 'chipmunk', 'cobra', 'cod', 'coyote', 'crab', 'crane', 'crocodile', 'crow',
+  'deer', 'dingo', 'dog', 'dolphin', 'donkey', 'dove', 'dragonfly', 'duck', 'dugong',
+  'eagle', 'echidna', 'eel', 'elephant', 'elk', 'emu', 'ermine',
+  'falcon', 'ferret', 'finch', 'fish', 'flamingo', 'fox', 'frog',
+  'gazelle', 'gecko', 'gerbil', 'giraffe', 'gnu', 'goat', 'goldfish', 'goose', 'gorilla', 'grasshopper', 'grizzly', 'gull',
+  'hamster', 'hare', 'hawk', 'hedgehog', 'heron', 'hippo', 'hornet', 'horse', 'hummingbird', 'hyena',
+  'ibex', 'ibis', 'iguana', 'impala',
+  'jackal', 'jaguar', 'jay', 'jellyfish',
+  'kangaroo', 'koala', 'kookaburra', 'krill',
+  'ladybug', 'lemur', 'leopard', 'lion', 'lizard', 'llama', 'lobster', 'locust', 'lynx',
+  'macaw', 'magpie', 'mallard', 'manatee', 'mandrill', 'mantis', 'meerkat', 'mink', 'mole', 'mongoose', 'monkey', 'moose', 'mosquito', 'moth', 'mouse', 'mule',
+  'narwhal', 'newt', 'nightingale',
+  'octopus', 'okapi', 'opossum', 'orangutan', 'orca', 'ostrich', 'otter', 'owl', 'ox', 'oyster',
+  'panda', 'panther', 'parrot', 'peacock', 'pelican', 'penguin', 'pheasant', 'pig', 'pigeon', 'platypus', 'pony', 'porcupine', 'possum', 'prairie-dog', 'puffin', 'puma', 'python',
+  'quail', 'quokka',
+  'rabbit', 'raccoon', 'ram', 'rat', 'raven', 'reindeer', 'rhino', 'robin', 'rooster',
+  'salamander', 'salmon', 'sandpiper', 'sardine', 'scorpion', 'seahorse', 'seal', 'shark', 'sheep', 'shrew', 'shrimp', 'skunk', 'sloth', 'snail', 'snake', 'sparrow', 'spider', 'squid', 'squirrel', 'starfish', 'stingray', 'stork', 'swallow', 'swan',
+  'tapir', 'tarsier', 'tiger', 'toad', 'tortoise', 'toucan', 'trout', 'tuna', 'turkey', 'turtle',
+  'viper', 'vulture',
+  'wallaby', 'walrus', 'wasp', 'weasel', 'whale', 'wildcat', 'wolf', 'wolverine', 'wombat', 'woodpecker', 'worm',
+  'yak',
+  'zebra'
+];
+
+function getAvailableAnimalName(usedNames = []) {
+  const availableAnimals = ANIMALS.filter(animal => !usedNames.includes(animal));
+
+  if (availableAnimals.length > 0) {
+    const randomIndex = Math.floor(Math.random() * availableAnimals.length);
+    return availableAnimals[randomIndex];
+  }
+
+  // If all animal names are used, add a numeric suffix
+  let suffix = 2;
+  while (true) {
+    const randomAnimal = ANIMALS[Math.floor(Math.random() * ANIMALS.length)];
+    const nameWithSuffix = `${randomAnimal}-${suffix}`;
+
+    if (!usedNames.includes(nameWithSuffix)) {
+      return nameWithSuffix;
+    }
+
+    suffix++;
+
+    if (suffix > 1000) {
+      return `workspace-${Date.now()}`;
+    }
+  }
+}
+
+/**
+ * Get all existing branch names in the repository
+ */
+async function getExistingBranches(projectPath) {
+  try {
+    const { stdout } = await execAsync('git branch --all --format="%(refname:short)"', {
+      cwd: projectPath
+    });
+
+    return stdout
+      .split('\n')
+      .map(b => b.trim())
+      .filter(Boolean)
+      .map(b => b.replace(/^origin\//, '')); // Remove 'origin/' prefix
+  } catch (error) {
+    console.error('[Workspace] Failed to get branches:', error);
+    return [];
+  }
+}
+
+/**
+ * Generate a unique workspace name using animal names
+ */
+async function generateWorkspaceName(projectPath) {
+  const existingBranches = await getExistingBranches(projectPath);
+  return getAvailableAnimalName(existingBranches);
+}
+
+/**
+ * Create a new Git worktree workspace
+ */
+async function createWorktree(projectPath, branchName) {
+  try {
+    const workspacesDir = path.join(projectPath, '.conductor', 'workspaces');
+    await fs.mkdir(workspacesDir, { recursive: true });
+
+    const worktreePath = path.join(workspacesDir, branchName);
+
+    // Check if worktree already exists
+    try {
+      await fs.access(worktreePath);
+      throw new Error(`Workspace ${branchName} already exists`);
+    } catch (err) {
+      // Good - it doesn't exist
+    }
+
+    // Create new worktree
+    await execAsync(`git worktree add -b ${branchName} "${worktreePath}"`, {
+      cwd: projectPath
+    });
+
+    return {
+      id: branchName,
+      name: branchName,
+      branch: branchName,
+      path: worktreePath,
+      createdAt: new Date().toISOString(),
+      isActive: false
+    };
+  } catch (error) {
+    throw new Error(`Failed to create workspace: ${error.message}`);
+  }
+}
+
+/**
+ * List all Git worktrees
+ */
+async function listWorktrees(projectPath) {
+  try {
+    const { stdout } = await execAsync('git worktree list --porcelain', {
+      cwd: projectPath
+    });
+
+    const worktrees = [];
+    const lines = stdout.split('\n');
+    let current = {};
+
+    for (const line of lines) {
+      if (line.startsWith('worktree ')) {
+        if (current.path) {
+          worktrees.push(current);
+        }
+        current = { path: line.substring(9) };
+      } else if (line.startsWith('HEAD ')) {
+        current.head = line.substring(5);
+      } else if (line.startsWith('branch ')) {
+        const branchRef = line.substring(7);
+        current.branch = branchRef.replace('refs/heads/', '');
+      } else if (line === '') {
+        if (current.path) {
+          worktrees.push(current);
+          current = {};
+        }
+      }
+    }
+
+    // Transform to our workspace format
+    const workspacePromises = worktrees
+      .filter(wt => wt.path.includes('.conductor/workspaces'))
+      .map(async wt => {
+        // Get directory creation time as fallback for createdAt
+        let createdAt = new Date().toISOString();
+        try {
+          const stats = await fs.stat(wt.path);
+          createdAt = stats.birthtime.toISOString();
+        } catch (err) {
+          console.warn('[Workspace] Could not get creation time for', wt.path);
+        }
+
+        return {
+          id: wt.branch || path.basename(wt.path),
+          name: wt.branch || path.basename(wt.path),
+          branch: wt.branch || 'detached',
+          path: wt.path,
+          createdAt,
+          isActive: false // Will be determined by current workspace
+        };
+      });
+
+    return await Promise.all(workspacePromises);
+  } catch (error) {
+    console.error('[Workspace] Failed to list worktrees:', error);
+    return [];
+  }
+}
+
+/**
+ * Delete a Git worktree
+ */
+async function deleteWorktree(projectPath, branchName) {
+  try {
+    const worktreePath = path.join(projectPath, '.conductor', 'workspaces', branchName);
+
+    // Remove worktree
+    await execAsync(`git worktree remove "${worktreePath}" --force`, {
+      cwd: projectPath
+    });
+
+    // Delete branch
+    try {
+      await execAsync(`git branch -D ${branchName}`, {
+        cwd: projectPath
+      });
+    } catch (branchError) {
+      console.warn('[Workspace] Failed to delete branch (may not exist):', branchError.message);
+    }
+
+    return true;
+  } catch (error) {
+    throw new Error(`Failed to delete workspace: ${error.message}`);
+  }
+}
+
+/**
+ * Get Git status for a worktree
+ */
+async function getWorktreeStatus(worktreePath) {
+  try {
+    // 1. Check dirty status
+    const { stdout: statusOutput } = await execAsync('git status --porcelain', {
+      cwd: worktreePath
+    });
+
+    const lines = statusOutput.split('\n').filter(Boolean);
+    const isDirty = lines.length > 0;
+
+    // 2. Get current branch
+    const { stdout: branchOutput } = await execAsync('git rev-parse --abbrev-ref HEAD', {
+      cwd: worktreePath
+    });
+    const branch = branchOutput.trim();
+
+    // 3. Check ahead/behind (requires remote tracking)
+    let ahead = 0;
+    let behind = 0;
+    let hasRemote = false;
+
+    try {
+      // Fetch to get latest remote info
+      await execAsync('git fetch origin', { cwd: worktreePath });
+
+      // Check if remote branch exists
+      const { stdout: remoteCheck } = await execAsync(`git rev-parse --verify origin/${branch}`, {
+        cwd: worktreePath
+      });
+
+      if (remoteCheck.trim()) {
+        hasRemote = true;
+
+        // Get ahead/behind counts
+        const { stdout: revList } = await execAsync(`git rev-list --left-right --count origin/${branch}...HEAD`, {
+          cwd: worktreePath
+        });
+
+        const [behindStr, aheadStr] = revList.trim().split('\t');
+        behind = parseInt(behindStr) || 0;
+        ahead = parseInt(aheadStr) || 0;
+      }
+    } catch (e) {
+      // Remote branch doesn't exist or fetch failed
+      hasRemote = false;
+    }
+
+    // 4. Check PR status (using gh CLI)
+    let prStatus = null;
+    let prUrl = null;
+
+    try {
+      const { stdout: prOutput } = await execAsync(`gh pr list --head ${branch} --json state,url,title`, {
+        cwd: worktreePath
+      });
+
+      const prs = JSON.parse(prOutput);
+      if (prs.length > 0) {
+        const pr = prs[0];
+        prStatus = pr.state; // "OPEN", "CLOSED", "MERGED"
+        prUrl = pr.url;
+      }
+    } catch (e) {
+      // No PR or gh CLI error
+    }
+
+    // Determine overall status
+    let status = 'unknown';
+
+    if (prStatus === 'MERGED') {
+      status = 'merged';
+    } else if (isDirty) {
+      status = 'working';
+    } else if (ahead > 0 && behind > 0) {
+      status = 'diverged';
+    } else if (ahead > 0) {
+      status = 'ahead';
+    } else if (behind > 0) {
+      status = 'behind';
+    } else if (!hasRemote) {
+      status = 'local';
+    } else {
+      status = 'synced';
+    }
+
+    return {
+      clean: !isDirty,
+      modified: lines.filter(l => l.startsWith(' M')).length,
+      added: lines.filter(l => l.startsWith('A')).length,
+      deleted: lines.filter(l => l.startsWith(' D')).length,
+      untracked: lines.filter(l => l.startsWith('??')).length,
+      ahead,
+      behind,
+      hasRemote,
+      prStatus,
+      prUrl,
+      status, // 'merged', 'working', 'diverged', 'ahead', 'behind', 'local', 'synced'
+      branch
+    };
+  } catch (error) {
+    console.error('[Workspace] Failed to get status:', error);
+    return {
+      clean: true,
+      modified: 0,
+      added: 0,
+      deleted: 0,
+      untracked: 0,
+      ahead: 0,
+      behind: 0,
+      hasRemote: false,
+      prStatus: null,
+      prUrl: null,
+      status: 'unknown',
+      branch: 'unknown'
+    };
+  }
+}
+
+/**
+ * Get file tree for a workspace
+ */
+async function getFileTree(worktreePath) {
+  try {
+    // Get git status to mark modified/added files
+    const { stdout: statusOutput } = await execAsync('git status --porcelain', {
+      cwd: worktreePath
+    });
+
+    // Parse git status to get file statuses
+    const fileStatuses = new Map();
+    const lines = statusOutput.split('\n').filter(Boolean);
+    for (const line of lines) {
+      const status = line.substring(0, 2);
+      const filePath = line.substring(3);
+
+      if (status.includes('M')) {
+        fileStatuses.set(filePath, 'modified');
+      } else if (status.includes('A')) {
+        fileStatuses.set(filePath, 'added');
+      }
+    }
+
+    // Recursively build file tree
+    async function buildTree(dirPath, relativePath = '') {
+      const entries = await fs.readdir(dirPath, { withFileTypes: true });
+      const nodes = [];
+
+      for (const entry of entries) {
+        // Skip .git and node_modules
+        if (entry.name === '.git' || entry.name === 'node_modules' || entry.name === '.conductor') {
+          continue;
+        }
+
+        const entryPath = path.join(dirPath, entry.name);
+        const entryRelativePath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
+
+        if (entry.isDirectory()) {
+          const children = await buildTree(entryPath, entryRelativePath);
+          nodes.push({
+            name: entry.name,
+            path: entryRelativePath,
+            type: 'folder',
+            children
+          });
+        } else {
+          const status = fileStatuses.get(entryRelativePath);
+          nodes.push({
+            name: entry.name,
+            path: entryRelativePath,
+            type: 'file',
+            modified: status === 'modified',
+            added: status === 'added'
+          });
+        }
+      }
+
+      // Sort: folders first, then files, alphabetically
+      return nodes.sort((a, b) => {
+        if (a.type === 'folder' && b.type !== 'folder') return -1;
+        if (a.type !== 'folder' && b.type === 'folder') return 1;
+        return a.name.localeCompare(b.name);
+      });
+    }
+
+    const fileTree = await buildTree(worktreePath);
+    return fileTree;
+  } catch (error) {
+    console.error('[Workspace] Failed to get file tree:', error);
+    return [];
+  }
+}
+
+// IPC Handlers for Workspace Management
+
+/**
+ * Create a new workspace with auto-generated animal name
+ */
+ipcMain.handle('workspace:create', async (event) => {
+  try {
+    // Get project path
+    const projectPathResult = await new Promise((resolve) => {
+      ipcMain.handleOnce('circuit:get-project-path-internal', async () => {
+        const electronDir = __dirname;
+        const projectPath = path.resolve(electronDir, '../../../..');
+        return { success: true, projectPath };
+      });
+      // Trigger it
+      const result = {
+        success: true,
+        projectPath: path.resolve(__dirname, '../../../..')
+      };
+      resolve(result);
+    });
+
+    if (!projectPathResult.success) {
+      throw new Error('Failed to get project path');
+    }
+
+    const projectPath = projectPathResult.projectPath;
+
+    // Generate unique branch name
+    const branchName = await generateWorkspaceName(projectPath);
+
+    // Create worktree
+    const workspace = await createWorktree(projectPath, branchName);
+
+    return { success: true, workspace };
+  } catch (error) {
+    console.error('[Workspace] Create error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * List all workspaces
+ */
+ipcMain.handle('workspace:list', async (event) => {
+  try {
+    const projectPath = path.resolve(__dirname, '../../../..');
+    const workspaces = await listWorktrees(projectPath);
+
+    return { success: true, workspaces };
+  } catch (error) {
+    console.error('[Workspace] List error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Delete a workspace
+ */
+ipcMain.handle('workspace:delete', async (event, workspaceId) => {
+  try {
+    const projectPath = path.resolve(__dirname, '../../../..');
+    await deleteWorktree(projectPath, workspaceId);
+
+    return { success: true };
+  } catch (error) {
+    console.error('[Workspace] Delete error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Get workspace status (Git status)
+ */
+ipcMain.handle('workspace:get-status', async (event, workspacePath) => {
+  try {
+    const status = await getWorktreeStatus(workspacePath);
+    return { success: true, status };
+  } catch (error) {
+    console.error('[Workspace] Get status error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Get file tree for a workspace
+ */
+ipcMain.handle('workspace:get-file-tree', async (event, workspacePath) => {
+  try {
+    const fileTree = await getFileTree(workspacePath);
+    return { success: true, fileTree };
+  } catch (error) {
+    console.error('[Workspace] Get file tree error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// ============================================================================
+// Claude CLI - Workspace Session Management
+// ============================================================================
+
+// Active Claude sessions for each workspace
+const activeSessions = new Map();
+
+/**
+ * Start a Claude CLI session for a workspace
+ */
+ipcMain.handle('claude:start-session', async (event, workspacePath) => {
+  try {
+    const sessionId = `session-${Date.now()}`;
+
+    console.log('[Claude] Starting session:', sessionId, 'at', workspacePath);
+
+    // Check if Claude CLI exists
+    try {
+      await fs.access(CLAUDE_CLI_PATH);
+    } catch (error) {
+      return {
+        success: false,
+        error: 'Claude Code CLI not found. Please install Claude Code first.'
+      };
+    }
+
+    // Store session info
+    activeSessions.set(sessionId, {
+      workspacePath,
+      messages: [],
+      createdAt: Date.now()
+    });
+
+    return {
+      success: true,
+      sessionId
+    };
+  } catch (error) {
+    console.error('[Claude] Failed to start session:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+/**
+ * Send message to Claude and get response
+ */
+ipcMain.handle('claude:send-message', async (event, sessionId, userMessage) => {
+  try {
+    const session = activeSessions.get(sessionId);
+
+    if (!session) {
+      return {
+        success: false,
+        error: 'Session not found'
+      };
+    }
+
+    console.log('[Claude] Sending message to session:', sessionId);
+    console.log('[Claude] Message:', userMessage);
+
+    // Add user message to history
+    session.messages.push({
+      role: 'user',
+      content: userMessage
+    });
+
+    // Spawn Claude CLI
+    const claude = spawn(CLAUDE_CLI_PATH, [
+      '--print',
+      '--output-format', 'json',
+      '--model', 'sonnet',
+      '--permission-mode', 'acceptEdits'  // Auto-approve file edits
+    ], {
+      cwd: session.workspacePath,
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+
+    // Send message
+    const input = JSON.stringify({
+      role: 'user',
+      content: userMessage
+    });
+
+    claude.stdin.write(input);
+    claude.stdin.end();
+
+    // Collect response
+    let stdout = '';
+    let stderr = '';
+
+    claude.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    claude.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    // Wait for completion
+    return new Promise((resolve) => {
+      claude.on('close', (code) => {
+        if (code !== 0) {
+          console.error('[Claude] Process failed:', stderr);
+          return resolve({
+            success: false,
+            error: `Claude CLI exited with code ${code}: ${stderr}`
+          });
+        }
+
+        try {
+          const response = JSON.parse(stdout);
+
+          if (response.type === 'result' && response.subtype === 'success') {
+            const assistantMessage = response.result;
+
+            // Add to session history
+            session.messages.push({
+              role: 'assistant',
+              content: assistantMessage
+            });
+
+            console.log('[Claude] Response received');
+
+            return resolve({
+              success: true,
+              message: assistantMessage,
+              sessionId,
+              cost: response.total_cost_usd
+            });
+          } else {
+            return resolve({
+              success: false,
+              error: 'Unexpected response from Claude CLI'
+            });
+          }
+        } catch (parseError) {
+          console.error('[Claude] Failed to parse response:', parseError);
+          return resolve({
+            success: false,
+            error: `Failed to parse response: ${parseError.message}`
+          });
+        }
+      });
+
+      claude.on('error', (error) => {
+        console.error('[Claude] Process error:', error);
+        return resolve({
+          success: false,
+          error: `Failed to spawn Claude CLI: ${error.message}`
+        });
+      });
+    });
+  } catch (error) {
+    console.error('[Claude] Send message error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+/**
+ * Stop a Claude session
+ */
+ipcMain.handle('claude:stop-session', async (event, sessionId) => {
+  try {
+    if (activeSessions.has(sessionId)) {
+      activeSessions.delete(sessionId);
+      console.log('[Claude] Session stopped:', sessionId);
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('[Claude] Stop session error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Read file contents from a workspace
+ */
+ipcMain.handle('workspace:read-file', async (event, workspacePath, filePath) => {
+  try {
+    const fullPath = path.join(workspacePath, filePath);
+
+    console.log('[Workspace] Reading file:', fullPath);
+
+    // Check if file exists
+    try {
+      await fs.access(fullPath);
+    } catch (error) {
+      return {
+        success: false,
+        error: 'File not found'
+      };
+    }
+
+    // Read file contents
+    const content = await fs.readFile(fullPath, 'utf8');
+
+    return {
+      success: true,
+      content,
+      filePath
+    };
+  } catch (error) {
+    console.error('[Workspace] Read file error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+/**
+ * Write file contents
+ */
+ipcMain.handle('workspace:write-file', async (event, workspacePath, filePath, content) => {
+  try {
+    const fullPath = path.join(workspacePath, filePath);
+
+    console.log('[Workspace] Writing file:', fullPath);
+
+    // Ensure directory exists
+    const dirPath = path.dirname(fullPath);
+    await fs.mkdir(dirPath, { recursive: true });
+
+    // Write file contents
+    await fs.writeFile(fullPath, content, 'utf8');
+
+    return {
+      success: true,
+      filePath
+    };
+  } catch (error) {
+    console.error('[Workspace] Write file error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+// ============================================================================
+// Git Operations - Commit & PR
+// ============================================================================
+
+/**
+ * Get git diff for workspace
+ */
+ipcMain.handle('workspace:git-diff', async (event, workspacePath) => {
+  try {
+    console.log('[Workspace] Getting git diff for:', workspacePath);
+
+    const { stdout, stderr } = await execAsync('git diff HEAD', { cwd: workspacePath });
+
+    return {
+      success: true,
+      diff: stdout
+    };
+  } catch (error) {
+    console.error('[Workspace] Git diff error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+/**
+ * Commit and push changes
+ */
+ipcMain.handle('workspace:commit-and-push', async (event, workspacePath, commitMessage) => {
+  try {
+    console.log('[Workspace] Committing and pushing:', workspacePath);
+
+    // Stage all changes
+    await execAsync('git add .', { cwd: workspacePath });
+
+    // Commit with message
+    const commitCmd = `git commit -m ${JSON.stringify(commitMessage)}`;
+    await execAsync(commitCmd, { cwd: workspacePath });
+
+    // Get current branch
+    const { stdout: branch } = await execAsync('git rev-parse --abbrev-ref HEAD', { cwd: workspacePath });
+    const branchName = branch.trim();
+
+    // Push to origin
+    await execAsync(`git push -u origin ${branchName}`, { cwd: workspacePath });
+
+    console.log('[Workspace] Successfully committed and pushed');
+
+    return {
+      success: true,
+      branch: branchName
+    };
+  } catch (error) {
+    console.error('[Workspace] Commit and push error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+/**
+ * Create pull request using gh CLI
+ */
+ipcMain.handle('workspace:create-pr', async (event, workspacePath, title, body) => {
+  try {
+    console.log('[Workspace] Creating PR for:', workspacePath);
+
+    // Get current branch
+    const { stdout: branch } = await execAsync('git rev-parse --abbrev-ref HEAD', { cwd: workspacePath });
+    const branchName = branch.trim();
+
+    // Create PR using gh CLI
+    const prCmd = `gh pr create --title ${JSON.stringify(title)} --body ${JSON.stringify(body)} --base main`;
+
+    try {
+      const { stdout } = await execAsync(prCmd, { cwd: workspacePath });
+      const prUrl = stdout.trim();
+      console.log('[Workspace] PR created:', prUrl);
+
+      return {
+        success: true,
+        prUrl,
+        branch: branchName
+      };
+    } catch (prError) {
+      // Check if PR already exists
+      if (prError.message && prError.message.includes('already exists')) {
+        console.log('[Workspace] PR already exists, fetching existing PR...');
+
+        // Extract URL from error message if present
+        const urlMatch = prError.message.match(/(https:\/\/github\.com\/[^\s]+)/);
+        if (urlMatch) {
+          const existingUrl = urlMatch[1];
+          console.log('[Workspace] Found existing PR:', existingUrl);
+          return {
+            success: true,
+            prUrl: existingUrl,
+            branch: branchName,
+            alreadyExists: true
+          };
+        }
+
+        // Fallback: Use gh pr list to find the PR
+        try {
+          const listCmd = `gh pr list --head ${branchName} --json url --jq '.[0].url'`;
+          const { stdout: existingUrl } = await execAsync(listCmd, { cwd: workspacePath });
+          console.log('[Workspace] Found existing PR via list:', existingUrl.trim());
+
+          return {
+            success: true,
+            prUrl: existingUrl.trim(),
+            branch: branchName,
+            alreadyExists: true
+          };
+        } catch (listError) {
+          console.error('[Workspace] Failed to find existing PR:', listError);
+          throw new Error('PR already exists but could not retrieve URL');
+        }
+      }
+
+      // Other error - re-throw
+      throw prError;
+    }
+  } catch (error) {
+    console.error('[Workspace] Create PR error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+/**
+ * Sync workspace with main branch (merge main into workspace)
+ */
+ipcMain.handle('workspace:sync-with-main', async (event, workspacePath) => {
+  try {
+    console.log('[Workspace] Syncing with main:', workspacePath);
+
+    // Check for uncommitted changes
+    const { stdout: statusCheck } = await execAsync('git status --porcelain', { cwd: workspacePath });
+
+    if (statusCheck.trim()) {
+      console.log('[Workspace] Uncommitted changes detected');
+
+      // Parse modified files
+      const modifiedFiles = statusCheck.trim().split('\n')
+        .map(line => line.substring(3)) // Remove status prefix
+        .filter(f => f);
+
+      return {
+        success: false,
+        hasUncommittedChanges: true,
+        modifiedFiles,
+        error: 'You have uncommitted changes. Please commit or stash them before syncing.'
+      };
+    }
+
+    // Fetch latest main
+    await execAsync('git fetch origin main', { cwd: workspacePath });
+
+    // Try to merge main into current branch
+    try {
+      await execAsync('git merge origin/main --no-edit', { cwd: workspacePath });
+
+      console.log('[Workspace] Successfully merged main');
+
+      // Get current branch
+      const { stdout: branch } = await execAsync('git rev-parse --abbrev-ref HEAD', { cwd: workspacePath });
+      const branchName = branch.trim();
+
+      // Push the merged changes
+      await execAsync(`git push origin ${branchName}`, { cwd: workspacePath });
+
+      console.log('[Workspace] Successfully synced and pushed');
+
+      return {
+        success: true,
+        hasConflicts: false
+      };
+    } catch (mergeError) {
+      // Check if it's a conflict
+      const { stdout: statusOutput } = await execAsync('git status', { cwd: workspacePath });
+
+      if (statusOutput.includes('Unmerged paths') || statusOutput.includes('both modified')) {
+        console.log('[Workspace] Merge conflicts detected');
+
+        // Get list of conflicted files
+        const { stdout: conflictFiles } = await execAsync('git diff --name-only --diff-filter=U', { cwd: workspacePath });
+
+        // DON'T abort - leave conflicts in place for analyze-conflicts to read
+
+        return {
+          success: false,
+          hasConflicts: true,
+          conflictFiles: conflictFiles.trim().split('\n').filter(f => f),
+          error: 'Merge conflicts detected. Please resolve manually.'
+        };
+      } else {
+        // Other error
+        throw mergeError;
+      }
+    }
+  } catch (error) {
+    console.error('[Workspace] Sync with main error:', error);
+    return {
+      success: false,
+      hasConflicts: false,
+      error: error.message
+    };
+  }
+});
+
+/**
+ * Get list of conflicted files
+ */
+ipcMain.handle('workspace:get-conflict-files', async (event, workspacePath) => {
+  try {
+    console.log('[Workspace] Getting conflict files:', workspacePath);
+    const { stdout: conflictFiles } = await execAsync('git diff --name-only --diff-filter=U', { cwd: workspacePath });
+    const files = conflictFiles.trim().split('\n').filter(f => f);
+
+    return {
+      success: true,
+      files
+    };
+  } catch (error) {
+    console.error('[Workspace] Get conflict files error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+/**
+ * Analyze single file conflict using Claude
+ */
+ipcMain.handle('workspace:analyze-file-conflict', async (event, workspacePath, file) => {
+  try {
+    console.log('[Workspace] Analyzing file conflict:', file);
+
+    // Read file with conflict markers
+    const filePath = path.join(workspacePath, file);
+    const content = await fs.readFile(filePath, 'utf8');
+
+    // Extract base, ours, theirs versions
+    const conflictRegex = /<<<<<<< HEAD\n([\s\S]*?)\n=======\n([\s\S]*?)\n>>>>>>> origin\/main/g;
+    const matches = [...content.matchAll(conflictRegex)];
+
+    if (matches.length === 0) {
+      return {
+        success: false,
+        error: 'No conflict markers found in file'
+      };
+    }
+
+      // For simplicity, handle first conflict point
+      const match = matches[0];
+      const ours = match[1];
+      const theirs = match[2];
+
+      // Try to get base version (original before both changes)
+      let base = '# circuit'; // Default for our test case
+      try {
+        const { stdout: baseContent } = await execAsync(`git show :1:${file}`, { cwd: workspacePath });
+        base = baseContent;
+      } catch (e) {
+        // Base might not exist for new files
+      }
+
+      // Ask Claude to analyze
+      const prompt = `Analyze this Git conflict and provide resolution options.
+
+File: ${file}
+
+Base (original):
+\`\`\`
+${base}
+\`\`\`
+
+Ours (current branch):
+\`\`\`
+${ours}
+\`\`\`
+
+Theirs (main branch):
+\`\`\`
+${theirs}
+\`\`\`
+
+Return ONLY valid JSON in this exact format (no markdown, no explanation):
+{
+  "explanation": "1-2 sentence explanation in Korean (50 chars max)",
+  "options": [
+    {
+      "id": 1,
+      "title": "내 변경사항만",
+      "preview": "full resolved content here",
+      "badge": null
+    },
+    {
+      "id": 2,
+      "title": "Main 브랜치만",
+      "preview": "full resolved content here",
+      "badge": null
+    },
+    {
+      "id": 3,
+      "title": "내 것 → Main 순서",
+      "preview": "full resolved content here",
+      "badge": "추천"
+    },
+    {
+      "id": 4,
+      "title": "Main → 내 것 순서",
+      "preview": "full resolved content here",
+      "badge": null
+    },
+    {
+      "id": 5,
+      "title": "직접 수정",
+      "preview": null,
+      "badge": null
+    }
+  ]
+}`;
+
+      // Call Claude CLI
+      const claude = spawn(CLAUDE_CLI_PATH, [
+        '--print',
+        '--output-format', 'json',
+        '--model', 'sonnet'
+      ], {
+        cwd: workspacePath,
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
+
+      claude.stdin.write(JSON.stringify({
+        role: 'user',
+        content: prompt
+      }));
+      claude.stdin.end();
+
+      let stdout = '';
+      claude.stdout.on('data', (data) => {
+        stdout += data.toString();
+      });
+
+      const claudeResponse = await new Promise((resolve, reject) => {
+        claude.on('close', (code) => {
+          if (code !== 0) {
+            reject(new Error('Claude CLI failed'));
+            return;
+          }
+
+          try {
+            const response = JSON.parse(stdout);
+            if (response.type === 'result' && response.subtype === 'success') {
+              // Parse Claude's response (which should be JSON)
+              const analysisText = response.result;
+              // Extract JSON from response (Claude might wrap it in markdown)
+              const jsonMatch = analysisText.match(/\{[\s\S]*\}/);
+              if (jsonMatch) {
+                const analysis = JSON.parse(jsonMatch[0]);
+                resolve(analysis);
+              } else {
+                reject(new Error('Invalid JSON response from Claude'));
+              }
+            } else {
+              reject(new Error('Unexpected Claude response'));
+            }
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+
+    console.log('[Workspace] File conflict analysis complete');
+
+    return {
+      success: true,
+      file,
+      analysis: claudeResponse
+    };
+  } catch (error) {
+    console.error('[Workspace] Analyze file conflict error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+
+/**
+ * Resolve conflict with selected option
+ */
+ipcMain.handle('workspace:resolve-conflict', async (event, workspacePath, file, resolvedContent) => {
+  try {
+    console.log('[Workspace] Resolving conflict:', file);
+
+    const filePath = path.join(workspacePath, file);
+
+    // Write resolved content
+    await fs.writeFile(filePath, resolvedContent, 'utf8');
+
+    // Git add
+    await execAsync(`git add ${file}`, { cwd: workspacePath });
+
+    console.log('[Workspace] Conflict resolved');
+
+    return { success: true };
+  } catch (error) {
+    console.error('[Workspace] Resolve conflict error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+/**
+ * Abort merge in workspace
+ */
+ipcMain.handle('workspace:abort-merge', async (event, workspacePath) => {
+  try {
+    console.log('[Workspace] Aborting merge:', workspacePath);
+    await execAsync('git merge --abort', { cwd: workspacePath });
+    console.log('[Workspace] Merge aborted');
+    return { success: true };
+  } catch (error) {
+    console.error('[Workspace] Abort merge error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});

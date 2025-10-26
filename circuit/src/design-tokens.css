@@ -1,0 +1,362 @@
+/**
+ * Circuit Design System - Design Tokens
+ * Unified token system with light/dark mode support
+ */
+
+@layer base {
+  :root {
+    /* ===== SPACING SCALE (8px grid) ===== */
+    --space-0: 0;
+    --space-1: 0.25rem;    /* 4px - half step */
+    --space-2: 0.5rem;     /* 8px - base unit */
+    --space-3: 0.75rem;    /* 12px */
+    --space-4: 1rem;       /* 16px */
+    --space-5: 1.5rem;     /* 24px */
+    --space-6: 2rem;       /* 32px */
+    --space-8: 3rem;       /* 48px */
+    --space-10: 4rem;      /* 64px */
+    --space-12: 6rem;      /* 96px */
+
+    /* ===== TYPOGRAPHY SCALE ===== */
+    /* Font sizes (rem-based) */
+    --font-xs: 0.6875rem;   /* 11px */
+    --font-sm: 0.75rem;     /* 12px */
+    --font-base: 0.875rem;  /* 14px - default */
+    --font-md: 1rem;        /* 16px */
+    --font-lg: 1.125rem;    /* 18px */
+    --font-xl: 1.25rem;     /* 20px */
+    --font-2xl: 1.5rem;     /* 24px */
+    --font-3xl: 1.875rem;   /* 30px */
+
+    /* Line heights */
+    --leading-tight: 1.25;
+    --leading-snug: 1.375;
+    --leading-normal: 1.5;
+    --leading-relaxed: 1.625;
+    --leading-loose: 2;
+
+    /* Letter spacing */
+    --tracking-tighter: -0.05em;
+    --tracking-tight: -0.025em;
+    --tracking-normal: 0;
+    --tracking-wide: 0.025em;
+    --tracking-wider: 0.05em;
+
+    /* Font weights */
+    --font-light: 300;
+    --font-normal: 400;
+    --font-medium: 500;
+    --font-semibold: 600;
+    --font-bold: 700;
+
+    /* ===== BORDER & RADIUS ===== */
+    --radius-sm: 0.375rem;  /* 6px */
+    --radius-md: 0.5rem;    /* 8px */
+    --radius-lg: 0.65rem;   /* 10.4px - current design */
+    --radius-xl: 0.75rem;   /* 12px */
+    --radius-full: 9999px;
+
+    /* Border widths */
+    --border-width: 1px;
+    --border-width-2: 2px;
+    --border-width-4: 4px;
+
+    /* ===== TRANSITIONS ===== */
+    --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: 400ms cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+    /* ===== SHADOWS ===== */
+    --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+
+    /* ===== Z-INDEX SCALE ===== */
+    --z-base: 0;
+    --z-dropdown: 1000;
+    --z-sticky: 1100;
+    --z-modal: 1300;
+    --z-popover: 1400;
+    --z-tooltip: 1500;
+
+    /* ===== UI DENSITY (Compact Mode - Default) ===== */
+    /* List/Menu item spacing */
+    --list-item-gap: 0.125rem;        /* 2px - compact */
+    --list-item-padding-y: 0.25rem;   /* 4px - compact */
+    --list-item-padding-x: 0.5rem;    /* 8px - compact */
+    --list-item-height: 1.75rem;      /* 28px - compact */
+
+    /* Button/Interactive element spacing */
+    --interactive-padding-y: 0.375rem; /* 6px - compact */
+    --interactive-padding-x: 0.75rem;  /* 12px - compact */
+
+    /* Section/Group spacing */
+    --section-gap: 0.5rem;     /* 8px - compact */
+    --group-gap: 0.25rem;      /* 4px - compact */
+  }
+
+  /* ===== COMFORTABLE MODE ===== */
+  .comfortable {
+    --list-item-gap: 0.375rem;        /* 6px - comfortable */
+    --list-item-padding-y: 0.5rem;    /* 8px - comfortable */
+    --list-item-padding-x: 0.75rem;   /* 12px - comfortable */
+    --list-item-height: 2.25rem;      /* 36px - comfortable */
+
+    --interactive-padding-y: 0.5rem;  /* 8px - comfortable */
+    --interactive-padding-x: 1rem;    /* 16px - comfortable */
+
+    --section-gap: 0.75rem;    /* 12px - comfortable */
+    --group-gap: 0.5rem;       /* 8px - comfortable */
+  }
+
+  /* ===== LIGHT MODE COLORS ===== */
+  :root {
+    --radius: var(--radius-lg);
+
+    /* ===== APPLE-STYLE SEMANTIC COLOR SYSTEM ===== */
+
+    /* Background Hierarchy (Light Mode) */
+    --background-primary: oklch(0.88 0 0);           /* #E0E0E0 - Main window background */
+    --background-secondary: oklch(1 0 0);            /* #FFFFFF - Elevated cards/panels */
+    --background-tertiary: oklch(0.965 0 0);         /* #F5F5F5 - Nested elevated surfaces */
+
+    /* Label Hierarchy (Light Mode) - Apple semantic naming */
+    --label-primary: rgba(0, 0, 0, 1.0);             /* 100% - Main text */
+    --label-secondary: rgba(0, 0, 0, 0.9);           /* 90% - Supporting text */
+    --label-tertiary: rgba(0, 0, 0, 0.3);            /* 30% - Subtle text/placeholders */
+    --label-quaternary: rgba(0, 0, 0, 0.18);         /* 18% - Very subtle text */
+
+    /* Fill Hierarchy (Light Mode) - Interactive elements */
+    --fill-primary: rgba(120, 120, 128, 0.36);       /* Buttons, controls - level 1 */
+    --fill-secondary: rgba(120, 120, 128, 0.32);     /* Level 2 */
+    --fill-tertiary: rgba(118, 118, 128, 0.24);      /* Level 3 */
+    --fill-quaternary: rgba(116, 116, 128, 0.18);    /* Level 4 */
+
+    /* Separators (Light Mode) */
+    --separator-opaque: rgba(0, 0, 0, 0.1);          /* Solid dividers */
+    --separator-translucent: rgba(0, 0, 0, 0.05);    /* Subtle dividers */
+
+    /* Materials - Glassmorphism Hierarchy (Light Mode) */
+    --material-thin: rgba(233, 233, 233, 0.5);       /* Subtle glass effect */
+    --material-regular: rgba(233, 233, 233, 0.7);    /* Standard glass effect */
+    --material-thick: rgba(233, 233, 233, 0.85);     /* Strong glass effect */
+    --material-ultra-thick: rgba(233, 233, 233, 0.95); /* Maximum glass effect */
+
+    /* ===== LEGACY TOKENS (mapped to new system) ===== */
+    --background: var(--background-primary);
+    --foreground: var(--label-primary);
+    --foreground-muted: var(--label-secondary);
+
+    /* Surface colors */
+    --card: var(--background-secondary);
+    --card-foreground: var(--label-primary);
+
+    --popover: var(--background-secondary);
+    --popover-foreground: var(--label-primary);
+
+    /* Brand colors */
+    --primary: oklch(0.58 0.10 40);                  /* Muted orange-brown */
+    --primary-foreground: oklch(1 0 0);              /* #FFFFFF */
+
+    --secondary: oklch(0.92 0 0);                    /* #EBEBEB - Light gray */
+    --secondary-foreground: oklch(0.24 0 0);         /* #383838 */
+
+    /* Muted/subtle colors */
+    --muted: oklch(0.84 0 0);                        /* #D2D2D2 - Sidebar bg */
+    --muted-foreground: oklch(0.41 0 0);             /* #626262 */
+
+    --accent: oklch(0.92 0.02 40);                   /* Very light orange tint */
+    --accent-foreground: oklch(0.58 0.10 40);        /* Muted orange */
+
+    /* Semantic colors */
+    --destructive: oklch(0.55 0.30 25);              /* Red - more vibrant */
+    --destructive-foreground: oklch(1 0 0);          /* White */
+
+    --success: oklch(0.55 0.22 150);                 /* Green - more vibrant */
+    --success-foreground: oklch(1 0 0);
+
+    --warning: oklch(0.65 0.22 80);                  /* Yellow-orange - more vibrant */
+    --warning-foreground: oklch(0.2 0 0);
+
+    --info: oklch(0.55 0.22 250);                    /* Blue - more vibrant */
+    --info-foreground: oklch(1 0 0);
+
+    /* UI elements */
+    --border: var(--separator-opaque);
+    --input: oklch(0.92 0 0);                        /* #EBEBEB */
+    --ring: oklch(0.58 0.10 40);                     /* Muted orange - Focus ring */
+
+    /* Chart colors */
+    --chart-1: oklch(0.837 0.128 66.29);
+    --chart-2: oklch(0.705 0.213 47.604);
+    --chart-3: oklch(0.646 0.222 41.116);
+    --chart-4: oklch(0.553 0.195 38.402);
+    --chart-5: oklch(0.47 0.157 37.304);
+
+    /* Window glassmorphism */
+    --window-glass: var(--material-regular);         /* Standard glass effect for window */
+
+    /* Sidebar colors */
+    --sidebar: oklch(0.915 0 0);                     /* #E9E9E9 */
+    --sidebar-glass: var(--material-regular);        /* Glassmorphism backdrop */
+    --sidebar-foreground: rgba(0, 0, 0, 0.85);       /* Apple HIG: 85% black for vibrancy */
+    --sidebar-foreground-muted: rgba(0, 0, 0, 0.50); /* Apple HIG: 50% black for secondary text */
+    --sidebar-primary: oklch(0.58 0.10 40);          /* Muted orange */
+    --sidebar-primary-foreground: oklch(1 0 0);
+    --sidebar-accent: rgba(0, 0, 0, 0.08);           /* Selected: 8% black overlay on glass */
+    --sidebar-accent-foreground: rgba(0, 0, 0, 0.95); /* Selected text: 95% black for contrast */
+    --sidebar-hover: rgba(0, 0, 0, 0.04);            /* Hover: 4% black overlay on glass */
+    --sidebar-border: var(--separator-opaque);
+    --sidebar-ring: oklch(0.58 0.10 40);
+
+    /* Chat UI colors */
+    --chat-input-outer: oklch(0.945 0 0);            /* Clear separation from background */
+    --chat-input-border: var(--separator-opaque);
+    --chat-input-inner: oklch(0.985 0 0);            /* Bright, elevated surface */
+    --chat-button-selected: oklch(0.88 0 0);         /* Clear selected state */
+    --chat-button-default: oklch(0.96 0 0);          /* Subtle, matches inner surface */
+
+    /* shadcn sidebar compat (HSL) */
+    --sidebar-background: 0 0% 91%;                  /* #E9E9E9 */
+
+    /* Git status colors */
+    --status-merged: oklch(0.55 0.25 290);           /* Purple - more vibrant */
+    --status-working: oklch(0.62 0.18 60);           /* Yellow-orange - more vibrant */
+    --status-ahead: oklch(0.55 0.22 250);            /* Blue - more vibrant */
+    --status-behind: oklch(0.55 0.28 25);            /* Red - more vibrant */
+    --status-diverged: oklch(0.58 0.18 40);          /* Orange - more vibrant */
+    --status-synced: oklch(0.55 0.22 150);           /* Green - more vibrant */
+    --status-local: oklch(0.55 0.12 250);            /* Gray - more vibrant */
+  }
+
+  /* ===== DARK MODE COLORS ===== */
+  .dark {
+    /* ===== APPLE-STYLE SEMANTIC COLOR SYSTEM (DARK) ===== */
+
+    /* Background Hierarchy - Base (dimmer, for background layers) */
+    --background-base-primary: oklch(0.15 0 0);      /* #1C1C1C - Deepest background */
+    --background-base-secondary: oklch(0.18 0 0);    /* #272727 - Base layer 2 */
+    --background-base-tertiary: oklch(0.20 0 0);     /* #2E2E2E - Base layer 3 */
+
+    /* Background Hierarchy - Elevated (brighter, for foreground layers) */
+    --background-elevated-primary: oklch(0.22 0 0);  /* #333333 - Elevated surface 1 */
+    --background-elevated-secondary: oklch(0.25 0 0); /* #3A3A3A - Elevated surface 2 */
+    --background-elevated-tertiary: oklch(0.28 0 0); /* #424242 - Elevated surface 3 */
+
+    /* Default background tokens (using base for main background) */
+    --background-primary: var(--background-base-secondary);      /* #272727 - Main window */
+    --background-secondary: var(--background-elevated-primary);  /* #333333 - Cards */
+    --background-tertiary: var(--background-elevated-secondary); /* #3A3A3A - Nested */
+
+    /* Label Hierarchy (Dark Mode) - Apple semantic naming */
+    --label-primary: rgba(255, 255, 255, 1.0);       /* 100% - Main text */
+    --label-secondary: rgba(255, 255, 255, 0.9);     /* 90% - Supporting text */
+    --label-tertiary: rgba(255, 255, 255, 0.3);      /* 30% - Subtle text/placeholders */
+    --label-quaternary: rgba(255, 255, 255, 0.18);   /* 18% - Very subtle text */
+
+    /* Fill Hierarchy (Dark Mode) - Interactive elements */
+    --fill-primary: rgba(120, 120, 128, 0.36);       /* Buttons, controls - level 1 */
+    --fill-secondary: rgba(120, 120, 128, 0.32);     /* Level 2 */
+    --fill-tertiary: rgba(118, 118, 128, 0.24);      /* Level 3 */
+    --fill-quaternary: rgba(116, 116, 128, 0.18);    /* Level 4 */
+
+    /* Separators (Dark Mode) */
+    --separator-opaque: rgba(255, 255, 255, 0.1);    /* Solid dividers */
+    --separator-translucent: rgba(255, 255, 255, 0.05); /* Subtle dividers */
+
+    /* Materials - Glassmorphism Hierarchy (Dark Mode) */
+    --material-thin: rgba(28, 28, 28, 0.7);          /* Subtle glass effect */
+    --material-regular: rgba(28, 28, 28, 0.85);      /* Standard glass effect */
+    --material-thick: rgba(28, 28, 28, 0.92);        /* Strong glass effect */
+    --material-ultra-thick: rgba(28, 28, 28, 0.97);  /* Maximum glass effect */
+
+    /* ===== LEGACY TOKENS (mapped to new system) ===== */
+    --background: var(--background-primary);
+    --foreground: var(--label-primary);
+    --foreground-muted: var(--label-secondary);
+
+    /* Surface colors */
+    --card: var(--background-secondary);
+    --card-foreground: var(--label-primary);
+
+    --popover: var(--background-elevated-primary);
+    --popover-foreground: var(--label-primary);
+
+    /* Brand colors - slightly brightened for dark mode */
+    --primary: oklch(0.65 0.12 40);                  /* Brighter orange-brown */
+    --primary-foreground: oklch(0.12 0 0);           /* Dark text on primary */
+
+    --secondary: var(--background-elevated-tertiary); /* #424242 - Dark gray */
+    --secondary-foreground: var(--label-primary);
+
+    /* Muted/subtle colors */
+    --muted: var(--background-elevated-secondary);   /* #3A3A3A - Sidebar bg dark */
+    --muted-foreground: var(--label-secondary);
+
+    --accent: oklch(0.30 0.04 40);                   /* Dark orange tint */
+    --accent-foreground: oklch(0.65 0.12 40);        /* Brighter orange */
+
+    /* Semantic colors - adjusted for dark backgrounds */
+    --destructive: oklch(0.60 0.33 25);              /* Brighter red - more vibrant */
+    --destructive-foreground: oklch(0.98 0 0);
+
+    --success: oklch(0.60 0.25 150);                 /* Brighter green - more vibrant */
+    --success-foreground: oklch(0.98 0 0);
+
+    --warning: oklch(0.70 0.25 80);                  /* Brighter yellow - more vibrant */
+    --warning-foreground: oklch(0.15 0 0);
+
+    --info: oklch(0.60 0.25 250);                    /* Brighter blue - more vibrant */
+    --info-foreground: oklch(0.98 0 0);
+
+    /* UI elements */
+    --border: var(--separator-opaque);
+    --input: var(--background-elevated-secondary);   /* #3A3A3A */
+    --ring: oklch(0.65 0.12 40);                     /* Brighter orange ring */
+
+    /* Chart colors - brightened */
+    --chart-1: oklch(0.737 0.148 66.29);
+    --chart-2: oklch(0.605 0.233 47.604);
+    --chart-3: oklch(0.546 0.242 41.116);
+    --chart-4: oklch(0.453 0.215 38.402);
+    --chart-5: oklch(0.37 0.177 37.304);
+
+    /* Window glassmorphism */
+    --window-glass: var(--material-regular);         /* Standard glass effect - Apple-style */
+
+    /* Sidebar colors - dark variant */
+    --sidebar: var(--background-base-tertiary);      /* #2E2E2E */
+    --sidebar-glass: var(--material-regular);        /* Glassmorphism backdrop - Apple-style */
+    --sidebar-foreground: rgba(255, 255, 255, 0.85); /* Apple HIG: 85% white for vibrancy */
+    --sidebar-foreground-muted: rgba(255, 255, 255, 0.55); /* Apple HIG: 55% white for secondary text */
+    --sidebar-primary: oklch(0.65 0.12 40);          /* Brighter orange */
+    --sidebar-primary-foreground: oklch(0.12 0 0);
+    --sidebar-accent: rgba(255, 255, 255, 0.12);     /* Selected: 12% white overlay on glass */
+    --sidebar-accent-foreground: rgba(255, 255, 255, 0.95); /* Selected text: 95% white for contrast */
+    --sidebar-hover: rgba(255, 255, 255, 0.06);      /* Hover: 6% white overlay on glass */
+    --sidebar-border: var(--separator-opaque);
+    --sidebar-ring: oklch(0.65 0.12 40);
+
+    /* Chat UI colors - dark variant */
+    --chat-input-outer: oklch(0.23 0 0);             /* Clear separation from background */
+    --chat-input-border: var(--separator-opaque);
+    --chat-input-inner: oklch(0.29 0 0);             /* Elevated, brighter than outer */
+    --chat-button-selected: oklch(0.33 0 0);         /* Clear selected state */
+    --chat-button-default: oklch(0.27 0 0);          /* Subtle, matches inner surface */
+
+    /* shadcn sidebar compat (HSL) */
+    --sidebar-background: 0 0% 12%;                  /* Dark sidebar */
+
+    /* Git status colors - brightened for visibility */
+    --status-merged: oklch(0.65 0.28 290);           /* Brighter purple - more vibrant */
+    --status-working: oklch(0.72 0.20 60);           /* Brighter yellow - more vibrant */
+    --status-ahead: oklch(0.65 0.25 250);            /* Brighter blue - more vibrant */
+    --status-behind: oklch(0.65 0.30 25);            /* Brighter red - more vibrant */
+    --status-diverged: oklch(0.68 0.20 40);          /* Brighter orange - more vibrant */
+    --status-synced: oklch(0.65 0.25 150);           /* Brighter green - more vibrant */
+    --status-local: oklch(0.65 0.15 250);            /* Brighter gray - more vibrant */
+  }
+}

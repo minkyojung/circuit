@@ -1,68 +1,15 @@
-/* Application-specific styles */
+/**
+ * App-specific styles
+ * Note: Design tokens are now in design-tokens.css
+ */
+
+/* ===== ROOT LAYOUT ===== */
 #root {
   width: 100%;
   height: 100vh;
 }
 
-/* Circuit Design System - Colors */
-:root {
-  /* Primary accent colors */
-  --circuit-orange: #D97757;
-  --circuit-orange-dim: #AE7663;
-  --circuit-brown: #846961;
-  --circuit-brown-dark: #595350;
-
-  /* Status colors */
-  --circuit-success: #4ade80;
-  --circuit-error: #ef4444;
-  --circuit-warning: #f59e0b;
-
-  /* Background layering system */
-  --bg-page: #0A0908;
-  --bg-section: #110F0E;
-  --bg-card: #1a1816;
-  --bg-card-elevated: #242220;
-
-  /* Glass effects */
-  --glass-bg: rgba(50, 47, 45, 0.4);
-  --glass-border: rgba(255, 255, 255, 0.12);
-  --glass-hover: rgba(50, 47, 45, 0.55);
-
-  /* Shadows with glow */
-  --glow-orange: 0 0 25px rgba(217, 119, 87, 0.9);
-  --glow-orange-dim: 0 0 20px rgba(174, 118, 99, 0.8);
-  --glow-brown: 0 0 20px rgba(132, 105, 97, 0.6);
-  --glow-success: 0 0 25px rgba(74, 222, 128, 0.9);
-  --glow-error: 0 0 25px rgba(239, 68, 68, 0.9);
-
-  /* Text colors */
-  --text-primary: rgba(255, 255, 255, 0.95);
-  --text-secondary: rgba(255, 255, 255, 0.65);
-  --text-tertiary: rgba(255, 255, 255, 0.55);
-  --text-muted: rgba(255, 255, 255, 0.40);
-  --text-subtle: rgba(255, 255, 255, 0.25);
-
-  /* Typography scale (Linear/Cursor style) */
-  --font-base: 14px;        /* text-sm - body text */
-  --font-small: 12px;       /* text-xs - metadata */
-  --font-tiny: 11px;        /* text-[11px] - labels */
-  --font-heading: 16px;     /* text-base - page titles */
-
-  /* Spacing scale (8px grid) */
-  --space-1: 4px;           /* space-1 */
-  --space-2: 8px;           /* space-2 */
-  --space-3: 12px;          /* space-3 */
-  --space-4: 16px;          /* space-4 */
-  --space-6: 24px;          /* space-6 */
-  --space-8: 32px;          /* space-8 */
-  --space-12: 48px;         /* space-12 */
-
-  /* Transitions (Linear/Cursor style) */
-  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-normal: 200ms cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Bounce animations with "in and out back" easing */
+/* ===== ANIMATIONS ===== */
 @keyframes bounceIn {
   0% {
     transform: scale(0.9);
@@ -85,30 +32,95 @@
   }
 }
 
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(0.95);
+  }
+}
+
+/* Animation utility classes */
 .bounce-in {
-  animation: bounceIn 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  animation: bounceIn var(--transition-bounce);
 }
 
 .bounce-out {
-  animation: bounceOut 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  animation: bounceOut var(--transition-bounce);
 }
 
-/* Glass effects for main window */
-.glass-card {
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+.fade-in {
+  animation: fadeIn var(--transition-base);
 }
 
-.glass-sidebar {
-  background: var(--glass-bg);
-  border-right: 1px solid var(--glass-border);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+.fade-out {
+  animation: fadeOut var(--transition-base);
 }
 
-/* Global background */
-body {
-  background: linear-gradient(135deg, #0f0d0c 0%, #1a1412 100%);
+.slide-up {
+  animation: slideUp var(--transition-base);
+}
+
+.slide-down {
+  animation: slideDown var(--transition-base);
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
 }

@@ -1,185 +1,227 @@
-import { useState, useEffect } from 'react'
-import { InstalledTab } from "@/components/InstalledTab"
-import { DiscoverTab } from "@/components/DiscoverTab"
-import { PlaygroundTab } from "@/components/PlaygroundTab"
-import { PeekDebugPanel } from "@/components/PeekDebugPanel"
-import { Package, Server, FlaskConical } from 'lucide-react'
+import { useState, useEffect, createContext, useContext, useMemo } from 'react'
+import { WorkspaceChatEditor } from "@/components/workspace"
+import { CommitDialog } from "@/components/workspace/CommitDialog"
+import { AppSidebar } from "@/components/AppSidebar"
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb"
+import { Separator } from "@/components/ui/separator"
+import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar"
+import type { Workspace } from "@/types/workspace"
+import { FolderGit2, GitCommit } from 'lucide-react'
 import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
 import './App.css'
 
-type Page = 'discover' | 'installed' | 'playground'
+// Project Path Context
+interface ProjectPathContextValue {
+  projectPath: string
+  isLoading: boolean
+}
+
+const ProjectPathContext = createContext<ProjectPathContextValue>({
+  projectPath: '',
+  isLoading: true
+})
+
+export const useProjectPath = () => useContext(ProjectPathContext)
 
 function App() {
-  const [currentPage, setCurrentPage] = useState<Page>('discover')
-  const [showDebug] = useState<boolean>(false)  // Debug panel hidden by default
+  const [projectPath, setProjectPath] = useState<string>('')
+  const [isLoadingPath, setIsLoadingPath] = useState<boolean>(true)
+  const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null)
+  const [selectedFile, setSelectedFile] = useState<string | null>(null)
+  const [showCommitDialog, setShowCommitDialog] = useState<boolean>(false)
+  const [chatPrefillMessage, setChatPrefillMessage] = useState<string | null>(null)
+
+  // Load project path from Electron main process
+  useEffect(() => {
+    const loadProjectPath = async () => {
+      try {
+        const { ipcRenderer } = window.require('electron')
+        const result = await ipcRenderer.invoke('circuit:get-project-path')
+
+        if (result.success) {
+          console.log('[App] Project path loaded:', result.projectPath)
+          setProjectPath(result.projectPath)
+        } else {
+          console.error('[App] Failed to load project path:', result.error)
+        }
+      } catch (error) {
+        console.error('[App] Error loading project path:', error)
+      } finally {
+        setIsLoadingPath(false)
+      }
+    }
+
+    loadProjectPath()
+  }, [])
 
   // Phase 0: .circuit/ 설정 읽기 시도
   useEffect(() => {
+    if (!projectPath) return
+
     const checkCircuitConfig = async () => {
-      // TODO: Get actual project path from Electron main process
-      const config = await readCircuitConfig('')
+      const config = await readCircuitConfig(projectPath)
       logCircuitStatus(config)
     }
 
     checkCircuitConfig()
-  }, [])
+  }, [projectPath])
 
-  // Listen for peek panel data and auto-switch to appropriate tab
+  // Extract repository name from project path
+  const repositoryName = useMemo(() => {
+    return projectPath.split('/').filter(Boolean).pop() || 'Unknown Repository'
+  }, [projectPath])
+
+  // Handle file selection from sidebar
+  const handleFileSelect = (filePath: string) => {
+    console.log('[App] File selected:', filePath)
+    setSelectedFile(filePath)
+  }
+
+  // Reset selected file when workspace changes
   useEffect(() => {
-    try {
-      const { ipcRenderer } = window.require('electron')
-
-      const handlePeekData = (_event: any, payload: any) => {
-        // Auto-switch to discover for all workflow events
-        if (payload.type === 'test-result' || payload.type === 'deployment' || payload.type === 'github') {
-          setCurrentPage('discover')
-        }
-      }
-
-      ipcRenderer.on('peek:data-opened', handlePeekData)
-
-      return () => {
-        ipcRenderer.removeListener('peek:data-opened', handlePeekData)
-      }
-    } catch (e) {
-      console.warn('IPC not available for peek data listener:', e)
-    }
-  }, [])
+    setSelectedFile(null)
+  }, [selectedWorkspace?.id])
 
   return (
-    <div className="h-screen flex bg-gradient-to-br from-[#0f0d0c] to-[#1a1412]">
-      {/* Debug Panel */}
-      {showDebug && <PeekDebugPanel />}
-
-      {/* Sidebar */}
-      <aside className="w-[200px] glass-sidebar flex flex-col">
-        {/* Sidebar Top - Traffic Lights Area (Fully Draggable) */}
-        <div
-          className="h-[44px] flex items-center px-4"
-          style={{ WebkitAppRegion: 'drag' } as any}
+    <ProjectPathContext.Provider value={{ projectPath, isLoading: isLoadingPath }}>
+      <div
+        className="min-h-screen backdrop-blur-xl"
+        style={{
+          backgroundColor: 'var(--window-glass)'
+        }}
+      >
+        <SidebarProvider>
+        <AppSidebar
+          selectedWorkspaceId={selectedWorkspace?.id || null}
+          selectedWorkspace={selectedWorkspace}
+          onSelectWorkspace={setSelectedWorkspace}
+          selectedFile={selectedFile}
+          onFileSelect={handleFileSelect}
         />
-
-        {/* Sidebar Navigation */}
-        <nav className="flex-1 overflow-auto py-3 px-2">
-          {/* Discover */}
-          <SidebarButton
-            icon={<Package className="h-4 w-4" />}
-            label="Discover"
-            isActive={currentPage === 'discover'}
-            onClick={() => setCurrentPage('discover')}
-          />
-
-          {/* Installed */}
-          <SidebarButton
-            icon={<Server className="h-4 w-4" />}
-            label="Installed"
-            isActive={currentPage === 'installed'}
-            onClick={() => setCurrentPage('installed')}
-          />
-
-          {/* Playground */}
-          <SidebarButton
-            icon={<FlaskConical className="h-4 w-4" />}
-            label="Playground"
-            isActive={currentPage === 'playground'}
-            onClick={() => setCurrentPage('playground')}
-          />
-        </nav>
-
-        {/* Bottom Status Bar */}
-        <div className="p-3">
-          <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
-            <div className="h-1.5 w-1.5 rounded-full bg-[var(--circuit-success)]" />
-            <span>Ready</span>
-          </div>
-        </div>
-      </aside>
-
-      {/* Main Content */}
-      <main className="flex-1 overflow-hidden flex flex-col">
-        {/* Main Header (Empty spaces draggable, interactive elements not) */}
-        <header
-          className="h-[44px] bg-transparent flex items-center px-4 gap-4"
-          style={{ WebkitAppRegion: 'drag' } as any}
-        >
-          {/* Left side - could add branch selector or other controls */}
-          <div
-            className="flex items-center gap-2"
-            style={{ WebkitAppRegion: 'no-drag' } as any}
+        <SidebarInset className="bg-card">
+          {/* Main Header with Breadcrumb */}
+          <header
+            className="flex h-[44px] shrink-0 items-center gap-2 border-b border-border px-4"
+            style={{ WebkitAppRegion: 'drag' } as any}
           >
-            {/* Placeholder for future controls */}
+            <div
+              className="flex items-center gap-2"
+              style={{ WebkitAppRegion: 'no-drag' } as any}
+            >
+              <SidebarTrigger className="-ml-1" />
+              <Separator orientation="vertical" className="mr-2 h-4" />
+              {selectedWorkspace ? (
+                <Breadcrumb>
+                  <BreadcrumbList>
+                    <BreadcrumbItem>
+                      <BreadcrumbLink
+                        onClick={() => setSelectedWorkspace(null)}
+                        className="cursor-pointer hover:text-foreground transition-colors"
+                      >
+                        {repositoryName}
+                      </BreadcrumbLink>
+                    </BreadcrumbItem>
+                    <BreadcrumbSeparator />
+                    <BreadcrumbItem>
+                      <BreadcrumbPage className="font-medium">
+                        {selectedWorkspace.name}
+                      </BreadcrumbPage>
+                    </BreadcrumbItem>
+                    <BreadcrumbSeparator />
+                    <BreadcrumbItem>
+                      <BreadcrumbPage className="text-muted-foreground">
+                        {selectedWorkspace.branch}
+                      </BreadcrumbPage>
+                    </BreadcrumbItem>
+                  </BreadcrumbList>
+                </Breadcrumb>
+              ) : (
+                <Breadcrumb>
+                  <BreadcrumbList>
+                    <BreadcrumbItem>
+                      <BreadcrumbPage className="font-medium">
+                        {repositoryName}
+                      </BreadcrumbPage>
+                    </BreadcrumbItem>
+                  </BreadcrumbList>
+                </Breadcrumb>
+              )}
+            </div>
+
+            {/* Spacer */}
+            <div className="flex-1" />
+
+            {/* Right side - Commit button (when workspace selected) */}
+            {selectedWorkspace && (
+              <div
+                className="flex items-center gap-2"
+                style={{ WebkitAppRegion: 'no-drag' } as any}
+              >
+                <button
+                  onClick={() => setShowCommitDialog(true)}
+                  className="px-3 py-1.5 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium rounded-lg transition-colors flex items-center gap-2"
+                >
+                  <GitCommit size={14} />
+                  Commit & PR
+                </button>
+              </div>
+            )}
+          </header>
+
+          {/* Main Content Area */}
+          <div className="flex flex-1 flex-col overflow-hidden">
+            {selectedWorkspace ? (
+              <>
+                <WorkspaceChatEditor
+                  workspace={selectedWorkspace}
+                  selectedFile={selectedFile}
+                  prefillMessage={chatPrefillMessage}
+                  onPrefillCleared={() => setChatPrefillMessage(null)}
+                />
+
+                {/* Commit Dialog */}
+                {showCommitDialog && (
+                  <CommitDialog
+                    workspace={selectedWorkspace}
+                    onClose={() => setShowCommitDialog(false)}
+                    onSuccess={() => {
+                      setShowCommitDialog(false);
+                      // Optionally refresh workspace list or show success message
+                    }}
+                    onRequestDirectEdit={(message) => {
+                      setShowCommitDialog(false);
+                      setChatPrefillMessage(message);
+                    }}
+                  />
+                )}
+              </>
+            ) : (
+              <div className="flex flex-1 items-center justify-center text-center p-8">
+                <div>
+                  <FolderGit2 size={48} className="mx-auto text-muted-foreground mb-4" />
+                  <h2 className="text-xl font-semibold text-foreground mb-2">No Workspace Selected</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Select a workspace from the sidebar to start coding
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
-
-          {/* Center - Empty space for dragging */}
-          <div className="flex-1" />
-
-          {/* Right side - could add buttons */}
-          <div
-            className="flex items-center gap-2"
-            style={{ WebkitAppRegion: 'no-drag' } as any}
-          >
-            {/* Placeholder for future buttons */}
-          </div>
-        </header>
-
-        {/* Main Content Area */}
-        <div className="flex-1 overflow-auto p-8">
-          {currentPage === 'discover' && (
-            <div className="max-w-5xl mx-auto">
-              <DiscoverTab onNavigateToInstalled={() => setCurrentPage('installed')} />
-            </div>
-          )}
-
-          {currentPage === 'installed' && (
-            <div className="max-w-4xl mx-auto">
-              <InstalledTab />
-            </div>
-          )}
-
-          {currentPage === 'playground' && (
-            <div className="h-full">
-              <PlaygroundTab />
-            </div>
-          )}
-        </div>
-      </main>
-    </div>
-  )
-}
-
-function SidebarButton({
-  icon,
-  label,
-  isActive,
-  onClick,
-  badge
-}: {
-  icon: React.ReactNode
-  label: string
-  isActive: boolean
-  onClick: () => void
-  badge?: string
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`
-        w-full px-2 py-1.5 flex items-center gap-2.5 text-xs transition-all duration-150 rounded
-        ${isActive
-          ? 'bg-[var(--circuit-orange)]/25 text-[var(--circuit-orange)] font-medium'
-          : 'bg-transparent text-[var(--text-secondary)] hover:bg-[var(--glass-hover)] hover:text-[var(--text-primary)] font-normal'
-        }
-      `}
-      style={{ WebkitAppRegion: 'no-drag' } as any}
-    >
-      {icon}
-      <span className="flex-1 text-left">{label}</span>
-      {badge && (
-        <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-[var(--glass-hover)] text-[var(--text-muted)]">
-          {badge}
-        </span>
-      )}
-    </button>
+        </SidebarInset>
+      </SidebarProvider>
+      </div>
+    </ProjectPathContext.Provider>
   )
 }
 

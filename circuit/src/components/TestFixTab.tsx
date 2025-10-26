@@ -10,6 +10,7 @@ import { detectProjectType, getProjectTypeName, type DetectionResult } from '@/c
 import { type FileChangeEvent } from '@/core/watcher'
 import { type TestResult } from '@/core/test-runner'
 import { parseAiFix, type ParsedFix } from '@/core/claude-cli'
+import { useProjectPath } from '@/App'
 
 // Electron IPC
 declare global {
@@ -21,6 +22,9 @@ declare global {
 const { ipcRenderer } = window.require('electron')
 
 export function TestFixTab() {
+  // Get project path from context
+  const { projectPath, isLoading: isLoadingPath } = useProjectPath()
+
   // Project detection
   const [detection, setDetection] = useState<DetectionResult | null>(null)
 
@@ -37,12 +41,12 @@ export function TestFixTab() {
   const [aiFix, setAiFix] = useState<string | null>(null)
   const [parsedFix, setParsedFix] = useState<ParsedFix | null>(null)
 
-  const projectPath = '' // TODO: Get from context
-
-  // Auto-detect on mount
+  // Auto-detect on mount (when project path is loaded)
   useEffect(() => {
-    handleDetect()
-  }, [])
+    if (projectPath && !isLoadingPath) {
+      handleDetect()
+    }
+  }, [projectPath, isLoadingPath])
 
   // File change listener
   useEffect(() => {
@@ -285,6 +289,16 @@ export function TestFixTab() {
         <p className="text-sm text-[var(--text-secondary)]">
           AI-powered automated testing and fix suggestions
         </p>
+        {isLoadingPath && (
+          <p className="text-xs text-[var(--text-muted)] mt-1">
+            Loading project path...
+          </p>
+        )}
+        {!isLoadingPath && projectPath && (
+          <p className="text-xs text-[var(--text-muted)] mt-1">
+            Project: {projectPath}
+          </p>
+        )}
       </div>
 
       {/* Status */}

@@ -7,6 +7,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Apple HIG-compliant vibrancy text colors using RGBA opacity for glassmorphism
+  - Light mode: rgba(0, 0, 0, 0.85) for primary text, rgba(0, 0, 0, 0.50) for muted
+  - Dark mode: rgba(255, 255, 255, 0.85) for primary text, rgba(255, 255, 255, 0.55) for muted
+- Apple-style glassmorphism hover and selection effects with subtle overlays
+  - Light mode: 4% hover overlay, 8% selection overlay
+  - Dark mode: 6% hover overlay, 12% selection overlay
+- Unified hover animations across all sidebar components (200ms ease-out transitions)
+- Native macOS glassmorphism with Electron vibrancy for main window
+- Rounded corners/border design for inset sidebar
+- Transparent body element for native vibrancy effects
+- Direct Tailwind color utilities for better text visibility on glassmorphism
+- Apple Human Interface Guidelines-based semantic color token system
+  - Background hierarchy: primary, secondary, tertiary levels
+  - Label hierarchy: primary (100%), secondary (90%), tertiary (30%), quaternary (18%) opacity
+  - Fill hierarchy: primary, secondary, tertiary, quaternary for interactive elements
+  - Separator tokens: opaque and translucent variants
+  - Material tokens: thin, regular, thick, ultra-thick for glassmorphism effects
+- Dark mode depth perception with base (dimmer) vs elevated (brighter) background variants
+- Legacy token mapping for backward compatibility
+
+### Changed
+- Unified sidebar component styling to match repository switcher design
+  - Workspace items now use subtle muted colors (text-sidebar-foreground-muted)
+  - Consistent compact padding (px-2 py-2) across all interactive elements
+  - Theme toggle and New Workspace button match repo switcher styling
+- Optimized workspace status loading with parallel Promise.all instead of sequential awaits
+- Improved sidebar text/icon contrast for glassmorphism backgrounds
+  - Light mode: Darker text (gray-900) and icons (gray-600) for better visibility
+  - Dark mode: Brighter text (white/95) and icons (gray-300) for better contrast
+- Enhanced sidebar hover/selected states with increased brightness differences
+  - Light mode: accent (0.97) and hover (0.95) vs previous (0.93)
+  - Dark mode: accent (0.35) and hover (0.38) vs previous (0.28/0.32)
+- Applied opaque backgrounds to main content area and chat panel
+- Moved glassmorphism from sidebar to entire window for unified effect
+- Reorganized color tokens to follow Apple's semantic naming conventions
+  - Background colors now use semantic purpose-based naming
+  - Text colors follow label hierarchy instead of foreground/muted
+  - Interactive elements use fill hierarchy
+  - Separators use dedicated opaque/translucent tokens
+- Dark mode glassmorphism now uses Apple-style darker base (#1C1C1C) with higher opacity (0.85)
+
+### Removed
+- Debug console.log statements from workspace and repository operations
+- Unused imports (Trash2, GitBranch, ArrowUp, ArrowDown, Loader2, Plus, cn utilities)
+- Opaque background blocking glassmorphism effect
+- CSS backdrop-blur in favor of native Electron vibrancy
+
+### Fixed
+- Type safety issue in AppSidebar: onSelectWorkspace now properly accepts null
+- Unsafe type coercion (null as any) replaced with proper null handling
+- TypeScript build errors from unused imports and variables
+- Window transparency issues with native macOS vibrancy
+- Text readability on transparent glassmorphism backgrounds
+- Sidebar border visibility for better glass effect definition
+
 ### Security
 - Restrict CORS to localhost origins only to prevent unauthorized access
 - Add payload size limit (1MB) to API server to prevent DoS attacks
