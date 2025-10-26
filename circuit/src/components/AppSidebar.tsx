@@ -87,8 +87,12 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
   const [fileTree, setFileTree] = useState<FileNode[]>([])
   const [isLoadingFiles, setIsLoadingFiles] = useState(false)
 
-  // Create a temporary repository from project path
-  const repository: Repository = useMemo(() => {
+  // Repository management
+  const [repositories, setRepositories] = useState<Repository[]>([])
+  const [currentRepository, setCurrentRepository] = useState<Repository | null>(null)
+
+  // Create a temporary repository from project path (fallback)
+  const defaultRepository: Repository = useMemo(() => {
     const projectName = projectPath.split('/').filter(Boolean).pop() || 'Unknown Project'
     return {
       id: 'temp-repo-1',
@@ -99,6 +103,14 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
       createdAt: new Date().toISOString(),
     }
   }, [projectPath])
+
+  // Use current repository or fallback to default
+  const repository = currentRepository || defaultRepository
+
+  // Load repositories on mount
+  useEffect(() => {
+    loadRepositories()
+  }, [])
 
   // Load workspaces on mount
   useEffect(() => {
@@ -165,6 +177,30 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
     loadFileTree()
   }, [selectedWorkspace?.path])
 
+  const loadRepositories = async () => {
+    try {
+      const result = await ipcRenderer.invoke('repository:list')
+
+      if (result.success && result.repositories) {
+        setRepositories(result.repositories)
+        // Set first repository as current if none selected
+        if (!currentRepository && result.repositories.length > 0) {
+          setCurrentRepository(result.repositories[0])
+        }
+      } else {
+        console.error('Failed to load repositories:', result.error)
+        // Fallback to default repository
+        setRepositories([defaultRepository])
+        setCurrentRepository(defaultRepository)
+      }
+    } catch (error) {
+      console.error('Error loading repositories:', error)
+      // Fallback to default repository
+      setRepositories([defaultRepository])
+      setCurrentRepository(defaultRepository)
+    }
+  }
+
   const loadWorkspaces = async () => {
     setIsLoading(true)
     try {
@@ -200,6 +236,30 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
     } finally {
       setIsCreating(false)
     }
+  }
+
+  const createRepository = async () => {
+    try {
+      const result = await ipcRenderer.invoke('repository:create')
+
+      if (result.success && result.repository) {
+        console.log('✅ Repository created:', result.repository.name)
+        setRepositories([...repositories, result.repository])
+        setCurrentRepository(result.repository)
+      } else {
+        console.error('Failed to create repository:', result.error)
+        alert(`Failed to create repository: ${result.error}`)
+      }
+    } catch (error) {
+      console.error('Error creating repository:', error)
+      alert(`Error creating repository: ${error}`)
+    }
+  }
+
+  const switchRepository = async (repo: Repository) => {
+    setCurrentRepository(repo)
+    // Reload workspaces for the new repository
+    await loadWorkspaces()
   }
 
   const deleteWorkspace = async (workspaceId: string) => {
@@ -248,10 +308,9 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
         {/* Repository Switcher */}
         <RepositorySwitcher
           currentRepository={repository}
-          repositories={[repository]}
-          onCreateRepository={() => {
-            console.log('Create new repository')
-          }}
+          repositories={repositories.length > 0 ? repositories : [repository]}
+          onSelectRepository={switchRepository}
+          onCreateRepository={createRepository}
         />
       </SidebarHeader>
 
