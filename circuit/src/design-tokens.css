@@ -202,8 +202,8 @@
     /* Sidebar colors */
     --sidebar: oklch(0.915 0 0);                     /* #E9E9E9 */
     --sidebar-glass: var(--material-regular);        /* Glassmorphism backdrop */
-    --sidebar-foreground: oklch(0.50 0 0);           /* Medium gray - more gray tone */
-    --sidebar-foreground-muted: oklch(0.60 0 0);     /* Lighter gray for muted text */
+    --sidebar-foreground: oklch(0.55 0 0);           /* Lighter gray - softer appearance */
+    --sidebar-foreground-muted: oklch(0.65 0 0);     /* Even lighter gray for muted text */
     --sidebar-primary: oklch(0.58 0.10 40);          /* Muted orange */
     --sidebar-primary-foreground: oklch(1 0 0);
     --sidebar-accent: oklch(0.97 0 0);               /* Selected - very bright for glassmorphism */
@@ -330,8 +330,8 @@
     /* Sidebar colors - dark variant */
     --sidebar: var(--background-base-tertiary);      /* #2E2E2E */
     --sidebar-glass: var(--material-regular);        /* Glassmorphism backdrop - Apple-style */
-    --sidebar-foreground: oklch(0.85 0 0);           /* Darker gray - more subdued */
-    --sidebar-foreground-muted: oklch(0.75 0 0);     /* Even darker for muted text */
+    --sidebar-foreground: oklch(0.73 0 0);           /* #AEAEAE - medium gray */
+    --sidebar-foreground-muted: oklch(0.63 0 0);     /* Darker for muted text */
     --sidebar-primary: oklch(0.65 0.12 40);          /* Brighter orange */
     --sidebar-primary-foreground: oklch(0.12 0 0);
     --sidebar-accent: oklch(0.35 0 0);               /* Selected - brighter for glassmorphism */
