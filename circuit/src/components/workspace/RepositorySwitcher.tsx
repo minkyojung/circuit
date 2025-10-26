@@ -31,16 +31,16 @@ export const RepositorySwitcher: React.FC<RepositorySwitcherProps> = ({
         )}
       >
         {/* Repository Icon */}
-        <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-          <FolderGit2 size={16} className="text-primary-foreground" />
+        <div className="flex-shrink-0 w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
+          <FolderGit2 size={14} className="text-primary-foreground" />
         </div>
 
         {/* Repository Info */}
         <div className="flex flex-col items-start flex-1 min-w-0">
-          <span className="text-sm font-semibold text-sidebar-foreground truncate w-full">
+          <span className="text-sm font-semibold text-sidebar-foreground truncate w-full text-left">
             {currentRepository.name}
           </span>
-          <span className="text-xs text-sidebar-foreground-muted truncate w-full">
+          <span className="text-xs text-sidebar-foreground-muted truncate w-full text-left">
             {repositories.length} workspace(s)
           </span>
         </div>
