@@ -379,7 +379,7 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                       {/* Improved layout */}
                       <div className="flex items-start gap-3 w-full min-w-0">
                         {/* Icon */}
-                        <FolderGit2 size={16} className="flex-shrink-0 text-sidebar-foreground-muted/40 mt-0.5" />
+                        <FolderGit2 size={16} className="flex-shrink-0 text-sidebar-foreground-muted/80 mt-0.5" />
 
                         {/* Content */}
                         <div className="flex-1 min-w-0 space-y-1">
