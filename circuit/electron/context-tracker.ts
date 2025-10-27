@@ -31,7 +31,7 @@ export class ContextTracker {
   private readonly SYSTEM_OVERHEAD = 1.05; // 5% 시스템 프롬프트 오버헤드
 
   /**
-   * 세션 전체 컨텍스트 계산
+   * 세션 전체 컨텍스트 계산 (최적화: 단일 패스)
    */
   async calculateContext(jsonlPath: string): Promise<ContextMetrics> {
     try {
@@ -40,35 +40,11 @@ export class ContextTracker {
         .split('\n')
         .filter(line => line.trim());
 
-      const sessionStart = this.findSessionStart(lines);
-      const lastCompact = this.findLastCompact(lines);
+      // 단일 패스로 모든 정보 수집
+      const result = this.analyzeLinesOptimized(lines);
 
-      // 계산 시작점 결정 (마지막 compact 또는 세션 시작)
-      const startTime = lastCompact || sessionStart;
-
-      let contextTokens = 0;
-
-      for (const line of lines) {
-        try {
-          const event: any = JSON.parse(line);
-          const eventTime = new Date(event.timestamp).getTime();
-
-          // 시작점 이후의 토큰만 누적
-          if (eventTime >= startTime.getTime()) {
-            const usage = event.message?.usage || event.usage;
-            if (usage) {
-              contextTokens +=
-                (usage.input_tokens || 0) +
-                (usage.output_tokens || 0);
-            }
-          }
-        } catch {
-          continue;
-        }
-      }
-
-      // 시스템 프롬프트 오버헤드 추정
-      const adjustedContext = Math.floor(contextTokens * this.SYSTEM_OVERHEAD);
+      const startTime = result.lastCompact || result.sessionStart;
+      const adjustedContext = Math.floor(result.totalTokens * this.SYSTEM_OVERHEAD);
       const percentage = (adjustedContext / this.CONTEXT_LIMIT) * 100;
       const prunableTokens = this.estimatePrunableTokens(adjustedContext);
       const shouldCompact = percentage >= this.COMPACT_THRESHOLD;
@@ -77,8 +53,8 @@ export class ContextTracker {
         current: adjustedContext,
         limit: this.CONTEXT_LIMIT,
         percentage,
-        lastCompact,
-        sessionStart,
+        lastCompact: result.lastCompact,
+        sessionStart: result.sessionStart,
         prunableTokens,
         shouldCompact
       };
@@ -89,55 +65,95 @@ export class ContextTracker {
   }
 
   /**
-   * 세션 시작 시점 탐지
+   * 최적화된 단일 패스 분석
    */
-  private findSessionStart(lines: string[]): Date {
-    for (const line of lines) {
-      try {
-        const event: UsageEvent = JSON.parse(line);
-        if (event.type === 'session_start') {
-          return new Date(event.timestamp);
-        }
-      } catch {
-        continue;
-      }
-    }
+  private analyzeLinesOptimized(lines: string[]): {
+    sessionStart: Date;
+    lastCompact: Date | null;
+    totalTokens: number;
+  } {
+    let sessionStart: Date | null = null;
+    let lastCompactCommand: { timestamp: Date; index: number } | null = null;
+    let totalTokens = 0;
+    const tokensAtIndex: Map<number, number> = new Map();
 
-    // fallback: 첫 이벤트 시간
-    try {
-      const firstEvent = JSON.parse(lines[0]);
-      return new Date(firstEvent.timestamp);
-    } catch {
-      return new Date();
-    }
-  }
-
-  /**
-   * 마지막 /compact 명령 탐지
-   */
-  private findLastCompact(lines: string[]): Date | null {
-    // 역순으로 검색 (최신 compact 먼저)
-    for (let i = lines.length - 1; i >= 0; i--) {
+    // 단일 패스로 모든 데이터 수집
+    for (let i = 0; i < lines.length; i++) {
       try {
         const event: any = JSON.parse(lines[i]);
+        const timestamp = new Date(event.timestamp);
 
-        // /compact 명령 감지 (Claude Code JSONL 구조: event.message.content)
-        if (event.type === 'user' &&
-            event.message?.content?.includes('/compact')) {
-          return new Date(event.timestamp);
+        // 세션 시작 감지
+        if (!sessionStart) {
+          if (event.type === 'session_start') {
+            sessionStart = timestamp;
+          } else if (i === 0) {
+            sessionStart = timestamp;
+          }
         }
 
-        // compact 이벤트 직접 감지
+        // /compact 명령 감지 (역순 대신 최신 것만 유지)
+        if (event.type === 'user') {
+          const content = Array.isArray(event.message?.content)
+            ? event.message.content.find((c: any) => typeof c === 'string' || c?.type === 'text')
+            : event.message?.content;
+
+          const textContent = typeof content === 'string' ? content : content?.text || '';
+
+          if (textContent.trim() === '/compact' || textContent.includes('compact')) {
+            lastCompactCommand = { timestamp, index: i };
+          }
+        }
+
+        // compact_complete 이벤트 (최우선)
         if (event.type === 'compact_complete') {
-          return new Date(event.timestamp);
+          lastCompactCommand = { timestamp, index: i };
+        }
+
+        // 토큰 수집
+        const usage = event.message?.usage || event.usage;
+        if (usage) {
+          const tokens = (usage.input_tokens || 0) + (usage.output_tokens || 0);
+          tokensAtIndex.set(i, tokens);
+          totalTokens += tokens;
         }
       } catch {
         continue;
       }
     }
 
-    return null;
+    // compact 검증 (전후 토큰 비교)
+    let verifiedCompact: Date | null = null;
+    if (lastCompactCommand) {
+      const tokensBeforeCompact: number[] = [];
+      const tokensAfterCompact: number[] = [];
+
+      for (const [index, tokens] of tokensAtIndex.entries()) {
+        if (index < lastCompactCommand.index && index > lastCompactCommand.index - 5) {
+          tokensBeforeCompact.push(tokens);
+        } else if (index > lastCompactCommand.index && index < lastCompactCommand.index + 10) {
+          tokensAfterCompact.push(tokens);
+        }
+      }
+
+      if (tokensBeforeCompact.length > 0 && tokensAfterCompact.length > 0) {
+        const avgBefore = tokensBeforeCompact.reduce((a, b) => a + b, 0) / tokensBeforeCompact.length;
+        const avgAfter = tokensAfterCompact.reduce((a, b) => a + b, 0) / tokensAfterCompact.length;
+        const reductionRate = (avgBefore - avgAfter) / avgBefore;
+
+        if (reductionRate >= 0.3) {
+          verifiedCompact = lastCompactCommand.timestamp;
+        }
+      }
+    }
+
+    return {
+      sessionStart: sessionStart || new Date(),
+      lastCompact: verifiedCompact,
+      totalTokens
+    };
   }
+
 
   /**
    * Prunable 토큰 추정 (압축 가능한 양)
