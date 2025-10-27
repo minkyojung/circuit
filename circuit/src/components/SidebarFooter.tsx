@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Settings, MessageSquare, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
@@ -30,15 +30,12 @@ export const SidebarFooter: React.FC<SidebarFooterProps> = ({ className }) => {
   const [feedbackType, setFeedbackType] = useState<'bug' | 'feature' | 'question'>('bug');
   const [feedbackTitle, setFeedbackTitle] = useState('');
   const [feedbackBody, setFeedbackBody] = useState('');
+  const compactTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const { metrics, loading, error, refresh } = useClaudeMetrics();
 
-  // Debug logging
-  console.log('[SidebarFooter] Metrics state:', { metrics, loading, error });
-
   const handleSubmitFeedback = () => {
     // TODO: Implement feedback submission
-    console.log('Submitting feedback:', { type: feedbackType, title: feedbackTitle, body: feedbackBody });
 
     // Clear form
     setFeedbackTitle('');
@@ -46,13 +43,25 @@ export const SidebarFooter: React.FC<SidebarFooterProps> = ({ className }) => {
     setIsFeedbackOpen(false);
   };
 
-  const handleCompact = () => {
-    // TODO: Implement /compact command execution
-    console.log('Compact requested');
+  const handleCompact = async () => {
+    try {
+      // Clear any existing timeout
+      if (compactTimeoutRef.current) {
+        clearTimeout(compactTimeoutRef.current);
+      }
+
+      // 3초 후 자동 리프레시 (compact가 완료될 시간)
+      compactTimeoutRef.current = setTimeout(async () => {
+        await refresh();
+        compactTimeoutRef.current = null;
+      }, 3000);
+
+    } catch (error) {
+      console.error('[SidebarFooter] Compact error:', error);
+    }
   };
 
   const handleRefresh = async () => {
-    console.log('[SidebarFooter] Manual refresh requested');
     await refresh();
   };
 

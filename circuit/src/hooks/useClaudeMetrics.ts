@@ -127,7 +127,7 @@ export function useClaudeMetrics(): UseClaudeMetricsResult {
     };
 
     // Listen for metrics updates
-    const handleMetricsUpdate = (event: any, updatedMetrics: CircuitMetrics) => {
+    const handleMetricsUpdate = (_event: any, updatedMetrics: CircuitMetrics) => {
       if (mounted) {
         setMetrics(updatedMetrics);
         setError(null);
@@ -135,7 +135,7 @@ export function useClaudeMetrics(): UseClaudeMetricsResult {
     };
 
     // Listen for metrics errors
-    const handleMetricsError = (event: any, errorMessage: string) => {
+    const handleMetricsError = (_event: any, errorMessage: string) => {
       if (mounted) {
         setError(errorMessage);
       }
@@ -148,9 +148,27 @@ export function useClaudeMetrics(): UseClaudeMetricsResult {
     // Start monitoring
     startMonitoring();
 
+    // Auto-polling: 10초마다 메트릭 리프레시
+    const pollingInterval = setInterval(async () => {
+      if (mounted) {
+        try {
+          const result = await ipcRenderer.invoke('circuit:metrics-refresh');
+          if (result.success && result.metrics) {
+            setMetrics(result.metrics);
+            setError(null);
+          }
+        } catch (err) {
+          console.error('[useClaudeMetrics] Polling error:', err);
+        }
+      }
+    }, 10000); // 10초
+
     // Cleanup
     return () => {
       mounted = false;
+
+      // Clear polling interval
+      clearInterval(pollingInterval);
 
       // Remove listeners
       ipcRenderer?.removeListener('circuit:metrics-updated', handleMetricsUpdate);
