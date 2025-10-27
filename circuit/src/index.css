@@ -82,4 +82,69 @@
   .text-xl { font-size: var(--font-xl); }
   .text-2xl { font-size: var(--font-2xl); }
   .text-3xl { font-size: var(--font-3xl); }
+
+  /* ===== FOCUS RING STYLES (Apple HIG) ===== */
+
+  /* Base focus ring style */
+  *:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    transition: outline-color var(--transition-fast), outline-offset var(--transition-fast);
+  }
+
+  /* Button focus styles */
+  button:focus-visible,
+  [role="button"]:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  /* Input/textarea focus styles */
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 0px;
+    border-color: transparent;
+  }
+
+  /* Link focus styles */
+  a:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  /* Interactive list item focus */
+  [role="option"]:focus-visible,
+  [role="menuitem"]:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: -2px;
+  }
+
+  /* Remove default focus ring on click (only show for keyboard) */
+  *:focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  /* ===== KEYBOARD NAVIGATION INDICATORS ===== */
+
+  /* Show focus indicator when navigating with keyboard */
+  .keyboard-nav *:focus {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  /* Enhanced focus for command palette items */
+  [data-command-item]:focus-visible {
+    background-color: var(--sidebar-accent);
+    outline: none;
+  }
+
+  /* Workspace item focus */
+  [data-workspace-item]:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: -2px;
+    border-radius: var(--radius-md);
+  }
 }

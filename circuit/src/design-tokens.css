@@ -125,9 +125,9 @@
 
     /* Label Hierarchy (Light Mode) - Apple semantic naming */
     --label-primary: rgba(0, 0, 0, 1.0);             /* 100% - Main text */
-    --label-secondary: rgba(0, 0, 0, 0.9);           /* 90% - Supporting text */
-    --label-tertiary: rgba(0, 0, 0, 0.3);            /* 30% - Subtle text/placeholders */
-    --label-quaternary: rgba(0, 0, 0, 0.18);         /* 18% - Very subtle text */
+    --label-secondary: rgba(0, 0, 0, 0.95);          /* 95% - Supporting text (darker) */
+    --label-tertiary: rgba(0, 0, 0, 0.5);            /* 50% - Subtle text/placeholders (darker) */
+    --label-quaternary: rgba(0, 0, 0, 0.25);         /* 25% - Very subtle text (darker) */
 
     /* Fill Hierarchy (Light Mode) - Interactive elements */
     --fill-primary: rgba(120, 120, 128, 0.36);       /* Buttons, controls - level 1 */
@@ -166,7 +166,7 @@
 
     /* Muted/subtle colors */
     --muted: oklch(0.84 0 0);                        /* #D2D2D2 - Sidebar bg */
-    --muted-foreground: oklch(0.41 0 0);             /* #626262 */
+    --muted-foreground: oklch(0.30 0 0);             /* Darker gray - improved contrast */
 
     --accent: oklch(0.92 0.02 40);                   /* Very light orange tint */
     --accent-foreground: oklch(0.58 0.10 40);        /* Muted orange */
@@ -202,8 +202,8 @@
     /* Sidebar colors */
     --sidebar: oklch(0.915 0 0);                     /* #E9E9E9 */
     --sidebar-glass: var(--material-regular);        /* Glassmorphism backdrop */
-    --sidebar-foreground: rgba(0, 0, 0, 0.85);       /* Apple HIG: 85% black for vibrancy */
-    --sidebar-foreground-muted: rgba(0, 0, 0, 0.50); /* Apple HIG: 50% black for secondary text */
+    --sidebar-foreground: rgba(0, 0, 0, 0.95);       /* 95% black - darker for better contrast */
+    --sidebar-foreground-muted: rgba(0, 0, 0, 0.65); /* 65% black - darker secondary text */
     --sidebar-primary: oklch(0.58 0.10 40);          /* Muted orange */
     --sidebar-primary-foreground: oklch(1 0 0);
     --sidebar-accent: rgba(0, 0, 0, 0.08);           /* Selected: 8% black overlay on glass */

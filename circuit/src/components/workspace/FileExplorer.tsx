@@ -9,6 +9,7 @@ import {
   SidebarMenuButton,
 } from '@/components/ui/sidebar'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { FileTreeSkeleton } from '@/components/ui/skeleton'
 
 // File tree structure
 export interface FileNode {
@@ -45,12 +46,12 @@ const FileTreeItem: React.FC<{
               style={{ paddingLeft: `${depth * 12 + 8}px` }}
             >
               {isOpen ? (
-                <ChevronDown size={14} className="flex-shrink-0" />
+                <ChevronDown size={16} strokeWidth={1.5} className="flex-shrink-0" />
               ) : (
-                <ChevronRight size={14} className="flex-shrink-0" />
+                <ChevronRight size={16} strokeWidth={1.5} className="flex-shrink-0" />
               )}
-              <Folder size={14} className="flex-shrink-0 text-sidebar-foreground-muted" />
-              <span className="text-sm truncate">{node.name}</span>
+              <Folder size={16} strokeWidth={1.5} className="flex-shrink-0 text-sidebar-foreground-muted" />
+              <span className="text-base font-normal truncate">{node.name}</span>
             </SidebarMenuButton>
           </CollapsibleTrigger>
           <CollapsibleContent>
@@ -80,8 +81,8 @@ const FileTreeItem: React.FC<{
         className="w-full h-[var(--list-item-height)] py-[var(--list-item-padding-y)] gap-2"
         style={{ paddingLeft: `${depth * 12 + 8}px` }}
       >
-        <File size={14} className="flex-shrink-0 text-sidebar-foreground-muted" />
-        <span className="text-sm truncate flex-1">{node.name}</span>
+        <File size={16} strokeWidth={1.5} className="flex-shrink-0 text-sidebar-foreground-muted" />
+        <span className="text-base font-normal truncate flex-1">{node.name}</span>
 
         {/* Git status badges */}
         {node.modified && (
@@ -122,18 +123,12 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   }, [fileTree])
 
   return (
-    <div className="h-full flex flex-col bg-sidebar border-r border-sidebar-border">
+    <div className="h-full flex flex-col">
       <SidebarGroup>
-        <SidebarGroupLabel className="px-4 py-2">
-          Files
-        </SidebarGroupLabel>
         <SidebarGroupContent>
           <SidebarMenu>
             {isLoading ? (
-              <div className="px-4 py-6 text-center text-sidebar-foreground-muted">
-                <Loader2 size={16} className="mx-auto animate-spin mb-2" />
-                <p className="text-xs">Loading files...</p>
-              </div>
+              <FileTreeSkeleton />
             ) : fileTree.length === 0 ? (
               <div className="px-4 py-6 text-center text-sidebar-foreground-muted">
                 <p className="text-xs">No files found</p>
