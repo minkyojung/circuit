@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useState, useEffect, useMemo } from 'react'
 import type { Workspace, WorkspaceCreateResult, WorkspaceListResult, WorkspaceStatus, Repository } from '@/types/workspace'
-import { Plus, FolderGit2, Check, GitMerge, GitCommit, Archive, RefreshCw, ChevronsDownUp } from 'lucide-react'
+import { Plus, FolderGit2, Check, GitMerge, GitCommit, RefreshCw, ChevronsDownUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useProjectPath } from '@/App'
 import { RepositorySwitcher } from './workspace/RepositorySwitcher'
@@ -12,7 +12,6 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -21,7 +20,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { motion, AnimatePresence } from 'framer-motion'
-import { staggerContainer, listItemVariants } from '@/lib/motion-tokens'
+import { listItemVariants } from '@/lib/motion-tokens'
 
 // @ts-ignore - Electron IPC
 const { ipcRenderer } = window.require('electron')
@@ -299,6 +298,7 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
     await loadWorkspaces()
   }
 
+  // @ts-ignore - unused but kept for future use
   const deleteWorkspace = async (workspaceId: string) => {
     try {
       const result = await ipcRenderer.invoke('workspace:delete', workspaceId)
@@ -320,16 +320,17 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
     }
   }
 
-  const handleDeleteWorkspace = (e: React.MouseEvent, workspaceId: string, workspaceName: string, isMerged: boolean = false) => {
-    e.stopPropagation()
-    const message = isMerged
-      ? `Archive workspace "${workspaceName}"? This will remove it from the list.`
-      : `Delete workspace "${workspaceName}"?`
+  // Commented out unused function - may be used in future
+  // const handleDeleteWorkspace = (e: React.MouseEvent, workspaceId: string, workspaceName: string, isMerged: boolean = false) => {
+  //   e.stopPropagation()
+  //   const message = isMerged
+  //     ? `Archive workspace "${workspaceName}"? This will remove it from the list.`
+  //     : `Delete workspace "${workspaceName}"?`
 
-    if (confirm(message)) {
-      deleteWorkspace(workspaceId)
-    }
-  }
+  //   if (confirm(message)) {
+  //     deleteWorkspace(workspaceId)
+  //   }
+  // }
 
   const handleRefreshFileTree = () => {
     if (selectedWorkspace) {

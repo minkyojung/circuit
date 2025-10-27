@@ -13,6 +13,7 @@ function Skeleton({
 }: SkeletonProps) {
   if (variant === 'shimmer') {
     return (
+      // @ts-ignore - framer-motion types conflict with React.HTMLAttributes
       <motion.div
         className={cn(
           "rounded-md bg-gradient-to-r from-muted via-muted-foreground/10 to-muted",
@@ -31,6 +32,7 @@ function Skeleton({
 
   // Pulse variant (simpler alternative)
   return (
+    // @ts-ignore - framer-motion types conflict with React.HTMLAttributes
     <motion.div
       className={cn("rounded-md bg-muted", className)}
       animate={{

@@ -1,15 +1,98 @@
 import React, { useState } from 'react'
-import { File, Folder, ChevronRight, ChevronDown, Loader2 } from 'lucide-react'
+import { Folder, ChevronRight, ChevronDown } from 'lucide-react'
+import { getIconForFile } from 'vscode-material-icon-theme-js'
 import {
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
 } from '@/components/ui/sidebar'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { FileTreeSkeleton } from '@/components/ui/skeleton'
+
+// Import Material Icon Theme SVGs - Common file types
+import ReactTsIcon from 'material-icon-theme/icons/react_ts.svg?react'
+import ReactIcon from 'material-icon-theme/icons/react.svg?react'
+import TypeScriptIcon from 'material-icon-theme/icons/typescript.svg?react'
+import JavaScriptIcon from 'material-icon-theme/icons/javascript.svg?react'
+import JsonIcon from 'material-icon-theme/icons/nodejs.svg?react'
+import CssIcon from 'material-icon-theme/icons/css.svg?react'
+import ScssIcon from 'material-icon-theme/icons/sass.svg?react'
+import HtmlIcon from 'material-icon-theme/icons/html.svg?react'
+import MarkdownIcon from 'material-icon-theme/icons/markdown.svg?react'
+import PythonIcon from 'material-icon-theme/icons/python.svg?react'
+import RustIcon from 'material-icon-theme/icons/rust.svg?react'
+import GoIcon from 'material-icon-theme/icons/go.svg?react'
+import YamlIcon from 'material-icon-theme/icons/yaml.svg?react'
+import XmlIcon from 'material-icon-theme/icons/xml.svg?react'
+import ImageIcon from 'material-icon-theme/icons/image.svg?react'
+import VueIcon from 'material-icon-theme/icons/vue.svg?react'
+import SvelteIcon from 'material-icon-theme/icons/svelte.svg?react'
+import NextIcon from 'material-icon-theme/icons/next.svg?react'
+import ViteIcon from 'material-icon-theme/icons/vite.svg?react'
+import TailwindIcon from 'material-icon-theme/icons/tailwindcss.svg?react'
+import DockerIcon from 'material-icon-theme/icons/docker.svg?react'
+import GitIcon from 'material-icon-theme/icons/git.svg?react'
+import NpmIcon from 'material-icon-theme/icons/npm.svg?react'
+import YarnIcon from 'material-icon-theme/icons/yarn.svg?react'
+import DefaultIcon from 'material-icon-theme/icons/file.svg?react'
+
+// Map SVG file names to imported React components
+const iconComponentMap: Record<string, React.ComponentType<React.SVGProps<SVGSVGElement>>> = {
+  // React & TypeScript
+  'react_ts.svg': ReactTsIcon,
+  'react.svg': ReactIcon,
+  'typescript.svg': TypeScriptIcon,
+  'javascript.svg': JavaScriptIcon,
+
+  // Config & Data
+  'nodejs.svg': JsonIcon,
+  'json.svg': JsonIcon,
+  'yaml.svg': YamlIcon,
+  'xml.svg': XmlIcon,
+
+  // Styles
+  'css.svg': CssIcon,
+  'sass.svg': ScssIcon,
+  'tailwindcss.svg': TailwindIcon,
+
+  // Markup
+  'html.svg': HtmlIcon,
+  'markdown.svg': MarkdownIcon,
+
+  // Programming Languages
+  'python.svg': PythonIcon,
+  'rust.svg': RustIcon,
+  'go.svg': GoIcon,
+
+  // Frameworks
+  'vue.svg': VueIcon,
+  'svelte.svg': SvelteIcon,
+  'next.svg': NextIcon,
+
+  // Build Tools
+  'vite.svg': ViteIcon,
+  'npm.svg': NpmIcon,
+  'yarn.svg': YarnIcon,
+
+  // DevOps
+  'docker.svg': DockerIcon,
+  'git.svg': GitIcon,
+
+  // Media
+  'image.svg': ImageIcon,
+
+  // Default
+  'file.svg': DefaultIcon,
+}
+
+// Get icon component for a file
+const getFileIcon = (filename: string): React.ComponentType<React.SVGProps<SVGSVGElement>> => {
+  const iconName = getIconForFile(filename)
+  if (!iconName) return DefaultIcon
+  return iconComponentMap[iconName] || DefaultIcon
+}
 
 // File tree structure
 export interface FileNode {
@@ -72,6 +155,7 @@ const FileTreeItem: React.FC<{
 
   // File node
   const isSelected = selectedFile === node.path
+  const FileIconComponent = getFileIcon(node.name)
 
   return (
     <SidebarMenuItem className="my-0">
@@ -81,7 +165,11 @@ const FileTreeItem: React.FC<{
         className="w-full h-[var(--list-item-height)] py-[var(--list-item-padding-y)] gap-2"
         style={{ paddingLeft: `${depth * 12 + 8}px` }}
       >
-        <File size={16} strokeWidth={1.5} className="flex-shrink-0 text-sidebar-foreground-muted" />
+        {/* File type icon */}
+        <div className="flex-shrink-0" style={{ width: '16px', height: '16px' }}>
+          <FileIconComponent width={16} height={16} />
+        </div>
+
         <span className="text-base font-normal truncate flex-1">{node.name}</span>
 
         {/* Git status badges */}
