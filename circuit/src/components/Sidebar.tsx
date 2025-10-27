@@ -218,6 +218,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ selectedWorkspaceId, onSelectW
   }, [workspaces, currentRepository]);
 
   return (
+    <>
     <aside className="w-[250px] bg-sidebar border-r border-sidebar-border flex flex-col">
       {/* Sidebar Top - Traffic Lights Area (Fully Draggable) */}
       <div
@@ -294,13 +295,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ selectedWorkspaceId, onSelectW
           </div>
         </div>
       </div>
-
-      {/* Clone Repository Dialog */}
-      <CloneRepositoryDialog
-        isOpen={isCloneDialogOpen}
-        onClose={() => setIsCloneDialogOpen(false)}
-        onClone={handleCloneRepository}
-      />
     </aside>
+
+    {/* Clone Repository Dialog */}
+    <CloneRepositoryDialog
+      isOpen={isCloneDialogOpen}
+      onClose={() => setIsCloneDialogOpen(false)}
+      onClone={handleCloneRepository}
+    />
+    </>
   );
 };
