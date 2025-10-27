@@ -487,7 +487,7 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
         </SidebarGroup>
 
         {/* New Workspace Button */}
-        <div className="px-2 py-2">
+        <div className="px-2 pb-2">
           <Button
             variant="ghost"
             onClick={createWorkspace}
