@@ -25,7 +25,8 @@ export interface UsageMetrics {
   percentage: number;
   planLimit: number;
   burnRate: number;
-  timeLeft: number; // minutes
+  timeLeft: number; // minutes (until limit hit)
+  resetTime: number; // minutes (until 5h window resets)
 }
 
 export class UsageParser {
@@ -97,10 +98,12 @@ export class UsageParser {
         .split('\n')
         .filter(line => line.trim());
 
-      const cutoffTime = Date.now() - (hoursBack * 60 * 60 * 1000);
+      const now = Date.now();
+      const cutoffTime = now - (hoursBack * 60 * 60 * 1000);
 
       let inputTokens = 0;
       let outputTokens = 0;
+      let oldestEventTime: number | null = null;
 
       for (const line of lines) {
         try {
@@ -114,6 +117,11 @@ export class UsageParser {
             if (usage) {
               inputTokens += usage.input_tokens || 0;
               outputTokens += usage.output_tokens || 0;
+
+              // 가장 오래된 이벤트 추적
+              if (oldestEventTime === null || eventTime < oldestEventTime) {
+                oldestEventTime = eventTime;
+              }
             }
           }
         } catch {
@@ -126,6 +134,14 @@ export class UsageParser {
       const burnRate = await this.calculateBurnRate(jsonlPath);
       const timeLeft = this.estimateTimeLeft(totalTokens, planLimit, burnRate);
 
+      // 윈도우 리셋 시간 계산 (가장 오래된 토큰이 5시간 되는 시점)
+      let resetTime = 0;
+      if (oldestEventTime !== null) {
+        const windowResetTime = oldestEventTime + (hoursBack * 60 * 60 * 1000);
+        const minutesUntilReset = Math.max(0, Math.floor((windowResetTime - now) / 60000));
+        resetTime = minutesUntilReset;
+      }
+
       return {
         input: inputTokens,
         output: outputTokens,
@@ -133,7 +149,8 @@ export class UsageParser {
         percentage: (totalTokens / planLimit) * 100,
         planLimit,
         burnRate,
-        timeLeft
+        timeLeft,
+        resetTime
       };
     } catch (error) {
       console.error('[UsageParser] Error parsing usage:', error);
@@ -211,7 +228,8 @@ export class UsageParser {
       percentage: 0,
       planLimit: 44000,
       burnRate: 0,
-      timeLeft: 0
+      timeLeft: 0,
+      resetTime: 0
     };
   }
 }

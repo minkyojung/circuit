@@ -82,6 +82,7 @@ export const SidebarFooter: React.FC<SidebarFooterProps> = ({ className }) => {
               planLimit={metrics.usage.planLimit}
               burnRate={metrics.usage.burnRate}
               timeLeft={metrics.usage.timeLeft}
+              resetTime={metrics.usage.resetTime}
             />
             <ContextBar
               current={metrics.context.current}

@@ -119,11 +119,11 @@ export class ContextTracker {
     // 역순으로 검색 (최신 compact 먼저)
     for (let i = lines.length - 1; i >= 0; i--) {
       try {
-        const event: UsageEvent = JSON.parse(lines[i]);
+        const event: any = JSON.parse(lines[i]);
 
-        // /compact 명령 감지
-        if (event.type === 'user_message' &&
-            event.content?.includes('/compact')) {
+        // /compact 명령 감지 (Claude Code JSONL 구조: event.message.content)
+        if (event.type === 'user' &&
+            event.message?.content?.includes('/compact')) {
           return new Date(event.timestamp);
         }
 

@@ -47,7 +47,8 @@ export class MetricsManager extends EventEmitter {
             percentage: 19.8,
             planLimit: 220000,
             burnRate: 8200,
-            timeLeft: 192
+            timeLeft: 192,
+            resetTime: 206  // 3h 26m until window resets
           },
           context: {
             current: 165000,

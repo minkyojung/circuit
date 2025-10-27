@@ -65,10 +65,10 @@ export const ContextBar: React.FC<ContextBarProps> = ({
         <div className="flex items-center gap-2">
           <Brain size={14} className={getColor()} />
           <span className="text-xs font-medium text-sidebar-foreground opacity-90">
-            Context
+            Session context
           </span>
           <span className="text-[9px] px-1.5 py-0.5 rounded bg-black/20 dark:bg-white/10 text-sidebar-foreground-muted">
-            ~estimated
+            estimated
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -111,7 +111,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
           </div>
         </div>
         <span className={cn("font-medium", getColor())}>
-          {percentage.toFixed(1)}%
+          {percentage.toFixed(1)}% used
         </span>
       </div>
 

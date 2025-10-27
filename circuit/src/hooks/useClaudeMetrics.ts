@@ -8,6 +8,7 @@ interface UsageMetrics {
   planLimit: number;
   burnRate: number;
   timeLeft: number;
+  resetTime: number;
 }
 
 interface ContextMetrics {

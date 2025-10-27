@@ -10,6 +10,7 @@ interface UsageBarProps {
   planLimit: number;
   burnRate: number;
   timeLeft: number;
+  resetTime: number;
 }
 
 export const UsageBar: React.FC<UsageBarProps> = ({
@@ -19,7 +20,8 @@ export const UsageBar: React.FC<UsageBarProps> = ({
   percentage,
   planLimit,
   burnRate,
-  timeLeft
+  timeLeft,
+  resetTime
 }) => {
   const getColor = () => {
     if (percentage >= 90) return 'text-red-500 dark:text-red-400';
@@ -55,7 +57,7 @@ export const UsageBar: React.FC<UsageBarProps> = ({
         <div className="flex items-center gap-2">
           <Zap size={14} className={getColor()} />
           <span className="text-xs font-medium text-sidebar-foreground opacity-90">
-            Usage (5h)
+            Current session
           </span>
         </div>
         <span className="text-xs font-mono text-sidebar-foreground-muted">
@@ -83,11 +85,11 @@ export const UsageBar: React.FC<UsageBarProps> = ({
           </div>
           <div className="flex items-center gap-1">
             <Clock size={10} />
-            <span>{formatTime(timeLeft)} left</span>
+            <span>Resets in {formatTime(resetTime)}</span>
           </div>
         </div>
         <span className={cn("font-medium", getColor())}>
-          {percentage.toFixed(1)}%
+          {percentage.toFixed(1)}% used
         </span>
       </div>
     </div>
