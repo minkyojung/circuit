@@ -159,18 +159,27 @@ const FileTreeItem: React.FC<{
 
             <CollapsibleTrigger asChild>
               <SidebarMenuButton
-                className="w-full h-[var(--list-item-height)] py-[var(--list-item-padding-y)] gap-2 group"
+                className="w-full h-auto py-px gap-2 group hover:bg-black/[0.02] dark:hover:bg-white/[0.03]"
                 style={{ paddingLeft: `${depth * 12 + 8}px` }}
               >
                 <motion.div
                   animate={{ rotate: isOpen ? 90 : 0 }}
                   transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
-                  className="flex-shrink-0"
+                  className={cn(
+                    "flex-shrink-0",
+                    isHovered || isOpen ? "opacity-100" : "opacity-70"
+                  )}
                 >
-                  <ChevronRight size={16} strokeWidth={1.5} />
+                  <ChevronRight size={13} strokeWidth={1.5} />
                 </motion.div>
-                <Folder size={16} strokeWidth={1.5} className="flex-shrink-0 text-sidebar-foreground-muted" />
-                <span className="text-base font-normal truncate flex-1">{node.name}</span>
+                <Folder size={13} strokeWidth={1.5} className={cn(
+                  "flex-shrink-0 text-sidebar-foreground-muted",
+                  isHovered || isOpen ? "opacity-100" : "opacity-70"
+                )} />
+                <span className={cn(
+                  "text-sm font-normal truncate flex-1 leading-none",
+                  isHovered || isOpen ? "opacity-100" : "opacity-70"
+                )}>{node.name}</span>
 
                 {/* Folder count badge */}
                 {node.children && node.children.length > 0 && (
@@ -182,16 +191,26 @@ const FileTreeItem: React.FC<{
             </CollapsibleTrigger>
           </div>
           <CollapsibleContent className="overflow-hidden transition-all duration-300 ease-in-out data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0">
-            {node.children?.map((child) => (
-              <FileTreeItem
+            {node.children?.map((child, index) => (
+              <motion.div
                 key={child.path}
-                node={child}
-                depth={depth + 1}
-                onSelect={onSelect}
-                selectedFile={selectedFile}
-                searchQuery={searchQuery}
-                collapseKey={collapseKey}
-              />
+                initial={isOpen ? { opacity: 0, y: -5 } : false}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{
+                  duration: 0.15,
+                  delay: isOpen ? index * 0.02 : 0,
+                  ease: "easeOut"
+                }}
+              >
+                <FileTreeItem
+                  node={child}
+                  depth={depth + 1}
+                  onSelect={onSelect}
+                  selectedFile={selectedFile}
+                  searchQuery={searchQuery}
+                  collapseKey={collapseKey}
+                />
+              </motion.div>
             ))}
           </CollapsibleContent>
         </SidebarMenuItem>
@@ -221,15 +240,21 @@ const FileTreeItem: React.FC<{
         <SidebarMenuButton
           onClick={() => onSelect?.(node.path)}
           isActive={isSelected}
-          className="w-full h-[var(--list-item-height)] py-[var(--list-item-padding-y)] gap-2 group pr-1"
+          className="w-full h-auto py-px gap-2 group pr-1 hover:bg-black/[0.02] dark:hover:bg-white/[0.03]"
           style={{ paddingLeft: `${depth * 12 + 8}px` }}
         >
           {/* File type icon */}
-          <div className="flex-shrink-0" style={{ width: '16px', height: '16px' }}>
-            <FileIconComponent width={16} height={16} />
+          <div className={cn(
+            "flex-shrink-0",
+            isSelected || isHovered ? "opacity-100" : "opacity-70"
+          )} style={{ width: '13px', height: '13px' }}>
+            <FileIconComponent width={13} height={13} />
           </div>
 
-          <span className="text-base font-normal truncate flex-1">{node.name}</span>
+          <span className={cn(
+            "text-sm font-normal truncate flex-1 leading-none",
+            isSelected || isHovered ? "opacity-100" : "opacity-70"
+          )}>{node.name}</span>
 
           {/* Git status badges */}
           {node.modified && (
@@ -436,7 +461,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
 
       <SidebarGroup>
         <SidebarGroupContent>
-          <SidebarMenu>
+          <SidebarMenu className="gap-0">
             {isLoading ? (
               <FileTreeSkeleton />
             ) : filteredFileTree.length === 0 ? (
