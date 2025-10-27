@@ -1,5 +1,5 @@
 import React from 'react';
-import { Brain, Archive, Recycle } from 'lucide-react';
+import { Brain, Archive, Recycle, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
@@ -11,6 +11,7 @@ interface ContextBarProps {
   prunableTokens: number;
   shouldCompact: boolean;
   onCompact?: () => void;
+  onRefresh?: () => void;
 }
 
 export const ContextBar: React.FC<ContextBarProps> = ({
@@ -20,7 +21,8 @@ export const ContextBar: React.FC<ContextBarProps> = ({
   lastCompact,
   prunableTokens,
   shouldCompact,
-  onCompact
+  onCompact,
+  onRefresh
 }) => {
   const getColor = () => {
     if (percentage >= 95) return 'text-red-500 dark:text-red-400';
@@ -69,9 +71,20 @@ export const ContextBar: React.FC<ContextBarProps> = ({
             ~estimated
           </span>
         </div>
-        <span className="text-xs font-mono text-sidebar-foreground-muted">
-          {formatTokens(current)} / {formatTokens(limit)}
-        </span>
+        <div className="flex items-center gap-2">
+          {onRefresh && (
+            <button
+              onClick={onRefresh}
+              className="p-0.5 rounded hover:bg-sidebar-accent transition-colors"
+              title="Refresh metrics"
+            >
+              <RefreshCw size={10} className="text-sidebar-foreground-muted" />
+            </button>
+          )}
+          <span className="text-xs font-mono text-sidebar-foreground-muted">
+            {formatTokens(current)} / {formatTokens(limit)}
+          </span>
+        </div>
       </div>
 
       {/* Progress Bar */}

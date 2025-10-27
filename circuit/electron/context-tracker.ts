@@ -50,14 +50,17 @@ export class ContextTracker {
 
       for (const line of lines) {
         try {
-          const event: UsageEvent = JSON.parse(line);
+          const event: any = JSON.parse(line);
           const eventTime = new Date(event.timestamp).getTime();
 
           // 시작점 이후의 토큰만 누적
-          if (eventTime >= startTime.getTime() && event.usage) {
-            contextTokens +=
-              (event.usage.input_tokens || 0) +
-              (event.usage.output_tokens || 0);
+          if (eventTime >= startTime.getTime()) {
+            const usage = event.message?.usage || event.usage;
+            if (usage) {
+              contextTokens +=
+                (usage.input_tokens || 0) +
+                (usage.output_tokens || 0);
+            }
           }
         } catch {
           continue;

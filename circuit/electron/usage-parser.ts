@@ -52,24 +52,34 @@ export class UsageParser {
         }
       }
 
-      // 가장 최근 수정된 session.jsonl 찾기
+      // 가장 최근 수정된 .jsonl 찾기 (session.jsonl 또는 UUID.jsonl)
       const dirs = await fs.readdir(claudeDir);
       let latestFile: string | null = null;
       let latestMtime = 0;
 
       for (const dir of dirs) {
-        const sessionPath = path.join(claudeDir, dir, 'session.jsonl');
+        const dirPath = path.join(claudeDir, dir);
         try {
-          const stats = await fs.stat(sessionPath);
-          if (stats.mtimeMs > latestMtime) {
-            latestMtime = stats.mtimeMs;
-            latestFile = sessionPath;
+          const files = await fs.readdir(dirPath);
+
+          // 모든 .jsonl 파일 검사
+          for (const file of files) {
+            if (!file.endsWith('.jsonl')) continue;
+
+            const filePath = path.join(dirPath, file);
+            const stats = await fs.stat(filePath);
+
+            if (stats.mtimeMs > latestMtime) {
+              latestMtime = stats.mtimeMs;
+              latestFile = filePath;
+            }
           }
         } catch {
           continue;
         }
       }
 
+      console.log('[UsageParser] Latest JSONL found:', latestFile);
       return latestFile;
     } catch (error) {
       console.error('[UsageParser] Error finding session file:', error);
@@ -94,13 +104,17 @@ export class UsageParser {
 
       for (const line of lines) {
         try {
-          const event: UsageEvent = JSON.parse(line);
+          const event: any = JSON.parse(line);
           const eventTime = new Date(event.timestamp).getTime();
 
           // 5시간 이내 이벤트만 카운트
-          if (eventTime >= cutoffTime && event.usage) {
-            inputTokens += event.usage.input_tokens || 0;
-            outputTokens += event.usage.output_tokens || 0;
+          if (eventTime >= cutoffTime) {
+            // Claude Code 구조: event.message.usage
+            const usage = event.message?.usage || event.usage;
+            if (usage) {
+              inputTokens += usage.input_tokens || 0;
+              outputTokens += usage.output_tokens || 0;
+            }
           }
         } catch {
           continue; // 파싱 실패한 라인 스킵
@@ -152,13 +166,16 @@ export class UsageParser {
 
       for (const line of lines) {
         try {
-          const event: UsageEvent = JSON.parse(line);
+          const event: any = JSON.parse(line);
           const eventTime = new Date(event.timestamp).getTime();
 
-          if (eventTime >= oneHourAgo && event.usage) {
-            recentTokens +=
-              (event.usage.input_tokens || 0) +
-              (event.usage.output_tokens || 0);
+          if (eventTime >= oneHourAgo) {
+            const usage = event.message?.usage || event.usage;
+            if (usage) {
+              recentTokens +=
+                (usage.input_tokens || 0) +
+                (usage.output_tokens || 0);
+            }
           }
         } catch {
           continue;

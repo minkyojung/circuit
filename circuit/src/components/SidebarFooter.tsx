@@ -31,7 +31,7 @@ export const SidebarFooter: React.FC<SidebarFooterProps> = ({ className }) => {
   const [feedbackTitle, setFeedbackTitle] = useState('');
   const [feedbackBody, setFeedbackBody] = useState('');
 
-  const { metrics, loading, error } = useClaudeMetrics();
+  const { metrics, loading, error, refresh } = useClaudeMetrics();
 
   // Debug logging
   console.log('[SidebarFooter] Metrics state:', { metrics, loading, error });
@@ -49,6 +49,11 @@ export const SidebarFooter: React.FC<SidebarFooterProps> = ({ className }) => {
   const handleCompact = () => {
     // TODO: Implement /compact command execution
     console.log('Compact requested');
+  };
+
+  const handleRefresh = async () => {
+    console.log('[SidebarFooter] Manual refresh requested');
+    await refresh();
   };
 
   return (
@@ -86,6 +91,7 @@ export const SidebarFooter: React.FC<SidebarFooterProps> = ({ className }) => {
               prunableTokens={metrics.context.prunableTokens}
               shouldCompact={metrics.context.shouldCompact}
               onCompact={handleCompact}
+              onRefresh={handleRefresh}
             />
           </>
         )}
