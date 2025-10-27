@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import type { Workspace, WorkspaceStatus } from '@/types/workspace';
 import {
-  Trash2, FolderGit2, Check, GitMerge, ArrowUp, ArrowDown, GitCommit, Loader2,
+  Trash2, GitBranch, Check, GitMerge, ArrowUp, ArrowDown, GitCommit, Loader2,
   FolderOpen, GitPullRequest, RefreshCw, Terminal
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -103,63 +103,30 @@ export const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
           whileTap={{ scale: 0.98 }}
           transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
         >
-          <div className="flex items-start gap-3 w-full min-w-0">
-            {/* Icon with status glow */}
-            <FolderGit2
-              size={18}
+          <div className="flex items-start gap-2.5 w-full min-w-0">
+            {/* Branch icon */}
+            <GitBranch
+              size={14}
               strokeWidth={1.5}
-              className={cn(
-                "flex-shrink-0 mt-0.5 transition-all duration-300",
-                status?.clean
-                  ? "text-status-synced drop-shadow-[0_0_6px_rgba(34,197,94,0.5)]"
-                  : "text-status-behind drop-shadow-[0_0_6px_rgba(249,115,22,0.5)]"
-              )}
+              className="flex-shrink-0 mt-0.5 text-sidebar-foreground-muted opacity-30 transition-opacity duration-200"
             />
 
             {/* Content */}
             <div className="flex-1 min-w-0 space-y-1">
-              {/* Top row: Name */}
+              {/* Top row: Name + Time */}
               <div className="flex items-center gap-2">
-                <span className="text-base font-normal text-sidebar-foreground-muted truncate flex-1">
+                <span className="text-base font-medium text-sidebar-foreground truncate flex-1">
                   {workspace.name}
                 </span>
 
-                {/* Diff stats - only show when dirty */}
-                {status && !status.clean && (
-                  <motion.div
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -10 }}
-                    transition={{ duration: 0.2 }}
-                    className="flex items-center gap-1.5 text-sm font-mono flex-shrink-0"
-                  >
-                    {(status.added > 0 || status.modified > 0) && (
-                      <span className="text-status-synced">
-                        +{status.added + status.modified}
-                      </span>
-                    )}
-                    {status.deleted > 0 && (
-                      <span className="text-status-behind">
-                        -{status.deleted}
-                      </span>
-                    )}
-                  </motion.div>
-                )}
-              </div>
-
-              {/* Bottom row: Metadata */}
-              <div className="flex items-center gap-1 text-sm font-normal opacity-40 text-sidebar-foreground">
-                {/* Branch name */}
-                <span className="text-sm font-normal flex-shrink-0">{workspace.branch}</span>
-
-                {/* Creation time */}
-                <span className="flex-shrink-0 text-sm font-normal">
+                {/* Time */}
+                <span className="text-xs text-sidebar-foreground opacity-50 flex-shrink-0">
                   {(() => {
                     const now = Date.now()
                     const created = new Date(workspace.createdAt).getTime()
 
                     if (isNaN(created) || created < new Date('2020-01-01').getTime()) {
-                      return 'just now'
+                      return 'now'
                     }
 
                     const diff = now - created
@@ -167,14 +134,49 @@ export const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
                     const hours = Math.floor(diff / 3600000)
                     const days = Math.floor(diff / 86400000)
 
-                    if (minutes < 1) return 'just now'
-                    if (minutes < 60) return `${minutes}m ago`
-                    if (hours < 24) return `${hours}h ago`
-                    if (days < 7) return `${days}d ago`
-                    if (days < 30) return `${Math.floor(days / 7)}w ago`
-                    if (days < 365) return `${Math.floor(days / 30)}mo ago`
-                    return `${Math.floor(days / 365)}y ago`
+                    if (minutes < 1) return 'now'
+                    if (minutes < 60) return `${minutes}m`
+                    if (hours < 24) return `${hours}h`
+                    if (days < 7) return `${days}d`
+                    if (days < 30) return `${Math.floor(days / 7)}w`
+                    if (days < 365) return `${Math.floor(days / 30)}mo`
+                    return `${Math.floor(days / 365)}y`
                   })()}
+                </span>
+
+                {/* Diff stats - always show */}
+                <div className="flex items-center gap-1.5 text-sm font-mono flex-shrink-0">
+                  <span className={cn(
+                    status && (status.added > 0 || status.modified > 0)
+                      ? "text-green-400/60"
+                      : "text-sidebar-foreground-muted/30"
+                  )}>
+                    +{status ? (status.added + status.modified) : 0}
+                  </span>
+                  <span className={cn(
+                    status && status.deleted > 0
+                      ? "text-red-400/60"
+                      : "text-sidebar-foreground-muted/30"
+                  )}>
+                    -{status ? status.deleted : 0}
+                  </span>
+                </div>
+              </div>
+
+              {/* Bottom row: Metadata */}
+              <div className="flex items-center gap-1.5 text-xs font-normal opacity-40 text-sidebar-foreground">
+                {/* Branch name */}
+                <span className="flex-shrink-0">{workspace.branch}</span>
+
+                {/* Divider */}
+                <span>·</span>
+
+                {/* File count - TODO: get actual file count */}
+                <span className="flex-shrink-0">
+                  {status && !status.clean
+                    ? `${status.added + status.modified + status.deleted} File${(status.added + status.modified + status.deleted) > 1 ? 's' : ''}`
+                    : '0 Files'
+                  }
                 </span>
               </div>
             </div>

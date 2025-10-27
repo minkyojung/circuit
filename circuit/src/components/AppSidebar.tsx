@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useState, useEffect, useMemo } from 'react'
 import type { Workspace, WorkspaceCreateResult, WorkspaceListResult, WorkspaceStatus, Repository } from '@/types/workspace'
-import { Plus, FolderGit2, Check, GitMerge, GitCommit, RefreshCw, ChevronsDownUp } from 'lucide-react'
+import { Plus, GitBranch, Check, GitMerge, GitCommit, RefreshCw, ChevronsDownUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useProjectPath } from '@/App'
 import { RepositorySwitcher } from './workspace/RepositorySwitcher'
@@ -409,64 +409,69 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                             className="h-auto py-2 px-2 group transition-all duration-200 ease-out"
                           >
                       {/* Improved layout */}
-                      <div className="flex items-start gap-3 w-full min-w-0">
-                        {/* Icon with status glow */}
-                        <FolderGit2
-                          size={18}
-                          strokeWidth={1.5}
-                          className={cn(
-                            "flex-shrink-0 mt-0.5 transition-all duration-300",
-                            status?.clean
-                              ? "text-status-synced drop-shadow-[0_0_6px_rgba(34,197,94,0.5)]"
-                              : "text-status-behind drop-shadow-[0_0_6px_rgba(249,115,22,0.5)]"
-                          )}
-                        />
+                      <div className="flex gap-3 w-full min-w-0">
+                        {/* Branch icon - aligned with first line text */}
+                        <div className="flex items-center pt-[3px]">
+                          <GitBranch
+                            size={14}
+                            strokeWidth={1.5}
+                            className={cn(
+                              "flex-shrink-0 transition-all duration-200",
+                              isActive
+                                ? "text-sidebar-foreground opacity-80"
+                                : "text-sidebar-foreground-muted opacity-70"
+                            )}
+                          />
+                        </div>
 
                         {/* Content */}
                         <div className="flex-1 min-w-0 space-y-1">
-                          {/* Top row: Name + Status Badge */}
+                          {/* Top row: Name + Diff */}
                           <div className="flex items-center gap-2">
-                            <span className="text-base font-normal text-sidebar-foreground-muted truncate flex-1">
+                            <span className={cn(
+                              "text-base font-normal truncate flex-1 transition-colors duration-200",
+                              isActive
+                                ? "text-sidebar-foreground"
+                                : "text-sidebar-foreground-muted"
+                            )}>
                               {workspace.name}
                             </span>
 
-                            {/* Diff stats - only show when dirty */}
-                            {status && !status.clean && (
-                              <motion.div
-                                initial={{ opacity: 0, x: -10 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: -10 }}
-                                transition={{ duration: 0.2 }}
-                                className="flex items-center gap-1.5 text-sm font-mono flex-shrink-0"
-                              >
-                                {(status.added > 0 || status.modified > 0) && (
-                                  <span className="text-status-synced">
-                                    +{status.added + status.modified}
-                                  </span>
-                                )}
-                                {status.deleted > 0 && (
-                                  <span className="text-status-behind">
-                                    -{status.deleted}
-                                  </span>
-                                )}
-                              </motion.div>
-                            )}
+                            {/* Diff stats - always show */}
+                            <div className="flex items-center gap-0.5 text-sm font-mono flex-shrink-0">
+                              <span className={cn(
+                                status && (status.added > 0 || status.modified > 0)
+                                  ? "text-green-400/70"
+                                  : "text-sidebar-foreground-muted opacity-20"
+                              )}>
+                                +{status ? (status.added + status.modified) : 0}
+                              </span>
+                              <span className={cn(
+                                status && status.deleted > 0
+                                  ? "text-red-400/70"
+                                  : "text-sidebar-foreground-muted opacity-20"
+                              )}>
+                                -{status ? status.deleted : 0}
+                              </span>
+                            </div>
                           </div>
 
-                          {/* Bottom row: Metadata (always visible) */}
-                          <div className="flex items-center gap-1 text-sm font-normal opacity-40 text-sidebar-foreground">
-                            {/* Branch name - always show */}
-                            <span className="text-sm font-normal flex-shrink-0">{workspace.branch}</span>
+                          {/* Bottom row: Branch + Date */}
+                          <div className="flex items-center gap-1.5 text-xs font-normal text-sidebar-foreground opacity-50">
+                            {/* Branch name */}
+                            <span className="flex-shrink-0">{workspace.branch}</span>
 
-                            {/* Creation time - relative format */}
-                            <span className="flex-shrink-0 text-sm font-normal">
+                            {/* Divider */}
+                            <span>·</span>
+
+                            {/* Date */}
+                            <span className="flex-shrink-0">
                               {(() => {
                                 const now = Date.now()
                                 const created = new Date(workspace.createdAt).getTime()
 
-                                // Validate date - if invalid or too old (before 2020), show "just now"
                                 if (isNaN(created) || created < new Date('2020-01-01').getTime()) {
-                                  return 'just now'
+                                  return 'now'
                                 }
 
                                 const diff = now - created
@@ -474,7 +479,7 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                                 const hours = Math.floor(diff / 3600000)
                                 const days = Math.floor(diff / 86400000)
 
-                                if (minutes < 1) return 'just now'
+                                if (minutes < 1) return 'now'
                                 if (minutes < 60) return `${minutes}m ago`
                                 if (hours < 24) return `${hours}h ago`
                                 if (days < 7) return `${days}d ago`
