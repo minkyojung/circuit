@@ -222,6 +222,17 @@
     /* shadcn sidebar compat (HSL) */
     --sidebar-background: 0 0% 91%;                  /* #E9E9E9 */
 
+    /* Status Bar colors */
+    --statusbar-bg: oklch(0.97 0 0);                 /* #F7F7F7 - Lighter */
+    --statusbar-border: var(--separator-opaque);
+    --statusbar-label: rgba(0, 0, 0, 0.6);           /* 60% - Label text */
+    --statusbar-value: rgba(0, 0, 0, 0.45);          /* 45% - Value text */
+    --statusbar-progress-bg: rgba(0, 0, 0, 0.08);    /* Progress bar track */
+    --statusbar-progress-green: oklch(0.55 0.22 150);   /* Green - same as success */
+    --statusbar-progress-yellow: oklch(0.65 0.22 80);   /* Yellow - same as warning */
+    --statusbar-progress-orange: oklch(0.62 0.20 50);   /* Orange */
+    --statusbar-progress-red: oklch(0.55 0.30 25);      /* Red - same as destructive */
+
     /* Git status colors */
     --status-merged: oklch(0.55 0.25 290);           /* Purple - more vibrant */
     --status-working: oklch(0.62 0.18 60);           /* Yellow-orange - more vibrant */
@@ -349,6 +360,17 @@
 
     /* shadcn sidebar compat (HSL) */
     --sidebar-background: 0 0% 12%;                  /* Dark sidebar */
+
+    /* Status Bar colors - dark variant */
+    --statusbar-bg: oklch(0.18 0 0);                 /* #2A2A2A - Lighter */
+    --statusbar-border: var(--separator-opaque);
+    --statusbar-label: rgba(255, 255, 255, 0.45);    /* 45% - Label text (darker) */
+    --statusbar-value: rgba(255, 255, 255, 0.35);    /* 35% - Value text (darker) */
+    --statusbar-progress-bg: rgba(0, 0, 0, 0.4);     /* Progress bar track - much darker */
+    --statusbar-progress-green: oklch(0.70 0.25 150);   /* Very bright green */
+    --statusbar-progress-yellow: oklch(0.75 0.25 80);   /* Very bright yellow */
+    --statusbar-progress-orange: oklch(0.72 0.23 50);   /* Very bright orange */
+    --statusbar-progress-red: oklch(0.70 0.33 25);      /* Very bright red */
 
     /* Git status colors - brightened for visibility */
     --status-merged: oklch(0.65 0.28 290);           /* Brighter purple - more vibrant */

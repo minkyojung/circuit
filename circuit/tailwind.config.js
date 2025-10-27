@@ -166,6 +166,17 @@ export default {
           diverged: 'var(--status-diverged)',
           synced: 'var(--status-synced)',
           local: 'var(--status-local)'
+        },
+        statusbar: {
+          DEFAULT: 'var(--statusbar-bg)',
+          border: 'var(--statusbar-border)',
+          label: 'var(--statusbar-label)',
+          value: 'var(--statusbar-value)',
+          'progress-bg': 'var(--statusbar-progress-bg)',
+          'progress-green': 'var(--statusbar-progress-green)',
+          'progress-yellow': 'var(--statusbar-progress-yellow)',
+          'progress-orange': 'var(--statusbar-progress-orange)',
+          'progress-red': 'var(--statusbar-progress-red)'
         }
       },
       keyframes: {

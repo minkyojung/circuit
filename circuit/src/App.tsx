@@ -3,6 +3,7 @@ import { WorkspaceChatEditor } from "@/components/workspace"
 import { CommitDialog } from "@/components/workspace/CommitDialog"
 import { CommandPalette } from "@/components/CommandPalette"
 import { AppSidebar } from "@/components/AppSidebar"
+import { StatusBar } from "@/components/statusbar/StatusBar"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -298,6 +299,9 @@ function App() {
               </div>
             )}
           </div>
+
+          {/* Status Bar - Bottom */}
+          <StatusBar />
         </SidebarInset>
       </SidebarProvider>
 
