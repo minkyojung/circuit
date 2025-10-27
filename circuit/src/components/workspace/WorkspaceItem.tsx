@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import type { Workspace, WorkspaceStatus } from '@/types/workspace';
 import {
-  Trash2, GitBranch, Check, GitMerge, ArrowUp, ArrowDown, GitCommit, Loader2,
+  Trash2, GitBranch,
   FolderOpen, GitPullRequest, RefreshCw, Terminal
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -21,31 +21,6 @@ interface WorkspaceItemProps {
   onSelect: (workspace: Workspace) => void;
   onDelete: (workspaceId: string) => void;
 }
-
-const getStatusBadge = (status?: WorkspaceStatus) => {
-  if (!status) {
-    return { icon: <Loader2 size={12} className="animate-spin" />, text: 'Loading...', className: 'bg-muted text-muted-foreground' };
-  }
-
-  switch (status.status) {
-    case 'merged':
-      return { icon: <GitMerge size={12} />, text: 'Merged', className: 'bg-status-merged/10 text-status-merged' };
-    case 'working':
-      return { icon: <GitCommit size={12} />, text: 'Working', className: 'bg-status-working/10 text-status-working' };
-    case 'ahead':
-      return { icon: <ArrowUp size={12} />, text: `Ahead ${status.ahead}`, className: 'bg-status-ahead/10 text-status-ahead' };
-    case 'behind':
-      return { icon: <ArrowDown size={12} />, text: `Behind ${status.behind}`, className: 'bg-status-behind/10 text-status-behind' };
-    case 'diverged':
-      return { icon: <GitCommit size={12} />, text: 'Diverged', className: 'bg-status-diverged/10 text-status-diverged' };
-    case 'synced':
-      return { icon: <Check size={12} />, text: 'Synced', className: 'bg-status-synced/10 text-status-synced' };
-    case 'local':
-      return { icon: <GitBranch size={12} />, text: 'Local Only', className: 'bg-muted text-muted-foreground' };
-    default:
-      return { icon: <Loader2 size={12} />, text: 'Unknown', className: 'bg-muted text-muted-foreground' };
-  }
-};
 
 export const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
   workspace,

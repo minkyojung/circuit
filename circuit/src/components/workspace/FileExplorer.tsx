@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react'
-import { Folder, ChevronRight, Search, X, MoreHorizontal, RefreshCw, ChevronsDownUp, Copy, FileEdit, Trash2, FolderOpen } from 'lucide-react'
+import { Folder, ChevronRight, Search, X, MoreHorizontal, RefreshCw, ChevronsDownUp, Copy, FileEdit, Trash2 } from 'lucide-react'
 import { getIconForFile } from 'vscode-material-icon-theme-js'
 import { cn } from '@/lib/utils'
 import {

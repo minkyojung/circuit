@@ -14,13 +14,10 @@ interface UsageBarProps {
 }
 
 export const UsageBar: React.FC<UsageBarProps> = ({
-  input,
-  output,
   total,
   percentage,
   planLimit,
   burnRate,
-  timeLeft,
   resetTime
 }) => {
   const getColor = () => {
