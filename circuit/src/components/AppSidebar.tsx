@@ -464,12 +464,12 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                                 const days = Math.floor(diff / 86400000)
 
                                 if (minutes < 1) return 'just now'
-                                if (minutes < 60) return `${minutes}m`
-                                if (hours < 24) return `${hours}h`
-                                if (days < 7) return `${days}d`
-                                if (days < 30) return `${Math.floor(days / 7)}w`
-                                if (days < 365) return `${Math.floor(days / 30)}mo`
-                                return `${Math.floor(days / 365)}y`
+                                if (minutes < 60) return `${minutes}m ago`
+                                if (hours < 24) return `${hours}h ago`
+                                if (days < 7) return `${days}d ago`
+                                if (days < 30) return `${Math.floor(days / 7)}w ago`
+                                if (days < 365) return `${Math.floor(days / 30)}mo ago`
+                                return `${Math.floor(days / 365)}y ago`
                               })()}
                             </span>
                           </div>
