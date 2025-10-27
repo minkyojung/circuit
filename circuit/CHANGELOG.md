@@ -8,6 +8,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Real-time time display updates for metrics (updates every minute)
+- Auto-polling mechanism for metrics (every 10 seconds)
+- Auto-refresh after compact command execution (3-second delay)
+
+### Fixed
+- Memory leaks in metrics polling and compact timeout handling
+- Stale time display in ContextBar (e.g., "10m ago" not updating)
+- Context tracker O(n²) performance issue with large session files
+- TypeScript strict mode compilation errors (unused imports/variables)
+- Compact detection now verifies actual context reduction (30% threshold)
+
+### Changed
+- Optimized context tracker to single-pass O(n) algorithm
+- Improved compact verification with pre/post token comparison
+- Removed verbose debug logs from metrics manager
+- Enhanced cleanup mechanisms for React hooks and intervals
+
+### Performance
+- 50%+ performance improvement for large session.jsonl files (1000+ lines)
+- Reduced memory usage by eliminating duplicate JSON parsing
+- Prevented UI freezing during metrics calculation
+
+### Added (Previous)
 - Apple HIG-compliant vibrancy text colors using RGBA opacity for glassmorphism
   - Light mode: rgba(0, 0, 0, 0.85) for primary text, rgba(0, 0, 0, 0.50) for muted
   - Dark mode: rgba(255, 255, 255, 0.85) for primary text, rgba(255, 255, 255, 0.55) for muted
