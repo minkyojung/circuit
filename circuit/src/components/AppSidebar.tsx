@@ -399,96 +399,56 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                           >
                       {/* Improved layout */}
                       <div className="flex items-start gap-3 w-full min-w-0">
-                        {/* Icon */}
-                        <FolderGit2 size={18} strokeWidth={1.5} className="flex-shrink-0 mt-0.5 text-sidebar-foreground-muted" />
+                        {/* Icon with status glow */}
+                        <FolderGit2
+                          size={18}
+                          strokeWidth={1.5}
+                          className={cn(
+                            "flex-shrink-0 mt-0.5 transition-all duration-300",
+                            status?.clean
+                              ? "text-status-synced drop-shadow-[0_0_6px_rgba(34,197,94,0.5)]"
+                              : "text-status-behind drop-shadow-[0_0_6px_rgba(249,115,22,0.5)]"
+                          )}
+                        />
 
                         {/* Content */}
                         <div className="flex-1 min-w-0 space-y-1">
                           {/* Top row: Name + Status Badge */}
                           <div className="flex items-center gap-2">
-                            <span className="text-base font-medium text-sidebar-foreground-muted truncate flex-1">
+                            <span className="text-base font-normal text-sidebar-foreground-muted truncate flex-1">
                               {workspace.name}
                             </span>
 
-                            {/* Clean status: hoverable archive button */}
-                            <AnimatePresence mode="wait">
-                              {status?.status === 'merged' || (status?.clean && !isMerged) ? (
-                                <motion.button
-                                  key="archive-button"
-                                  initial={{ opacity: 0, scale: 0.9 }}
-                                  animate={{ opacity: 1, scale: 1 }}
-                                  exit={{ opacity: 0, scale: 0.9 }}
-                                  transition={{ duration: 0.15 }}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteWorkspace(e, workspace.id, workspace.name, true);
-                                  }}
-                                  className={cn(
-                                    "group/badge inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md font-semibold flex-shrink-0 transition-all",
-                                    status?.status === 'merged'
-                                      ? "bg-status-merged/10 text-status-merged hover:bg-orange-500/20 hover:text-orange-600"
-                                      : "bg-status-synced/10 text-status-synced hover:bg-orange-500/20 hover:text-orange-600"
-                                  )}
-                                >
-                                  <Archive size={12} strokeWidth={1.5} className="opacity-0 group-hover/badge:opacity-100 -ml-1 group-hover/badge:ml-0 transition-all" />
-                                  <span className="group-hover/badge:hidden">
-                                    {status?.status === 'merged' ? 'Merged' : 'Clean'}
-                                  </span>
-                                  <span className="hidden group-hover/badge:inline">Archive</span>
-                                </motion.button>
-                              ) : (
-                                <motion.div
-                                  key={`badge-${badge.text}`}
-                                  initial={{ opacity: 0, scale: 0.9 }}
-                                  animate={{ opacity: 1, scale: 1 }}
-                                  exit={{ opacity: 0, scale: 0.9 }}
-                                  transition={{ duration: 0.15 }}
-                                  className={cn(
-                                    "inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md font-semibold flex-shrink-0",
-                                    badge.className
-                                  )}
-                                >
-                                  <AnimatePresence mode="wait">
-                                    <motion.span
-                                      key={badge.text}
-                                      initial={{ opacity: 0, rotate: -45, scale: 0.6 }}
-                                      animate={{ opacity: 1, rotate: 0, scale: 1 }}
-                                      exit={{ opacity: 0, rotate: 45, scale: 0.6 }}
-                                      transition={{ duration: 0.2 }}
-                                      className="inline-flex"
-                                    >
-                                      {badge.icon}
-                                    </motion.span>
-                                  </AnimatePresence>
-                                  <span>{badge.text}</span>
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
-                          </div>
-
-                          {/* Bottom row: Metadata and stats (always visible) */}
-                          <div className="flex items-center gap-1 text-xs opacity-40 text-sidebar-foreground">
-                            {/* Branch name - always show */}
-                            <span className="text-xs flex-shrink-0">{workspace.branch}</span>
-
-                            {/* Code stats - files changed */}
+                            {/* Diff stats - only show when dirty */}
                             {status && !status.clean && (
-                              <div className="flex items-center gap-1 flex-shrink-0">
+                              <motion.div
+                                initial={{ opacity: 0, x: -10 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -10 }}
+                                transition={{ duration: 0.2 }}
+                                className="flex items-center gap-1.5 text-sm font-mono flex-shrink-0"
+                              >
                                 {(status.added > 0 || status.modified > 0) && (
-                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-status-synced/10 text-status-synced text-xs font-mono font-medium">
+                                  <span className="text-status-synced">
                                     +{status.added + status.modified}
                                   </span>
                                 )}
                                 {status.deleted > 0 && (
-                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-status-behind/10 text-status-behind text-xs font-mono font-medium">
+                                  <span className="text-status-behind">
                                     -{status.deleted}
                                   </span>
                                 )}
-                              </div>
+                              </motion.div>
                             )}
+                          </div>
+
+                          {/* Bottom row: Metadata (always visible) */}
+                          <div className="flex items-center gap-1 text-sm font-normal opacity-40 text-sidebar-foreground">
+                            {/* Branch name - always show */}
+                            <span className="text-sm font-normal flex-shrink-0">{workspace.branch}</span>
 
                             {/* Creation time - relative format */}
-                            <span className="flex-shrink-0 text-xs">
+                            <span className="flex-shrink-0 text-sm font-normal">
                               {(() => {
                                 const now = Date.now()
                                 const created = new Date(workspace.createdAt).getTime()
@@ -527,7 +487,7 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
         </SidebarGroup>
 
         {/* New Workspace Button */}
-        <div className="px-2 pb-2">
+        <div className="px-2 py-2">
           <Button
             variant="ghost"
             onClick={createWorkspace}
@@ -541,12 +501,17 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
 
         {/* Files Section (only when workspace selected) */}
         {selectedWorkspace && (
-          <FileExplorer
-            fileTree={fileTree}
-            isLoading={isLoadingFiles}
-            onFileSelect={onFileSelect}
-            selectedFile={selectedFile}
-          />
+          <>
+            <div className="px-6 py-2">
+              <div className="h-px bg-sidebar-border opacity-30" />
+            </div>
+            <FileExplorer
+              fileTree={fileTree}
+              isLoading={isLoadingFiles}
+              onFileSelect={onFileSelect}
+              selectedFile={selectedFile}
+            />
+          </>
         )}
       </SidebarContent>
 
