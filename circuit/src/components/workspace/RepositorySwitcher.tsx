@@ -57,13 +57,14 @@ export const RepositorySwitcher: React.FC<RepositorySwitcherProps> = ({
         )}
       >
         {/* Repository Info - Single Line */}
-        <span className="text-sm font-medium text-sidebar-foreground-muted truncate">
+        <span className="text-base font-normal text-sidebar-foreground-muted truncate">
           {currentRepository.name} - {currentRepository.defaultBranch || 'main'}
         </span>
 
         {/* Chevron */}
         <ChevronDown
-          size={16}
+          size={18}
+          strokeWidth={1.5}
           className={cn(
             "flex-shrink-0 text-sidebar-foreground-muted transition-transform duration-200",
             isOpen && "rotate-180"
@@ -93,10 +94,10 @@ export const RepositorySwitcher: React.FC<RepositorySwitcherProps> = ({
                     animate={false}
                   />
                   <div className="flex flex-col flex-1 min-w-0">
-                    <span className="text-sm font-medium text-foreground truncate">
+                    <span className="text-base font-normal text-foreground truncate">
                       {currentRepository.name}
                     </span>
-                    <span className="text-xs text-muted-foreground truncate">
+                    <span className="text-xs font-normal text-muted-foreground truncate">
                       {currentRepository.defaultBranch || 'main'}
                     </span>
                   </div>
@@ -136,10 +137,10 @@ export const RepositorySwitcher: React.FC<RepositorySwitcherProps> = ({
                           animate={false}
                         />
                         <div className="flex flex-col items-start flex-1 min-w-0">
-                          <span className="text-sm font-medium text-foreground truncate w-full">
+                          <span className="text-base font-normal text-foreground truncate w-full">
                             {repo.name}
                           </span>
-                          <span className="text-xs text-muted-foreground truncate w-full">
+                          <span className="text-xs font-normal text-muted-foreground truncate w-full">
                             {repo.defaultBranch || 'main'}
                           </span>
                         </div>
@@ -163,8 +164,8 @@ export const RepositorySwitcher: React.FC<RepositorySwitcherProps> = ({
                   "text-sidebar-foreground-muted hover:text-sidebar-foreground"
                 )}
               >
-                <FolderPlus size={16} />
-                <span className="text-sm font-medium">Add Local Repository</span>
+                <FolderPlus size={18} strokeWidth={1.5} />
+                <span className="text-base font-normal">Add Local Repository</span>
               </button>
 
               <button
@@ -179,8 +180,8 @@ export const RepositorySwitcher: React.FC<RepositorySwitcherProps> = ({
                   "text-sidebar-foreground-muted hover:text-sidebar-foreground"
                 )}
               >
-                <GitBranch size={16} />
-                <span className="text-sm font-medium">Clone from Git</span>
+                <GitBranch size={18} strokeWidth={1.5} />
+                <span className="text-base font-normal">Clone from Git</span>
               </button>
             </div>
           </div>
