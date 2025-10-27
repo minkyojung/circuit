@@ -69,7 +69,6 @@ export class MetricsManager extends EventEmitter {
       }
 
       this.currentSessionPath = sessionPath;
-      console.log('[MetricsManager] Watching:', sessionPath);
 
       // 초기 메트릭 계산
       await this.updateMetrics();
@@ -81,7 +80,6 @@ export class MetricsManager extends EventEmitter {
       });
 
       this.watcher.on('change', async () => {
-        console.log('[MetricsManager] Session file changed, updating metrics...');
         await this.updateMetrics();
       });
 
@@ -123,11 +121,6 @@ export class MetricsManager extends EventEmitter {
       // Frontend에 메트릭 전송
       this.emit('metrics-updated', metrics);
 
-      console.log('[MetricsManager] Metrics updated:', {
-        usage: `${metrics.usage.total}/${metrics.usage.planLimit} (${metrics.usage.percentage.toFixed(1)}%)`,
-        context: `${metrics.context.current}/${metrics.context.limit} (${metrics.context.percentage.toFixed(1)}%)`
-      });
-
     } catch (error) {
       console.error('[MetricsManager] Error updating metrics:', error);
       this.emit('error', error);
@@ -156,7 +149,6 @@ export class MetricsManager extends EventEmitter {
     if (this.watcher) {
       this.watcher.close();
       this.watcher = null;
-      console.log('[MetricsManager] Watcher stopped');
     }
   }
 }
