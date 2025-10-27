@@ -31,7 +31,7 @@ export interface UsageMetrics {
 
 export class UsageParser {
   /**
-   * Claude Code 세션 파일 위치 찾기
+   * Claude Code 세션 파일 위치 찾기 (실시간 활성 세션 감지)
    */
   async findSessionFile(projectPath?: string): Promise<string | null> {
     try {
@@ -53,26 +53,59 @@ export class UsageParser {
         }
       }
 
-      // 가장 최근 수정된 .jsonl 찾기 (session.jsonl 또는 UUID.jsonl)
+      // 🔥 NEW: 실시간 활성 세션 감지 (최근 이벤트 기준)
       const dirs = await fs.readdir(claudeDir);
-      let latestFile: string | null = null;
-      let latestMtime = 0;
+      let bestFile: string | null = null;
+      let latestEventTime = 0;
 
       for (const dir of dirs) {
         const dirPath = path.join(claudeDir, dir);
         try {
           const files = await fs.readdir(dirPath);
 
-          // 모든 .jsonl 파일 검사
           for (const file of files) {
             if (!file.endsWith('.jsonl')) continue;
 
             const filePath = path.join(dirPath, file);
-            const stats = await fs.stat(filePath);
 
-            if (stats.mtimeMs > latestMtime) {
-              latestMtime = stats.mtimeMs;
-              latestFile = filePath;
+            // 파일의 마지막 이벤트 timestamp 확인 (최적화: 마지막 8KB만 읽기)
+            try {
+              const stats = await fs.stat(filePath);
+              const fileSize = stats.size;
+
+              // 작은 파일은 전체 읽기, 큰 파일은 마지막 8KB만
+              let content: string;
+              if (fileSize < 8192) {
+                content = await fs.readFile(filePath, 'utf-8');
+              } else {
+                const handle = await fs.open(filePath, 'r');
+                try {
+                  const buffer = Buffer.alloc(8192);
+                  await handle.read(buffer, 0, 8192, fileSize - 8192);
+                  content = buffer.toString('utf-8');
+                } finally {
+                  await handle.close();
+                }
+              }
+
+              // 마지막 완전한 라인만 파싱
+              const lines = content.trim().split('\n');
+              if (lines.length === 0) continue;
+
+              const lastLine = lines[lines.length - 1];
+              const lastEvent: any = JSON.parse(lastLine);
+              const eventTime = new Date(lastEvent.timestamp).getTime();
+
+              // 5시간 이내의 최신 이벤트를 가진 파일 선택
+              const fiveHoursAgo = Date.now() - (5 * 60 * 60 * 1000);
+
+              if (eventTime > fiveHoursAgo && eventTime > latestEventTime) {
+                latestEventTime = eventTime;
+                bestFile = filePath;
+              }
+            } catch {
+              // 파일 읽기 실패 시 skip
+              continue;
             }
           }
         } catch {
@@ -80,8 +113,15 @@ export class UsageParser {
         }
       }
 
-      console.log('[UsageParser] Latest JSONL found:', latestFile);
-      return latestFile;
+      if (bestFile) {
+        const timeSince = Math.floor((Date.now() - latestEventTime) / 60000);
+        console.log(`[UsageParser] Found active session: ${bestFile} (${timeSince}m ago)`);
+        return bestFile;
+      }
+
+      // Fallback: 5시간 이내 활성 세션이 없으면 null 반환 (Mock 데이터 사용)
+      console.warn('[UsageParser] No active session found within 5h window');
+      return null;
     } catch (error) {
       console.error('[UsageParser] Error finding session file:', error);
       return null;

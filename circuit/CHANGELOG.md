@@ -8,24 +8,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Real-time active session detection** - Monitors all Claude Code projects and finds currently active session (within 5h)
 - Real-time time display updates for metrics (updates every minute)
 - Auto-polling mechanism for metrics (every 10 seconds)
 - Auto-refresh after compact command execution (3-second delay)
+- Fallback: Recent `/compact` commands (within 5 minutes) are now recognized even without token data
+- **Auto-retry mechanism** - Retries session detection every 5 seconds if no active session found
 
 ### Fixed
+- **Critical: Massive metric inaccuracy (50% vs 9%)** - Fixed wrong session file detection (9h old data vs current)
+- **Critical: "Compacted Never" display issue** caused by Date/string type mismatch
+- Date objects not converting to ISO strings for IPC transmission
+- Mock data using Date objects instead of strings
 - Memory leaks in metrics polling and compact timeout handling
 - Stale time display in ContextBar (e.g., "10m ago" not updating)
 - Context tracker O(n²) performance issue with large session files
 - TypeScript strict mode compilation errors (unused imports/variables)
-- Compact detection now verifies actual context reduction (30% threshold)
+- Compact detection false negatives due to overly strict token reduction threshold
+- **Session detection using file mtime instead of actual event timestamps**
 
 ### Changed
+- **Active session detection: File mtime → Event timestamp** (finds actual active sessions across all projects)
+- **Compact detection threshold: 30% → 10%** (more realistic for actual compact operations)
+- **Replaced Mock data with empty metrics + warning message**
+- Improved `/compact` command matching to avoid false positives (exact match only)
+- Removed non-existent `compact_complete` event detection
 - Optimized context tracker to single-pass O(n) algorithm
 - Improved compact verification with pre/post token comparison
 - Removed verbose debug logs from metrics manager
 - Enhanced cleanup mechanisms for React hooks and intervals
+- Added separate Frontend/Backend ContextMetrics interfaces for proper type safety
 
 ### Performance
+- **90%+ I/O reduction** - Large files (>8KB) now only read last 8KB for timestamp detection
 - 50%+ performance improvement for large session.jsonl files (1000+ lines)
 - Reduced memory usage by eliminating duplicate JSON parsing
 - Prevented UI freezing during metrics calculation

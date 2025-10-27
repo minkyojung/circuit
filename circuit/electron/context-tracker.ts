@@ -92,7 +92,7 @@ export class ContextTracker {
           }
         }
 
-        // /compact 명령 감지 (역순 대신 최신 것만 유지)
+        // /compact 명령 감지 (정확한 매칭)
         if (event.type === 'user') {
           const content = Array.isArray(event.message?.content)
             ? event.message.content.find((c: any) => typeof c === 'string' || c?.type === 'text')
@@ -100,14 +100,10 @@ export class ContextTracker {
 
           const textContent = typeof content === 'string' ? content : content?.text || '';
 
-          if (textContent.trim() === '/compact' || textContent.includes('compact')) {
+          // 정확히 /compact 명령만 감지 (다른 "compact" 단어는 무시)
+          if (textContent.trim() === '/compact') {
             lastCompactCommand = { timestamp, index: i };
           }
-        }
-
-        // compact_complete 이벤트 (최우선)
-        if (event.type === 'compact_complete') {
-          lastCompactCommand = { timestamp, index: i };
         }
 
         // 토큰 수집
@@ -122,7 +118,7 @@ export class ContextTracker {
       }
     }
 
-    // compact 검증 (전후 토큰 비교)
+    // compact 검증 (전후 토큰 비교 - 완화된 기준)
     let verifiedCompact: Date | null = null;
     if (lastCompactCommand) {
       const tokensBeforeCompact: number[] = [];
@@ -136,12 +132,19 @@ export class ContextTracker {
         }
       }
 
+      // 토큰 감소 확인 (10% 이상 감소면 유효한 compact로 인정)
       if (tokensBeforeCompact.length > 0 && tokensAfterCompact.length > 0) {
         const avgBefore = tokensBeforeCompact.reduce((a, b) => a + b, 0) / tokensBeforeCompact.length;
         const avgAfter = tokensAfterCompact.reduce((a, b) => a + b, 0) / tokensAfterCompact.length;
         const reductionRate = (avgBefore - avgAfter) / avgBefore;
 
-        if (reductionRate >= 0.3) {
+        if (reductionRate >= 0.1) {  // 10% 이상 감소
+          verifiedCompact = lastCompactCommand.timestamp;
+        }
+      } else if (lastCompactCommand) {
+        // 토큰 데이터가 없으면 /compact 명령만으로도 인정 (최근 5분 이내)
+        const timeSinceCompact = Date.now() - lastCompactCommand.timestamp.getTime();
+        if (timeSinceCompact < 5 * 60 * 1000) {  // 5분 이내
           verifiedCompact = lastCompactCommand.timestamp;
         }
       }

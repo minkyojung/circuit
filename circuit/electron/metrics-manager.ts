@@ -6,7 +6,18 @@
 import * as chokidar from 'chokidar';
 import { EventEmitter } from 'events';
 import { UsageParser, UsageMetrics } from './usage-parser.js';
-import { ContextTracker, ContextMetrics } from './context-tracker.js';
+import { ContextTracker, ContextMetrics as ContextMetricsInternal } from './context-tracker.js';
+
+// Frontend용 ContextMetrics (Date → string 변환)
+export interface ContextMetrics {
+  current: number;
+  limit: number;
+  percentage: number;
+  lastCompact: string | null;
+  sessionStart: string;
+  prunableTokens: number;
+  shouldCompact: boolean;
+}
 
 export interface CircuitMetrics {
   usage: UsageMetrics;
@@ -36,34 +47,40 @@ export class MetricsManager extends EventEmitter {
       const sessionPath = await this.usageParser.findSessionFile(projectPath);
 
       if (!sessionPath) {
-        console.warn('[MetricsManager] No session.jsonl found - using mock data for demo');
+        console.warn('[MetricsManager] ⚠️  No active Claude Code session found (within 5h)');
+        console.warn('[MetricsManager] Please start Claude Code or wait for session activity');
 
-        // Mock 데이터로 UI 테스트
-        const mockMetrics: CircuitMetrics = {
+        // 빈 메트릭 반환 (Mock 대신)
+        const emptyMetrics: CircuitMetrics = {
           usage: {
-            input: 25000,
-            output: 18500,
-            total: 43500,
-            percentage: 19.8,
-            planLimit: 220000,
-            burnRate: 8200,
-            timeLeft: 192,
-            resetTime: 206  // 3h 26m until window resets
+            input: 0,
+            output: 0,
+            total: 0,
+            percentage: 0,
+            planLimit: 44000,
+            burnRate: 0,
+            timeLeft: 0,
+            resetTime: 0
           },
           context: {
-            current: 165000,
+            current: 0,
             limit: 200000,
-            percentage: 82.5,
-            lastCompact: new Date(Date.now() - 2 * 60 * 60 * 1000),
-            sessionStart: new Date(Date.now() - 5 * 60 * 60 * 1000),
-            prunableTokens: 57750,
+            percentage: 0,
+            lastCompact: null,
+            sessionStart: new Date().toISOString(),
+            prunableTokens: 0,
             shouldCompact: false
           },
           timestamp: Date.now()
         };
 
-        this.lastMetrics = mockMetrics;
-        this.emit('metrics-updated', mockMetrics);
+        this.lastMetrics = emptyMetrics;
+        this.emit('metrics-updated', emptyMetrics);
+
+        // 5초 후 재시도
+        setTimeout(() => {
+          this.start(projectPath).catch(console.error);
+        }, 5000);
 
         return;
       }
@@ -105,10 +122,17 @@ export class MetricsManager extends EventEmitter {
 
     try {
       // Usage와 Context 동시 계산
-      const [usage, context] = await Promise.all([
+      const [usage, contextRaw] = await Promise.all([
         this.usageParser.parseUsage(this.currentSessionPath),
         this.contextTracker.calculateContext(this.currentSessionPath),
       ]);
+
+      // Date 객체를 ISO string으로 변환 (Frontend와 타입 일치)
+      const context = {
+        ...contextRaw,
+        lastCompact: contextRaw.lastCompact ? contextRaw.lastCompact.toISOString() : null,
+        sessionStart: contextRaw.sessionStart.toISOString()
+      };
 
       const metrics: CircuitMetrics = {
         usage,
