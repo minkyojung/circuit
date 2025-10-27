@@ -30,7 +30,7 @@ export const DotMatrixAvatar: React.FC<DotMatrixAvatarProps> = ({
   return (
     <div
       className={cn(
-        'flex items-center justify-center rounded-full font-semibold flex-shrink-0',
+        'flex items-center justify-center rounded-md font-semibold flex-shrink-0',
         sizeConfig.container,
         sizeConfig.text,
         className

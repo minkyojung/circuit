@@ -18,7 +18,7 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
-import { ThemeToggle } from '@/components/ThemeToggle'
+import { SidebarFooter as CustomSidebarFooter } from '@/components/SidebarFooter'
 import { motion, AnimatePresence } from 'framer-motion'
 import { listItemVariants } from '@/lib/motion-tokens'
 
@@ -512,35 +512,18 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
 
         {/* Files Section (only when workspace selected) */}
         {selectedWorkspace && (
-          <>
-            <div className="px-6 py-2 flex items-center gap-2">
-              <div className="h-px bg-sidebar-border opacity-30 flex-1" />
-              <button
-                onClick={handleRefreshFileTree}
-                className="text-sidebar-foreground-muted opacity-40 hover:opacity-100 transition-opacity duration-200"
-                title="Refresh file tree"
-              >
-                <RefreshCw size={12} strokeWidth={1.5} />
-              </button>
-              <button
-                className="text-sidebar-foreground-muted opacity-40 hover:opacity-100 transition-opacity duration-200"
-                title="Collapse all folders"
-              >
-                <ChevronsDownUp size={12} strokeWidth={1.5} />
-              </button>
-            </div>
-            <FileExplorer
-              fileTree={fileTree}
-              isLoading={isLoadingFiles}
-              onFileSelect={onFileSelect}
-              selectedFile={selectedFile}
-            />
-          </>
+          <FileExplorer
+            fileTree={fileTree}
+            isLoading={isLoadingFiles}
+            onFileSelect={onFileSelect}
+            selectedFile={selectedFile}
+            onRefresh={handleRefreshFileTree}
+          />
         )}
       </SidebarContent>
 
       <SidebarFooter>
-        <ThemeToggle className="w-full justify-start text-sidebar-foreground-muted transition-all duration-200 ease-out hover:bg-sidebar-hover" />
+        <CustomSidebarFooter />
       </SidebarFooter>
     </Sidebar>
 

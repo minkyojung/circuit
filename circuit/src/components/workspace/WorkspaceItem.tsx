@@ -1,7 +1,18 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { Workspace, WorkspaceStatus } from '@/types/workspace';
-import { Trash2, GitBranch, FolderGit2, Check, GitMerge, ArrowUp, ArrowDown, GitCommit, Loader2 } from 'lucide-react';
+import {
+  Trash2, FolderGit2, Check, GitMerge, ArrowUp, ArrowDown, GitCommit, Loader2,
+  FolderOpen, GitPullRequest, RefreshCw, Terminal
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
 
 interface WorkspaceItemProps {
   workspace: Workspace;
@@ -43,83 +54,192 @@ export const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
   onSelect,
   onDelete,
 }) => {
-  const handleDelete = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const [isHovered, setIsHovered] = useState(false);
+
+  const handleDelete = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
     if (confirm(`Delete workspace "${workspace.name}"?`)) {
       onDelete(workspace.id);
     }
   };
 
-  const badge = getStatusBadge(status);
+  const handleOpenInFinder = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    // TODO: Implement open in Finder
+    console.log('Open in Finder:', workspace.path);
+  };
 
-  // Check if workspace name and branch are the same (hide branch if redundant)
-  const showBranch = workspace.name !== workspace.branch;
+  const handleOpenInTerminal = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    // TODO: Implement open in Terminal
+    console.log('Open in Terminal:', workspace.path);
+  };
+
+  const handleCreatePR = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    // TODO: Implement create PR
+    console.log('Create PR:', workspace.id);
+  };
+
+  const handleRefreshStatus = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    // TODO: Implement refresh status
+    console.log('Refresh status:', workspace.id);
+  };
 
   return (
-    <div
-      className={cn(
-        "group px-3 py-2 mx-2 mb-1 cursor-pointer rounded-md transition-all duration-200 ease-out",
-        "hover:bg-sidebar-hover",
-        isActive ? "bg-sidebar-accent" : "bg-transparent"
-      )}
-      onClick={() => onSelect(workspace)}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1 min-w-0">
-          {/* Workspace Name */}
-          <div className="flex items-center gap-2 mb-1">
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <motion.div
+          className={cn(
+            "group px-2 py-2 mx-2 mb-1 cursor-pointer rounded-md transition-all duration-200 ease-out",
+            "hover:bg-sidebar-hover",
+            isActive ? "bg-sidebar-accent" : "bg-transparent"
+          )}
+          onClick={() => onSelect(workspace)}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+          whileHover={{ scale: 1.01 }}
+          whileTap={{ scale: 0.98 }}
+          transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
+        >
+          <div className="flex items-start gap-3 w-full min-w-0">
+            {/* Icon with status glow */}
             <FolderGit2
-              size={14}
+              size={18}
+              strokeWidth={1.5}
               className={cn(
-                "flex-shrink-0",
-                isActive ? "text-sidebar-foreground" : "text-sidebar-foreground-muted"
+                "flex-shrink-0 mt-0.5 transition-all duration-300",
+                status?.clean
+                  ? "text-status-synced drop-shadow-[0_0_6px_rgba(34,197,94,0.5)]"
+                  : "text-status-behind drop-shadow-[0_0_6px_rgba(249,115,22,0.5)]"
               )}
             />
-            <span className={cn(
-              "text-sm font-medium truncate",
-              isActive ? "text-sidebar-foreground" : "text-sidebar-foreground-muted"
-            )}>
-              {workspace.name}
-            </span>
-          </div>
 
-          {/* Branch (only if different from workspace name) */}
-          {showBranch && (
-            <div className="flex items-center gap-1.5 mb-1 ml-5">
-              <GitBranch size={10} className="text-sidebar-foreground-muted flex-shrink-0" />
-              <span className="text-[11px] text-sidebar-foreground-muted truncate">{workspace.branch}</span>
-            </div>
-          )}
+            {/* Content */}
+            <div className="flex-1 min-w-0 space-y-1">
+              {/* Top row: Name */}
+              <div className="flex items-center gap-2">
+                <span className="text-base font-normal text-sidebar-foreground-muted truncate flex-1">
+                  {workspace.name}
+                </span>
 
-          {/* Status Badge and File Changes */}
-          <div className="ml-5 flex items-center gap-2 flex-wrap">
-            <div className={cn(
-              "inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded font-medium",
-              badge.className
-            )}>
-              {badge.icon}
-              <span>{badge.text}</span>
-            </div>
-
-            {status && !status.clean && (
-              <div className="text-[10px] text-status-working">
-                {status.modified > 0 && `${status.modified}M`}
-                {status.added > 0 && ` ${status.added}A`}
-                {status.deleted > 0 && ` ${status.deleted}D`}
-                {status.untracked > 0 && ` ${status.untracked}U`}
+                {/* Diff stats - only show when dirty */}
+                {status && !status.clean && (
+                  <motion.div
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -10 }}
+                    transition={{ duration: 0.2 }}
+                    className="flex items-center gap-1.5 text-sm font-mono flex-shrink-0"
+                  >
+                    {(status.added > 0 || status.modified > 0) && (
+                      <span className="text-status-synced">
+                        +{status.added + status.modified}
+                      </span>
+                    )}
+                    {status.deleted > 0 && (
+                      <span className="text-status-behind">
+                        -{status.deleted}
+                      </span>
+                    )}
+                  </motion.div>
+                )}
               </div>
-            )}
-          </div>
-        </div>
 
-        {/* Delete Button */}
-        <button
-          onClick={handleDelete}
-          className="flex-shrink-0 p-1 text-sidebar-foreground-muted hover:text-destructive transition-colors opacity-0 group-hover:opacity-100"
-        >
-          <Trash2 size={12} />
-        </button>
-      </div>
-    </div>
+              {/* Bottom row: Metadata */}
+              <div className="flex items-center gap-1 text-sm font-normal opacity-40 text-sidebar-foreground">
+                {/* Branch name */}
+                <span className="text-sm font-normal flex-shrink-0">{workspace.branch}</span>
+
+                {/* Creation time */}
+                <span className="flex-shrink-0 text-sm font-normal">
+                  {(() => {
+                    const now = Date.now()
+                    const created = new Date(workspace.createdAt).getTime()
+
+                    if (isNaN(created) || created < new Date('2020-01-01').getTime()) {
+                      return 'just now'
+                    }
+
+                    const diff = now - created
+                    const minutes = Math.floor(diff / 60000)
+                    const hours = Math.floor(diff / 3600000)
+                    const days = Math.floor(diff / 86400000)
+
+                    if (minutes < 1) return 'just now'
+                    if (minutes < 60) return `${minutes}m ago`
+                    if (hours < 24) return `${hours}h ago`
+                    if (days < 7) return `${days}d ago`
+                    if (days < 30) return `${Math.floor(days / 7)}w ago`
+                    if (days < 365) return `${Math.floor(days / 30)}mo ago`
+                    return `${Math.floor(days / 365)}y ago`
+                  })()}
+                </span>
+              </div>
+            </div>
+
+            {/* Quick actions (shown on hover) */}
+            <AnimatePresence>
+              {isHovered && !isActive && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  transition={{ duration: 0.1 }}
+                  className="flex items-center gap-0.5 flex-shrink-0"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button
+                    className="p-1 rounded hover:bg-sidebar-accent transition-colors"
+                    title="Refresh status"
+                    onClick={handleRefreshStatus}
+                  >
+                    <RefreshCw size={12} strokeWidth={1.5} className="text-sidebar-foreground-muted" />
+                  </button>
+                  <button
+                    className="p-1 rounded hover:bg-sidebar-accent transition-colors"
+                    title="Delete workspace"
+                    onClick={handleDelete}
+                  >
+                    <Trash2 size={12} strokeWidth={1.5} className="text-sidebar-foreground-muted hover:text-destructive" />
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </motion.div>
+      </ContextMenuTrigger>
+
+      {/* Context Menu */}
+      <ContextMenuContent className="w-48">
+        <ContextMenuItem onClick={() => onSelect(workspace)}>
+          <FolderOpen size={14} className="mr-2" />
+          Open Workspace
+        </ContextMenuItem>
+        <ContextMenuItem onClick={handleOpenInFinder}>
+          <FolderOpen size={14} className="mr-2" />
+          Show in Finder
+        </ContextMenuItem>
+        <ContextMenuItem onClick={handleOpenInTerminal}>
+          <Terminal size={14} className="mr-2" />
+          Open in Terminal
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onClick={handleRefreshStatus}>
+          <RefreshCw size={14} className="mr-2" />
+          Refresh Status
+        </ContextMenuItem>
+        <ContextMenuItem onClick={handleCreatePR}>
+          <GitPullRequest size={14} className="mr-2" />
+          Create Pull Request
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem onClick={handleDelete} className="text-destructive focus:text-destructive">
+          <Trash2 size={14} className="mr-2" />
+          Delete Workspace
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 };
