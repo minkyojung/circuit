@@ -203,7 +203,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ selectedWorkspaceId, onSelectW
   };
 
   const openCloneDialog = () => {
-    console.log('[Sidebar] Opening clone dialog...');
     setIsCloneDialogOpen(true);
   };
 

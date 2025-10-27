@@ -18,8 +18,6 @@ export const CloneRepositoryDialog: React.FC<CloneRepositoryDialogProps> = ({
 }) => {
   const [gitUrl, setGitUrl] = useState('');
 
-  console.log('[CloneRepositoryDialog] isOpen:', isOpen);
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (gitUrl.trim()) {
