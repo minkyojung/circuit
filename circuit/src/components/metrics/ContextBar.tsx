@@ -24,7 +24,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
   onCompact,
   onRefresh
 }) => {
-  // 시간 표시를 1분마다 업데이트하기 위한 상태
+  // Hooks must be at the top
   const [updateTrigger, setUpdateTrigger] = useState(0);
 
   useEffect(() => {
@@ -36,11 +36,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
     return () => clearInterval(interval);
   }, []);
 
-  // updateTrigger 변경 시 formatTimeSince가 재계산됨
-  const formattedLastCompact = React.useMemo(
-    () => formatTimeSince(lastCompact),
-    [lastCompact, updateTrigger]
-  );
+  // Helper functions
   const getColor = () => {
     if (percentage >= 95) return 'text-red-500 dark:text-red-400';
     if (percentage >= 80) return 'text-yellow-500 dark:text-yellow-400';
@@ -70,6 +66,12 @@ export const ContextBar: React.FC<ContextBarProps> = ({
     if (minutes > 0) return `${minutes}m ago`;
     return 'Just now';
   };
+
+  // updateTrigger 변경 시 formatTimeSince가 재계산됨
+  const formattedLastCompact = React.useMemo(
+    () => formatTimeSince(lastCompact),
+    [lastCompact, updateTrigger]
+  );
 
   return (
     <div className={cn(
