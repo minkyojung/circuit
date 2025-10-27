@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react'
-import { Folder, ChevronRight, Search, X, Copy, MoreHorizontal, RefreshCw, ChevronsDownUp } from 'lucide-react'
+import { Folder, ChevronRight, Search, X, MoreHorizontal, RefreshCw, ChevronsDownUp, Copy, FileEdit, Trash2, FolderOpen } from 'lucide-react'
 import { getIconForFile } from 'vscode-material-icon-theme-js'
 import { cn } from '@/lib/utils'
 import {
@@ -13,6 +13,13 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { FileTreeSkeleton } from '@/components/ui/skeleton'
 import { Input } from '@/components/ui/input'
 import { motion, AnimatePresence } from 'framer-motion'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 // Import Material Icon Theme SVGs - Common file types
 import ReactTsIcon from 'material-icon-theme/icons/react_ts.svg?react'
@@ -221,6 +228,7 @@ const FileTreeItem: React.FC<{
   // File node
   const isSelected = selectedFile === node.path
   const FileIconComponent = getFileIcon(node.name)
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
 
   return (
     <SidebarMenuItem className="my-0">
@@ -268,9 +276,9 @@ const FileTreeItem: React.FC<{
             </span>
           )}
 
-          {/* Action buttons (shown on hover) */}
+          {/* Action buttons (shown on hover or when dropdown is open) */}
           <AnimatePresence>
-            {isHovered && !isSelected && (
+            {(isHovered || isDropdownOpen) && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -279,23 +287,59 @@ const FileTreeItem: React.FC<{
                 className="flex items-center gap-0.5 ml-1 flex-shrink-0"
                 onClick={(e) => e.stopPropagation()}
               >
-                <button
-                  className="p-0.5 rounded hover:bg-sidebar-accent transition-colors"
-                  title="Copy path"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    navigator.clipboard.writeText(node.path)
-                  }}
-                >
-                  <Copy size={12} strokeWidth={1.5} className="text-sidebar-foreground-muted" />
-                </button>
-                <button
-                  className="p-0.5 rounded hover:bg-sidebar-accent transition-colors"
-                  title="More actions"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <MoreHorizontal size={12} strokeWidth={1.5} className="text-sidebar-foreground-muted" />
-                </button>
+                <DropdownMenu modal={false} onOpenChange={setIsDropdownOpen}>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className="p-0.5 rounded hover:bg-sidebar-accent transition-colors"
+                      title="More actions"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <MoreHorizontal size={12} strokeWidth={1.5} className="text-sidebar-foreground-muted" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-48" align="end" onClick={(e) => e.stopPropagation()}>
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        navigator.clipboard.writeText(node.path)
+                      }}
+                    >
+                      <Copy size={14} className="mr-2" />
+                      Copy Path
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        const relativePath = node.path.split('/').slice(-2).join('/')
+                        navigator.clipboard.writeText(relativePath)
+                      }}
+                    >
+                      <Copy size={14} className="mr-2" />
+                      Copy Relative Path
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        // TODO: Implement rename functionality
+                      }}
+                    >
+                      <FileEdit size={14} className="mr-2" />
+                      Rename
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        // TODO: Implement delete functionality
+                      }}
+                      className="text-red-600 dark:text-red-400"
+                    >
+                      <Trash2 size={14} className="mr-2" />
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </motion.div>
             )}
           </AnimatePresence>
