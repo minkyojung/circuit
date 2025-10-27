@@ -5,6 +5,7 @@ import { Plus, FolderGit2, Check, GitMerge, GitCommit, Archive } from 'lucide-re
 import { cn } from '@/lib/utils'
 import { useProjectPath } from '@/App'
 import { RepositorySwitcher } from './workspace/RepositorySwitcher'
+import { CloneRepositoryDialog } from './workspace/CloneRepositoryDialog'
 import { FileExplorer, type FileNode } from './workspace/FileExplorer'
 import {
   Sidebar,
@@ -87,6 +88,7 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
   // Repository management
   const [repositories, setRepositories] = useState<Repository[]>([])
   const [currentRepository, setCurrentRepository] = useState<Repository | null>(null)
+  const [isCloneDialogOpen, setIsCloneDialogOpen] = useState(false)
 
   // Create a temporary repository from project path (fallback)
   const defaultRepository: Repository = useMemo(() => {
@@ -264,18 +266,8 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
     }
   }
 
-  const cloneRepository = async () => {
+  const cloneRepository = async (url: string) => {
     try {
-      // Prompt user for Git URL
-      const url = prompt('Enter Git repository URL:', 'https://github.com/user/repo.git')
-
-      if (!url) {
-        return // User canceled
-      }
-
-      // Show loading state
-      alert('Cloning repository...\nThis may take a few minutes.')
-
       const result = await ipcRenderer.invoke('repository:clone', url)
 
       if (result.success && result.repository) {
@@ -290,6 +282,10 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
       console.error('Error cloning repository:', error)
       alert(`Error cloning repository: ${error}`)
     }
+  }
+
+  const openCloneDialog = () => {
+    setIsCloneDialogOpen(true)
   }
 
   const switchRepository = async (repo: Repository) => {
@@ -331,6 +327,7 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
   }
 
   return (
+    <>
     <Sidebar variant="inset" {...props}>
       <SidebarHeader>
         {/* Traffic Lights Area (Fully Draggable) */}
@@ -345,7 +342,7 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
           repositories={repositories.length > 0 ? repositories : [repository]}
           onSelectRepository={switchRepository}
           onCreateRepository={createRepository}
-          onCloneRepository={cloneRepository}
+          onCloneRepository={openCloneDialog}
         />
       </SidebarHeader>
 
@@ -502,5 +499,13 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
         <ThemeToggle className="w-full justify-start text-sidebar-foreground-muted transition-all duration-200 ease-out hover:bg-sidebar-hover" />
       </SidebarFooter>
     </Sidebar>
+
+    {/* Clone Repository Dialog */}
+    <CloneRepositoryDialog
+      isOpen={isCloneDialogOpen}
+      onClose={() => setIsCloneDialogOpen(false)}
+      onClone={cloneRepository}
+    />
+    </>
   )
 }
