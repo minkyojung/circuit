@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Brain, Archive, Recycle, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -24,6 +24,23 @@ export const ContextBar: React.FC<ContextBarProps> = ({
   onCompact,
   onRefresh
 }) => {
+  // 시간 표시를 1분마다 업데이트하기 위한 상태
+  const [updateTrigger, setUpdateTrigger] = useState(0);
+
+  useEffect(() => {
+    // 1분마다 재렌더링하여 "X분 전" 표시 업데이트
+    const interval = setInterval(() => {
+      setUpdateTrigger(prev => prev + 1);
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // updateTrigger 변경 시 formatTimeSince가 재계산됨
+  const formattedLastCompact = React.useMemo(
+    () => formatTimeSince(lastCompact),
+    [lastCompact, updateTrigger]
+  );
   const getColor = () => {
     if (percentage >= 95) return 'text-red-500 dark:text-red-400';
     if (percentage >= 80) return 'text-yellow-500 dark:text-yellow-400';
@@ -103,7 +120,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1">
             <Archive size={10} />
-            <span>Compacted {formatTimeSince(lastCompact)}</span>
+            <span>Compacted {formattedLastCompact}</span>
           </div>
           <div className="flex items-center gap-1">
             <Recycle size={10} />
