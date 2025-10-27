@@ -174,14 +174,14 @@ const FileTreeItem: React.FC<{
 
                 {/* Folder count badge */}
                 {node.children && node.children.length > 0 && (
-                  <span className="text-[10px] px-1.5 rounded-full bg-sidebar-accent text-sidebar-foreground-muted opacity-60">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded text-sidebar-foreground-muted opacity-60">
                     {node.children.length}
                   </span>
                 )}
               </SidebarMenuButton>
             </CollapsibleTrigger>
           </div>
-          <CollapsibleContent>
+          <CollapsibleContent className="overflow-hidden transition-all duration-300 ease-in-out data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0">
             {node.children?.map((child) => (
               <FileTreeItem
                 key={child.path}
@@ -358,7 +358,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
             }
           }}
           className={cn(
-            "p-2.5 rounded-md transition-all duration-200",
+            "px-[5.5px] py-[5.5px] rounded transition-all duration-200",
             "text-sidebar-foreground-muted",
             isSearchOpen
               ? "bg-sidebar-accent opacity-100"
@@ -366,87 +366,73 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
           )}
           title="Search files (⌘F)"
         >
-          <Search size={14} strokeWidth={2} />
+          <Search size={12} strokeWidth={2} />
         </button>
         <button
           onClick={onRefresh}
           className={cn(
-            "p-2.5 rounded-md transition-all duration-200",
+            "px-[5.5px] py-[5.5px] rounded transition-all duration-200",
             "text-sidebar-foreground-muted",
             "opacity-70 hover:opacity-100 hover:bg-sidebar-hover"
           )}
           title="Refresh file tree"
         >
-          <RefreshCw size={14} strokeWidth={2} />
+          <RefreshCw size={12} strokeWidth={2} />
         </button>
         <button
           onClick={() => setCollapseKey(prev => prev + 1)}
           className={cn(
-            "p-2.5 rounded-md transition-all duration-200",
+            "px-[5.5px] py-[5.5px] rounded transition-all duration-200",
             "text-sidebar-foreground-muted",
             "opacity-70 hover:opacity-100 hover:bg-sidebar-hover"
           )}
           title="Collapse all folders"
         >
-          <ChevronsDownUp size={14} strokeWidth={2} />
+          <ChevronsDownUp size={12} strokeWidth={2} />
         </button>
       </div>
 
       {/* Search Bar (collapsible) */}
-      <AnimatePresence>
-        {isSearchOpen && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
-          >
-            <div className="px-2 pb-2">
-              <div className="relative">
-                <Search
-                  size={14}
-                  strokeWidth={1.5}
-                  className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sidebar-foreground-muted opacity-40 pointer-events-none"
-                />
-                <Input
-                  ref={searchInputRef}
-                  type="text"
-                  placeholder="Search files..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className={cn(
-                    "h-7 pl-8 pr-7 text-sm bg-sidebar-accent border-sidebar-border",
-                    "placeholder:text-sidebar-foreground-muted placeholder:opacity-60",
-                    "focus-visible:ring-1 focus-visible:ring-sidebar-ring"
-                  )}
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-sidebar-hover transition-colors"
-                  >
-                    <X size={12} strokeWidth={1.5} className="text-sidebar-foreground-muted" />
-                  </button>
-                )}
-              </div>
-
-              {/* Search results count */}
-              {searchQuery && (
-                <motion.div
-                  initial={{ opacity: 0, y: -5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="mt-1.5 px-1 text-[10px] text-sidebar-foreground-muted opacity-60"
-                >
-                  {filteredFileTree.length === 0
-                    ? 'No results'
-                    : `${filteredFileTree.length} result${filteredFileTree.length === 1 ? '' : 's'}`}
-                </motion.div>
-              )}
-            </div>
-          </motion.div>
+      <div
+        className={cn(
+          "transition-all duration-300 ease-in-out",
+          isSearchOpen ? "max-h-[200px] opacity-100" : "max-h-0 opacity-0 overflow-hidden"
         )}
-      </AnimatePresence>
+      >
+        <div className="px-4 pb-2">
+          <div className="relative">
+            <Input
+              ref={searchInputRef}
+              type="text"
+              placeholder="Search files..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className={cn(
+                "h-[30px] pl-3 pr-8 py-0 text-sm bg-sidebar-accent border-sidebar-border",
+                "placeholder:text-sidebar-foreground-muted placeholder:opacity-70",
+                "focus-visible:ring-1 focus-visible:ring-sidebar-ring"
+              )}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-sidebar-hover transition-colors"
+              >
+                <X size={12} strokeWidth={1.5} className="text-sidebar-foreground-muted" />
+              </button>
+            )}
+          </div>
+
+          {/* Search results count */}
+          {searchQuery && (
+            <div className="mt-1.5 px-1 text-[10px] text-sidebar-foreground-muted opacity-60">
+              {filteredFileTree.length === 0
+                ? 'No results'
+                : `${filteredFileTree.length} result${filteredFileTree.length === 1 ? '' : 's'}`}
+            </div>
+          )}
+        </div>
+      </div>
 
       <SidebarGroup>
         <SidebarGroupContent>
@@ -460,16 +446,26 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                 </p>
               </div>
             ) : (
-              filteredFileTree.map((node) => (
-                <FileTreeItem
+              filteredFileTree.map((node, index) => (
+                <motion.div
                   key={node.path}
-                  node={node}
-                  depth={0}
-                  onSelect={onFileSelect}
-                  selectedFile={selectedFile}
-                  searchQuery={searchQuery}
-                  collapseKey={collapseKey}
-                />
+                  initial={{ opacity: 0, y: -5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{
+                    duration: 0.2,
+                    delay: index * 0.03,
+                    ease: "easeOut"
+                  }}
+                >
+                  <FileTreeItem
+                    node={node}
+                    depth={0}
+                    onSelect={onFileSelect}
+                    selectedFile={selectedFile}
+                    searchQuery={searchQuery}
+                    collapseKey={collapseKey}
+                  />
+                </motion.div>
               ))
             )}
           </SidebarMenu>
