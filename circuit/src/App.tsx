@@ -1,6 +1,7 @@
-import { useState, useEffect, createContext, useContext, useMemo } from 'react'
+import { useState, useEffect, createContext, useContext, useMemo, useRef } from 'react'
 import { WorkspaceChatEditor } from "@/components/workspace"
 import { CommitDialog } from "@/components/workspace/CommitDialog"
+import { CommandPalette } from "@/components/CommandPalette"
 import { AppSidebar } from "@/components/AppSidebar"
 import {
   Breadcrumb,
@@ -19,6 +20,7 @@ import {
 import type { Workspace } from "@/types/workspace"
 import { FolderGit2, GitCommit } from 'lucide-react'
 import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import './App.css'
 
 // Project Path Context
@@ -40,7 +42,31 @@ function App() {
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null)
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [showCommitDialog, setShowCommitDialog] = useState<boolean>(false)
+  const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false)
   const [chatPrefillMessage, setChatPrefillMessage] = useState<string | null>(null)
+
+  // Workspace navigation refs (for keyboard shortcuts)
+  const workspacesRef = useRef<Workspace[]>([])
+  const setWorkspacesForShortcuts = (workspaces: Workspace[]) => {
+    workspacesRef.current = workspaces
+  }
+
+  // Create workspace handler for Command Palette
+  const handleCreateWorkspace = async () => {
+    const { ipcRenderer } = window.require('electron')
+    try {
+      const result = await ipcRenderer.invoke('workspace:create')
+      if (result.success && result.workspace) {
+        // Refresh workspaces list
+        const listResult = await ipcRenderer.invoke('workspace:list')
+        if (listResult.success) {
+          setWorkspacesForShortcuts(listResult.workspaces)
+        }
+      }
+    } catch (error) {
+      console.error('Error creating workspace:', error)
+    }
+  }
 
   // Load project path from Electron main process
   useEffect(() => {
@@ -93,6 +119,59 @@ function App() {
     setSelectedFile(null)
   }, [selectedWorkspace?.id])
 
+  // Keyboard shortcuts
+  useKeyboardShortcuts({
+    // Command Palette (Cmd+K)
+    'cmd+k': {
+      handler: () => setShowCommandPalette(true),
+      description: 'Open command palette',
+    },
+
+    // Workspace navigation (Cmd+1 through Cmd+9)
+    'cmd+1': { handler: () => workspacesRef.current[0] && setSelectedWorkspace(workspacesRef.current[0]), description: 'Switch to workspace 1' },
+    'cmd+2': { handler: () => workspacesRef.current[1] && setSelectedWorkspace(workspacesRef.current[1]), description: 'Switch to workspace 2' },
+    'cmd+3': { handler: () => workspacesRef.current[2] && setSelectedWorkspace(workspacesRef.current[2]), description: 'Switch to workspace 3' },
+    'cmd+4': { handler: () => workspacesRef.current[3] && setSelectedWorkspace(workspacesRef.current[3]), description: 'Switch to workspace 4' },
+    'cmd+5': { handler: () => workspacesRef.current[4] && setSelectedWorkspace(workspacesRef.current[4]), description: 'Switch to workspace 5' },
+    'cmd+6': { handler: () => workspacesRef.current[5] && setSelectedWorkspace(workspacesRef.current[5]), description: 'Switch to workspace 6' },
+    'cmd+7': { handler: () => workspacesRef.current[6] && setSelectedWorkspace(workspacesRef.current[6]), description: 'Switch to workspace 7' },
+    'cmd+8': { handler: () => workspacesRef.current[7] && setSelectedWorkspace(workspacesRef.current[7]), description: 'Switch to workspace 8' },
+    'cmd+9': { handler: () => workspacesRef.current[8] && setSelectedWorkspace(workspacesRef.current[8]), description: 'Switch to workspace 9' },
+
+    // New Workspace (Cmd+N)
+    'cmd+n': {
+      handler: handleCreateWorkspace,
+      description: 'New workspace',
+    },
+
+    // Close current workspace (Cmd+W)
+    'cmd+w': {
+      handler: () => setSelectedWorkspace(null),
+      description: 'Close workspace',
+      enabled: !!selectedWorkspace,
+    },
+
+    // Commit dialog (Cmd+Enter when workspace is selected)
+    'cmd+enter': {
+      handler: () => setShowCommitDialog(true),
+      description: 'Open commit dialog',
+      enabled: !!selectedWorkspace,
+    },
+
+    // Close dialogs with Escape
+    'escape': {
+      handler: () => {
+        if (showCommandPalette) {
+          setShowCommandPalette(false)
+        } else if (showCommitDialog) {
+          setShowCommitDialog(false)
+        }
+      },
+      description: 'Close dialog',
+      enabled: showCommandPalette || showCommitDialog,
+    },
+  })
+
   return (
     <ProjectPathContext.Provider value={{ projectPath, isLoading: isLoadingPath }}>
       <div
@@ -108,6 +187,7 @@ function App() {
           onSelectWorkspace={setSelectedWorkspace}
           selectedFile={selectedFile}
           onFileSelect={handleFileSelect}
+          onWorkspacesLoaded={setWorkspacesForShortcuts}
         />
         <SidebarInset className="bg-card">
           {/* Main Header with Breadcrumb */}
@@ -220,6 +300,15 @@ function App() {
           </div>
         </SidebarInset>
       </SidebarProvider>
+
+      {/* Command Palette */}
+      <CommandPalette
+        open={showCommandPalette}
+        onOpenChange={setShowCommandPalette}
+        workspaces={workspacesRef.current}
+        onSelectWorkspace={setSelectedWorkspace}
+        onCreateWorkspace={handleCreateWorkspace}
+      />
       </div>
     </ProjectPathContext.Provider>
   )

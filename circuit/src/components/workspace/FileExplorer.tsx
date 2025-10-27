@@ -1,15 +1,15 @@
 import React, { useState } from 'react'
-import { Folder, ChevronRight, ChevronDown, Loader2 } from 'lucide-react'
+import { Folder, ChevronRight, ChevronDown } from 'lucide-react'
 import { getIconForFile } from 'vscode-material-icon-theme-js'
 import {
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
 } from '@/components/ui/sidebar'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { FileTreeSkeleton } from '@/components/ui/skeleton'
 
 // Import Material Icon Theme SVGs - Common file types
 import ReactTsIcon from 'material-icon-theme/icons/react_ts.svg?react'
@@ -129,12 +129,12 @@ const FileTreeItem: React.FC<{
               style={{ paddingLeft: `${depth * 12 + 8}px` }}
             >
               {isOpen ? (
-                <ChevronDown size={14} className="flex-shrink-0" />
+                <ChevronDown size={16} strokeWidth={1.5} className="flex-shrink-0" />
               ) : (
-                <ChevronRight size={14} className="flex-shrink-0" />
+                <ChevronRight size={16} strokeWidth={1.5} className="flex-shrink-0" />
               )}
-              <Folder size={14} className="flex-shrink-0 text-sidebar-foreground-muted" />
-              <span className="text-sm truncate">{node.name}</span>
+              <Folder size={16} strokeWidth={1.5} className="flex-shrink-0 text-sidebar-foreground-muted" />
+              <span className="text-base font-normal truncate">{node.name}</span>
             </SidebarMenuButton>
           </CollapsibleTrigger>
           <CollapsibleContent>
@@ -170,7 +170,7 @@ const FileTreeItem: React.FC<{
           <FileIconComponent width={16} height={16} />
         </div>
 
-        <span className="text-sm truncate flex-1">{node.name}</span>
+        <span className="text-base font-normal truncate flex-1">{node.name}</span>
 
         {/* Git status badges */}
         {node.modified && (
@@ -211,18 +211,12 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   }, [fileTree])
 
   return (
-    <div className="h-full flex flex-col bg-sidebar border-r border-sidebar-border">
+    <div className="h-full flex flex-col">
       <SidebarGroup>
-        <SidebarGroupLabel className="px-4 py-2">
-          Files
-        </SidebarGroupLabel>
         <SidebarGroupContent>
           <SidebarMenu>
             {isLoading ? (
-              <div className="px-4 py-6 text-center text-sidebar-foreground-muted">
-                <Loader2 size={16} className="mx-auto animate-spin mb-2" />
-                <p className="text-xs">Loading files...</p>
-              </div>
+              <FileTreeSkeleton />
             ) : fileTree.length === 0 ? (
               <div className="px-4 py-6 text-center text-sidebar-foreground-muted">
                 <p className="text-xs">No files found</p>

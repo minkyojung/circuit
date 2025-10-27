@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useState, useEffect, useMemo } from 'react'
 import type { Workspace, WorkspaceCreateResult, WorkspaceListResult, WorkspaceStatus, Repository } from '@/types/workspace'
-import { Plus, FolderGit2, Check, GitMerge, GitCommit, Archive } from 'lucide-react'
+import { Plus, FolderGit2, Check, GitMerge, GitCommit, RefreshCw, ChevronsDownUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useProjectPath } from '@/App'
 import { RepositorySwitcher } from './workspace/RepositorySwitcher'
@@ -12,7 +12,6 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -20,6 +19,8 @@ import {
 } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import { motion, AnimatePresence } from 'framer-motion'
+import { listItemVariants } from '@/lib/motion-tokens'
 
 // @ts-ignore - Electron IPC
 const { ipcRenderer } = window.require('electron')
@@ -30,13 +31,14 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   onSelectWorkspace: (workspace: Workspace | null) => void
   selectedFile: string | null
   onFileSelect: (filePath: string) => void
+  onWorkspacesLoaded?: (workspaces: Workspace[]) => void
 }
 
 const getStatusBadge = (status?: WorkspaceStatus) => {
   // If no status yet, show Clean by default (will update when loaded)
   if (!status) {
     return {
-      icon: <Check size={12} />,
+      icon: <Check size={12} strokeWidth={1.5} />,
       text: 'Clean',
       className: 'bg-status-synced/10 text-status-synced',
       isMerged: false
@@ -46,7 +48,7 @@ const getStatusBadge = (status?: WorkspaceStatus) => {
   // Check if workspace is merged
   if (status.status === 'merged') {
     return {
-      icon: <GitMerge size={12} />,
+      icon: <GitMerge size={12} strokeWidth={1.5} />,
       text: 'Merged',
       className: 'bg-status-merged/10 text-status-merged',
       isMerged: true
@@ -62,7 +64,7 @@ const getStatusBadge = (status?: WorkspaceStatus) => {
 
   if (hasChanges) {
     return {
-      icon: <GitCommit size={12} />,
+      icon: <GitCommit size={12} strokeWidth={1.5} />,
       text: 'Modified',
       className: 'bg-status-working/10 text-status-working',
       isMerged: false
@@ -70,14 +72,14 @@ const getStatusBadge = (status?: WorkspaceStatus) => {
   }
 
   return {
-    icon: <Check size={12} />,
+    icon: <Check size={12} strokeWidth={1.5} />,
     text: 'Clean',
     className: 'bg-status-synced/10 text-status-synced',
     isMerged: false
   }
 }
 
-export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWorkspace, selectedFile, onFileSelect, ...props }: AppSidebarProps) {
+export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWorkspace, selectedFile, onFileSelect, onWorkspacesLoaded, ...props }: AppSidebarProps) {
   const { projectPath } = useProjectPath()
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [statuses, setStatuses] = useState<Record<string, WorkspaceStatus>>({})
@@ -222,6 +224,8 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
 
       if (result.success && result.workspaces) {
         setWorkspaces(result.workspaces)
+        // Notify parent for keyboard shortcuts
+        onWorkspacesLoaded?.(result.workspaces)
       } else {
         console.error('Failed to load workspaces:', result.error)
       }
@@ -294,6 +298,7 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
     await loadWorkspaces()
   }
 
+  // @ts-ignore - unused but kept for future use
   const deleteWorkspace = async (workspaceId: string) => {
     try {
       const result = await ipcRenderer.invoke('workspace:delete', workspaceId)
@@ -315,14 +320,28 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
     }
   }
 
-  const handleDeleteWorkspace = (e: React.MouseEvent, workspaceId: string, workspaceName: string, isMerged: boolean = false) => {
-    e.stopPropagation()
-    const message = isMerged
-      ? `Archive workspace "${workspaceName}"? This will remove it from the list.`
-      : `Delete workspace "${workspaceName}"?`
+  // Commented out unused function - may be used in future
+  // const handleDeleteWorkspace = (e: React.MouseEvent, workspaceId: string, workspaceName: string, isMerged: boolean = false) => {
+  //   e.stopPropagation()
+  //   const message = isMerged
+  //     ? `Archive workspace "${workspaceName}"? This will remove it from the list.`
+  //     : `Delete workspace "${workspaceName}"?`
 
-    if (confirm(message)) {
-      deleteWorkspace(workspaceId)
+  //   if (confirm(message)) {
+  //     deleteWorkspace(workspaceId)
+  //   }
+  // }
+
+  const handleRefreshFileTree = () => {
+    if (selectedWorkspace) {
+      setIsLoadingFiles(true)
+      ipcRenderer.invoke('workspace:get-file-tree', selectedWorkspace.path)
+        .then((result: any) => {
+          if (result.success && result.fileTree) {
+            setFileTree(result.fileTree)
+          }
+        })
+        .finally(() => setIsLoadingFiles(false))
     }
   }
 
@@ -349,94 +368,98 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
       <SidebarContent>
         {/* Workspaces */}
         <SidebarGroup>
-          <SidebarGroupLabel>Workspaces</SidebarGroupLabel>
           <SidebarMenu>
             {workspaces.length === 0 ? (
-              <div className="px-4 py-6 text-center" style={{ color: 'var(--sidebar-foreground-muted)' }}>
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="px-4 py-6 text-center"
+                style={{ color: 'var(--sidebar-foreground-muted)' }}
+              >
                 <p className="text-sm">No workspaces yet</p>
                 <p className="text-xs mt-2">Create your first workspace</p>
-              </div>
+              </motion.div>
             ) : (
-              workspaces.map((workspace) => {
-                const status = statuses[workspace.id]
-                const badge = getStatusBadge(status)
-                const isActive = workspace.id === selectedWorkspaceId
-                const isMerged = badge.isMerged
+              <AnimatePresence mode="popLayout">
+                {workspaces.map((workspace, index) => {
+                  const status = statuses[workspace.id]
+                  const badge = getStatusBadge(status)
+                  const isActive = workspace.id === selectedWorkspaceId
+                  const isMerged = badge.isMerged
 
-                return (
-                  <SidebarMenuItem key={workspace.id} className={cn("my-0", isMerged && "opacity-60")}>
-                    <SidebarMenuButton
-                      onClick={() => onSelectWorkspace(workspace)}
-                      isActive={isActive}
-                      className="h-auto py-2 px-2 group transition-all duration-200 ease-out"
+                  return (
+                    <motion.div
+                      key={workspace.id}
+                      custom={index}
+                      variants={listItemVariants}
+                      initial="hidden"
+                      animate="visible"
+                      exit="exit"
+                      layout
                     >
+                      <SidebarMenuItem className={cn("my-0", isMerged && "opacity-60")}>
+                        <motion.div
+                          whileHover={{ scale: 1.01 }}
+                          whileTap={{ scale: 0.98 }}
+                          transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
+                        >
+                          <SidebarMenuButton
+                            onClick={() => onSelectWorkspace(workspace)}
+                            isActive={isActive}
+                            className="h-auto py-2 px-2 group transition-all duration-200 ease-out"
+                          >
                       {/* Improved layout */}
                       <div className="flex items-start gap-3 w-full min-w-0">
-                        {/* Icon */}
-                        <FolderGit2 size={16} className="flex-shrink-0 mt-0.5 text-sidebar-foreground-muted" />
+                        {/* Icon with status glow */}
+                        <FolderGit2
+                          size={18}
+                          strokeWidth={1.5}
+                          className={cn(
+                            "flex-shrink-0 mt-0.5 transition-all duration-300",
+                            status?.clean
+                              ? "text-status-synced drop-shadow-[0_0_6px_rgba(34,197,94,0.5)]"
+                              : "text-status-behind drop-shadow-[0_0_6px_rgba(249,115,22,0.5)]"
+                          )}
+                        />
 
                         {/* Content */}
                         <div className="flex-1 min-w-0 space-y-1">
                           {/* Top row: Name + Status Badge */}
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium text-sidebar-foreground-muted truncate flex-1">
+                            <span className="text-base font-normal text-sidebar-foreground-muted truncate flex-1">
                               {workspace.name}
                             </span>
 
-                            {/* Clean status: hoverable archive button */}
-                            {status?.status === 'merged' || (status?.clean && !isMerged) ? (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteWorkspace(e, workspace.id, workspace.name, true);
-                                }}
-                                className={cn(
-                                  "group/badge inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md font-medium flex-shrink-0 transition-all",
-                                  status?.status === 'merged'
-                                    ? "bg-status-merged/10 text-status-merged hover:bg-orange-500/20 hover:text-orange-600"
-                                    : "bg-status-synced/10 text-status-synced hover:bg-orange-500/20 hover:text-orange-600"
-                                )}
-                              >
-                                <Archive size={12} className="opacity-0 group-hover/badge:opacity-100 -ml-1 group-hover/badge:ml-0 transition-all" />
-                                <span className="group-hover/badge:hidden">
-                                  {status?.status === 'merged' ? 'Merged' : 'Clean'}
-                                </span>
-                                <span className="hidden group-hover/badge:inline">Archive</span>
-                              </button>
-                            ) : (
-                              <div className={cn(
-                                "inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md font-medium flex-shrink-0",
-                                badge.className
-                              )}>
-                                {badge.icon}
-                                <span>{badge.text}</span>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Bottom row: Metadata and stats (always visible) */}
-                          <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--sidebar-foreground-muted)' }}>
-                            {/* Branch name - always show */}
-                            <span className="text-xs flex-shrink-0">{workspace.branch}</span>
-
-                            {/* Code stats - files changed */}
+                            {/* Diff stats - only show when dirty */}
                             {status && !status.clean && (
-                              <div className="flex items-center gap-1 flex-shrink-0">
+                              <motion.div
+                                initial={{ opacity: 0, x: -10 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -10 }}
+                                transition={{ duration: 0.2 }}
+                                className="flex items-center gap-1.5 text-sm font-mono flex-shrink-0"
+                              >
                                 {(status.added > 0 || status.modified > 0) && (
-                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-status-synced/10 text-status-synced text-[11px] font-mono font-medium">
+                                  <span className="text-status-synced">
                                     +{status.added + status.modified}
                                   </span>
                                 )}
                                 {status.deleted > 0 && (
-                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-status-behind/10 text-status-behind text-[11px] font-mono font-medium">
+                                  <span className="text-status-behind">
                                     -{status.deleted}
                                   </span>
                                 )}
-                              </div>
+                              </motion.div>
                             )}
+                          </div>
+
+                          {/* Bottom row: Metadata (always visible) */}
+                          <div className="flex items-center gap-1 text-sm font-normal opacity-40 text-sidebar-foreground">
+                            {/* Branch name - always show */}
+                            <span className="text-sm font-normal flex-shrink-0">{workspace.branch}</span>
 
                             {/* Creation time - relative format */}
-                            <span className="flex-shrink-0 text-[11px]">
+                            <span className="flex-shrink-0 text-sm font-normal">
                               {(() => {
                                 const now = Date.now()
                                 const created = new Date(workspace.createdAt).getTime()
@@ -452,21 +475,24 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                                 const days = Math.floor(diff / 86400000)
 
                                 if (minutes < 1) return 'just now'
-                                if (minutes < 60) return `${minutes}m`
-                                if (hours < 24) return `${hours}h`
-                                if (days < 7) return `${days}d`
-                                if (days < 30) return `${Math.floor(days / 7)}w`
-                                if (days < 365) return `${Math.floor(days / 30)}mo`
-                                return `${Math.floor(days / 365)}y`
+                                if (minutes < 60) return `${minutes}m ago`
+                                if (hours < 24) return `${hours}h ago`
+                                if (days < 7) return `${days}d ago`
+                                if (days < 30) return `${Math.floor(days / 7)}w ago`
+                                if (days < 365) return `${Math.floor(days / 30)}mo ago`
+                                return `${Math.floor(days / 365)}y ago`
                               })()}
                             </span>
                           </div>
                         </div>
                       </div>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )
-              })
+                          </SidebarMenuButton>
+                        </motion.div>
+                      </SidebarMenuItem>
+                    </motion.div>
+                  )
+                })}
+              </AnimatePresence>
             )}
           </SidebarMenu>
         </SidebarGroup>
@@ -477,21 +503,39 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
             variant="ghost"
             onClick={createWorkspace}
             disabled={isCreating}
-            className="w-full h-auto py-2 px-2 justify-start text-sm text-sidebar-foreground-muted hover:bg-sidebar-hover transition-all duration-200 ease-out"
+            className="w-full h-auto py-2 px-2 justify-start text-base font-normal text-sidebar-foreground-muted hover:bg-sidebar-hover transition-all duration-200 ease-out"
           >
-            <Plus size={16} />
+            <Plus size={18} strokeWidth={1.5} />
             {isCreating ? 'Creating...' : 'New Workspace'}
           </Button>
         </div>
 
         {/* Files Section (only when workspace selected) */}
         {selectedWorkspace && (
-          <FileExplorer
-            fileTree={fileTree}
-            isLoading={isLoadingFiles}
-            onFileSelect={onFileSelect}
-            selectedFile={selectedFile}
-          />
+          <>
+            <div className="px-6 py-2 flex items-center gap-2">
+              <div className="h-px bg-sidebar-border opacity-30 flex-1" />
+              <button
+                onClick={handleRefreshFileTree}
+                className="text-sidebar-foreground-muted opacity-40 hover:opacity-100 transition-opacity duration-200"
+                title="Refresh file tree"
+              >
+                <RefreshCw size={12} strokeWidth={1.5} />
+              </button>
+              <button
+                className="text-sidebar-foreground-muted opacity-40 hover:opacity-100 transition-opacity duration-200"
+                title="Collapse all folders"
+              >
+                <ChevronsDownUp size={12} strokeWidth={1.5} />
+              </button>
+            </div>
+            <FileExplorer
+              fileTree={fileTree}
+              isLoading={isLoadingFiles}
+              onFileSelect={onFileSelect}
+              selectedFile={selectedFile}
+            />
+          </>
         )}
       </SidebarContent>
 

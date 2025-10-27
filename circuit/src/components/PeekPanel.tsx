@@ -53,8 +53,8 @@ export function PeekPanel() {
 function PeekTab({ data, onExpand }: { data: any; onExpand: () => void }) {
   const getStatusDot = () => {
     if (!data) return {
-      bg: 'bg-[#846961]',
-      shadow: 'shadow-[0_0_20px_rgba(132,105,97,0.6)]',
+      bg: 'bg-muted',
+      shadow: '',
       animate: ''
     }
 
@@ -63,26 +63,26 @@ function PeekTab({ data, onExpand }: { data: any; onExpand: () => void }) {
       switch (testData.status) {
         case 'running':
           return {
-            bg: 'bg-[#D97757]',
-            shadow: 'shadow-[0_0_25px_rgba(217,119,87,0.9)]',
+            bg: 'bg-primary',
+            shadow: '',
             animate: 'animate-pulse'
           }
         case 'success':
           return {
-            bg: 'bg-[#4ade80]',
-            shadow: 'shadow-[0_0_25px_rgba(74,222,128,0.9)]',
+            bg: 'bg-success',
+            shadow: '',
             animate: ''
           }
         case 'failure':
           return {
-            bg: 'bg-[#ef4444]',
-            shadow: 'shadow-[0_0_25px_rgba(239,68,68,0.9)]',
+            bg: 'bg-destructive',
+            shadow: '',
             animate: 'animate-pulse'
           }
         default:
           return {
-            bg: 'bg-[#846961]',
-            shadow: 'shadow-[0_0_20px_rgba(132,105,97,0.6)]',
+            bg: 'bg-muted',
+            shadow: '',
             animate: ''
           }
       }
@@ -90,8 +90,8 @@ function PeekTab({ data, onExpand }: { data: any; onExpand: () => void }) {
 
     if (data.type === 'mcp' || data.type === 'multi-mcp') {
       return {
-        bg: 'bg-[#D97757]',
-        shadow: 'shadow-[0_0_25px_rgba(217,119,87,0.9)]',
+        bg: 'bg-primary',
+        shadow: '',
         animate: 'animate-pulse'
       }
     }
@@ -101,40 +101,40 @@ function PeekTab({ data, onExpand }: { data: any; onExpand: () => void }) {
       switch (deployData.status) {
         case 'building':
           return {
-            bg: 'bg-[#D97757]',
-            shadow: 'shadow-[0_0_25px_rgba(217,119,87,0.9)]',
+            bg: 'bg-primary',
+            shadow: '',
             animate: 'animate-pulse'
           }
         case 'success':
           return {
-            bg: 'bg-[#4ade80]',
-            shadow: 'shadow-[0_0_25px_rgba(74,222,128,0.9)]',
+            bg: 'bg-success',
+            shadow: '',
             animate: ''
           }
         case 'failed':
           return {
-            bg: 'bg-[#ef4444]',
-            shadow: 'shadow-[0_0_25px_rgba(239,68,68,0.9)]',
+            bg: 'bg-destructive',
+            shadow: '',
             animate: 'animate-pulse'
           }
         case 'cancelled':
           return {
-            bg: 'bg-[#AE7663]',
-            shadow: 'shadow-[0_0_20px_rgba(174,118,99,0.6)]',
+            bg: 'bg-warning',
+            shadow: '',
             animate: ''
           }
         default:
           return {
-            bg: 'bg-[#846961]',
-            shadow: 'shadow-[0_0_20px_rgba(132,105,97,0.6)]',
+            bg: 'bg-muted',
+            shadow: '',
             animate: ''
           }
       }
     }
 
     return {
-      bg: 'bg-[#846961]',
-      shadow: 'shadow-[0_0_20px_rgba(132,105,97,0.6)]',
+      bg: 'bg-muted',
+      shadow: '',
       animate: ''
     }
   }
@@ -216,10 +216,10 @@ function CompactView({
     // Status dot component (smaller for compact design)
     const StatusDot = ({ status }: { status: MCPServerState['status'] }) => {
       const dotColors = {
-        starting: 'bg-[#AE7663] shadow-[0_0_4px_rgba(174,118,99,0.8)] animate-pulse',
-        running: 'bg-[#D97757] shadow-[0_0_6px_rgba(217,119,87,0.9)]',
-        error: 'bg-[#ef4444] shadow-[0_0_6px_rgba(239,68,68,0.9)]',
-        stopped: 'bg-[#846961] shadow-[0_0_3px_rgba(132,105,97,0.6)]'
+        starting: 'bg-warning  animate-pulse',
+        running: 'bg-primary ',
+        error: 'bg-destructive ',
+        stopped: 'bg-muted '
       }
       return <div className={`w-2 h-2 rounded-full ${dotColors[status]} ring-1 ring-white/20`} />
     }
@@ -258,7 +258,7 @@ function CompactView({
 
           {/* Error indicator */}
           {errorServers.length > 0 && (
-            <AlertTriangle className="h-3 w-3 text-[#ef4444] flex-shrink-0" />
+            <AlertTriangle className="h-3 w-3 text-destructive flex-shrink-0" />
           )}
 
           {/* Time - Right aligned */}
@@ -299,9 +299,9 @@ function CompactView({
         {/* Primary Message - Compact */}
         <div className="flex items-center gap-1.5">
           {/* Status Icon */}
-          {testData.status === 'running' && <Loader2 className="h-3 w-3 text-[#D97757] animate-spin flex-shrink-0" />}
-          {testData.status === 'success' && <CheckCircle2 className="h-3 w-3 text-[#4ade80] flex-shrink-0" />}
-          {testData.status === 'failure' && <XCircle className="h-3 w-3 text-[#ef4444] flex-shrink-0" />}
+          {testData.status === 'running' && <Loader2 className="h-3 w-3 text-primary animate-spin flex-shrink-0" />}
+          {testData.status === 'success' && <CheckCircle2 className="h-3 w-3 text-success flex-shrink-0" />}
+          {testData.status === 'failure' && <XCircle className="h-3 w-3 text-destructive flex-shrink-0" />}
 
           {/* Main Message - Light and compact */}
           <span className="text-xs font-normal text-white truncate flex-1">
@@ -348,13 +348,13 @@ function CompactView({
     const getStatusIcon = () => {
       switch (mcpData.status) {
         case 'starting':
-          return <Loader2 className="h-3 w-3 text-[#AE7663] animate-spin flex-shrink-0" />
+          return <Loader2 className="h-3 w-3 text-warning animate-spin flex-shrink-0" />
         case 'running':
-          return <Server className="h-3 w-3 text-[#D97757] flex-shrink-0" />
+          return <Server className="h-3 w-3 text-primary flex-shrink-0" />
         case 'error':
-          return <XCircle className="h-3 w-3 text-[#ef4444] flex-shrink-0" />
+          return <XCircle className="h-3 w-3 text-destructive flex-shrink-0" />
         default:
-          return <Server className="h-3 w-3 text-[#846961] flex-shrink-0" />
+          return <Server className="h-3 w-3 text-muted-foreground flex-shrink-0" />
       }
     }
 
@@ -411,10 +411,10 @@ function CompactView({
 
     const getIcon = () => {
       switch (customData.variant) {
-        case 'success': return <CheckCircle2 className="h-3 w-3 text-[#4ade80] flex-shrink-0" />
-        case 'error': return <XCircle className="h-3 w-3 text-[#ef4444] flex-shrink-0" />
-        case 'warning': return <AlertTriangle className="h-3 w-3 text-[#f59e0b] flex-shrink-0" />
-        default: return <Info className="h-3 w-3 text-[#D97757] flex-shrink-0" />
+        case 'success': return <CheckCircle2 className="h-3 w-3 text-success flex-shrink-0" />
+        case 'error': return <XCircle className="h-3 w-3 text-destructive flex-shrink-0" />
+        case 'warning': return <AlertTriangle className="h-3 w-3 text-warning flex-shrink-0" />
+        default: return <Info className="h-3 w-3 text-primary flex-shrink-0" />
       }
     }
 
@@ -468,10 +468,10 @@ function CompactView({
         {/* Primary Message - Compact */}
         <div className="flex items-center gap-1.5">
           {/* Status Icon */}
-          {deployData.status === 'building' && <Loader2 className="h-3 w-3 text-[#D97757] animate-spin flex-shrink-0" />}
-          {deployData.status === 'success' && <CheckCircle2 className="h-3 w-3 text-[#4ade80] flex-shrink-0" />}
-          {deployData.status === 'failed' && <XCircle className="h-3 w-3 text-[#ef4444] flex-shrink-0" />}
-          {deployData.status === 'cancelled' && <Info className="h-3 w-3 text-[#AE7663] flex-shrink-0" />}
+          {deployData.status === 'building' && <Loader2 className="h-3 w-3 text-primary animate-spin flex-shrink-0" />}
+          {deployData.status === 'success' && <CheckCircle2 className="h-3 w-3 text-success flex-shrink-0" />}
+          {deployData.status === 'failed' && <XCircle className="h-3 w-3 text-destructive flex-shrink-0" />}
+          {deployData.status === 'cancelled' && <Info className="h-3 w-3 text-warning flex-shrink-0" />}
 
           {/* Main Message - Light and compact */}
           <span className="text-xs font-normal text-white truncate flex-1">
@@ -517,7 +517,7 @@ function CompactView({
           onClick={onCollapse}
         >
           <div className="flex items-center gap-1.5">
-            <GitBranch className="h-3 w-3 text-[#D97757] flex-shrink-0" />
+            <GitBranch className="h-3 w-3 text-primary flex-shrink-0" />
             <span className="text-xs font-normal text-white truncate flex-1">
               {pusher} pushed to {ref}
             </span>
@@ -555,9 +555,9 @@ function CompactView({
           onClick={onCollapse}
         >
           <div className="flex items-center gap-1.5">
-            {isMerged && <GitPullRequest className="h-3 w-3 text-[#a371f7] flex-shrink-0" />}
-            {isClosed && !isMerged && <XCircle className="h-3 w-3 text-[#ef4444] flex-shrink-0" />}
-            {!isClosed && !isMerged && <GitPullRequest className="h-3 w-3 text-[#4ade80] flex-shrink-0" />}
+            {isMerged && <GitPullRequest className="h-3 w-3 text-purple-400 flex-shrink-0" />}
+            {isClosed && !isMerged && <XCircle className="h-3 w-3 text-destructive flex-shrink-0" />}
+            {!isClosed && !isMerged && <GitPullRequest className="h-3 w-3 text-success flex-shrink-0" />}
             <span className="text-xs font-normal text-white truncate flex-1">
               PR #{number} {action}
             </span>
@@ -596,10 +596,10 @@ function CompactView({
           onClick={onCollapse}
         >
           <div className="flex items-center gap-1.5">
-            {!isCompleted && <Loader2 className="h-3 w-3 text-[#D97757] animate-spin flex-shrink-0" />}
-            {isCompleted && isSuccess && <CheckCircle2 className="h-3 w-3 text-[#4ade80] flex-shrink-0" />}
-            {isCompleted && isFailure && <XCircle className="h-3 w-3 text-[#ef4444] flex-shrink-0" />}
-            {isCompleted && !isSuccess && !isFailure && <Info className="h-3 w-3 text-[#846961] flex-shrink-0" />}
+            {!isCompleted && <Loader2 className="h-3 w-3 text-primary animate-spin flex-shrink-0" />}
+            {isCompleted && isSuccess && <CheckCircle2 className="h-3 w-3 text-success flex-shrink-0" />}
+            {isCompleted && isFailure && <XCircle className="h-3 w-3 text-destructive flex-shrink-0" />}
+            {isCompleted && !isSuccess && !isFailure && <Info className="h-3 w-3 text-muted-foreground flex-shrink-0" />}
             <span className="text-xs font-normal text-white truncate flex-1">
               {name} {isCompleted ? conclusion : status}
             </span>
@@ -637,9 +637,9 @@ function CompactView({
           onClick={onCollapse}
         >
           <div className="flex items-center gap-1.5">
-            {isApproved && <CheckCircle2 className="h-3 w-3 text-[#4ade80] flex-shrink-0" />}
-            {isChangesRequested && <XCircle className="h-3 w-3 text-[#f59e0b] flex-shrink-0" />}
-            {!isApproved && !isChangesRequested && <MessageSquare className="h-3 w-3 text-[#D97757] flex-shrink-0" />}
+            {isApproved && <CheckCircle2 className="h-3 w-3 text-success flex-shrink-0" />}
+            {isChangesRequested && <XCircle className="h-3 w-3 text-warning flex-shrink-0" />}
+            {!isApproved && !isChangesRequested && <MessageSquare className="h-3 w-3 text-primary flex-shrink-0" />}
             <span className="text-xs font-normal text-white truncate flex-1">
               {reviewer} reviewed PR #{pullRequestNumber}
             </span>
@@ -676,7 +676,7 @@ function CompactView({
           onClick={onCollapse}
         >
           <div className="flex items-center gap-1.5">
-            <GitCommit className="h-3 w-3 text-[#D97757] flex-shrink-0" />
+            <GitCommit className="h-3 w-3 text-primary flex-shrink-0" />
             <span className="text-xs font-normal text-white truncate flex-1">
               {author} commented on {commit}
             </span>
