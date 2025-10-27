@@ -43,6 +43,27 @@ async function getAPIServerInstance() {
   return apiServerPromise;
 }
 
+// Import Metrics Manager (ES Module)
+let metricsManagerPromise = null;
+async function getMetricsManagerInstance() {
+  console.log('[main.cjs] getMetricsManagerInstance called');
+  if (!metricsManagerPromise) {
+    console.log('[main.cjs] Creating new Metrics Manager instance...');
+    metricsManagerPromise = import('../dist-electron/metrics-manager.js')
+      .then(module => {
+        console.log('[main.cjs] metrics-manager.js imported successfully');
+        return module.getMetricsManager();
+      })
+      .catch(error => {
+        console.error('[main.cjs] Failed to import metrics-manager.js:', error);
+        throw error;
+      });
+  }
+  const manager = await metricsManagerPromise;
+  console.log('[main.cjs] Metrics Manager instance ready');
+  return manager;
+}
+
 /**
  * Install circuit-proxy to ~/.circuit/bin/
  * This proxy allows Claude Code to access all MCP servers via a single MCP interface
@@ -1216,6 +1237,83 @@ ipcMain.handle('circuit:get-project-path', async () => {
     return { success: true, projectPath };
   } catch (error) {
     console.error('[Circuit] Failed to get project path:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// ============================================================================
+// Circuit Metrics - Usage & Context Monitoring
+// ============================================================================
+
+/**
+ * Start metrics monitoring for Claude Code session
+ */
+ipcMain.handle('circuit:metrics-start', async (event, projectPath) => {
+  try {
+    console.log('[Circuit] Starting metrics monitoring for:', projectPath);
+    const manager = await getMetricsManagerInstance();
+
+    await manager.start(projectPath);
+
+    // Forward metrics updates to frontend
+    manager.on('metrics-updated', (metrics) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('circuit:metrics-updated', metrics);
+      }
+    });
+
+    manager.on('error', (error) => {
+      console.error('[Circuit] Metrics error:', error);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('circuit:metrics-error', error.message);
+      }
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('[Circuit] Failed to start metrics:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Get current metrics (cached)
+ */
+ipcMain.handle('circuit:metrics-get', async () => {
+  try {
+    const manager = await getMetricsManagerInstance();
+    const metrics = manager.getCurrentMetrics();
+    return { success: true, metrics };
+  } catch (error) {
+    console.error('[Circuit] Failed to get metrics:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Refresh metrics (force recalculation)
+ */
+ipcMain.handle('circuit:metrics-refresh', async () => {
+  try {
+    const manager = await getMetricsManagerInstance();
+    const metrics = await manager.refresh();
+    return { success: true, metrics };
+  } catch (error) {
+    console.error('[Circuit] Failed to refresh metrics:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Stop metrics monitoring
+ */
+ipcMain.handle('circuit:metrics-stop', async () => {
+  try {
+    const manager = await getMetricsManagerInstance();
+    manager.stop();
+    return { success: true };
+  } catch (error) {
+    console.error('[Circuit] Failed to stop metrics:', error);
     return { success: false, error: error.message };
   }
 });

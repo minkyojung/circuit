@@ -3,6 +3,9 @@ import { Settings, MessageSquare, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { ThemeToggle } from './ThemeToggle';
+import { UsageBar } from './metrics/UsageBar';
+import { ContextBar } from './metrics/ContextBar';
+import { useClaudeMetrics } from '@/hooks/useClaudeMetrics';
 import {
   Dialog,
   DialogContent,
@@ -28,6 +31,11 @@ export const SidebarFooter: React.FC<SidebarFooterProps> = ({ className }) => {
   const [feedbackTitle, setFeedbackTitle] = useState('');
   const [feedbackBody, setFeedbackBody] = useState('');
 
+  const { metrics, loading, error } = useClaudeMetrics();
+
+  // Debug logging
+  console.log('[SidebarFooter] Metrics state:', { metrics, loading, error });
+
   const handleSubmitFeedback = () => {
     // TODO: Implement feedback submission
     console.log('Submitting feedback:', { type: feedbackType, title: feedbackTitle, body: feedbackBody });
@@ -38,8 +46,51 @@ export const SidebarFooter: React.FC<SidebarFooterProps> = ({ className }) => {
     setIsFeedbackOpen(false);
   };
 
+  const handleCompact = () => {
+    // TODO: Implement /compact command execution
+    console.log('Compact requested');
+  };
+
   return (
     <>
+      {/* Metrics Display */}
+      <div className="px-3 py-2 space-y-2">
+        {loading && (
+          <div className="text-xs text-sidebar-foreground-muted text-center py-2">
+            Loading metrics...
+          </div>
+        )}
+
+        {error && (
+          <div className="text-xs text-red-500 text-center py-2">
+            {error}
+          </div>
+        )}
+
+        {metrics && (
+          <>
+            <UsageBar
+              input={metrics.usage.input}
+              output={metrics.usage.output}
+              total={metrics.usage.total}
+              percentage={metrics.usage.percentage}
+              planLimit={metrics.usage.planLimit}
+              burnRate={metrics.usage.burnRate}
+              timeLeft={metrics.usage.timeLeft}
+            />
+            <ContextBar
+              current={metrics.context.current}
+              limit={metrics.context.limit}
+              percentage={metrics.context.percentage}
+              lastCompact={metrics.context.lastCompact}
+              prunableTokens={metrics.context.prunableTokens}
+              shouldCompact={metrics.context.shouldCompact}
+              onCompact={handleCompact}
+            />
+          </>
+        )}
+      </div>
+
       <div className={cn("flex items-center gap-1 p-2", className)}>
         {/* Settings Button */}
         <motion.button
