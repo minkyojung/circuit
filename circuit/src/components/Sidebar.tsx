@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import type { Workspace, WorkspaceCreateResult, WorkspaceListResult, WorkspaceStatus, Repository } from '@/types/workspace';
 import { WorkspaceItem } from './workspace/WorkspaceItem';
 import { RepositorySwitcher } from './workspace/RepositorySwitcher';
+import { CloneRepositoryDialog } from './workspace/CloneRepositoryDialog';
 import { Plus, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -26,6 +27,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ selectedWorkspaceId, onSelectW
   const [repositories, setRepositories] = useState<Repository[]>([]);
   const [currentRepository, setCurrentRepository] = useState<Repository | null>(null);
   const [isLoadingRepos, setIsLoadingRepos] = useState(false);
+  const [isCloneDialogOpen, setIsCloneDialogOpen] = useState(false);
 
   // Create a temporary repository from project path as fallback
   const fallbackRepository: Repository = useMemo(() => {
@@ -182,11 +184,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ selectedWorkspaceId, onSelectW
     }
   };
 
-  const handleCloneRepository = async () => {
+  const handleCloneRepository = async (gitUrl: string) => {
     try {
-      const gitUrl = prompt('Enter Git repository URL:');
-      if (!gitUrl) return;
-
       const result = await ipcRenderer.invoke('repository:clone', gitUrl);
 
       if (result.success && result.repository) {
@@ -201,6 +200,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ selectedWorkspaceId, onSelectW
       console.error('Error cloning repository:', error);
       alert(`Error: ${error}`);
     }
+  };
+
+  const openCloneDialog = () => {
+    setIsCloneDialogOpen(true);
   };
 
   const handleSelectRepository = (repo: Repository) => {
@@ -229,7 +232,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ selectedWorkspaceId, onSelectW
           repositories={repositories.length > 0 ? repositories : [fallbackRepository]}
           onSelectRepository={handleSelectRepository}
           onCreateRepository={handleCreateRepository}
-          onCloneRepository={handleCloneRepository}
+          onCloneRepository={openCloneDialog}
         />
       </div>
 
@@ -291,6 +294,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ selectedWorkspaceId, onSelectW
           </div>
         </div>
       </div>
+
+      {/* Clone Repository Dialog */}
+      <CloneRepositoryDialog
+        isOpen={isCloneDialogOpen}
+        onClose={() => setIsCloneDialogOpen(false)}
+        onClone={handleCloneRepository}
+      />
     </aside>
   );
 };
