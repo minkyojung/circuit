@@ -7,16 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Repository management integration with backend IPC handlers
+- CloneRepositoryDialog component for Git repository cloning with URL input
+- Repository state management in AppSidebar with localStorage persistence
+- Workspace filtering by repository
+
 ### Changed
+- Replaced browser prompt() with custom React dialog for Electron compatibility
+- Moved CloneRepositoryDialog outside sidebar for proper z-index stacking
 - Removed debug console.log statements throughout the codebase for cleaner production code
 - Removed hardcoded paths in TestFixTab and App components
 - Fixed TypeScript build errors
 - Improved code quality and maintainability
 
 ### Fixed
+- Fixed prompt() not supported error in Electron renderer process
+- Fixed dialog z-index issues by rendering outside sidebar component
 - Fixed TypeScript type errors in DeveloperTab (latency handling, useEffect return type)
 - Fixed unused import warnings in components
 - Fixed window.require type declaration for Electron integration
+
+### Removed
+- Deleted unused Sidebar.tsx (replaced by AppSidebar.tsx)
+- Removed unused cn import from CloneRepositoryDialog
 
 ## [0.6.0] - Phase 6: Fully Automated Fix Application
 
