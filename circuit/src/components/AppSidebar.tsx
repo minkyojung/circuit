@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { useState, useEffect, useMemo } from 'react'
 import type { Workspace, WorkspaceCreateResult, WorkspaceListResult, WorkspaceStatus, Repository } from '@/types/workspace'
-import { Plus, FolderGit2, Check, GitMerge, GitCommit, Archive } from 'lucide-react'
+import { Plus, FolderGit2, Check, GitMerge, GitCommit, Archive, RefreshCw, ChevronsDownUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useProjectPath } from '@/App'
 import { RepositorySwitcher } from './workspace/RepositorySwitcher'
@@ -335,6 +335,19 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
     }
   }
 
+  const handleRefreshFileTree = () => {
+    if (selectedWorkspace) {
+      setIsLoadingFiles(true)
+      ipcRenderer.invoke('workspace:get-file-tree', selectedWorkspace.path)
+        .then((result: any) => {
+          if (result.success && result.fileTree) {
+            setFileTree(result.fileTree)
+          }
+        })
+        .finally(() => setIsLoadingFiles(false))
+    }
+  }
+
   return (
     <Sidebar variant="inset" {...props}>
       <SidebarHeader>
@@ -502,8 +515,21 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
         {/* Files Section (only when workspace selected) */}
         {selectedWorkspace && (
           <>
-            <div className="px-6 py-2">
-              <div className="h-px bg-sidebar-border opacity-30" />
+            <div className="px-6 py-2 flex items-center gap-2">
+              <div className="h-px bg-sidebar-border opacity-30 flex-1" />
+              <button
+                onClick={handleRefreshFileTree}
+                className="text-sidebar-foreground-muted opacity-40 hover:opacity-100 transition-opacity duration-200"
+                title="Refresh file tree"
+              >
+                <RefreshCw size={12} strokeWidth={1.5} />
+              </button>
+              <button
+                className="text-sidebar-foreground-muted opacity-40 hover:opacity-100 transition-opacity duration-200"
+                title="Collapse all folders"
+              >
+                <ChevronsDownUp size={12} strokeWidth={1.5} />
+              </button>
             </div>
             <FileExplorer
               fileTree={fileTree}
