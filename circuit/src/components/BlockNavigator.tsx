@@ -242,7 +242,7 @@ export function BlockNavigator({ isOpen, onClose, conversationId }: BlockNavigat
               </>
             ) : (
               <>
-                <List className="h-12 w-12 mx-auto mb-3 text-sidebar-foreground-muted opacity-20" />
+                <FileText className="h-12 w-12 mx-auto mb-3 text-sidebar-foreground-muted opacity-20" />
                 <p className="text-sm text-sidebar-foreground-muted mb-1">
                   No blocks found
                 </p>
