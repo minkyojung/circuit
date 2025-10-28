@@ -3,7 +3,8 @@
  */
 
 import { ipcMain, IpcMainInvokeEvent } from 'electron'
-import { ConversationStorage, Conversation, Message } from './conversationStorage'
+import { ConversationStorage, Conversation, Message, Block, BlockBookmark, BlockExecution } from './conversationStorage'
+import { parseMessageToBlocks } from './messageParser'
 
 let storage: ConversationStorage | null = null
 
@@ -188,7 +189,7 @@ export function registerConversationHandlers(): void {
   // ============================================================================
 
   /**
-   * Load all messages for a conversation
+   * Load all messages for a conversation (with blocks)
    */
   ipcMain.handle(
     'message:load',
@@ -198,9 +199,21 @@ export function registerConversationHandlers(): void {
 
         const messages = storage.getMessages(conversationId, options)
 
+        // Load blocks for each message
+        const messagesWithBlocks = messages.map(message => {
+          const blocks = storage!.getBlocks(message.id)
+          return {
+            ...message,
+            blocks: blocks.length > 0 ? blocks.map(b => ({
+              ...b,
+              metadata: JSON.parse(b.metadata || '{}')
+            })) : undefined
+          }
+        })
+
         return {
           success: true,
-          messages
+          messages: messagesWithBlocks
         }
       } catch (error: any) {
         console.error('[message:load] Error:', error)
@@ -213,7 +226,7 @@ export function registerConversationHandlers(): void {
   )
 
   /**
-   * Save a single message
+   * Save a single message (with automatic block parsing)
    */
   ipcMain.handle(
     'message:save',
@@ -221,10 +234,25 @@ export function registerConversationHandlers(): void {
       try {
         if (!storage) throw new Error('Storage not initialized')
 
-        storage.saveMessage(message)
+        // Parse message content into blocks
+        const parseResult = parseMessageToBlocks(message.content, message.id)
+
+        if (parseResult.errors.length > 0) {
+          console.warn('[message:save] Parse errors:', parseResult.errors)
+        }
+
+        // Convert blocks to storage format (metadata as JSON string)
+        const blocksForStorage = parseResult.blocks.map(block => ({
+          ...block,
+          metadata: JSON.stringify(block.metadata)
+        }))
+
+        // Save message with blocks
+        storage.saveMessageWithBlocks(message, blocksForStorage as any)
 
         return {
-          success: true
+          success: true,
+          blockCount: parseResult.blocks.length
         }
       } catch (error: any) {
         console.error('[message:save] Error:', error)
@@ -330,6 +358,206 @@ export function registerConversationHandlers(): void {
         }
       } catch (error: any) {
         console.error('[conversation:get-workspace-metadata] Error:', error)
+        return {
+          success: false,
+          error: error.message
+        }
+      }
+    }
+  )
+
+  // ============================================================================
+  // Block Handlers
+  // ============================================================================
+
+  /**
+   * Get blocks for a message
+   */
+  ipcMain.handle(
+    'block:get-blocks',
+    async (_event: IpcMainInvokeEvent, messageId: string) => {
+      try {
+        if (!storage) throw new Error('Storage not initialized')
+
+        const blocks = storage.getBlocks(messageId)
+
+        // Parse metadata JSON
+        const blocksWithMetadata = blocks.map(b => ({
+          ...b,
+          metadata: JSON.parse(b.metadata || '{}')
+        }))
+
+        return {
+          success: true,
+          blocks: blocksWithMetadata
+        }
+      } catch (error: any) {
+        console.error('[block:get-blocks] Error:', error)
+        return {
+          success: false,
+          error: error.message
+        }
+      }
+    }
+  )
+
+  /**
+   * Search blocks
+   */
+  ipcMain.handle(
+    'block:search',
+    async (_event: IpcMainInvokeEvent, query: string, filters?: { blockType?: string; workspaceId?: string; limit?: number }) => {
+      try {
+        if (!storage) throw new Error('Storage not initialized')
+
+        const results = storage.searchBlocks(query, filters as any)
+
+        // Parse metadata JSON
+        const resultsWithMetadata = results.map(b => ({
+          ...b,
+          metadata: JSON.parse(b.metadata || '{}')
+        }))
+
+        return {
+          success: true,
+          results: resultsWithMetadata
+        }
+      } catch (error: any) {
+        console.error('[block:search] Error:', error)
+        return {
+          success: false,
+          error: error.message
+        }
+      }
+    }
+  )
+
+  /**
+   * Save block bookmark
+   */
+  ipcMain.handle(
+    'block:bookmark',
+    async (_event: IpcMainInvokeEvent, bookmark: BlockBookmark) => {
+      try {
+        if (!storage) throw new Error('Storage not initialized')
+
+        // Convert tags array to JSON string
+        const bookmarkForStorage = {
+          ...bookmark,
+          tags: bookmark.tags ? JSON.stringify(bookmark.tags) : undefined
+        }
+
+        storage.saveBlockBookmark(bookmarkForStorage as any)
+
+        return {
+          success: true
+        }
+      } catch (error: any) {
+        console.error('[block:bookmark] Error:', error)
+        return {
+          success: false,
+          error: error.message
+        }
+      }
+    }
+  )
+
+  /**
+   * Get all block bookmarks
+   */
+  ipcMain.handle(
+    'block:get-bookmarks',
+    async (_event: IpcMainInvokeEvent) => {
+      try {
+        if (!storage) throw new Error('Storage not initialized')
+
+        const bookmarks = storage.getBlockBookmarks()
+
+        // Parse tags JSON
+        const bookmarksWithTags = bookmarks.map(b => ({
+          ...b,
+          tags: b.tags ? JSON.parse(b.tags) : []
+        }))
+
+        return {
+          success: true,
+          bookmarks: bookmarksWithTags
+        }
+      } catch (error: any) {
+        console.error('[block:get-bookmarks] Error:', error)
+        return {
+          success: false,
+          error: error.message
+        }
+      }
+    }
+  )
+
+  /**
+   * Delete block bookmark
+   */
+  ipcMain.handle(
+    'block:delete-bookmark',
+    async (_event: IpcMainInvokeEvent, bookmarkId: string) => {
+      try {
+        if (!storage) throw new Error('Storage not initialized')
+
+        storage.deleteBlockBookmark(bookmarkId)
+
+        return {
+          success: true
+        }
+      } catch (error: any) {
+        console.error('[block:delete-bookmark] Error:', error)
+        return {
+          success: false,
+          error: error.message
+        }
+      }
+    }
+  )
+
+  /**
+   * Record block execution
+   */
+  ipcMain.handle(
+    'block:record-execution',
+    async (_event: IpcMainInvokeEvent, execution: BlockExecution) => {
+      try {
+        if (!storage) throw new Error('Storage not initialized')
+
+        storage.recordBlockExecution(execution)
+
+        return {
+          success: true
+        }
+      } catch (error: any) {
+        console.error('[block:record-execution] Error:', error)
+        return {
+          success: false,
+          error: error.message
+        }
+      }
+    }
+  )
+
+  /**
+   * Get block execution history
+   */
+  ipcMain.handle(
+    'block:get-executions',
+    async (_event: IpcMainInvokeEvent, blockId: string) => {
+      try {
+        if (!storage) throw new Error('Storage not initialized')
+
+        const executions = storage.getBlockExecutions(blockId)
+
+        return {
+          success: true,
+          executions
+        }
+      } catch (error: any) {
+        console.error('[block:get-executions] Error:', error)
         return {
           success: false,
           error: error.message
