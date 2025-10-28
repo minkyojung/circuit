@@ -416,19 +416,16 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             <div className="text-sm text-muted-foreground">Loading conversation...</div>
           </div>
         ) : messages.length > 0 ? (
-          <div className="space-y-3 max-w-3xl mx-auto">
+          <div className="space-y-4 max-w-4xl mx-auto">
             {messages.map((msg) => (
               <div
                 key={msg.id}
-                className={`p-3 rounded-lg ${
+                className={`group relative ${
                   msg.role === 'user'
-                    ? 'bg-sidebar ml-12'
-                    : 'bg-sidebar mr-12 border border-border'
+                    ? 'pl-3 border-l-2 border-blue-500/30'
+                    : 'pl-3 border-l-2 border-border'
                 }`}
               >
-                <div className="text-xs text-muted-foreground mb-1.5 font-medium">
-                  {msg.role === 'user' ? 'You' : 'Claude'}
-                </div>
                 {/* Block-based rendering with fallback */}
                 {msg.blocks && msg.blocks.length > 0 ? (
                   <BlockList
@@ -505,16 +502,15 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                     }}
                   />
                 ) : (
-                  <div className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
+                  <div className="text-base text-foreground whitespace-pre-wrap leading-relaxed">
                     {msg.content}
                   </div>
                 )}
               </div>
             ))}
             {isSending && (
-              <div className="p-3 rounded-lg bg-sidebar mr-12 border border-border">
-                <div className="text-xs text-muted-foreground mb-1.5 font-medium">Claude</div>
-                <div className="text-sm text-muted-foreground">Thinking...</div>
+              <div className="pl-3 border-l-2 border-border">
+                <div className="text-base text-muted-foreground">Thinking...</div>
               </div>
             )}
           </div>
@@ -624,9 +620,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 <button
                   onClick={handleSend}
                   disabled={!input.trim() || isSending || !sessionId || isLoadingConversation}
-                  className="px-4 py-2 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-muted disabled:to-muted disabled:cursor-not-allowed flex items-center justify-center transition-all shadow-sm"
+                  className="px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 disabled:bg-muted disabled:cursor-not-allowed flex items-center justify-center transition-all shadow-sm"
                 >
-                  <ArrowUp size={16} className="text-white" strokeWidth={2.5} />
+                  <ArrowUp size={16} className="text-primary-foreground" strokeWidth={2.5} />
                 </button>
               </div>
             </div>
