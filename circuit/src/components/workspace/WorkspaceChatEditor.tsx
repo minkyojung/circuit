@@ -437,7 +437,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                           // Add result as a new assistant message with output
                           const resultMessage: Message = {
                             id: `msg-${Date.now()}`,
-                            conversationId: activeConversationId!,
+                            conversationId: conversationId!,
                             role: 'assistant',
                             content: `Command executed successfully (${result.duration}ms)\n\n\`\`\`\n${result.output}\n\`\`\`\n\nExit code: ${result.exitCode}`,
                             timestamp: Date.now(),
@@ -460,7 +460,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                           // Add error as a new assistant message
                           const errorMessage: Message = {
                             id: `msg-${Date.now()}`,
-                            conversationId: activeConversationId!,
+                            conversationId: conversationId!,
                             role: 'assistant',
                             content: `Command execution failed\n\n\`\`\`\n${result.error}\n${result.output || ''}\n\`\`\``,
                             timestamp: Date.now(),
@@ -482,7 +482,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
                         const errorMessage: Message = {
                           id: `msg-${Date.now()}`,
-                          conversationId: activeConversationId!,
+                          conversationId: conversationId!,
                           role: 'assistant',
                           content: `Failed to execute command: ${error}`,
                           timestamp: Date.now(),

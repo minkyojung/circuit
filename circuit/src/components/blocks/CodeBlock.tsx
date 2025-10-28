@@ -1,7 +1,7 @@
 /**
- * CodeBlock - Renders code with syntax highlighting
+ * CodeBlock - Renders code with monospace font
  *
- * Uses react-syntax-highlighter with VS Code Dark+ theme
+ * TODO: Add syntax highlighting with Vite-compatible library (shiki or prismjs)
  * Future: Add line numbers, file name header, "Open in editor" button.
  */
 
@@ -10,8 +10,6 @@ import type { Block } from '../../types/conversation'
 import { Copy, Check, FileCode, Bookmark, BookmarkCheck } from 'lucide-react'
 
 const { ipcRenderer } = window.require('electron')
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 
 interface CodeBlockProps {
   block: Block
@@ -110,27 +108,18 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ block, onCopy }) => {
         </div>
       </div>
 
-      {/* Code content with syntax highlighting */}
+      {/* Code content with monospace font */}
       <div className="overflow-x-auto">
-        <SyntaxHighlighter
-          language={language}
-          style={vscDarkPlus}
-          customStyle={{
+        <pre
+          className="p-3 text-sm leading-relaxed"
+          style={{
             margin: 0,
-            padding: '12px',
-            fontSize: '13px',
-            lineHeight: '1.6',
-            background: 'transparent',
             fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-          }}
-          codeTagProps={{
-            style: {
-              fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-            }
+            color: '#d4d4d4',
           }}
         >
-          {block.content}
-        </SyntaxHighlighter>
+          <code>{block.content}</code>
+        </pre>
       </div>
     </div>
   )
