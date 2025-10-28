@@ -428,20 +428,68 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                         const result = await ipcRenderer.invoke('command:execute', {
                           command,
                           workingDirectory: workspace.path,
-                          blockId: undefined // Could track block ID if needed
+                          blockId: undefined
                         });
 
                         if (result.success) {
                           console.log('[CommandBlock] Execution success:', result.output);
-                          // TODO: Add result as new message or update block
-                          alert(`Success!\n\n${result.output.slice(0, 500)}`);
+
+                          // Add result as a new assistant message with output
+                          const resultMessage: Message = {
+                            id: `msg-${Date.now()}`,
+                            conversationId: activeConversationId!,
+                            role: 'assistant',
+                            content: `Command executed successfully (${result.duration}ms)\n\n\`\`\`\n${result.output}\n\`\`\`\n\nExit code: ${result.exitCode}`,
+                            timestamp: Date.now(),
+                          };
+
+                          setMessages((prev) => [...prev, resultMessage]);
+
+                          // Save to database with block parsing
+                          const saveResult = await ipcRenderer.invoke('message:save', resultMessage);
+                          if (saveResult.success && saveResult.blocks) {
+                            setMessages((prev) =>
+                              prev.map((msg) =>
+                                msg.id === resultMessage.id ? { ...msg, blocks: saveResult.blocks } : msg
+                              )
+                            );
+                          }
                         } else {
                           console.error('[CommandBlock] Execution failed:', result.error);
-                          alert(`Error: ${result.error}\n\n${result.output || ''}`);
+
+                          // Add error as a new assistant message
+                          const errorMessage: Message = {
+                            id: `msg-${Date.now()}`,
+                            conversationId: activeConversationId!,
+                            role: 'assistant',
+                            content: `Command execution failed\n\n\`\`\`\n${result.error}\n${result.output || ''}\n\`\`\``,
+                            timestamp: Date.now(),
+                          };
+
+                          setMessages((prev) => [...prev, errorMessage]);
+
+                          const saveResult = await ipcRenderer.invoke('message:save', errorMessage);
+                          if (saveResult.success && saveResult.blocks) {
+                            setMessages((prev) =>
+                              prev.map((msg) =>
+                                msg.id === errorMessage.id ? { ...msg, blocks: saveResult.blocks } : msg
+                              )
+                            );
+                          }
                         }
                       } catch (error) {
                         console.error('[CommandBlock] Execute error:', error);
-                        alert(`Failed to execute command: ${error}`);
+
+                        const errorMessage: Message = {
+                          id: `msg-${Date.now()}`,
+                          conversationId: activeConversationId!,
+                          role: 'assistant',
+                          content: `Failed to execute command: ${error}`,
+                          timestamp: Date.now(),
+                        };
+
+                        setMessages((prev) => [...prev, errorMessage]);
+                        await ipcRenderer.invoke('message:save', errorMessage);
                       }
                     }}
                   />

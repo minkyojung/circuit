@@ -10,7 +10,9 @@
 
 import React, { useState } from 'react'
 import type { Block } from '../../types/conversation'
-import { Copy, Check, Play, Loader2, Terminal, AlertCircle } from 'lucide-react'
+import { Copy, Check, Play, Loader2, Terminal, AlertCircle, Bookmark, BookmarkCheck } from 'lucide-react'
+
+const { ipcRenderer } = window.require('electron')
 
 interface CommandBlockProps {
   block: Block
@@ -22,6 +24,7 @@ interface CommandBlockProps {
 export const CommandBlock: React.FC<CommandBlockProps> = ({ block, onCopy, onExecute }) => {
   const [copied, setCopied] = useState(false)
   const [executing, setExecuting] = useState(false)
+  const [bookmarked, setBookmarked] = useState(false)
 
   const handleCopy = () => {
     onCopy(block.content)
@@ -35,6 +38,26 @@ export const CommandBlock: React.FC<CommandBlockProps> = ({ block, onCopy, onExe
       await onExecute(block.content)
     } finally {
       setExecuting(false)
+    }
+  }
+
+  const handleBookmark = async () => {
+    try {
+      if (bookmarked) {
+        console.log('[CommandBlock] Unbookmark not yet implemented')
+      } else {
+        const bookmark = {
+          id: `bookmark-${Date.now()}`,
+          blockId: block.id,
+          title: 'Command',
+          createdAt: new Date().toISOString(),
+        }
+        await ipcRenderer.invoke('block:bookmark', bookmark)
+        setBookmarked(true)
+        console.log('[CommandBlock] Bookmarked:', block.id)
+      }
+    } catch (error) {
+      console.error('[CommandBlock] Bookmark error:', error)
     }
   }
 
@@ -55,6 +78,20 @@ export const CommandBlock: React.FC<CommandBlockProps> = ({ block, onCopy, onExe
         </div>
 
         <div className="flex items-center gap-1">
+          {/* Bookmark button */}
+          <button
+            onClick={handleBookmark}
+            className="flex items-center gap-1 rounded px-2 py-0.5 text-xs transition-colors hover:bg-purple-500/20"
+            title={bookmarked ? 'Bookmarked' : 'Bookmark this command'}
+            disabled={executing}
+          >
+            {bookmarked ? (
+              <BookmarkCheck className="h-3 w-3 text-yellow-500" />
+            ) : (
+              <Bookmark className="h-3 w-3 text-purple-300" />
+            )}
+          </button>
+
           {/* Copy button */}
           <button
             onClick={handleCopy}
@@ -99,7 +136,14 @@ export const CommandBlock: React.FC<CommandBlockProps> = ({ block, onCopy, onExe
 
       {/* Command content */}
       <div className="p-3">
-        <pre className="font-mono text-sm text-purple-100">{block.content}</pre>
+        <pre
+          className="font-mono text-sm text-purple-100"
+          style={{
+            fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+          }}
+        >
+          {block.content}
+        </pre>
       </div>
 
       {/* Execution status (if executed before) */}

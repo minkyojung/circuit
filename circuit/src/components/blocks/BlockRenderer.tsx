@@ -126,7 +126,12 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
 
           {/* Diff content */}
           <div className="overflow-x-auto">
-            <pre className="p-0 text-sm font-mono">
+            <pre
+              className="p-0 text-sm font-mono"
+              style={{
+                fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+              }}
+            >
               {block.content.split('\n').map((line, i) => {
                 const isAddition = line.startsWith('+') && !line.startsWith('+++')
                 const isDeletion = line.startsWith('-') && !line.startsWith('---')

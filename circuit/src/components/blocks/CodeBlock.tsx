@@ -1,13 +1,17 @@
 /**
  * CodeBlock - Renders code with syntax highlighting
  *
- * Uses Monaco Editor's syntax highlighter for accurate coloring.
+ * Uses react-syntax-highlighter with VS Code Dark+ theme
  * Future: Add line numbers, file name header, "Open in editor" button.
  */
 
 import React, { useState } from 'react'
 import type { Block } from '../../types/conversation'
-import { Copy, Check, FileCode } from 'lucide-react'
+import { Copy, Check, FileCode, Bookmark, BookmarkCheck } from 'lucide-react'
+
+const { ipcRenderer } = window.require('electron')
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 
 interface CodeBlockProps {
   block: Block
@@ -17,11 +21,33 @@ interface CodeBlockProps {
 
 export const CodeBlock: React.FC<CodeBlockProps> = ({ block, onCopy }) => {
   const [copied, setCopied] = useState(false)
+  const [bookmarked, setBookmarked] = useState(false)
 
   const handleCopy = () => {
     onCopy(block.content)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  const handleBookmark = async () => {
+    try {
+      if (bookmarked) {
+        // TODO: Implement unbookmark - need to track bookmark ID
+        console.log('[CodeBlock] Unbookmark not yet implemented')
+      } else {
+        const bookmark = {
+          id: `bookmark-${Date.now()}`,
+          blockId: block.id,
+          title: `${language} code`,
+          createdAt: new Date().toISOString(),
+        }
+        await ipcRenderer.invoke('block:bookmark', bookmark)
+        setBookmarked(true)
+        console.log('[CodeBlock] Bookmarked:', block.id)
+      }
+    } catch (error) {
+      console.error('[CodeBlock] Bookmark error:', error)
+    }
   }
 
   const language = block.metadata.language || 'plaintext'
@@ -49,39 +75,62 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ block, onCopy }) => {
           </span>
         </div>
 
-        {/* Copy button */}
-        <button
-          onClick={handleCopy}
-          className="flex items-center gap-1 rounded px-2 py-0.5 text-xs transition-colors hover:bg-sidebar-accent"
-          title="Copy code"
-        >
-          {copied ? (
-            <>
-              <Check className="h-3 w-3 text-green-500" />
-              <span className="text-green-500">Copied</span>
-            </>
-          ) : (
-            <>
-              <Copy className="h-3 w-3 text-muted-foreground" />
-              <span className="text-muted-foreground">Copy</span>
-            </>
-          )}
-        </button>
+        <div className="flex items-center gap-1">
+          {/* Bookmark button */}
+          <button
+            onClick={handleBookmark}
+            className="flex items-center gap-1 rounded px-2 py-0.5 text-xs transition-colors hover:bg-sidebar-accent"
+            title={bookmarked ? 'Bookmarked' : 'Bookmark this code'}
+          >
+            {bookmarked ? (
+              <BookmarkCheck className="h-3 w-3 text-yellow-500" />
+            ) : (
+              <Bookmark className="h-3 w-3 text-muted-foreground" />
+            )}
+          </button>
+
+          {/* Copy button */}
+          <button
+            onClick={handleCopy}
+            className="flex items-center gap-1 rounded px-2 py-0.5 text-xs transition-colors hover:bg-sidebar-accent"
+            title="Copy code"
+          >
+            {copied ? (
+              <>
+                <Check className="h-3 w-3 text-green-500" />
+                <span className="text-green-500">Copied</span>
+              </>
+            ) : (
+              <>
+                <Copy className="h-3 w-3 text-muted-foreground" />
+                <span className="text-muted-foreground">Copy</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
-      {/* Code content */}
+      {/* Code content with syntax highlighting */}
       <div className="overflow-x-auto">
-        <pre className="p-3 text-sm font-mono leading-relaxed">
-          <code
-            className={`language-${language}`}
-            style={{
-              color: '#d4d4d4',
-              display: 'block',
-            }}
-          >
-            {block.content}
-          </code>
-        </pre>
+        <SyntaxHighlighter
+          language={language}
+          style={vscDarkPlus}
+          customStyle={{
+            margin: 0,
+            padding: '12px',
+            fontSize: '13px',
+            lineHeight: '1.6',
+            background: 'transparent',
+            fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+          }}
+          codeTagProps={{
+            style: {
+              fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+            }
+          }}
+        >
+          {block.content}
+        </SyntaxHighlighter>
       </div>
     </div>
   )
