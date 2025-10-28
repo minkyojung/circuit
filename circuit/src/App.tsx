@@ -225,7 +225,7 @@ function App() {
         )}>
           {/* Main Header with Breadcrumb */}
           <header
-            className="flex h-[44px] shrink-0 items-center gap-2 border-b border-border bg-muted px-4"
+            className="flex h-[44px] shrink-0 items-center gap-2 border-b border-border px-4"
             style={{ WebkitAppRegion: 'drag' } as any}
           >
             <div
@@ -240,14 +240,14 @@ function App() {
                     <BreadcrumbItem>
                       <BreadcrumbLink
                         onClick={() => setSelectedWorkspace(null)}
-                        className="cursor-pointer hover:text-foreground transition-colors"
+                        className="cursor-pointer text-muted-foreground hover:text-foreground transition-colors"
                       >
                         {repositoryName}
                       </BreadcrumbLink>
                     </BreadcrumbItem>
                     <BreadcrumbSeparator />
                     <BreadcrumbItem>
-                      <BreadcrumbPage className="font-medium">
+                      <BreadcrumbPage className="font-medium text-muted-foreground">
                         {selectedWorkspace.name}
                       </BreadcrumbPage>
                     </BreadcrumbItem>
@@ -263,7 +263,7 @@ function App() {
                 <Breadcrumb>
                   <BreadcrumbList>
                     <BreadcrumbItem>
-                      <BreadcrumbPage className="font-medium">
+                      <BreadcrumbPage className="font-medium text-muted-foreground">
                         {repositoryName}
                       </BreadcrumbPage>
                     </BreadcrumbItem>

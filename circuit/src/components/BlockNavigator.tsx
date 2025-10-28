@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { useState, useEffect, useMemo } from 'react'
-import { Code, Terminal, FileText, GitCompare, ChevronRight, RefreshCw, Search, X } from 'lucide-react'
+import { Code, Terminal, FileText, GitCompare, RefreshCw, Search, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Block, BlockType } from '@/types/conversation'
 // Removed shadcn/ui sidebar components to avoid SidebarProvider dependency
@@ -98,18 +98,19 @@ export function BlockNavigator({ isOpen, onClose, conversationId }: BlockNavigat
   }
 
   const getBlockIcon = (type: BlockType) => {
-    const iconClass = "h-3.5 w-3.5 text-sidebar-foreground-muted"
+    const iconClass = "text-sidebar-foreground-muted"
+    const size = 14
     const strokeWidth = 1.5
 
     switch (type) {
       case 'command':
-        return <Terminal className={iconClass} strokeWidth={strokeWidth} />
+        return <Terminal className={iconClass} size={size} strokeWidth={strokeWidth} />
       case 'diff':
-        return <GitCompare className={iconClass} strokeWidth={strokeWidth} />
+        return <GitCompare className={iconClass} size={size} strokeWidth={strokeWidth} />
       case 'code':
-        return <Code className={iconClass} strokeWidth={strokeWidth} />
+        return <Code className={iconClass} size={size} strokeWidth={strokeWidth} />
       default:
-        return <FileText className={iconClass} strokeWidth={strokeWidth} />
+        return <FileText className={iconClass} size={size} strokeWidth={strokeWidth} />
     }
   }
 
@@ -142,10 +143,10 @@ export function BlockNavigator({ isOpen, onClose, conversationId }: BlockNavigat
     <div className="h-full w-[17rem] flex flex-col flex-shrink-0">
       {/* Header with integrated filter buttons - draggable */}
       <div
-        className="flex h-[44px] shrink-0 items-center justify-between px-3"
+        className="flex h-[44px] shrink-0 items-center px-3"
         style={{ WebkitAppRegion: 'drag' } as any}
       >
-        {/* Left: Filter buttons with counts */}
+        {/* Filter buttons without icons and counts */}
         <div className="flex items-center gap-1" style={{ WebkitAppRegion: 'no-drag' } as any}>
           <button
             onClick={() => setSelectedType('all')}
@@ -156,56 +157,42 @@ export function BlockNavigator({ isOpen, onClose, conversationId }: BlockNavigat
                 : "text-sidebar-foreground-muted hover:bg-sidebar-accent"
             )}
           >
-            All {blockCounts.all}
+            All
           </button>
           <button
             onClick={() => setSelectedType('code')}
             className={cn(
-              "px-2 py-1 text-xs rounded transition-colors flex items-center gap-1",
+              "px-2 py-1 text-xs rounded transition-colors",
               selectedType === 'code'
                 ? "bg-secondary text-secondary-foreground"
                 : "text-sidebar-foreground-muted hover:bg-sidebar-accent"
             )}
           >
-            <Code className="h-3 w-3" strokeWidth={1.5} />
-            Code {blockCounts.code}
+            Code
           </button>
           <button
             onClick={() => setSelectedType('command')}
             className={cn(
-              "px-2 py-1 text-xs rounded transition-colors flex items-center gap-1",
+              "px-2 py-1 text-xs rounded transition-colors",
               selectedType === 'command'
                 ? "bg-secondary text-secondary-foreground"
                 : "text-sidebar-foreground-muted hover:bg-sidebar-accent"
             )}
           >
-            <Terminal className="h-3 w-3" strokeWidth={1.5} />
-            Cmd {blockCounts.command}
+            Cmd
           </button>
           <button
             onClick={() => setSelectedType('diff')}
             className={cn(
-              "px-2 py-1 text-xs rounded transition-colors flex items-center gap-1",
+              "px-2 py-1 text-xs rounded transition-colors",
               selectedType === 'diff'
                 ? "bg-secondary text-secondary-foreground"
                 : "text-sidebar-foreground-muted hover:bg-sidebar-accent"
             )}
           >
-            <GitCompare className="h-3 w-3" strokeWidth={1.5} />
-            Diff {blockCounts.diff}
+            Diff
           </button>
         </div>
-
-        {/* Right: Close button */}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onClose}
-          className="h-7 w-7 text-sidebar-foreground-muted hover:text-sidebar-foreground"
-          style={{ WebkitAppRegion: 'no-drag' } as any}
-        >
-          <ChevronRight className="h-4 w-4" />
-        </Button>
       </div>
 
       {/* Search Input */}
