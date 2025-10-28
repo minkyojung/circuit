@@ -48,18 +48,15 @@ function LeftSidebarToggle() {
   return (
     <button
       onClick={toggleSidebar}
-      className="flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-accent hover:text-accent-foreground"
+      className={cn(
+        "flex h-7 w-7 items-center justify-center rounded-md transition-colors",
+        state === "expanded"
+          ? "text-foreground hover:bg-accent"
+          : "text-muted-foreground hover:bg-accent hover:text-foreground"
+      )}
       title={state === "expanded" ? "Collapse sidebar" : "Expand sidebar"}
     >
-      <PanelLeft
-        size={16}
-        className={cn(
-          "transition-opacity",
-          state === "expanded" ? "opacity-100" : "opacity-50"
-        )}
-        fill={state === "expanded" ? "currentColor" : "none"}
-        fillOpacity={state === "expanded" ? 0.1 : 0}
-      />
+      <PanelLeft size={16} />
     </button>
   )
 }
@@ -283,22 +280,19 @@ function App() {
               >
                 <button
                   onClick={() => setIsRightSidebarOpen(!isRightSidebarOpen)}
-                  className={`p-2 rounded-lg transition-colors ${
+                  className={cn(
+                    "flex h-7 w-7 items-center justify-center rounded-md transition-colors",
                     isRightSidebarOpen
-                      ? 'bg-secondary text-secondary-foreground'
-                      : 'hover:bg-accent text-muted-foreground hover:text-foreground'
-                  }`}
+                      ? 'text-foreground hover:bg-accent'
+                      : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                  )}
                   title="Toggle blocks"
                 >
-                  <PanelRight
-                    size={16}
-                    fill={isRightSidebarOpen ? "currentColor" : "none"}
-                    fillOpacity={isRightSidebarOpen ? 0.1 : 0}
-                  />
+                  <PanelRight size={16} />
                 </button>
                 <button
                   onClick={() => setShowCommitDialog(true)}
-                  className="px-4 py-2.5 bg-secondary hover:bg-secondary/80 text-secondary-foreground text-base font-medium rounded-md transition-colors"
+                  className="h-7 px-4 bg-secondary hover:bg-secondary/80 text-secondary-foreground text-sm font-medium rounded-md transition-colors flex items-center"
                 >
                   Commit & PR
                 </button>

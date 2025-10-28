@@ -143,7 +143,7 @@ export function BlockNavigator({ isOpen, onClose, conversationId }: BlockNavigat
     <div className="h-full w-[17rem] flex flex-col flex-shrink-0">
       {/* Header with integrated filter buttons - draggable */}
       <div
-        className="flex h-[44px] shrink-0 items-center px-3"
+        className="flex h-[44px] shrink-0 items-start pt-3 px-3"
         style={{ WebkitAppRegion: 'drag' } as any}
       >
         {/* Filter buttons without icons and counts */}
