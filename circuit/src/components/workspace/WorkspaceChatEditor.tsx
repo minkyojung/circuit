@@ -3,13 +3,14 @@ import type { Workspace } from '@/types/workspace';
 import type { Message } from '@/types/conversation';
 import Editor, { loader } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
-import { Columns2, Maximize2, Save, ArrowUp, Grid3x3, MessageSquare, Paperclip, Globe } from 'lucide-react';
+import { Columns2, Maximize2, Save } from 'lucide-react';
 import {
   ResizablePanelGroup,
   ResizablePanel,
   ResizableHandle,
 } from '@/components/ui/resizable';
 import { BlockList } from '@/components/blocks';
+import { ChatInput, type AttachedFile } from './ChatInput';
 
 // Configure Monaco Editor to use local files instead of CDN
 loader.config({ monaco });
@@ -158,53 +159,7 @@ interface ChatPanelProps {
   onConversationChange?: (conversationId: string | null) => void;
 }
 
-// Input Section Style Constants - Shadcn UI Style
-const INPUT_STYLES = {
-  container: {
-    padding: 'p-4',
-    maxWidth: 'max-w-3xl',
-    borderRadius: 'rounded-xl'  // Moderate radius
-  },
-  card: {
-    background: 'bg-card',
-    border: 'border border-input',
-    shadow: 'shadow-sm'
-  },
-  textarea: {
-    minHeight: 'min-h-[60px]',   // 컴팩트한 높이
-    fontSize: 'text-base',        // 14px
-    padding: 'px-4 py-2'          // 적절한 padding
-  },
-  contextButton: {
-    padding: 'px-4 py-2',
-    fontSize: 'text-base',
-    borderRadius: 'rounded-full',
-    gap: 'gap-2'
-  },
-  controlButton: {
-    padding: 'px-3 py-2',
-    fontSize: 'text-sm',
-    borderRadius: 'rounded-lg',
-    gap: 'gap-2',
-    iconSize: 18
-  },
-  sendButton: {
-    size: 'w-10 h-10',           // 40px
-    borderRadius: 'rounded-full',
-    iconSize: 20
-  },
-  controlBar: {
-    padding: 'px-4 pb-4',
-    gap: 'gap-2'
-  }
-} as const;
-
-// Model Mode Configuration
-const MODEL_MODES = [
-  { value: 'sonnet', icon: MessageSquare, label: 'Auto' },
-  { value: 'think', icon: Grid3x3, label: 'Deep Think' },
-  { value: 'agent', icon: MessageSquare, label: 'Agent' }
-] as const;
+// ChatInput component now handles all input styling and controls
 
 const ChatPanel: React.FC<ChatPanelProps> = ({
   workspace,
@@ -332,8 +287,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     return files;
   };
 
-  const handleSend = async () => {
-    if (!input.trim() || isSending || !sessionId) return;
+  const handleSend = async (inputText: string, attachments: AttachedFile[]) => {
+    if (!inputText.trim() && attachments.length === 0) return;
+    if (isSending || !sessionId) return;
 
     // Ensure we have a conversationId
     let activeConversationId = conversationId;
@@ -357,17 +313,29 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       }
     }
 
+    // Build content with attachments
+    let content = inputText;
+    if (attachments.length > 0) {
+      content += '\n\nAttached files:\n';
+      attachments.forEach(file => {
+        content += `- ${file.name} (${(file.size / 1024).toFixed(1)}KB)\n`;
+      });
+    }
+
     const userMessage: Message = {
       id: `msg-${Date.now()}`,
       conversationId: activeConversationId!,
       role: 'user',
-      content: input,
+      content,
       timestamp: Date.now(),
+      metadata: {
+        files: attachments.map(f => f.name),
+      },
     };
 
     // Optimistic UI update
     setMessages([...messages, userMessage]);
-    const currentInput = input;
+    const currentInput = inputText;
     setInput('');
     setIsSending(true);
 
@@ -456,9 +424,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   };
 
   return (
-    <div className="h-full bg-card relative">
-      {/* Messages Area - extends behind input */}
-      <div className="h-full overflow-auto p-6 pb-32">
+    <div className="h-full flex flex-col bg-card">
+      {/* Messages Area */}
+      <div className="flex-1 overflow-auto p-6">
         {isLoadingConversation ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-sm text-muted-foreground">Loading conversation...</div>
@@ -575,84 +543,16 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         )}
       </div>
 
-      {/* Input Section - Sticky at bottom - Simple Style */}
-      <div className={`sticky bottom-0 ${INPUT_STYLES.container.padding} pointer-events-none`}>
-        <div className={`${INPUT_STYLES.container.maxWidth} mx-auto pointer-events-auto`}>
-          {/* Input Card - Single border container */}
-          <div className="relative w-full flex flex-col border border-input rounded-xl bg-card shadow-sm">
-            {/* Top: Add Context Button */}
-            <div className="px-4 pt-4 pb-2">
-              <button
-                className={`inline-flex items-center ${INPUT_STYLES.contextButton.gap} ${INPUT_STYLES.contextButton.padding} ${INPUT_STYLES.contextButton.borderRadius} ${INPUT_STYLES.contextButton.fontSize} bg-secondary/50 hover:bg-secondary text-secondary-foreground border border-border/50 transition-colors`}
-              >
-                <span className="text-base">@</span>
-                <span>Add context</span>
-              </button>
-            </div>
-
-            {/* Textarea */}
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                  handleSend();
-                }
-              }}
-              placeholder="Ask, search, or make anything..."
-              disabled={isSending || !sessionId || isLoadingConversation}
-              className={`w-full px-4 bg-transparent border-none outline-none resize-none leading-relaxed text-card-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-0 ${INPUT_STYLES.textarea.fontSize} ${INPUT_STYLES.textarea.minHeight}`}
-              rows={1}
-            />
-
-            {/* Control Bar - Bottom */}
-            <div className="flex items-center justify-between px-4 pb-4">
-              {/* Left: Mode controls with icon + text */}
-              <div className={`flex ${INPUT_STYLES.controlBar.gap} items-center`}>
-                {/* Paperclip / Attachment */}
-                <button
-                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-muted-foreground hover:text-card-foreground hover:bg-accent transition-colors"
-                >
-                  <Paperclip size={INPUT_STYLES.controlButton.iconSize} strokeWidth={1.5} />
-                </button>
-
-                {/* Model Mode Selector */}
-                <button
-                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-card-foreground hover:bg-accent transition-colors"
-                >
-                  {MODEL_MODES.find(m => m.value === selectedModel)?.icon && (
-                    React.createElement(MODEL_MODES.find(m => m.value === selectedModel)!.icon, {
-                      size: INPUT_STYLES.controlButton.iconSize,
-                      strokeWidth: 1.5
-                    })
-                  )}
-                  <span>{MODEL_MODES.find(m => m.value === selectedModel)?.label}</span>
-                </button>
-
-                {/* All Sources / Context Selector */}
-                <button
-                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-card-foreground hover:bg-accent transition-colors"
-                >
-                  <Globe size={INPUT_STYLES.controlButton.iconSize} strokeWidth={1.5} />
-                  <span>All Sources</span>
-                </button>
-              </div>
-
-              {/* Right: Send button with orange color */}
-              <button
-                onClick={handleSend}
-                disabled={!input.trim() || isSending || !sessionId || isLoadingConversation}
-                className={`${INPUT_STYLES.sendButton.size} ${INPUT_STYLES.sendButton.borderRadius} flex items-center justify-center transition-all shrink-0 ${
-                  !input.trim() || isSending || !sessionId || isLoadingConversation
-                    ? 'bg-muted/50 text-muted-foreground/40 cursor-not-allowed'
-                    : 'bg-orange-500 text-white hover:bg-orange-600'
-                }`}
-              >
-                <ArrowUp size={INPUT_STYLES.sendButton.iconSize} strokeWidth={2} />
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Enhanced Chat Input with File Attachment */}
+      <div className="p-4 border-t border-border">
+        <ChatInput
+          value={input}
+          onChange={setInput}
+          onSubmit={handleSend}
+          disabled={isSending || !sessionId || isLoadingConversation}
+          placeholder="Ask, search, or make anything..."
+          showControls={true}
+        />
       </div>
     </div>
   );
