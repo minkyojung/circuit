@@ -42,7 +42,7 @@ export const StatusBar: React.FC = () => {
       <div
         className={cn(
           "h-5 border-t border-statusbar-border bg-statusbar",
-          "flex items-center px-3 gap-2.5",
+          "flex items-center px-3 gap-2",
           "transition-all duration-200",
           isExpanded && "border-b border-statusbar-border"
         )}
@@ -51,12 +51,12 @@ export const StatusBar: React.FC = () => {
         <div className="flex-1" />
 
         {/* Usage - minimal */}
-        <div className="flex items-center gap-1.5">
-          <span className="text-[10px] text-statusbar-label font-normal">Usage</span>
+        <div className="flex items-center gap-1">
+          <span className="text-[9px] text-statusbar-label font-normal">Usage</span>
           <div
             style={{
-              width: '64px',
-              height: '12px',
+              width: '56px',
+              height: '8px',
               backgroundColor: 'var(--statusbar-progress-bg)',
               borderRadius: '9999px',
               position: 'relative',
@@ -76,7 +76,7 @@ export const StatusBar: React.FC = () => {
               }}
             />
           </div>
-          <span className="text-[10px] text-statusbar-value font-mono min-w-[26px] text-right">
+          <span className="text-[9px] text-statusbar-value font-mono min-w-[24px] text-right">
             {usage.percentage.toFixed(0)}%
           </span>
         </div>
@@ -85,12 +85,12 @@ export const StatusBar: React.FC = () => {
         <div className="w-px h-2.5 bg-statusbar-border" />
 
         {/* Context - minimal */}
-        <div className="flex items-center gap-1.5">
-          <span className="text-[10px] text-statusbar-label font-normal">Context</span>
+        <div className="flex items-center gap-1">
+          <span className="text-[9px] text-statusbar-label font-normal">Context</span>
           <div
             style={{
-              width: '64px',
-              height: '12px',
+              width: '56px',
+              height: '8px',
               backgroundColor: 'var(--statusbar-progress-bg)',
               borderRadius: '9999px',
               position: 'relative',
@@ -110,7 +110,7 @@ export const StatusBar: React.FC = () => {
               }}
             />
           </div>
-          <span className="text-[10px] text-statusbar-value font-mono min-w-[26px] text-right">
+          <span className="text-[9px] text-statusbar-value font-mono min-w-[24px] text-right">
             {context.percentage.toFixed(0)}%
           </span>
         </div>
