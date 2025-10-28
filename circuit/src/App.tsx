@@ -176,7 +176,7 @@ function App() {
   return (
     <ProjectPathContext.Provider value={{ projectPath, isLoading: isLoadingPath }}>
       <div
-        className="min-h-screen backdrop-blur-xl"
+        className="h-screen overflow-hidden backdrop-blur-xl"
         style={{
           backgroundColor: 'var(--window-glass)'
         }}

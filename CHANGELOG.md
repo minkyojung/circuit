@@ -8,12 +8,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Workspace-Chat Synchronization**: Persistent chat history with SQLite backend
+  - Conversation storage with workspace isolation
+  - Message persistence across app restarts
+  - Automatic conversation/message recovery on workspace switch
+  - Database migrations system for schema versioning
+- **Block-Based Conversation System Design**: Comprehensive architecture documentation
+  - Command Palette (Cmd+K) for unified search specification
+  - Timeline View (Cmd+T) with Git integration design
+  - Bookmarks system (Cmd+B) specification
+  - 8 block types (text, code, command, file, diff, error, diagram, list)
+  - Warp Terminal-inspired block-based message storage architecture
+- **Chat UI Enhancements**:
+  - Glassmorphism design for chat input with floating layout
+  - Messages scroll behind chat input with backdrop blur effect
+  - Improved visual hierarchy and polish
 - Repository management integration with backend IPC handlers
 - CloneRepositoryDialog component for Git repository cloning with URL input
 - Repository state management in AppSidebar with localStorage persistence
 - Workspace filtering by repository
+- Automatic native module rebuild for better-sqlite3 via electron-rebuild
 
 ### Changed
+- **Electron Build System**:
+  - Changed TypeScript compilation target to CommonJS for electron files
+  - Created isolated module system for dist-electron/ folder
+  - Added postinstall script for automatic native module rebuilding
+- **Chat Architecture**:
+  - Moved conversation handler initialization to app.whenReady() for proper timing
+  - Improved error recovery with dynamic conversation creation
+  - Enhanced message persistence with optimistic UI updates
+- **UI Improvements**:
+  - Separated sidebar and chat area scrolling with structural height constraints
+  - Fixed layout using h-screen and overflow-hidden on root container
+  - Changed SidebarProvider from min-h-svh to h-full for proper layout
 - Replaced browser prompt() with custom React dialog for Electron compatibility
 - Moved CloneRepositoryDialog outside sidebar for proper z-index stacking
 - Removed debug console.log statements throughout the codebase for cleaner production code
@@ -22,6 +50,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improved code quality and maintainability
 
 ### Fixed
+- **Module System Issues**:
+  - Resolved "exports is not defined in ES module scope" error
+  - Fixed NODE_MODULE_VERSION mismatch between system Node.js and Electron
+  - Fixed better-sqlite3 native module compatibility with Electron 38
+- **Conversation System**:
+  - Fixed IPC handler registration timing issues
+  - Fixed "No handler registered" errors for conversation operations
+  - Fixed missing conversationId handling in message send flow
+  - Fixed conversation loading on workspace switch
+- **UI Issues**:
+  - Fixed sidebar scrolling together with chat area
+  - Fixed chat messages getting cut off at input boundary
 - Fixed prompt() not supported error in Electron renderer process
 - Fixed dialog z-index issues by rendering outside sidebar component
 - Fixed TypeScript type errors in DeveloperTab (latency handling, useEffect return type)
@@ -31,6 +71,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 - Deleted unused Sidebar.tsx (replaced by AppSidebar.tsx)
 - Removed unused cn import from CloneRepositoryDialog
+
+### Technical Debt
+- Consider adding input validation for workspaceId/conversationId (low priority)
+- Consider improving error type safety from `error: any` to `error: unknown` (low priority)
+- Add unit tests for ConversationStorage and handlers (future)
+- Add performance benchmarks for message operations (future)
 
 ## [0.6.0] - Phase 6: Fully Automated Fix Application
 

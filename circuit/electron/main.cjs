@@ -647,6 +647,24 @@ app.on('render-process-gone', (event, webContents, details) => {
 });
 
 app.whenReady().then(async () => {
+  console.log('[main.cjs] ===== APP READY =====');
+
+  // Initialize conversation storage BEFORE creating windows
+  console.log('[main.cjs] Initializing conversation handlers...');
+  try {
+    console.log('[main.cjs] Requiring conversationHandlers...');
+    const { initializeConversationStorage, registerConversationHandlers } = require('../dist-electron/conversationHandlers.js');
+    console.log('[main.cjs] Require successful, initializing storage...');
+    await initializeConversationStorage();
+    console.log('[main.cjs] Storage initialized, registering handlers...');
+    registerConversationHandlers();
+    console.log('[main.cjs] ✅ Conversation handlers registered successfully');
+  } catch (error) {
+    console.error('[main.cjs] ❌ CRITICAL: Failed to register conversation handlers:', error);
+    console.error('[main.cjs] Error stack:', error.stack);
+  }
+
+  console.log('[main.cjs] Creating windows...');
   createWindow();
   createPeekWindow();
 
