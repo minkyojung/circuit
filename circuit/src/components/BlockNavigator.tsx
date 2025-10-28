@@ -126,9 +126,12 @@ export function BlockNavigator({ isOpen, onClose, conversationId }: BlockNavigat
   }
 
   return (
-    <div className="h-full w-[17rem] flex flex-col flex-shrink-0 border-l border-border">
-      {/* Header - matches AppSidebar style */}
-      <div className="flex h-[44px] shrink-0 items-center justify-between px-3 border-b border-border">
+    <div className="h-full w-[17rem] flex flex-col flex-shrink-0">
+      {/* Header - draggable */}
+      <div
+        className="flex h-[44px] shrink-0 items-center justify-between px-3"
+        style={{ WebkitAppRegion: 'drag' } as any}
+      >
         <div className="flex items-center gap-2">
           <List className="h-4 w-4 text-blue-500" />
           <h2 className="text-sm font-semibold text-sidebar-foreground">Blocks</h2>
@@ -143,13 +146,14 @@ export function BlockNavigator({ isOpen, onClose, conversationId }: BlockNavigat
           size="icon"
           onClick={onClose}
           className="h-7 w-7 text-sidebar-foreground-muted hover:text-sidebar-foreground"
+          style={{ WebkitAppRegion: 'no-drag' } as any}
         >
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
 
       {/* Filter Buttons */}
-      <div className="flex gap-1 p-2 border-b border-border">
+      <div className="flex gap-1 p-2">
         <button
           onClick={() => setSelectedType('all')}
           className={cn(
@@ -294,7 +298,7 @@ export function BlockNavigator({ isOpen, onClose, conversationId }: BlockNavigat
       </div>
 
       {/* Footer */}
-      <div className="border-t border-border p-2">
+      <div className="p-2">
         <Button
           variant="ghost"
           size="sm"
