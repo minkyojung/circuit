@@ -18,9 +18,10 @@ import {
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar"
 import type { Workspace } from "@/types/workspace"
-import { FolderGit2, GitCommit, List } from 'lucide-react'
+import { FolderGit2, GitCommit, PanelLeft, PanelRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
@@ -39,6 +40,29 @@ const ProjectPathContext = createContext<ProjectPathContextValue>({
 })
 
 export const useProjectPath = () => useContext(ProjectPathContext)
+
+// Custom sidebar toggle button component
+function LeftSidebarToggle() {
+  const { state, toggleSidebar } = useSidebar()
+
+  return (
+    <button
+      onClick={toggleSidebar}
+      className="flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-accent hover:text-accent-foreground"
+      title={state === "expanded" ? "Collapse sidebar" : "Expand sidebar"}
+    >
+      <PanelLeft
+        size={16}
+        className={cn(
+          "transition-opacity",
+          state === "expanded" ? "opacity-100" : "opacity-50"
+        )}
+        fill={state === "expanded" ? "currentColor" : "none"}
+        fillOpacity={state === "expanded" ? 0.1 : 0}
+      />
+    </button>
+  )
+}
 
 function App() {
   const [projectPath, setProjectPath] = useState<string>('')
@@ -208,7 +232,7 @@ function App() {
               className="flex items-center gap-2"
               style={{ WebkitAppRegion: 'no-drag' } as any}
             >
-              <SidebarTrigger className="-ml-1" />
+              <LeftSidebarToggle />
               <Separator orientation="vertical" className="mr-2 h-4" />
               {selectedWorkspace ? (
                 <Breadcrumb>
@@ -266,7 +290,11 @@ function App() {
                   }`}
                   title="Toggle blocks"
                 >
-                  <List size={16} />
+                  <PanelRight
+                    size={16}
+                    fill={isRightSidebarOpen ? "currentColor" : "none"}
+                    fillOpacity={isRightSidebarOpen ? 0.1 : 0}
+                  />
                 </button>
                 <button
                   onClick={() => setShowCommitDialog(true)}
@@ -329,7 +357,7 @@ function App() {
       <div
         className={cn(
           "h-full transition-all duration-300 ease-in-out overflow-hidden",
-          isRightSidebarOpen ? "w-80" : "w-0"
+          isRightSidebarOpen ? "w-[17rem]" : "w-0"
         )}
       >
         <BlockNavigator

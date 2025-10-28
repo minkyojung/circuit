@@ -126,7 +126,7 @@ export function BlockNavigator({ isOpen, onClose, conversationId }: BlockNavigat
   }
 
   return (
-    <div className="h-full w-80 flex flex-col flex-shrink-0 border-l border-border">
+    <div className="h-full w-[17rem] flex flex-col flex-shrink-0 border-l border-border">
       {/* Header - matches AppSidebar style */}
       <div className="flex h-[44px] shrink-0 items-center justify-between px-3 border-b border-border">
         <div className="flex items-center gap-2">

@@ -16,6 +16,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
 import { SidebarFooter as CustomSidebarFooter } from '@/components/SidebarFooter'
@@ -81,6 +82,7 @@ const getStatusBadge = (status?: WorkspaceStatus) => {
 
 export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWorkspace, selectedFile, onFileSelect, onWorkspacesLoaded, ...props }: AppSidebarProps) {
   const { projectPath } = useProjectPath()
+  const { state } = useSidebar()
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [statuses, setStatuses] = useState<Record<string, WorkspaceStatus>>({})
   const [isCreating, setIsCreating] = useState(false)
@@ -348,7 +350,9 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
   return (
     <>
     <Sidebar variant="inset" {...props}>
-      <SidebarHeader>
+      <SidebarHeader className={cn(
+        state === "collapsed" && "pl-16"
+      )}>
         {/* Traffic Lights Area (Fully Draggable) */}
         <div
           className="h-[44px] -m-2 mb-0"
