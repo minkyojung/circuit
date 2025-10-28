@@ -9,6 +9,7 @@ import {
   ResizablePanel,
   ResizableHandle,
 } from '@/components/ui/resizable';
+import { BlockList } from '@/components/blocks';
 
 // Configure Monaco Editor to use local files instead of CDN
 loader.config({ monaco });
@@ -401,7 +402,17 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 <div className="text-xs text-muted-foreground mb-1.5 font-medium">
                   {msg.role === 'user' ? 'You' : 'Claude'}
                 </div>
-                <div className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{msg.content}</div>
+                {/* Block-based rendering with fallback */}
+                {msg.blocks && msg.blocks.length > 0 ? (
+                  <BlockList
+                    blocks={msg.blocks}
+                    onCopy={(content) => navigator.clipboard.writeText(content)}
+                  />
+                ) : (
+                  <div className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
+                    {msg.content}
+                  </div>
+                )}
               </div>
             ))}
             {isSending && (
