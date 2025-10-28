@@ -407,6 +407,27 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                   <BlockList
                     blocks={msg.blocks}
                     onCopy={(content) => navigator.clipboard.writeText(content)}
+                    onExecute={async (command) => {
+                      try {
+                        const result = await ipcRenderer.invoke('command:execute', {
+                          command,
+                          workingDirectory: workspace.path,
+                          blockId: undefined // Could track block ID if needed
+                        });
+
+                        if (result.success) {
+                          console.log('[CommandBlock] Execution success:', result.output);
+                          // TODO: Add result as new message or update block
+                          alert(`Success!\n\n${result.output.slice(0, 500)}`);
+                        } else {
+                          console.error('[CommandBlock] Execution failed:', result.error);
+                          alert(`Error: ${result.error}\n\n${result.output || ''}`);
+                        }
+                      } catch (error) {
+                        console.error('[CommandBlock] Execute error:', error);
+                        alert(`Failed to execute command: ${error}`);
+                      }
+                    }}
                   />
                 ) : (
                   <div className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">

@@ -5,6 +5,10 @@
 import { ipcMain, IpcMainInvokeEvent } from 'electron'
 import { ConversationStorage, Conversation, Message, Block, BlockBookmark, BlockExecution } from './conversationStorage'
 import { parseMessageToBlocks } from './messageParser'
+import { exec } from 'child_process'
+import { promisify } from 'util'
+
+const execAsync = promisify(exec)
 
 let storage: ConversationStorage | null = null
 
@@ -561,6 +565,113 @@ export function registerConversationHandlers(): void {
         return {
           success: false,
           error: error.message
+        }
+      }
+    }
+  )
+
+  /**
+   * Execute a command block
+   *
+   * Security: Basic validation to prevent dangerous commands
+   */
+  ipcMain.handle(
+    'command:execute',
+    async (_event: IpcMainInvokeEvent, options: {
+      command: string
+      workingDirectory: string
+      blockId?: string
+    }) => {
+      try {
+        const { command, workingDirectory, blockId } = options
+
+        // Basic security checks
+        const dangerousPatterns = [
+          /rm\s+-rf\s+\//, // rm -rf /
+          /sudo/i,          // sudo commands
+          /:\(\)\{/,        // Fork bomb
+          /mkfs/i,          // Format disk
+          /dd\s+if=/i,      // Disk operations
+        ]
+
+        for (const pattern of dangerousPatterns) {
+          if (pattern.test(command)) {
+            throw new Error('Command contains potentially dangerous operations and was blocked')
+          }
+        }
+
+        console.log(`[command:execute] Executing: ${command}`)
+        console.log(`[command:execute] Working directory: ${workingDirectory}`)
+
+        const startTime = Date.now()
+
+        // Execute command with timeout
+        const result = await execAsync(command, {
+          cwd: workingDirectory,
+          timeout: 30000, // 30 seconds timeout
+          maxBuffer: 1024 * 1024 * 10, // 10MB max output
+        })
+
+        const duration = Date.now() - startTime
+        const exitCode = result.stdout || result.stderr ? 0 : 1
+
+        // Combine stdout and stderr
+        const output = (result.stdout + result.stderr).trim()
+
+        console.log(`[command:execute] Success (${duration}ms)`)
+        console.log(`[command:execute] Output length: ${output.length} bytes`)
+
+        // Record execution if blockId provided
+        if (blockId && storage) {
+          const execution: BlockExecution = {
+            id: `exec-${Date.now()}`,
+            blockId,
+            executedAt: new Date().toISOString(),
+            exitCode: 0,
+            output: output.slice(0, 10000), // Limit to 10KB
+            durationMs: duration
+          }
+
+          storage.recordBlockExecution(execution)
+        }
+
+        return {
+          success: true,
+          output,
+          exitCode: 0,
+          duration
+        }
+      } catch (error: any) {
+        console.error('[command:execute] Error:', error.message)
+
+        // Check if it's a timeout
+        if (error.killed || error.signal === 'SIGTERM') {
+          return {
+            success: false,
+            error: 'Command timed out after 30 seconds',
+            exitCode: 124
+          }
+        }
+
+        // Record failed execution
+        if (options.blockId && storage) {
+          const execution: BlockExecution = {
+            id: `exec-${Date.now()}`,
+            blockId: options.blockId,
+            executedAt: new Date().toISOString(),
+            exitCode: error.code || 1,
+            output: error.message,
+            durationMs: 0
+          }
+
+          storage.recordBlockExecution(execution)
+        }
+
+        return {
+          success: false,
+          error: error.message,
+          output: error.stdout || error.stderr || error.message,
+          exitCode: error.code || 1
         }
       }
     }
