@@ -3,7 +3,7 @@ import { WorkspaceChatEditor } from "@/components/workspace"
 import { CommitDialog } from "@/components/workspace/CommitDialog"
 import { CommandPalette } from "@/components/CommandPalette"
 import { AppSidebar } from "@/components/AppSidebar"
-import { ChatSidebar } from "@/components/ChatSidebar"
+import { BlockNavigator } from "@/components/BlockNavigator"
 import { StatusBar } from "@/components/statusbar/StatusBar"
 import {
   Breadcrumb,
@@ -20,7 +20,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 import type { Workspace } from "@/types/workspace"
-import { FolderGit2, GitCommit, Bookmark } from 'lucide-react'
+import { FolderGit2, GitCommit, List } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
@@ -250,7 +250,7 @@ function App() {
             {/* Spacer */}
             <div className="flex-1" />
 
-            {/* Right side - Bookmarks and Commit buttons (when workspace selected) */}
+            {/* Right side - Blocks and Commit buttons (when workspace selected) */}
             {selectedWorkspace && (
               <div
                 className="flex items-center gap-2"
@@ -263,9 +263,9 @@ function App() {
                       ? 'bg-primary text-primary-foreground'
                       : 'hover:bg-accent text-muted-foreground hover:text-foreground'
                   }`}
-                  title="Toggle bookmarks"
+                  title="Toggle blocks"
                 >
-                  <Bookmark size={16} />
+                  <List size={16} />
                 </button>
                 <button
                   onClick={() => setShowCommitDialog(true)}
@@ -324,14 +324,14 @@ function App() {
         </SidebarInset>
       </SidebarProvider>
 
-      {/* Right Sidebar - Chat Features (Bookmarks) */}
+      {/* Right Sidebar - Block Navigator */}
       <div
         className={cn(
           "h-full transition-all duration-300 ease-in-out overflow-hidden",
           isRightSidebarOpen ? "w-80" : "w-0"
         )}
       >
-        <ChatSidebar
+        <BlockNavigator
           isOpen={isRightSidebarOpen}
           onClose={() => setIsRightSidebarOpen(false)}
           conversationId={activeConversationId}
