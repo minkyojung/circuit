@@ -416,22 +416,27 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             <div className="text-sm text-muted-foreground">Loading conversation...</div>
           </div>
         ) : messages.length > 0 ? (
-          <div className="space-y-4 max-w-4xl mx-auto">
+          <div className="space-y-5 max-w-4xl mx-auto">
             {messages.map((msg) => (
               <div
                 key={msg.id}
-                className={`group relative ${
-                  msg.role === 'user'
-                    ? 'pl-3 border-l-2 border-blue-500/30'
-                    : 'pl-3 border-l-2 border-border'
+                className={`flex ${
+                  msg.role === 'user' ? 'justify-end' : 'justify-start'
                 }`}
               >
-                {/* Block-based rendering with fallback */}
-                {msg.blocks && msg.blocks.length > 0 ? (
-                  <BlockList
-                    blocks={msg.blocks}
-                    onCopy={(content) => navigator.clipboard.writeText(content)}
-                    onExecute={async (command) => {
+                <div
+                  className={`max-w-[75%] p-4 rounded-xl ${
+                    msg.role === 'user'
+                      ? 'bg-muted/50'
+                      : ''
+                  }`}
+                >
+                  {/* Block-based rendering with fallback */}
+                  {msg.blocks && msg.blocks.length > 0 ? (
+                    <BlockList
+                      blocks={msg.blocks}
+                      onCopy={(content) => navigator.clipboard.writeText(content)}
+                      onExecute={async (command) => {
                       try {
                         const result = await ipcRenderer.invoke('command:execute', {
                           command,
@@ -499,18 +504,19 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                         setMessages((prev) => [...prev, errorMessage]);
                         await ipcRenderer.invoke('message:save', errorMessage);
                       }
-                    }}
-                  />
-                ) : (
-                  <div className="text-base text-foreground whitespace-pre-wrap leading-relaxed">
-                    {msg.content}
-                  </div>
-                )}
+                      }}
+                    />
+                  ) : (
+                    <div className="text-lg text-foreground whitespace-pre-wrap leading-relaxed">
+                      {msg.content}
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
             {isSending && (
-              <div className="pl-3 border-l-2 border-border">
-                <div className="text-base text-muted-foreground">Thinking...</div>
+              <div className="flex justify-start">
+                <div className="text-lg text-muted-foreground">Thinking...</div>
               </div>
             )}
           </div>
