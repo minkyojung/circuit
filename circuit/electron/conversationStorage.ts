@@ -36,13 +36,55 @@ export interface WorkspaceMetadata {
   settings?: string // JSON string
 }
 
+export type BlockType =
+  | 'text'
+  | 'code'
+  | 'command'
+  | 'file'
+  | 'diff'
+  | 'error'
+  | 'result'
+  | 'diagram'
+  | 'link'
+  | 'quote'
+  | 'list'
+  | 'table'
+
+export interface Block {
+  id: string
+  messageId: string
+  type: BlockType
+  content: string
+  metadata: string // JSON string in database
+  order: number
+  createdAt: string
+}
+
+export interface BlockBookmark {
+  id: string
+  blockId: string
+  title?: string
+  note?: string
+  tags?: string // JSON array
+  createdAt: string
+}
+
+export interface BlockExecution {
+  id: string
+  blockId: string
+  executedAt: string
+  exitCode?: number
+  output?: string
+  durationMs?: number
+}
+
 /**
  * SQLite-based conversation storage
  */
 export class ConversationStorage {
   private db: Database.Database | null = null
   private dbPath: string
-  private schemaVersion = 1
+  private schemaVersion = 2  // Updated to v2 for blocks support
 
   constructor() {
     const userData = app.getPath('userData')
@@ -147,6 +189,97 @@ export class ConversationStorage {
       `).run(1, 'initial_schema', Date.now())
 
       console.log('[ConversationStorage] Migration v1 complete')
+    }
+
+    // Migration v2: Block-based message system
+    if (currentVersion < 2) {
+      console.log('[ConversationStorage] Running migration v2: Block-based message system')
+
+      this.db.exec(`
+        -- Blocks table: Structured storage for message content
+        -- Each message is split into blocks (text, code, command, etc.)
+        CREATE TABLE blocks (
+          id TEXT PRIMARY KEY,
+          message_id TEXT NOT NULL,
+          type TEXT NOT NULL CHECK(type IN (
+            'text', 'code', 'command', 'file', 'diff',
+            'error', 'result', 'diagram', 'link', 'quote', 'list', 'table'
+          )),
+          content TEXT NOT NULL,
+          metadata TEXT,              -- JSON: { language, fileName, isExecutable, ... }
+          order_index INTEGER NOT NULL,
+          created_at TEXT NOT NULL,
+
+          FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX idx_blocks_message ON blocks(message_id, order_index);
+        CREATE INDEX idx_blocks_type ON blocks(type);
+        CREATE INDEX idx_blocks_created ON blocks(created_at);
+
+        -- Full-text search for blocks
+        -- Enables fast searching within code, commands, and text
+        CREATE VIRTUAL TABLE blocks_fts USING fts5(
+          content,
+          block_id UNINDEXED,
+          content='blocks',
+          content_rowid='rowid'
+        );
+
+        -- Triggers to keep FTS index in sync
+        CREATE TRIGGER blocks_fts_insert AFTER INSERT ON blocks BEGIN
+          INSERT INTO blocks_fts(rowid, content, block_id)
+          VALUES (new.rowid, new.content, new.id);
+        END;
+
+        CREATE TRIGGER blocks_fts_delete AFTER DELETE ON blocks BEGIN
+          DELETE FROM blocks_fts WHERE rowid = old.rowid;
+        END;
+
+        CREATE TRIGGER blocks_fts_update AFTER UPDATE ON blocks BEGIN
+          UPDATE blocks_fts
+          SET content = new.content
+          WHERE rowid = new.rowid;
+        END;
+
+        -- Block bookmarks table
+        -- Users can bookmark specific blocks for quick reference
+        CREATE TABLE block_bookmarks (
+          id TEXT PRIMARY KEY,
+          block_id TEXT NOT NULL,
+          title TEXT,
+          note TEXT,
+          tags TEXT,                  -- JSON array: ["auth", "security"]
+          created_at TEXT NOT NULL,
+
+          FOREIGN KEY (block_id) REFERENCES blocks(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX idx_block_bookmarks_created ON block_bookmarks(created_at DESC);
+
+        -- Block executions table
+        -- Track command block execution history
+        CREATE TABLE block_executions (
+          id TEXT PRIMARY KEY,
+          block_id TEXT NOT NULL,
+          executed_at TEXT NOT NULL,
+          exit_code INTEGER,
+          output TEXT,
+          duration_ms INTEGER,
+
+          FOREIGN KEY (block_id) REFERENCES blocks(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX idx_block_executions_block ON block_executions(block_id, executed_at DESC);
+      `)
+
+      // Record migration
+      this.db.prepare(`
+        INSERT INTO schema_version (version, name, applied_at)
+        VALUES (?, ?, ?)
+      `).run(2, 'block_system', Date.now())
+
+      console.log('[ConversationStorage] Migration v2 complete')
     }
   }
 
@@ -471,6 +604,218 @@ export class ConversationStorage {
           last_active_conversation_id = excluded.last_active_conversation_id
       `)
       .run(workspaceId, conversationId)
+  }
+
+  // ============================================================================
+  // Block Methods
+  // ============================================================================
+
+  /**
+   * Save message with blocks (atomic transaction)
+   *
+   * This is the primary method for saving new messages with block structure.
+   * It ensures both the message and its blocks are saved atomically.
+   */
+  saveMessageWithBlocks(message: Message, blocks: Block[]): void {
+    if (!this.db) throw new Error('Database not initialized')
+
+    const transaction = this.db.transaction(() => {
+      // 1. Save message (for backward compatibility)
+      this.saveMessage(message)
+
+      // 2. Save blocks
+      const stmt = this.db!.prepare(`
+        INSERT INTO blocks (id, message_id, type, content, metadata, order_index, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `)
+
+      for (const block of blocks) {
+        stmt.run(
+          block.id,
+          block.messageId,
+          block.type,
+          block.content,
+          block.metadata,
+          block.order,
+          block.createdAt
+        )
+      }
+    })
+
+    transaction()
+  }
+
+  /**
+   * Get all blocks for a message
+   */
+  getBlocks(messageId: string): Block[] {
+    if (!this.db) throw new Error('Database not initialized')
+
+    return this.db
+      .prepare(`
+        SELECT
+          id,
+          message_id as messageId,
+          type,
+          content,
+          metadata,
+          order_index as 'order',
+          created_at as createdAt
+        FROM blocks
+        WHERE message_id = ?
+        ORDER BY order_index ASC
+      `)
+      .all(messageId) as Block[]
+  }
+
+  /**
+   * Search blocks using full-text search
+   *
+   * @param query - Search query
+   * @param filters - Optional filters (blockType, workspaceId, dateRange)
+   * @returns Matching blocks with relevance score
+   */
+  searchBlocks(
+    query: string,
+    filters?: {
+      blockType?: BlockType
+      workspaceId?: string
+      limit?: number
+    }
+  ): Array<Block & { rank: number }> {
+    if (!this.db) throw new Error('Database not initialized')
+
+    let sql = `
+      SELECT
+        b.id,
+        b.message_id as messageId,
+        b.type,
+        b.content,
+        b.metadata,
+        b.order_index as 'order',
+        b.created_at as createdAt,
+        bm.rank
+      FROM blocks_fts bm
+      JOIN blocks b ON b.rowid = bm.rowid
+      WHERE blocks_fts MATCH ?
+    `
+
+    const params: any[] = [query]
+
+    if (filters?.blockType) {
+      sql += ' AND b.type = ?'
+      params.push(filters.blockType)
+    }
+
+    if (filters?.workspaceId) {
+      sql += `
+        AND b.message_id IN (
+          SELECT m.id FROM messages m
+          JOIN conversations c ON c.id = m.conversation_id
+          WHERE c.workspace_id = ?
+        )
+      `
+      params.push(filters.workspaceId)
+    }
+
+    sql += ' ORDER BY bm.rank LIMIT ?'
+    params.push(filters?.limit || 50)
+
+    return this.db.prepare(sql).all(...params) as Array<Block & { rank: number }>
+  }
+
+  /**
+   * Save a block bookmark
+   */
+  saveBlockBookmark(bookmark: BlockBookmark): void {
+    if (!this.db) throw new Error('Database not initialized')
+
+    this.db
+      .prepare(`
+        INSERT INTO block_bookmarks (id, block_id, title, note, tags, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `)
+      .run(
+        bookmark.id,
+        bookmark.blockId,
+        bookmark.title || null,
+        bookmark.note || null,
+        bookmark.tags || null,
+        bookmark.createdAt
+      )
+  }
+
+  /**
+   * Get all block bookmarks
+   */
+  getBlockBookmarks(): BlockBookmark[] {
+    if (!this.db) throw new Error('Database not initialized')
+
+    return this.db
+      .prepare(`
+        SELECT
+          id,
+          block_id as blockId,
+          title,
+          note,
+          tags,
+          created_at as createdAt
+        FROM block_bookmarks
+        ORDER BY created_at DESC
+      `)
+      .all() as BlockBookmark[]
+  }
+
+  /**
+   * Delete a block bookmark
+   */
+  deleteBlockBookmark(bookmarkId: string): void {
+    if (!this.db) throw new Error('Database not initialized')
+
+    this.db.prepare('DELETE FROM block_bookmarks WHERE id = ?').run(bookmarkId)
+  }
+
+  /**
+   * Record block execution (for command blocks)
+   */
+  recordBlockExecution(execution: BlockExecution): void {
+    if (!this.db) throw new Error('Database not initialized')
+
+    this.db
+      .prepare(`
+        INSERT INTO block_executions (id, block_id, executed_at, exit_code, output, duration_ms)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `)
+      .run(
+        execution.id,
+        execution.blockId,
+        execution.executedAt,
+        execution.exitCode ?? null,
+        execution.output ?? null,
+        execution.durationMs ?? null
+      )
+  }
+
+  /**
+   * Get execution history for a block
+   */
+  getBlockExecutions(blockId: string): BlockExecution[] {
+    if (!this.db) throw new Error('Database not initialized')
+
+    return this.db
+      .prepare(`
+        SELECT
+          id,
+          block_id as blockId,
+          executed_at as executedAt,
+          exit_code as exitCode,
+          output,
+          duration_ms as durationMs
+        FROM block_executions
+        WHERE block_id = ?
+        ORDER BY executed_at DESC
+      `)
+      .all(blockId) as BlockExecution[]
   }
 
   // ============================================================================
