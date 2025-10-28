@@ -507,7 +507,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                       }}
                     />
                   ) : (
-                    <div className="text-lg text-foreground whitespace-pre-wrap leading-relaxed">
+                    <div className="text-[17px] font-light text-foreground whitespace-pre-wrap leading-relaxed">
                       {msg.content}
                     </div>
                   )}
@@ -516,7 +516,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             ))}
             {isSending && (
               <div className="flex justify-start">
-                <div className="text-lg text-muted-foreground">Thinking...</div>
+                <div className="text-[17px] font-light text-muted-foreground">Thinking...</div>
               </div>
             )}
           </div>

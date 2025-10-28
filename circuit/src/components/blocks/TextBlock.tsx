@@ -1,10 +1,10 @@
 /**
  * TextBlock - Renders plain text and Markdown content
- *
- * For now, renders as pre-wrapped text. Future: full Markdown rendering.
  */
 
 import React, { useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import type { Block } from '../../types/conversation'
 import { Copy, Check } from 'lucide-react'
 
@@ -38,9 +38,11 @@ export const TextBlock: React.FC<TextBlockProps> = ({ block, onCopy }) => {
         )}
       </button>
 
-      {/* Text content */}
-      <div className="whitespace-pre-wrap text-base leading-relaxed text-foreground">
-        {block.content}
+      {/* Text content with Markdown rendering */}
+      <div className="prose prose-invert max-w-none text-[17px] font-light leading-relaxed">
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+          {block.content}
+        </ReactMarkdown>
       </div>
     </div>
   )

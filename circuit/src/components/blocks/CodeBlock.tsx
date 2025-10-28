@@ -166,7 +166,7 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ block, onCopy }) => {
       {/* Code content with syntax highlighting */}
       <div className="overflow-x-auto">
         <pre
-          className="p-3 text-base leading-relaxed"
+          className="p-3 text-[17px] font-light leading-relaxed"
           style={{
             margin: 0,
             fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
