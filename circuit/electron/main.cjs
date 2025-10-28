@@ -2123,6 +2123,22 @@ ipcMain.handle('circuit:reload-claude-code', async (event, openVSCode = true) =>
 })();
 
 // ============================================================================
+// Conversations & Messages
+// ============================================================================
+
+// Initialize and register conversation handlers
+(async () => {
+  try {
+    const { initializeConversationStorage, registerConversationHandlers } = await import('../dist-electron/conversationHandlers.js');
+    await initializeConversationStorage();
+    registerConversationHandlers();
+    console.log('[main.cjs] Conversation handlers registered');
+  } catch (error) {
+    console.error('[main.cjs] Failed to register conversation handlers:', error);
+  }
+})();
+
+// ============================================================================
 // Project Memory
 // ============================================================================
 

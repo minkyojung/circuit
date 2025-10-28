@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { Workspace } from '@/types/workspace';
+import type { Message } from '@/types/conversation';
 import Editor, { loader } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
 import { Columns2, Maximize2, Save, ArrowUp, Grid3x3, MessageSquare } from 'lucide-react';
@@ -143,13 +144,6 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
 // Chat Panel Component
 // ============================================================================
 
-interface Message {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: number;
-}
-
 interface ChatPanelProps {
   workspace: Workspace;
   sessionId: string | null;
@@ -159,20 +153,64 @@ interface ChatPanelProps {
 }
 
 const ChatPanel: React.FC<ChatPanelProps> = ({
-  workspace: _workspace,
+  workspace,
   sessionId,
   onFileEdit,
   prefillMessage,
   onPrefillCleared
 }) => {
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [selectedModel, setSelectedModel] = useState<'sonnet' | 'think' | 'agent'>('sonnet');
+  const [isLoadingConversation, setIsLoadingConversation] = useState(true);
 
   // Context area state
   const [showContext, setShowContext] = useState(false);
   const [contextMessage, setContextMessage] = useState('');
+
+  // Load conversation when workspace changes
+  useEffect(() => {
+    const loadConversation = async () => {
+      setIsLoadingConversation(true);
+
+      try {
+        console.log('[ChatPanel] Loading conversation for workspace:', workspace.id);
+
+        // 1. Get active conversation for this workspace
+        const activeResult = await ipcRenderer.invoke('conversation:get-active', workspace.id);
+
+        let conversation = activeResult.conversation;
+
+        // 2. If no active conversation, create a new one
+        if (!conversation) {
+          console.log('[ChatPanel] No active conversation found, creating new one');
+          const createResult = await ipcRenderer.invoke('conversation:create', workspace.id);
+          conversation = createResult.conversation;
+        }
+
+        console.log('[ChatPanel] Loaded conversation:', conversation.id);
+        setConversationId(conversation.id);
+
+        // 3. Load messages for this conversation
+        const messagesResult = await ipcRenderer.invoke('message:load', conversation.id);
+        const loadedMessages = messagesResult.messages || [];
+
+        console.log('[ChatPanel] Loaded', loadedMessages.length, 'messages');
+        setMessages(loadedMessages);
+      } catch (error) {
+        console.error('[ChatPanel] Failed to load conversation:', error);
+        // On error, start fresh
+        setConversationId(null);
+        setMessages([]);
+      } finally {
+        setIsLoadingConversation(false);
+      }
+    };
+
+    loadConversation();
+  }, [workspace.id]);
 
   // Set prefilled message when provided
   useEffect(() => {
@@ -235,19 +273,26 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   };
 
   const handleSend = async () => {
-    if (!input.trim() || isSending || !sessionId) return;
+    if (!input.trim() || isSending || !sessionId || !conversationId) return;
 
     const userMessage: Message = {
       id: `msg-${Date.now()}`,
+      conversationId: conversationId,
       role: 'user',
       content: input,
       timestamp: Date.now(),
     };
 
+    // Optimistic UI update
     setMessages([...messages, userMessage]);
     const currentInput = input;
     setInput('');
     setIsSending(true);
+
+    // Save user message to database (async, non-blocking)
+    ipcRenderer.invoke('message:save', userMessage).catch((err: any) => {
+      console.error('[ChatPanel] Failed to save user message:', err);
+    });
 
     try {
       console.log('[ChatPanel] Sending message to Claude...');
@@ -258,12 +303,16 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
         const assistantMessage: Message = {
           id: `msg-${Date.now()}`,
+          conversationId: conversationId,
           role: 'assistant',
           content: result.message,
           timestamp: Date.now(),
         };
 
         setMessages((prev) => [...prev, assistantMessage]);
+
+        // Save assistant message to database
+        await ipcRenderer.invoke('message:save', assistantMessage);
 
         // Parse and detect file changes
         const editedFiles = parseFileChanges(result.message);
@@ -277,24 +326,32 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
         const errorMessage: Message = {
           id: `msg-${Date.now()}`,
+          conversationId: conversationId,
           role: 'assistant',
           content: `Error: ${result.error}`,
           timestamp: Date.now(),
         };
 
         setMessages((prev) => [...prev, errorMessage]);
+
+        // Save error message
+        await ipcRenderer.invoke('message:save', errorMessage);
       }
     } catch (error) {
       console.error('[ChatPanel] Failed to send message:', error);
 
       const errorMessage: Message = {
         id: `msg-${Date.now()}`,
+        conversationId: conversationId,
         role: 'assistant',
         content: `Error: ${error}`,
         timestamp: Date.now(),
       };
 
       setMessages((prev) => [...prev, errorMessage]);
+
+      // Save error message
+      await ipcRenderer.invoke('message:save', errorMessage);
     } finally {
       setIsSending(false);
     }
@@ -304,7 +361,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     <div className="h-full bg-card relative">
       {/* Messages Area - extends behind input */}
       <div className="h-full overflow-auto p-6 pb-[220px]">
-        {messages.length > 0 && (
+        {isLoadingConversation ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-sm text-muted-foreground">Loading conversation...</div>
+          </div>
+        ) : messages.length > 0 ? (
           <div className="space-y-3 max-w-3xl mx-auto">
             {messages.map((msg) => (
               <div
@@ -327,6 +388,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 <div className="text-sm text-muted-foreground">Thinking...</div>
               </div>
             )}
+          </div>
+        ) : (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-sm text-muted-foreground">No messages yet. Start a conversation!</div>
           </div>
         )}
       </div>
