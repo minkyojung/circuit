@@ -24,28 +24,41 @@ export const StatusBar: React.FC<StatusBarProps> = ({ selectedWorkspace }) => {
   // No workspace selected - show minimal hint
   if (!selectedWorkspace) {
     return (
-      <div className="h-5 border-t border-statusbar-border bg-statusbar flex items-center justify-center">
-        <span className="text-[9px] text-statusbar-value">Select a workspace to view context</span>
+      <div className="h-5 border-t border-statusbar-border bg-statusbar flex items-center justify-end px-3">
+        <span className="text-[10px] text-statusbar-value opacity-60">Select workspace</span>
       </div>
     );
   }
 
-  // Loading state
+  // Loading/Waiting state (waiting for Claude Code session to start)
   if (loading) {
     return (
-      <div className="h-5 border-t border-statusbar-border bg-statusbar flex items-center justify-center">
-        <span className="text-[9px] text-statusbar-value">Loading context...</span>
+      <div className="h-5 border-t border-statusbar-border bg-statusbar flex items-center justify-end px-3 gap-2">
+        <div className="flex items-center gap-1.5">
+          <div className="w-1 h-1 rounded-full bg-statusbar-value opacity-60 animate-pulse" />
+          <span className="text-[10px] text-statusbar-value opacity-60">Waiting for session</span>
+        </div>
       </div>
     );
   }
 
-  // Error or no context available
-  if (error || !context) {
+  // Error state (actual errors, not "no session" which is now handled in loading)
+  if (error) {
     return (
-      <div className="h-5 border-t border-statusbar-border bg-statusbar flex items-center justify-center">
-        <span className="text-[9px] text-statusbar-value">
-          {error || 'No active Claude Code session'}
-        </span>
+      <div className="h-5 border-t border-statusbar-border bg-statusbar flex items-center justify-end px-3">
+        <span className="text-[10px] text-statusbar-value opacity-60">{error}</span>
+      </div>
+    );
+  }
+
+  // No context but not loading - shouldn't happen with new architecture, but handle gracefully
+  if (!context) {
+    return (
+      <div className="h-5 border-t border-statusbar-border bg-statusbar flex items-center justify-end px-3 gap-2">
+        <div className="flex items-center gap-1.5">
+          <div className="w-1 h-1 rounded-full bg-statusbar-value opacity-60 animate-pulse" />
+          <span className="text-[10px] text-statusbar-value opacity-60">Waiting for session</span>
+        </div>
       </div>
     );
   }

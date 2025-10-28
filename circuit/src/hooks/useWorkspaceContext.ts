@@ -96,12 +96,20 @@ export function useWorkspaceContext(
           throw new Error(result.error || 'Failed to start tracking');
         }
 
-        if (mounted && result.context) {
-          setContext(result.context);
-          setError(null);
+        if (mounted) {
+          if (result.waiting) {
+            // We're waiting for a session to start - this is normal
+            console.log('[useWorkspaceContext] Waiting for Claude Code session to start');
+            setContext(null);
+            setError(null);
+            setLoading(true); // Keep showing loading state while waiting
+          } else if (result.context) {
+            // Context found immediately
+            setContext(result.context);
+            setError(null);
+            setLoading(false);
+          }
         }
-
-        setLoading(false);
       } catch (err) {
         console.error('[useWorkspaceContext] Start error:', err);
         if (mounted) {
@@ -117,11 +125,23 @@ export function useWorkspaceContext(
         console.log('[useWorkspaceContext] Context updated for:', wsId);
         setContext(updatedContext);
         setError(null);
+        setLoading(false); // Stop loading once we receive first context
       }
     };
 
-    // Set up listener
+    // Listen for waiting state
+    const handleContextWaiting = (_event: any, wsId: string) => {
+      if (mounted && wsId === workspaceId) {
+        console.log('[useWorkspaceContext] Waiting for session:', wsId);
+        setContext(null);
+        setError(null);
+        setLoading(true); // Show loading state while waiting
+      }
+    };
+
+    // Set up listeners
     ipcRenderer.on('workspace:context-updated', handleContextUpdate);
+    ipcRenderer.on('workspace:context-waiting', handleContextWaiting);
 
     // Start tracking
     startTracking();
@@ -130,8 +150,9 @@ export function useWorkspaceContext(
     return () => {
       mounted = false;
 
-      // Remove listener
+      // Remove listeners
       ipcRenderer?.removeListener('workspace:context-updated', handleContextUpdate);
+      ipcRenderer?.removeListener('workspace:context-waiting', handleContextWaiting);
 
       // Stop tracking
       if (workspaceId) {
