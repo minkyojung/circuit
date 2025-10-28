@@ -301,9 +301,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   };
 
   return (
-    <div className="h-full bg-card flex flex-col">
-      {/* Messages Area */}
-      <div className="flex-1 overflow-auto p-6">
+    <div className="h-full bg-card relative">
+      {/* Messages Area - extends behind input */}
+      <div className="h-full overflow-auto p-6 pb-[220px]">
         {messages.length > 0 && (
           <div className="space-y-3 max-w-3xl mx-auto">
             {messages.map((msg) => (
@@ -331,43 +331,36 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         )}
       </div>
 
-      {/* Input Section - Bottom */}
-      <div className="p-4">
-        <div className="max-w-2xl mx-auto">
-          {/* Outer Card (Large Rectangle) - Design token based */}
+      {/* Input Section - Sticky at bottom with glassmorphism */}
+      <div className="sticky bottom-0 p-4 pointer-events-none">
+        <div className="max-w-2xl mx-auto pointer-events-auto">
+          {/* Glassmorphism Input Card */}
           <div
-            className="relative border"
+            className="relative backdrop-blur-xl border border-white/10"
             style={{
-              backgroundColor: 'var(--chat-input-outer)',
-              borderColor: 'var(--chat-input-border)',
-              borderRadius: '25px',
-              boxShadow: '0px 4px 25px 0px rgba(160, 160, 160, 0.05)'
+              backgroundColor: 'color-mix(in srgb, var(--card) 60%, transparent)',
+              borderRadius: '24px',
+              boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.05) inset'
             }}
           >
-            {/* Top Section - Context Area (dynamic: 50px when shown, 0px when hidden) */}
+            {/* Context Area */}
             {showContext && (
-              <div className="h-[50px] px-3 flex items-center">
+              <div className="px-4 pt-4 pb-2 border-b border-white/5">
                 <div className="flex items-center gap-2">
                   <div className="grid grid-cols-3 gap-0.5 w-4">
                     {[...Array(9)].map((_, i) => (
                       <div key={i} className="w-1 h-1 rounded-full bg-pink-500 animate-pulse" />
                     ))}
                   </div>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-xs text-muted-foreground/80">
                     {contextMessage}
                   </span>
                 </div>
               </div>
             )}
 
-            {/* Inner Card (Small Rectangle) - Design token based */}
-            <div
-              className={`p-3 ${showContext ? 'mx-3 mb-3' : 'm-3'}`}
-              style={{
-                backgroundColor: 'var(--chat-input-inner)',
-                borderRadius: '22px'
-              }}
-            >
+            {/* Input Area */}
+            <div className="p-4">
               {/* Textarea */}
               <textarea
                 value={input}
