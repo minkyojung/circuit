@@ -3,6 +3,7 @@ import { WorkspaceChatEditor } from "@/components/workspace"
 import { CommitDialog } from "@/components/workspace/CommitDialog"
 import { CommandPalette } from "@/components/CommandPalette"
 import { AppSidebar } from "@/components/AppSidebar"
+import { ChatSidebar } from "@/components/ChatSidebar"
 import { StatusBar } from "@/components/statusbar/StatusBar"
 import {
   Breadcrumb,
@@ -19,7 +20,8 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 import type { Workspace } from "@/types/workspace"
-import { FolderGit2, GitCommit } from 'lucide-react'
+import { FolderGit2, GitCommit, Bookmark } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import './App.css'
@@ -45,6 +47,8 @@ function App() {
   const [showCommitDialog, setShowCommitDialog] = useState<boolean>(false)
   const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false)
   const [chatPrefillMessage, setChatPrefillMessage] = useState<string | null>(null)
+  const [isRightSidebarOpen, setIsRightSidebarOpen] = useState<boolean>(false)
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
 
   // Workspace navigation refs (for keyboard shortcuts)
   const workspacesRef = useRef<Workspace[]>([])
@@ -176,12 +180,12 @@ function App() {
   return (
     <ProjectPathContext.Provider value={{ projectPath, isLoading: isLoadingPath }}>
       <div
-        className="h-screen overflow-hidden backdrop-blur-xl"
+        className="h-screen overflow-hidden backdrop-blur-xl flex"
         style={{
           backgroundColor: 'var(--window-glass)'
         }}
       >
-        <SidebarProvider>
+        <SidebarProvider className="flex-1">
         <AppSidebar
           selectedWorkspaceId={selectedWorkspace?.id || null}
           selectedWorkspace={selectedWorkspace}
@@ -190,7 +194,10 @@ function App() {
           onFileSelect={handleFileSelect}
           onWorkspacesLoaded={setWorkspacesForShortcuts}
         />
-        <SidebarInset className="bg-card">
+        <SidebarInset className={cn(
+          "bg-card transition-[border-radius] duration-300",
+          isRightSidebarOpen && "rounded-r-xl"
+        )}>
           {/* Main Header with Breadcrumb */}
           <header
             className="flex h-[44px] shrink-0 items-center gap-2 border-b border-border px-4"
@@ -243,12 +250,23 @@ function App() {
             {/* Spacer */}
             <div className="flex-1" />
 
-            {/* Right side - Commit button (when workspace selected) */}
+            {/* Right side - Bookmarks and Commit buttons (when workspace selected) */}
             {selectedWorkspace && (
               <div
                 className="flex items-center gap-2"
                 style={{ WebkitAppRegion: 'no-drag' } as any}
               >
+                <button
+                  onClick={() => setIsRightSidebarOpen(!isRightSidebarOpen)}
+                  className={`p-2 rounded-lg transition-colors ${
+                    isRightSidebarOpen
+                      ? 'bg-primary text-primary-foreground'
+                      : 'hover:bg-accent text-muted-foreground hover:text-foreground'
+                  }`}
+                  title="Toggle bookmarks"
+                >
+                  <Bookmark size={16} />
+                </button>
                 <button
                   onClick={() => setShowCommitDialog(true)}
                   className="px-3 py-1.5 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium rounded-lg transition-colors flex items-center gap-2"
@@ -269,6 +287,7 @@ function App() {
                   selectedFile={selectedFile}
                   prefillMessage={chatPrefillMessage}
                   onPrefillCleared={() => setChatPrefillMessage(null)}
+                  onConversationChange={setActiveConversationId}
                 />
 
                 {/* Commit Dialog */}
@@ -304,6 +323,20 @@ function App() {
           <StatusBar selectedWorkspace={selectedWorkspace} />
         </SidebarInset>
       </SidebarProvider>
+
+      {/* Right Sidebar - Chat Features (Bookmarks) */}
+      <div
+        className={cn(
+          "h-full transition-all duration-300 ease-in-out overflow-hidden",
+          isRightSidebarOpen ? "w-80" : "w-0"
+        )}
+      >
+        <ChatSidebar
+          isOpen={isRightSidebarOpen}
+          onClose={() => setIsRightSidebarOpen(false)}
+          conversationId={activeConversationId}
+        />
+      </div>
 
       {/* Command Palette */}
       <CommandPalette

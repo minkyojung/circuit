@@ -22,6 +22,7 @@ interface WorkspaceChatEditorProps {
   selectedFile: string | null;
   prefillMessage?: string | null;
   onPrefillCleared?: () => void;
+  onConversationChange?: (conversationId: string | null) => void;
 }
 
 type ViewMode = 'chat' | 'editor' | 'split';
@@ -30,7 +31,8 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
   workspace,
   selectedFile,
   prefillMessage = null,
-  onPrefillCleared
+  onPrefillCleared,
+  onConversationChange
 }) => {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [openFiles, setOpenFiles] = useState<string[]>([]);
@@ -96,6 +98,7 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
             onFileEdit={handleFileEdit}
             prefillMessage={prefillMessage}
             onPrefillCleared={onPrefillCleared}
+            onConversationChange={onConversationChange}
           />
         </div>
       )}
@@ -123,6 +126,7 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
               onFileEdit={handleFileEdit}
               prefillMessage={prefillMessage}
               onPrefillCleared={onPrefillCleared}
+              onConversationChange={onConversationChange}
             />
           </ResizablePanel>
           <ResizableHandle />
@@ -151,6 +155,7 @@ interface ChatPanelProps {
   onFileEdit: (filePath: string) => void;
   prefillMessage?: string | null;
   onPrefillCleared?: () => void;
+  onConversationChange?: (conversationId: string | null) => void;
 }
 
 const ChatPanel: React.FC<ChatPanelProps> = ({
@@ -158,7 +163,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   sessionId,
   onFileEdit,
   prefillMessage,
-  onPrefillCleared
+  onPrefillCleared,
+  onConversationChange
 }) => {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -220,6 +226,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       onPrefillCleared?.();
     }
   }, [prefillMessage, onPrefillCleared]);
+
+  // Notify parent when conversationId changes
+  useEffect(() => {
+    onConversationChange?.(conversationId);
+  }, [conversationId, onConversationChange]);
 
   // Show/hide context when AI is thinking
   useEffect(() => {
