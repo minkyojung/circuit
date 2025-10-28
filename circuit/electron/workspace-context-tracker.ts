@@ -1,19 +1,33 @@
 /**
- * Workspace Context Tracker
- * Tracks context metrics for individual workspaces
+ * Simplified Workspace Context Tracker
+ *
+ * Design principles:
+ * - Single watcher per workspace (no multi-layer complexity)
+ * - Incremental file reading (tail -f pattern)
+ * - Built-in readline for JSONL parsing
+ * - Proper async cleanup
+ * - Battle-tested patterns from production systems
  */
 
 import * as chokidar from 'chokidar';
 import * as fs from 'fs/promises';
+import * as fsSync from 'fs';
 import * as path from 'path';
+import * as readline from 'readline';
 import { homedir } from 'os';
 import { EventEmitter } from 'events';
 import { ContextTracker, ContextMetrics } from './context-tracker.js';
 
+interface WatcherState {
+  fileWatcher?: chokidar.FSWatcher;
+  directoryWatcher?: chokidar.FSWatcher;
+  conversationPath?: string;
+  lastPosition: number;
+}
+
 export class WorkspaceContextTracker extends EventEmitter {
   private contextTracker: ContextTracker;
-  private watchers: Map<string, chokidar.FSWatcher> = new Map();
-  private conversationPaths: Map<string, string> = new Map(); // workspaceId → conversation.jsonl path
+  private watchers = new Map<string, WatcherState>();
 
   constructor() {
     super();
@@ -30,15 +44,13 @@ export class WorkspaceContextTracker extends EventEmitter {
   }
 
   /**
-   * Find the most recently active conversation file in a session directory
+   * Find the most recently active conversation file
+   * Uses file modification time for reliability and performance
    */
-  private async findActiveConversation(sessionDirName: string): Promise<string | null> {
-    const sessionDir = path.join(homedir(), '.claude', 'projects', sessionDirName);
-
+  private async findActiveConversation(sessionDir: string): Promise<string | null> {
     try {
       const dirExists = await fs.access(sessionDir).then(() => true).catch(() => false);
       if (!dirExists) {
-        console.warn(`[WorkspaceContextTracker] Session dir not found: ${sessionDir}`);
         return null;
       }
 
@@ -46,7 +58,6 @@ export class WorkspaceContextTracker extends EventEmitter {
       const jsonlFiles = files.filter(f => f.endsWith('.jsonl'));
 
       if (jsonlFiles.length === 0) {
-        console.warn(`[WorkspaceContextTracker] No conversation files in ${sessionDir}`);
         return null;
       }
 
@@ -55,108 +66,235 @@ export class WorkspaceContextTracker extends EventEmitter {
 
       for (const file of jsonlFiles) {
         const filePath = path.join(sessionDir, file);
-
         try {
-          // Performance: only read last 8KB of file
           const stats = await fs.stat(filePath);
-          const readSize = Math.min(8192, stats.size);
+          const mtime = stats.mtime.getTime();
 
-          const handle = await fs.open(filePath, 'r');
-          const buffer = Buffer.alloc(readSize);
-          await handle.read(buffer, 0, readSize, stats.size - readSize);
-          await handle.close();
+          // Prefer main conversation files (UUID pattern) over agent files
+          const isMainConversation = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jsonl$/.test(file);
+          const timeBoost = isMainConversation ? 1000 : 0;
 
-          const content = buffer.toString('utf-8');
-          const lines = content.trim().split('\n').filter(l => l.length > 0);
-
-          if (lines.length === 0) continue;
-
-          const lastLine = lines[lines.length - 1];
-          const lastEvent = JSON.parse(lastLine);
-          const eventTime = new Date(lastEvent.timestamp).getTime();
-
-          if (eventTime > latestTime) {
-            latestTime = eventTime;
+          if (mtime + timeBoost > latestTime) {
+            latestTime = mtime + timeBoost;
             latestFile = filePath;
           }
         } catch (error) {
-          console.warn(`[WorkspaceContextTracker] Error reading ${file}:`, error);
+          console.warn(`[WorkspaceContextTracker] Error checking ${file}:`, error);
           continue;
         }
       }
 
       return latestFile;
     } catch (error) {
-      console.error(`[WorkspaceContextTracker] Error finding active conversation:`, error);
+      console.error(`[WorkspaceContextTracker] Error finding conversation:`, error);
       return null;
     }
+  }
+
+  /**
+   * Read new lines from file using incremental reading (tail -f pattern)
+   */
+  private async readNewLines(filePath: string, lastPosition: number): Promise<string[]> {
+    try {
+      const stats = await fs.stat(filePath);
+
+      // No new data
+      if (stats.size <= lastPosition) {
+        return [];
+      }
+
+      // File was truncated or rotated - read from beginning
+      if (stats.size < lastPosition) {
+        console.warn(`[WorkspaceContextTracker] File truncated or rotated, reading from start`);
+        lastPosition = 0;
+      }
+
+      const stream = fsSync.createReadStream(filePath, {
+        start: lastPosition,
+        encoding: 'utf8'
+      });
+
+      const lines: string[] = [];
+      const rl = readline.createInterface({
+        input: stream,
+        crlfDelay: Infinity
+      });
+
+      for await (const line of rl) {
+        if (line.trim()) {
+          lines.push(line);
+        }
+      }
+
+      rl.close();
+      return lines;
+    } catch (error) {
+      console.error(`[WorkspaceContextTracker] Error reading new lines:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Watch a conversation file for changes
+   */
+  private async watchFile(workspaceId: string, filePath: string): Promise<void> {
+
+    const state = this.watchers.get(workspaceId) || { lastPosition: 0 };
+
+    // Stop existing file watcher if any
+    if (state.fileWatcher) {
+      await state.fileWatcher.close();
+    }
+
+    // Get initial file size
+    try {
+      const stats = await fs.stat(filePath);
+      state.lastPosition = stats.size;
+    } catch (error) {
+      console.error(`[WorkspaceContextTracker] Error getting file size:`, error);
+      state.lastPosition = 0;
+    }
+
+    // Create file watcher
+    const watcher = chokidar.watch(filePath, {
+      persistent: true,
+      ignoreInitial: true, // Don't trigger on initial add
+      usePolling: false,   // Use native fs events
+      awaitWriteFinish: {  // Wait for file writes to complete
+        stabilityThreshold: 100,
+        pollInterval: 50
+      }
+    });
+
+    watcher.on('change', async () => {
+      try {
+        const newLines = await this.readNewLines(filePath, state.lastPosition);
+
+        if (newLines.length === 0) {
+          return;
+        }
+
+        // Update position
+        const stats = await fs.stat(filePath);
+        state.lastPosition = stats.size;
+
+        // Calculate context from entire file (context-tracker handles this efficiently)
+        const context = await this.contextTracker.calculateContext(filePath);
+        this.emit('context-updated', workspaceId, context);
+      } catch (error) {
+        console.error(`[WorkspaceContextTracker] Error processing file change:`, error);
+      }
+    });
+
+    watcher.on('error', (error) => {
+      console.error(`[WorkspaceContextTracker] File watcher error:`, error);
+    });
+
+    state.fileWatcher = watcher;
+    state.conversationPath = filePath;
+    this.watchers.set(workspaceId, state);
+
+    // Calculate initial context
+    try {
+      const context = await this.contextTracker.calculateContext(filePath);
+      this.emit('context-updated', workspaceId, context);
+    } catch (error) {
+      console.error(`[WorkspaceContextTracker] Error calculating initial context:`, error);
+    }
+  }
+
+  /**
+   * Watch directory for new conversation files
+   */
+  private watchDirectory(workspaceId: string, sessionDir: string): void {
+
+    const state = this.watchers.get(workspaceId) || { lastPosition: 0 };
+
+    const watcher = chokidar.watch(sessionDir, {
+      persistent: true,
+      ignoreInitial: true, // Don't scan existing files
+      depth: 0,            // Only watch direct children
+      usePolling: false
+    });
+
+    watcher.on('add', async (filePath) => {
+      if (!filePath.endsWith('.jsonl')) {
+        return;
+      }
+
+      // Stop directory watching
+      await watcher.close();
+      if (state.directoryWatcher === watcher) {
+        state.directoryWatcher = undefined;
+      }
+
+      // Start file watching
+      await this.watchFile(workspaceId, filePath);
+    });
+
+    watcher.on('error', (error) => {
+      console.error(`[WorkspaceContextTracker] Directory watcher error:`, error);
+    });
+
+    state.directoryWatcher = watcher;
+    this.watchers.set(workspaceId, state);
   }
 
   /**
    * Start tracking context for a workspace
    */
   async startTracking(workspaceId: string, workspacePath: string): Promise<ContextMetrics | null> {
-    console.log(`[WorkspaceContextTracker] Starting tracking for ${workspaceId}`);
+    console.log(`[WorkspaceContextTracker] Starting tracking for: ${workspaceId}`);
 
-    // 1. Convert path to session directory name
     const sessionDirName = this.pathToSessionDir(workspacePath);
-    console.log(`[WorkspaceContextTracker] Session dir: ${sessionDirName}`);
+    const sessionDir = path.join(homedir(), '.claude', 'projects', sessionDirName);
 
-    // 2. Find active conversation file
-    const conversationPath = await this.findActiveConversation(sessionDirName);
+    // Try to find existing conversation file
+    const conversationPath = await this.findActiveConversation(sessionDir);
 
-    if (!conversationPath) {
-      console.warn(`[WorkspaceContextTracker] No active conversation for workspace ${workspaceId}`);
-      return null;
-    }
+    if (conversationPath) {
+      // File exists - start watching it
+      await this.watchFile(workspaceId, conversationPath);
 
-    console.log(`[WorkspaceContextTracker] Found conversation: ${conversationPath}`);
-
-    this.conversationPaths.set(workspaceId, conversationPath);
-
-    // 3. Start file watcher
-    const watcher = chokidar.watch(conversationPath, {
-      persistent: true,
-      ignoreInitial: false
-    });
-
-    watcher.on('change', async () => {
       try {
-        const context = await this.contextTracker.calculateContext(conversationPath);
-        this.emit('context-updated', workspaceId, context);
+        return await this.contextTracker.calculateContext(conversationPath);
       } catch (error) {
         console.error(`[WorkspaceContextTracker] Error calculating context:`, error);
+        return null;
       }
-    });
-
-    watcher.on('error', (error) => {
-      console.error(`[WorkspaceContextTracker] Watcher error for ${workspaceId}:`, error);
-    });
-
-    this.watchers.set(workspaceId, watcher);
-
-    // 4. Calculate initial context
-    try {
-      return await this.contextTracker.calculateContext(conversationPath);
-    } catch (error) {
-      console.error(`[WorkspaceContextTracker] Error calculating initial context:`, error);
-      return null;
     }
+
+    // No file yet - watch directory for new files
+    console.log(`[WorkspaceContextTracker] No conversation file found, watching directory`);
+    this.watchDirectory(workspaceId, sessionDir);
+    this.emit('context-waiting', workspaceId);
+
+    return null;
   }
 
   /**
    * Stop tracking context for a workspace
    */
   async stopTracking(workspaceId: string): Promise<void> {
-    console.log(`[WorkspaceContextTracker] Stopping tracking for ${workspaceId}`);
+    console.log(`[WorkspaceContextTracker] Stopping tracking for: ${workspaceId}`);
 
-    const watcher = this.watchers.get(workspaceId);
-    if (watcher) {
-      await watcher.close();
-      this.watchers.delete(workspaceId);
+    const state = this.watchers.get(workspaceId);
+    if (!state) {
+      return;
     }
 
-    this.conversationPaths.delete(workspaceId);
+    // Close file watcher
+    if (state.fileWatcher) {
+      await state.fileWatcher.close();
+    }
+
+    // Close directory watcher
+    if (state.directoryWatcher) {
+      await state.directoryWatcher.close();
+    }
+
+    // Clear state
+    this.watchers.delete(workspaceId);
   }
 
   /**
@@ -164,7 +302,8 @@ export class WorkspaceContextTracker extends EventEmitter {
    */
   async getContext(workspaceId: string, workspacePath: string): Promise<ContextMetrics | null> {
     const sessionDirName = this.pathToSessionDir(workspacePath);
-    const conversationPath = await this.findActiveConversation(sessionDirName);
+    const sessionDir = path.join(homedir(), '.claude', 'projects', sessionDirName);
+    const conversationPath = await this.findActiveConversation(sessionDir);
 
     if (!conversationPath) {
       return null;
@@ -182,7 +321,7 @@ export class WorkspaceContextTracker extends EventEmitter {
    * Cleanup all watchers
    */
   async cleanup(): Promise<void> {
-    const promises = Array.from(this.watchers.keys()).map(id => this.stopTracking(id));
-    await Promise.all(promises);
+    const workspaceIds = Array.from(this.watchers.keys());
+    await Promise.all(workspaceIds.map(id => this.stopTracking(id)));
   }
 }
