@@ -43,8 +43,10 @@ async function getAPIServerInstance() {
   return apiServerPromise;
 }
 
-// Import Workspace Context Tracker (ES Module)
+// Import Workspace Context Tracker (ES Module) - Refactored for simplicity
 let contextTrackerPromise = null;
+let eventListenersSetup = false;
+
 async function getWorkspaceContextTrackerInstance() {
   console.log('[main.cjs] getWorkspaceContextTrackerInstance called');
   if (!contextTrackerPromise) {
@@ -52,7 +54,27 @@ async function getWorkspaceContextTrackerInstance() {
     contextTrackerPromise = import('../dist-electron/workspace-context-tracker.js')
       .then(module => {
         console.log('[main.cjs] workspace-context-tracker.js imported successfully');
-        return new module.WorkspaceContextTracker();
+        const tracker = new module.WorkspaceContextTracker();
+
+        // Set up global event listeners once
+        if (!eventListenersSetup) {
+          tracker.on('context-updated', (workspaceId, context) => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('workspace:context-updated', workspaceId, context);
+            }
+          });
+
+          tracker.on('context-waiting', (workspaceId) => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('workspace:context-waiting', workspaceId);
+            }
+          });
+
+          eventListenersSetup = true;
+          console.log('[main.cjs] Global event listeners set up');
+        }
+
+        return tracker;
       })
       .catch(error => {
         console.error('[main.cjs] Failed to import workspace-context-tracker.js:', error);
@@ -1253,21 +1275,21 @@ ipcMain.handle('workspace:context-start', async (event, workspaceId, workspacePa
     console.log('[Circuit] Starting context tracking for workspace:', workspaceId, workspacePath);
     const tracker = await getWorkspaceContextTrackerInstance();
 
+    // Event listeners are set up globally in getWorkspaceContextTrackerInstance()
+    // No need to add them here - this prevents memory leaks
+
+    // Start tracking
     const context = await tracker.startTracking(workspaceId, workspacePath);
 
     if (!context) {
-      console.warn('[Circuit] No active conversation found for workspace');
-      return { success: false, error: 'No active Claude Code session for this workspace' };
+      // No context yet - we're in "waiting for session" mode
+      // This is NOT an error, it's a valid state
+      console.log('[Circuit] Workspace is waiting for Claude Code session to start');
+      return { success: true, waiting: true, context: null };
     }
 
-    // Forward context updates to frontend
-    tracker.on('context-updated', (wsId, updatedContext) => {
-      if (wsId === workspaceId && mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('workspace:context-updated', workspaceId, updatedContext);
-      }
-    });
-
-    return { success: true, context };
+    // Context found immediately
+    return { success: true, waiting: false, context };
   } catch (error) {
     console.error('[Circuit] Failed to start context tracking:', error);
     return { success: false, error: error.message };
