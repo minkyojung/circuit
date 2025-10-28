@@ -141,11 +141,14 @@ export function parseMessageToBlocks(
       const language = match[1] || 'plaintext';
       const codeContent = match[2].trim();
 
-      // Classify: bash/sh/shell → command, others → code
+      // Classify block type
       const isCommand = ['bash', 'sh', 'shell', 'zsh'].includes(language.toLowerCase());
+      const isDiff = language.toLowerCase() === 'diff' || isDiffBlock(codeContent);
 
       if (isCommand) {
         blocks.push(createCommandBlock(codeContent, messageId, order++));
+      } else if (isDiff) {
+        blocks.push(createDiffBlock(codeContent, messageId, order++));
       } else {
         blocks.push(createCodeBlock(codeContent, language, messageId, order++));
       }
@@ -234,6 +237,33 @@ function createCommandBlock(
     metadata: {
       language: 'bash',
       isExecutable: true,
+    },
+    order,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Create a diff block
+ */
+function createDiffBlock(
+  content: string,
+  messageId: string,
+  order: number
+): Block {
+  // Count additions and deletions
+  const lines = content.split('\n');
+  const additions = lines.filter(l => l.startsWith('+') && !l.startsWith('+++')).length;
+  const deletions = lines.filter(l => l.startsWith('-') && !l.startsWith('---')).length;
+
+  return {
+    id: randomUUID(),
+    messageId,
+    type: 'diff',
+    content,
+    metadata: {
+      additions,
+      deletions,
     },
     order,
     createdAt: new Date().toISOString(),

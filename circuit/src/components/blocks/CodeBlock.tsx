@@ -71,8 +71,16 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ block, onCopy }) => {
 
       {/* Code content */}
       <div className="overflow-x-auto">
-        <pre className="p-3 text-sm">
-          <code className={`language-${language}`}>{block.content}</code>
+        <pre className="p-3 text-sm font-mono leading-relaxed">
+          <code
+            className={`language-${language}`}
+            style={{
+              color: '#d4d4d4',
+              display: 'block',
+            }}
+          >
+            {block.content}
+          </code>
         </pre>
       </div>
     </div>
