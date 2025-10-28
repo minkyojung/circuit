@@ -54,12 +54,13 @@ export const StatusBar: React.FC = () => {
         <div className="flex items-center gap-1.5">
           <span className="text-[10px] text-statusbar-label font-normal">Usage</span>
           <div
-            className="rounded overflow-hidden border border-statusbar-border"
             style={{
               width: '64px',
-              height: '16px',
+              height: '12px',
               backgroundColor: 'var(--statusbar-progress-bg)',
-              position: 'relative'
+              borderRadius: '9999px',
+              position: 'relative',
+              overflow: 'hidden'
             }}
           >
             <div
@@ -70,7 +71,8 @@ export const StatusBar: React.FC = () => {
                 height: '100%',
                 width: `${Math.max(Math.min(usage.percentage, 100), 5)}%`,
                 backgroundColor: getProgressColor(usage.percentage),
-                transition: 'width 300ms ease-in-out'
+                borderRadius: '9999px',
+                transition: 'width 400ms cubic-bezier(0.4, 0, 0.2, 1)'
               }}
             />
           </div>
@@ -86,12 +88,13 @@ export const StatusBar: React.FC = () => {
         <div className="flex items-center gap-1.5">
           <span className="text-[10px] text-statusbar-label font-normal">Context</span>
           <div
-            className="rounded overflow-hidden border border-statusbar-border"
             style={{
               width: '64px',
-              height: '16px',
+              height: '12px',
               backgroundColor: 'var(--statusbar-progress-bg)',
-              position: 'relative'
+              borderRadius: '9999px',
+              position: 'relative',
+              overflow: 'hidden'
             }}
           >
             <div
@@ -102,7 +105,8 @@ export const StatusBar: React.FC = () => {
                 height: '100%',
                 width: `${Math.max(Math.min(context.percentage, 100), 5)}%`,
                 backgroundColor: getProgressColor(context.percentage),
-                transition: 'width 300ms ease-in-out'
+                borderRadius: '9999px',
+                transition: 'width 400ms cubic-bezier(0.4, 0, 0.2, 1)'
               }}
             />
           </div>

@@ -227,11 +227,11 @@
     --statusbar-border: var(--separator-opaque);
     --statusbar-label: rgba(0, 0, 0, 0.6);           /* 60% - Label text */
     --statusbar-value: rgba(0, 0, 0, 0.45);          /* 45% - Value text */
-    --statusbar-progress-bg: rgba(0, 0, 0, 0.08);    /* Progress bar track */
-    --statusbar-progress-green: oklch(0.55 0.22 150);   /* Green - same as success */
-    --statusbar-progress-yellow: oklch(0.65 0.22 80);   /* Yellow - same as warning */
-    --statusbar-progress-orange: oklch(0.62 0.20 50);   /* Orange */
-    --statusbar-progress-red: oklch(0.55 0.30 25);      /* Red - same as destructive */
+    --statusbar-progress-bg: rgba(0, 0, 0, 0.06);    /* Very subtle track */
+    --statusbar-progress-green: rgba(52, 199, 89, 0.9);   /* Apple green with subtle opacity */
+    --statusbar-progress-yellow: rgba(255, 214, 10, 0.9); /* Apple yellow with subtle opacity */
+    --statusbar-progress-orange: rgba(255, 159, 10, 0.9); /* Apple orange with subtle opacity */
+    --statusbar-progress-red: rgba(255, 69, 58, 0.9);     /* Apple red with subtle opacity */
 
     /* Git status colors */
     --status-merged: oklch(0.55 0.25 290);           /* Purple - more vibrant */
@@ -366,11 +366,11 @@
     --statusbar-border: var(--separator-opaque);
     --statusbar-label: rgba(255, 255, 255, 0.45);    /* 45% - Label text (darker) */
     --statusbar-value: rgba(255, 255, 255, 0.35);    /* 35% - Value text (darker) */
-    --statusbar-progress-bg: rgba(0, 0, 0, 0.4);     /* Progress bar track - much darker */
-    --statusbar-progress-green: oklch(0.70 0.25 150);   /* Very bright green */
-    --statusbar-progress-yellow: oklch(0.75 0.25 80);   /* Very bright yellow */
-    --statusbar-progress-orange: oklch(0.72 0.23 50);   /* Very bright orange */
-    --statusbar-progress-red: oklch(0.70 0.33 25);      /* Very bright red */
+    --statusbar-progress-bg: rgba(255, 255, 255, 0.06); /* Very subtle track */
+    --statusbar-progress-green: rgba(52, 199, 89, 0.85);   /* Apple green with subtle opacity */
+    --statusbar-progress-yellow: rgba(255, 214, 10, 0.85); /* Apple yellow with subtle opacity */
+    --statusbar-progress-orange: rgba(255, 159, 10, 0.85); /* Apple orange with subtle opacity */
+    --statusbar-progress-red: rgba(255, 69, 58, 0.85);     /* Apple red with subtle opacity */
 
     /* Git status colors - brightened for visibility */
     --status-merged: oklch(0.65 0.28 290);           /* Brighter purple - more vibrant */

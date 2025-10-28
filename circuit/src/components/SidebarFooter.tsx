@@ -1,11 +1,8 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { Settings, MessageSquare, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { ThemeToggle } from './ThemeToggle';
-import { UsageBar } from './metrics/UsageBar';
-import { ContextBar } from './metrics/ContextBar';
-import { useClaudeMetrics } from '@/hooks/useClaudeMetrics';
 import {
   Dialog,
   DialogContent,
@@ -30,9 +27,6 @@ export const SidebarFooter: React.FC<SidebarFooterProps> = ({ className }) => {
   const [feedbackType, setFeedbackType] = useState<'bug' | 'feature' | 'question'>('bug');
   const [feedbackTitle, setFeedbackTitle] = useState('');
   const [feedbackBody, setFeedbackBody] = useState('');
-  const compactTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  const { metrics, loading, error, refresh } = useClaudeMetrics();
 
   const handleSubmitFeedback = () => {
     // TODO: Implement feedback submission
@@ -43,70 +37,8 @@ export const SidebarFooter: React.FC<SidebarFooterProps> = ({ className }) => {
     setIsFeedbackOpen(false);
   };
 
-  const handleCompact = async () => {
-    try {
-      // Clear any existing timeout
-      if (compactTimeoutRef.current) {
-        clearTimeout(compactTimeoutRef.current);
-      }
-
-      // 3초 후 자동 리프레시 (compact가 완료될 시간)
-      compactTimeoutRef.current = setTimeout(async () => {
-        await refresh();
-        compactTimeoutRef.current = null;
-      }, 3000);
-
-    } catch (error) {
-      console.error('[SidebarFooter] Compact error:', error);
-    }
-  };
-
-  const handleRefresh = async () => {
-    await refresh();
-  };
-
   return (
     <>
-      {/* Metrics Display */}
-      <div className="px-3 py-2 space-y-2">
-        {loading && (
-          <div className="text-xs text-sidebar-foreground-muted text-center py-2">
-            Loading metrics...
-          </div>
-        )}
-
-        {error && (
-          <div className="text-xs text-red-500 text-center py-2">
-            {error}
-          </div>
-        )}
-
-        {metrics && (
-          <>
-            <UsageBar
-              input={metrics.usage.input}
-              output={metrics.usage.output}
-              total={metrics.usage.total}
-              percentage={metrics.usage.percentage}
-              planLimit={metrics.usage.planLimit}
-              burnRate={metrics.usage.burnRate}
-              timeLeft={metrics.usage.timeLeft}
-              resetTime={metrics.usage.resetTime}
-            />
-            <ContextBar
-              current={metrics.context.current}
-              limit={metrics.context.limit}
-              percentage={metrics.context.percentage}
-              lastCompact={metrics.context.lastCompact}
-              prunableTokens={metrics.context.prunableTokens}
-              shouldCompact={metrics.context.shouldCompact}
-              onCompact={handleCompact}
-              onRefresh={handleRefresh}
-            />
-          </>
-        )}
-      </div>
-
       <div className={cn("flex items-center gap-1 p-2", className)}>
         {/* Settings Button */}
         <motion.button
