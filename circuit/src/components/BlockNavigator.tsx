@@ -91,6 +91,25 @@ export function BlockNavigator({ isOpen, onClose, conversationId }: BlockNavigat
     return `${language}: ${preview}${block.content.length > 50 ? '...' : ''}`
   }
 
+  const handleBlockClick = (blockId: string) => {
+    const element = document.querySelector(`[data-block-id="${blockId}"]`)
+    if (element) {
+      // Smooth scroll to block
+      element.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+      })
+
+      // Add highlight effect
+      element.classList.add('block-highlight')
+      setTimeout(() => {
+        element.classList.remove('block-highlight')
+      }, 2000)
+    } else {
+      console.warn('[BlockNavigator] Block element not found:', blockId)
+    }
+  }
+
   return (
     <div className="h-full w-80 flex flex-col flex-shrink-0 border-l border-border">
       {/* Header - matches AppSidebar style */}
@@ -190,10 +209,7 @@ export function BlockNavigator({ isOpen, onClose, conversationId }: BlockNavigat
             {filteredBlocks.map((block) => (
               <button
                 key={block.id}
-                onClick={() => {
-                  console.log('[BlockNavigator] Block clicked:', block)
-                  // TODO: Scroll to block
-                }}
+                onClick={() => handleBlockClick(block.id)}
                 className={cn(
                   "w-full text-left rounded-md transition-colors",
                   "hover:bg-sidebar-accent focus:bg-sidebar-accent",

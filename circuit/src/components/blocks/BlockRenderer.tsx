@@ -34,15 +34,22 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
     onBookmark: onBookmark || (() => console.log('Bookmark:', block.id)),
   }
 
+  // Wrapper function to add data-block-id to all blocks
+  const renderWithBlockId = (content: React.ReactNode) => (
+    <div data-block-id={block.id} className="scroll-mt-4">
+      {content}
+    </div>
+  )
+
   switch (block.type) {
     case 'text':
-      return <TextBlock {...commonProps} />
+      return renderWithBlockId(<TextBlock {...commonProps} />)
 
     case 'code':
-      return <CodeBlock {...commonProps} />
+      return renderWithBlockId(<CodeBlock {...commonProps} />)
 
     case 'command':
-      return (
+      return renderWithBlockId(
         <CommandBlock
           {...commonProps}
           onExecute={onExecute || (() => console.log('Execute:', block.content))}
@@ -50,7 +57,7 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
       )
 
     case 'error':
-      return (
+      return renderWithBlockId(
         <div className="rounded-lg border-2 border-red-500/50 bg-red-500/10 p-3">
           <div className="flex items-start gap-2">
             <span className="text-red-500">🚨</span>
@@ -70,7 +77,7 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
       )
 
     case 'file':
-      return (
+      return renderWithBlockId(
         <div className="rounded border border-border bg-sidebar p-2 text-sm">
           <div className="flex items-center gap-2">
             <span>📄</span>
@@ -83,7 +90,7 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
       )
 
     case 'result':
-      return (
+      return renderWithBlockId(
         <div className="rounded border border-green-500/30 bg-green-500/5 p-3">
           <div className="mb-1 text-xs text-green-600 dark:text-green-400">Output:</div>
           <pre className="whitespace-pre-wrap font-mono text-sm text-foreground">
@@ -98,7 +105,7 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
       )
 
     case 'diff':
-      return (
+      return renderWithBlockId(
         <div className="rounded-lg border border-border bg-black/40 overflow-hidden">
           {/* Diff header */}
           <div className="flex items-center justify-between border-b border-border/50 bg-sidebar/30 px-3 py-1.5">
@@ -166,7 +173,7 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
     case 'list':
     case 'table':
     default:
-      return (
+      return renderWithBlockId(
         <div className="rounded border border-border bg-sidebar/50 p-3">
           <div className="mb-1 text-xs text-muted-foreground">
             {block.type.toUpperCase()} (coming soon)
