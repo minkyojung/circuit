@@ -292,7 +292,7 @@ function App() {
                 </button>
                 <button
                   onClick={() => setShowCommitDialog(true)}
-                  className="px-4 py-2 bg-secondary hover:bg-secondary/80 text-secondary-foreground text-sm font-medium rounded-md transition-colors"
+                  className="px-4 py-1.5 bg-secondary hover:bg-secondary/80 text-secondary-foreground text-sm font-medium rounded-md transition-colors"
                 >
                   Commit & PR
                 </button>
