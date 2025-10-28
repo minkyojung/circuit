@@ -1,6 +1,7 @@
-import React, { useState } from 'react'
-import { Folder, ChevronRight, ChevronDown } from 'lucide-react'
+import React, { useState, useMemo, useEffect, useRef } from 'react'
+import { Folder, ChevronRight, Search, X, MoreHorizontal, RefreshCw, ChevronsDownUp, Copy, FileEdit, Trash2 } from 'lucide-react'
 import { getIconForFile } from 'vscode-material-icon-theme-js'
+import { cn } from '@/lib/utils'
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -10,6 +11,15 @@ import {
 } from '@/components/ui/sidebar'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { FileTreeSkeleton } from '@/components/ui/skeleton'
+import { Input } from '@/components/ui/input'
+import { motion, AnimatePresence } from 'framer-motion'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 // Import Material Icon Theme SVGs - Common file types
 import ReactTsIcon from 'material-icon-theme/icons/react_ts.svg?react'
@@ -109,6 +119,7 @@ interface FileExplorerProps {
   isLoading?: boolean
   onFileSelect?: (filePath: string) => void
   selectedFile?: string | null
+  onRefresh?: () => void
 }
 
 const FileTreeItem: React.FC<{
@@ -116,36 +127,97 @@ const FileTreeItem: React.FC<{
   depth: number
   onSelect?: (path: string) => void
   selectedFile?: string | null
-}> = ({ node, depth, onSelect, selectedFile }) => {
+  searchQuery?: string
+  collapseKey?: number
+}> = ({ node, depth, onSelect, selectedFile, searchQuery, collapseKey }) => {
   const [isOpen, setIsOpen] = useState(depth === 0) // Auto-expand root folders
+  const [isHovered, setIsHovered] = useState(false)
+
+  // Auto-expand folders when searching
+  useEffect(() => {
+    if (searchQuery && searchQuery.length > 0) {
+      setIsOpen(true)
+    }
+  }, [searchQuery])
+
+  // Collapse all when collapseKey changes
+  useEffect(() => {
+    if (collapseKey && collapseKey > 0) {
+      setIsOpen(false)
+    }
+  }, [collapseKey])
 
   if (node.type === 'folder') {
     return (
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
         <SidebarMenuItem className="my-0">
-          <CollapsibleTrigger asChild>
-            <SidebarMenuButton
-              className="w-full h-[var(--list-item-height)] py-[var(--list-item-padding-y)] gap-2"
-              style={{ paddingLeft: `${depth * 12 + 8}px` }}
-            >
-              {isOpen ? (
-                <ChevronDown size={16} strokeWidth={1.5} className="flex-shrink-0" />
-              ) : (
-                <ChevronRight size={16} strokeWidth={1.5} className="flex-shrink-0" />
-              )}
-              <Folder size={16} strokeWidth={1.5} className="flex-shrink-0 text-sidebar-foreground-muted" />
-              <span className="text-base font-normal truncate">{node.name}</span>
-            </SidebarMenuButton>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            {node.children?.map((child) => (
-              <FileTreeItem
-                key={child.path}
-                node={child}
-                depth={depth + 1}
-                onSelect={onSelect}
-                selectedFile={selectedFile}
+          <div
+            className="relative"
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+          >
+            {/* Indent guide line */}
+            {depth > 0 && (
+              <div
+                className="absolute top-0 bottom-0 w-px bg-sidebar-border opacity-20"
+                style={{ left: `${depth * 12 - 4}px` }}
               />
+            )}
+
+            <CollapsibleTrigger asChild>
+              <SidebarMenuButton
+                className="w-full h-auto py-px gap-2 group hover:bg-black/[0.02] dark:hover:bg-white/[0.03]"
+                style={{ paddingLeft: `${depth * 12 + 8}px` }}
+              >
+                <motion.div
+                  animate={{ rotate: isOpen ? 90 : 0 }}
+                  transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
+                  className={cn(
+                    "flex-shrink-0",
+                    isHovered || isOpen ? "opacity-100" : "opacity-70"
+                  )}
+                >
+                  <ChevronRight size={13} strokeWidth={1.5} />
+                </motion.div>
+                <Folder size={13} strokeWidth={1.5} className={cn(
+                  "flex-shrink-0 text-sidebar-foreground-muted",
+                  isHovered || isOpen ? "opacity-100" : "opacity-70"
+                )} />
+                <span className={cn(
+                  "text-sm font-normal truncate flex-1 leading-none",
+                  isHovered || isOpen ? "opacity-100" : "opacity-70"
+                )}>{node.name}</span>
+
+                {/* Folder count badge */}
+                {node.children && node.children.length > 0 && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded text-sidebar-foreground-muted opacity-60">
+                    {node.children.length}
+                  </span>
+                )}
+              </SidebarMenuButton>
+            </CollapsibleTrigger>
+          </div>
+          <CollapsibleContent className="overflow-hidden transition-all duration-300 ease-in-out data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0">
+            {node.children?.map((child, index) => (
+              <motion.div
+                key={child.path}
+                initial={isOpen ? { opacity: 0, y: -5 } : false}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{
+                  duration: 0.15,
+                  delay: isOpen ? index * 0.02 : 0,
+                  ease: "easeOut"
+                }}
+              >
+                <FileTreeItem
+                  node={child}
+                  depth={depth + 1}
+                  onSelect={onSelect}
+                  selectedFile={selectedFile}
+                  searchQuery={searchQuery}
+                  collapseKey={collapseKey}
+                />
+              </motion.div>
             ))}
           </CollapsibleContent>
         </SidebarMenuItem>
@@ -156,34 +228,123 @@ const FileTreeItem: React.FC<{
   // File node
   const isSelected = selectedFile === node.path
   const FileIconComponent = getFileIcon(node.name)
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
 
   return (
     <SidebarMenuItem className="my-0">
-      <SidebarMenuButton
-        onClick={() => onSelect?.(node.path)}
-        isActive={isSelected}
-        className="w-full h-[var(--list-item-height)] py-[var(--list-item-padding-y)] gap-2"
-        style={{ paddingLeft: `${depth * 12 + 8}px` }}
+      <div
+        className="relative"
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
       >
-        {/* File type icon */}
-        <div className="flex-shrink-0" style={{ width: '16px', height: '16px' }}>
-          <FileIconComponent width={16} height={16} />
-        </div>
-
-        <span className="text-base font-normal truncate flex-1">{node.name}</span>
-
-        {/* Git status badges */}
-        {node.modified && (
-          <span className="text-[10px] px-1 rounded bg-status-working/20 text-status-working font-medium">
-            M
-          </span>
+        {/* Indent guide line */}
+        {depth > 0 && (
+          <div
+            className="absolute top-0 bottom-0 w-px bg-sidebar-border opacity-20"
+            style={{ left: `${depth * 12 - 4}px` }}
+          />
         )}
-        {node.added && (
-          <span className="text-[10px] px-1 rounded bg-status-synced/20 text-status-synced font-medium">
-            A
-          </span>
-        )}
-      </SidebarMenuButton>
+
+        <SidebarMenuButton
+          onClick={() => onSelect?.(node.path)}
+          isActive={isSelected}
+          className="w-full h-auto py-px gap-2 group pr-1 hover:bg-black/[0.02] dark:hover:bg-white/[0.03]"
+          style={{ paddingLeft: `${depth * 12 + 8}px` }}
+        >
+          {/* File type icon */}
+          <div className={cn(
+            "flex-shrink-0",
+            isSelected || isHovered ? "opacity-100" : "opacity-70"
+          )} style={{ width: '13px', height: '13px' }}>
+            <FileIconComponent width={13} height={13} />
+          </div>
+
+          <span className={cn(
+            "text-sm font-normal truncate flex-1 leading-none",
+            isSelected || isHovered ? "opacity-100" : "opacity-70"
+          )}>{node.name}</span>
+
+          {/* Git status badges */}
+          {node.modified && (
+            <span className="text-[10px] px-1 rounded bg-status-working/20 text-status-working font-medium flex-shrink-0">
+              M
+            </span>
+          )}
+          {node.added && (
+            <span className="text-[10px] px-1 rounded bg-status-synced/20 text-status-synced font-medium flex-shrink-0">
+              A
+            </span>
+          )}
+
+          {/* Action buttons (shown on hover or when dropdown is open) */}
+          <AnimatePresence>
+            {(isHovered || isDropdownOpen) && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ duration: 0.1 }}
+                className="flex items-center gap-0.5 ml-1 flex-shrink-0"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <DropdownMenu modal={false} onOpenChange={setIsDropdownOpen}>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className="p-0.5 rounded hover:bg-sidebar-accent transition-colors"
+                      title="More actions"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <MoreHorizontal size={12} strokeWidth={1.5} className="text-sidebar-foreground-muted" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-48" align="end" onClick={(e) => e.stopPropagation()}>
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        navigator.clipboard.writeText(node.path)
+                      }}
+                    >
+                      <Copy size={14} className="mr-2" />
+                      Copy Path
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        const relativePath = node.path.split('/').slice(-2).join('/')
+                        navigator.clipboard.writeText(relativePath)
+                      }}
+                    >
+                      <Copy size={14} className="mr-2" />
+                      Copy Relative Path
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        // TODO: Implement rename functionality
+                      }}
+                    >
+                      <FileEdit size={14} className="mr-2" />
+                      Rename
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        // TODO: Implement delete functionality
+                      }}
+                      className="text-red-600 dark:text-red-400"
+                    >
+                      <Trash2 size={14} className="mr-2" />
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </SidebarMenuButton>
+      </div>
     </SidebarMenuItem>
   )
 }
@@ -193,9 +354,38 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   isLoading = false,
   onFileSelect,
   selectedFile,
+  onRefresh,
 }) => {
+  const [searchQuery, setSearchQuery] = useState('')
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const [collapseKey, setCollapseKey] = useState(0) // Key to force collapse all folders
+  const searchInputRef = useRef<HTMLInputElement>(null)
+
+  // Filter file tree based on search query
+  const filteredFileTree = useMemo(() => {
+    if (!searchQuery.trim()) return fileTree
+
+    const query = searchQuery.toLowerCase()
+
+    const filterNodes = (nodes: FileNode[]): FileNode[] => {
+      return nodes.reduce<FileNode[]>((acc, node) => {
+        if (node.type === 'folder') {
+          const filteredChildren = node.children ? filterNodes(node.children) : []
+          if (filteredChildren.length > 0 || node.name.toLowerCase().includes(query)) {
+            acc.push({ ...node, children: filteredChildren })
+          }
+        } else if (node.name.toLowerCase().includes(query)) {
+          acc.push(node)
+        }
+        return acc
+      }, [])
+    }
+
+    return filterNodes(fileTree)
+  }, [fileTree, searchQuery])
+
   // Calculate git status summary from fileTree
-  const gitStats = React.useMemo(() => {
+  const gitStats = useMemo(() => {
     const stats = { modified: 0, added: 0 }
 
     const countGitStatus = (nodes: FileNode[]) => {
@@ -210,26 +400,141 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     return stats
   }, [fileTree])
 
+  // Keyboard shortcut to focus search (Cmd/Ctrl + F)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+        e.preventDefault()
+        setIsSearchOpen(true)
+        setTimeout(() => searchInputRef.current?.focus(), 100)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
   return (
     <div className="h-full flex flex-col">
+      {/* Header with actions */}
+      <div className="px-3 py-3 flex items-center gap-1">
+        <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(255, 255, 255, 0.15)' }} />
+        <button
+          onClick={() => {
+            setIsSearchOpen(!isSearchOpen)
+            if (!isSearchOpen) {
+              setTimeout(() => searchInputRef.current?.focus(), 100)
+            }
+          }}
+          className={cn(
+            "px-[5.5px] py-[5.5px] rounded transition-all duration-200",
+            "text-sidebar-foreground-muted",
+            isSearchOpen
+              ? "bg-sidebar-accent opacity-100"
+              : "opacity-70 hover:opacity-100 hover:bg-sidebar-hover"
+          )}
+          title="Search files (⌘F)"
+        >
+          <Search size={12} strokeWidth={2} />
+        </button>
+        <button
+          onClick={onRefresh}
+          className={cn(
+            "px-[5.5px] py-[5.5px] rounded transition-all duration-200",
+            "text-sidebar-foreground-muted",
+            "opacity-70 hover:opacity-100 hover:bg-sidebar-hover"
+          )}
+          title="Refresh file tree"
+        >
+          <RefreshCw size={12} strokeWidth={2} />
+        </button>
+        <button
+          onClick={() => setCollapseKey(prev => prev + 1)}
+          className={cn(
+            "px-[5.5px] py-[5.5px] rounded transition-all duration-200",
+            "text-sidebar-foreground-muted",
+            "opacity-70 hover:opacity-100 hover:bg-sidebar-hover"
+          )}
+          title="Collapse all folders"
+        >
+          <ChevronsDownUp size={12} strokeWidth={2} />
+        </button>
+      </div>
+
+      {/* Search Bar (collapsible) */}
+      <div
+        className={cn(
+          "transition-all duration-300 ease-in-out",
+          isSearchOpen ? "max-h-[200px] opacity-100" : "max-h-0 opacity-0 overflow-hidden"
+        )}
+      >
+        <div className="px-4 pb-2">
+          <div className="relative">
+            <Input
+              ref={searchInputRef}
+              type="text"
+              placeholder="Search files..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className={cn(
+                "h-[30px] pl-3 pr-8 py-0 text-sm bg-sidebar-accent border-sidebar-border",
+                "placeholder:text-sidebar-foreground-muted placeholder:opacity-70",
+                "focus-visible:ring-1 focus-visible:ring-sidebar-ring"
+              )}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-sidebar-hover transition-colors"
+              >
+                <X size={12} strokeWidth={1.5} className="text-sidebar-foreground-muted" />
+              </button>
+            )}
+          </div>
+
+          {/* Search results count */}
+          {searchQuery && (
+            <div className="mt-1.5 px-1 text-[10px] text-sidebar-foreground-muted opacity-60">
+              {filteredFileTree.length === 0
+                ? 'No results'
+                : `${filteredFileTree.length} result${filteredFileTree.length === 1 ? '' : 's'}`}
+            </div>
+          )}
+        </div>
+      </div>
+
       <SidebarGroup>
         <SidebarGroupContent>
-          <SidebarMenu>
+          <SidebarMenu className="gap-0">
             {isLoading ? (
               <FileTreeSkeleton />
-            ) : fileTree.length === 0 ? (
+            ) : filteredFileTree.length === 0 ? (
               <div className="px-4 py-6 text-center text-sidebar-foreground-muted">
-                <p className="text-xs">No files found</p>
+                <p className="text-xs">
+                  {searchQuery ? 'No files match your search' : 'No files found'}
+                </p>
               </div>
             ) : (
-              fileTree.map((node) => (
-                <FileTreeItem
+              filteredFileTree.map((node, index) => (
+                <motion.div
                   key={node.path}
-                  node={node}
-                  depth={0}
-                  onSelect={onFileSelect}
-                  selectedFile={selectedFile}
-                />
+                  initial={{ opacity: 0, y: -5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{
+                    duration: 0.2,
+                    delay: index * 0.03,
+                    ease: "easeOut"
+                  }}
+                >
+                  <FileTreeItem
+                    node={node}
+                    depth={0}
+                    onSelect={onFileSelect}
+                    selectedFile={selectedFile}
+                    searchQuery={searchQuery}
+                    collapseKey={collapseKey}
+                  />
+                </motion.div>
               ))
             )}
           </SidebarMenu>
@@ -238,7 +543,11 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
 
       {/* Git Status Summary */}
       {!isLoading && (gitStats.modified > 0 || gitStats.added > 0) && (
-        <div className="mt-auto p-3 border-t border-sidebar-border">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mt-auto p-3 border-t border-sidebar-border"
+        >
           <div className="text-xs text-sidebar-foreground-muted">
             <div className="flex items-center gap-2">
               {gitStats.modified > 0 && (
@@ -250,7 +559,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
               )}
             </div>
           </div>
-        </div>
+        </motion.div>
       )}
     </div>
   )

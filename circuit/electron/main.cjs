@@ -43,6 +43,49 @@ async function getAPIServerInstance() {
   return apiServerPromise;
 }
 
+// Import Workspace Context Tracker (ES Module) - Refactored for simplicity
+let contextTrackerPromise = null;
+let eventListenersSetup = false;
+
+async function getWorkspaceContextTrackerInstance() {
+  console.log('[main.cjs] getWorkspaceContextTrackerInstance called');
+  if (!contextTrackerPromise) {
+    console.log('[main.cjs] Creating new Workspace Context Tracker instance...');
+    contextTrackerPromise = import('../dist-electron/workspace-context-tracker.js')
+      .then(module => {
+        console.log('[main.cjs] workspace-context-tracker.js imported successfully');
+        const tracker = new module.WorkspaceContextTracker();
+
+        // Set up global event listeners once
+        if (!eventListenersSetup) {
+          tracker.on('context-updated', (workspaceId, context) => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('workspace:context-updated', workspaceId, context);
+            }
+          });
+
+          tracker.on('context-waiting', (workspaceId) => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('workspace:context-waiting', workspaceId);
+            }
+          });
+
+          eventListenersSetup = true;
+          console.log('[main.cjs] Global event listeners set up');
+        }
+
+        return tracker;
+      })
+      .catch(error => {
+        console.error('[main.cjs] Failed to import workspace-context-tracker.js:', error);
+        throw error;
+      });
+  }
+  const tracker = await contextTrackerPromise;
+  console.log('[main.cjs] Workspace Context Tracker instance ready');
+  return tracker;
+}
+
 /**
  * Install circuit-proxy to ~/.circuit/bin/
  * This proxy allows Claude Code to access all MCP servers via a single MCP interface
@@ -1216,6 +1259,72 @@ ipcMain.handle('circuit:get-project-path', async () => {
     return { success: true, projectPath };
   } catch (error) {
     console.error('[Circuit] Failed to get project path:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// ============================================================================
+// Workspace Context Tracking
+// ============================================================================
+
+/**
+ * Start tracking context for a workspace
+ */
+ipcMain.handle('workspace:context-start', async (event, workspaceId, workspacePath) => {
+  try {
+    console.log('[Circuit] Starting context tracking for workspace:', workspaceId, workspacePath);
+    const tracker = await getWorkspaceContextTrackerInstance();
+
+    // Event listeners are set up globally in getWorkspaceContextTrackerInstance()
+    // No need to add them here - this prevents memory leaks
+
+    // Start tracking
+    const context = await tracker.startTracking(workspaceId, workspacePath);
+
+    if (!context) {
+      // No context yet - we're in "waiting for session" mode
+      // This is NOT an error, it's a valid state
+      console.log('[Circuit] Workspace is waiting for Claude Code session to start');
+      return { success: true, waiting: true, context: null };
+    }
+
+    // Context found immediately
+    return { success: true, waiting: false, context };
+  } catch (error) {
+    console.error('[Circuit] Failed to start context tracking:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Get current context for a workspace (without starting tracking)
+ */
+ipcMain.handle('workspace:context-get', async (event, workspaceId, workspacePath) => {
+  try {
+    const tracker = await getWorkspaceContextTrackerInstance();
+    const context = await tracker.getContext(workspaceId, workspacePath);
+
+    if (!context) {
+      return { success: false, error: 'No active Claude Code session for this workspace' };
+    }
+
+    return { success: true, context };
+  } catch (error) {
+    console.error('[Circuit] Failed to get context:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Stop tracking context for a workspace
+ */
+ipcMain.handle('workspace:context-stop', async (event, workspaceId) => {
+  try {
+    const tracker = await getWorkspaceContextTrackerInstance();
+    await tracker.stopTracking(workspaceId);
+    return { success: true };
+  } catch (error) {
+    console.error('[Circuit] Failed to stop context tracking:', error);
     return { success: false, error: error.message };
   }
 });

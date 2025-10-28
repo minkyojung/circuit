@@ -222,6 +222,17 @@
     /* shadcn sidebar compat (HSL) */
     --sidebar-background: 0 0% 91%;                  /* #E9E9E9 */
 
+    /* Status Bar colors */
+    --statusbar-bg: oklch(0.97 0 0);                 /* #F7F7F7 - Lighter */
+    --statusbar-border: var(--separator-opaque);
+    --statusbar-label: rgba(0, 0, 0, 0.5);           /* 50% - More subtle label */
+    --statusbar-value: rgba(0, 0, 0, 0.4);           /* 40% - More subtle value */
+    --statusbar-progress-bg: rgba(0, 0, 0, 0.04);    /* Ultra subtle track */
+    --statusbar-progress-green: rgba(52, 199, 89, 0.7);   /* More subtle green */
+    --statusbar-progress-yellow: rgba(255, 214, 10, 0.7); /* More subtle yellow */
+    --statusbar-progress-orange: rgba(255, 159, 10, 0.7); /* More subtle orange */
+    --statusbar-progress-red: rgba(255, 69, 58, 0.7);     /* More subtle red */
+
     /* Git status colors */
     --status-merged: oklch(0.55 0.25 290);           /* Purple - more vibrant */
     --status-working: oklch(0.62 0.18 60);           /* Yellow-orange - more vibrant */
@@ -349,6 +360,17 @@
 
     /* shadcn sidebar compat (HSL) */
     --sidebar-background: 0 0% 12%;                  /* Dark sidebar */
+
+    /* Status Bar colors - dark variant */
+    --statusbar-bg: oklch(0.18 0 0);                 /* #2A2A2A - Lighter */
+    --statusbar-border: var(--separator-opaque);
+    --statusbar-label: rgba(255, 255, 255, 0.4);     /* 40% - More subtle label */
+    --statusbar-value: rgba(255, 255, 255, 0.3);     /* 30% - More subtle value */
+    --statusbar-progress-bg: rgba(255, 255, 255, 0.04); /* Ultra subtle track */
+    --statusbar-progress-green: rgba(52, 199, 89, 0.6);   /* More subtle green */
+    --statusbar-progress-yellow: rgba(255, 214, 10, 0.6); /* More subtle yellow */
+    --statusbar-progress-orange: rgba(255, 159, 10, 0.6); /* More subtle orange */
+    --statusbar-progress-red: rgba(255, 69, 58, 0.6);     /* More subtle red */
 
     /* Git status colors - brightened for visibility */
     --status-merged: oklch(0.65 0.28 290);           /* Brighter purple - more vibrant */
