@@ -225,7 +225,7 @@ function App() {
         )}>
           {/* Main Header with Breadcrumb */}
           <header
-            className="flex h-[44px] shrink-0 items-center gap-2 border-b border-border px-4"
+            className="flex h-[44px] shrink-0 items-center gap-2 border-b border-border bg-muted px-4"
             style={{ WebkitAppRegion: 'drag' } as any}
           >
             <div
@@ -298,7 +298,7 @@ function App() {
                 </button>
                 <button
                   onClick={() => setShowCommitDialog(true)}
-                  className="px-4 py-2.5 bg-secondary hover:bg-secondary/80 text-secondary-foreground text-base font-medium rounded-lg transition-colors"
+                  className="px-4 py-2.5 bg-secondary hover:bg-secondary/80 text-secondary-foreground text-base font-medium rounded-md transition-colors"
                 >
                   Commit & PR
                 </button>
