@@ -10,6 +10,7 @@ import type { Block } from '../../types/conversation'
 import { TextBlock } from './TextBlock'
 import { CodeBlock } from './CodeBlock'
 import { CommandBlock } from './CommandBlock'
+import { toast } from 'sonner'
 
 interface BlockRendererProps {
   block: Block
@@ -123,7 +124,10 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
               )}
             </div>
             <button
-              onClick={() => onCopy(block.content)}
+              onClick={() => {
+                onCopy(block.content)
+                toast.success('Diff copied to clipboard!')
+              }}
               className="flex items-center gap-1 rounded px-2 py-0.5 text-xs transition-colors hover:bg-sidebar-accent"
               title="Copy diff"
             >

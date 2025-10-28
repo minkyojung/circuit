@@ -11,6 +11,7 @@
 import React, { useState } from 'react'
 import type { Block } from '../../types/conversation'
 import { Copy, Check, Play, Loader2, Terminal, AlertCircle, Bookmark, BookmarkCheck } from 'lucide-react'
+import { toast } from 'sonner'
 
 const { ipcRenderer } = window.require('electron')
 
@@ -29,6 +30,7 @@ export const CommandBlock: React.FC<CommandBlockProps> = ({ block, onCopy, onExe
   const handleCopy = () => {
     onCopy(block.content)
     setCopied(true)
+    toast.success('Command copied to clipboard!')
     setTimeout(() => setCopied(false), 2000)
   }
 

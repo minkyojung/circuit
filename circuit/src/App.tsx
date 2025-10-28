@@ -24,6 +24,7 @@ import { FolderGit2, GitCommit, List } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
+import { Toaster } from 'sonner'
 import './App.css'
 
 // Project Path Context
@@ -345,6 +346,17 @@ function App() {
         workspaces={workspacesRef.current}
         onSelectWorkspace={setSelectedWorkspace}
         onCreateWorkspace={handleCreateWorkspace}
+      />
+
+      {/* Toast Notifications */}
+      <Toaster
+        position="bottom-right"
+        toastOptions={{
+          duration: 3000,
+          style: {
+            borderRadius: 'var(--radius-lg)',
+          },
+        }}
       />
       </div>
     </ProjectPathContext.Provider>

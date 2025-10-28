@@ -8,6 +8,7 @@
 import React, { useState, useEffect } from 'react'
 import type { Block } from '../../types/conversation'
 import { Copy, Check, FileCode, Bookmark, BookmarkCheck } from 'lucide-react'
+import { toast } from 'sonner'
 import Prism from 'prismjs'
 
 // Import commonly used languages
@@ -80,6 +81,7 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ block, onCopy }) => {
   const handleCopy = () => {
     onCopy(block.content)
     setCopied(true)
+    toast.success('Code copied to clipboard!')
     setTimeout(() => setCopied(false), 2000)
   }
 
