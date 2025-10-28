@@ -647,6 +647,16 @@ app.on('render-process-gone', (event, webContents, details) => {
 });
 
 app.whenReady().then(async () => {
+  // Initialize conversation storage BEFORE creating windows
+  try {
+    const { initializeConversationStorage, registerConversationHandlers } = await import('../dist-electron/conversationHandlers.js');
+    await initializeConversationStorage();
+    registerConversationHandlers();
+    console.log('[main.cjs] Conversation handlers registered');
+  } catch (error) {
+    console.error('[main.cjs] Failed to register conversation handlers:', error);
+  }
+
   createWindow();
   createPeekWindow();
 
@@ -2119,22 +2129,6 @@ ipcMain.handle('circuit:reload-claude-code', async (event, openVSCode = true) =>
     console.log('[main.cjs] History handlers registered');
   } catch (error) {
     console.error('[main.cjs] Failed to register history handlers:', error);
-  }
-})();
-
-// ============================================================================
-// Conversations & Messages
-// ============================================================================
-
-// Initialize and register conversation handlers
-(async () => {
-  try {
-    const { initializeConversationStorage, registerConversationHandlers } = await import('../dist-electron/conversationHandlers.js');
-    await initializeConversationStorage();
-    registerConversationHandlers();
-    console.log('[main.cjs] Conversation handlers registered');
-  } catch (error) {
-    console.error('[main.cjs] Failed to register conversation handlers:', error);
   }
 })();
 
