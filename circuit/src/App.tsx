@@ -301,7 +301,7 @@ function App() {
           </div>
 
           {/* Status Bar - Bottom */}
-          <StatusBar />
+          <StatusBar selectedWorkspace={selectedWorkspace} />
         </SidebarInset>
       </SidebarProvider>
 

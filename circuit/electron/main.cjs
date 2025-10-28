@@ -43,25 +43,25 @@ async function getAPIServerInstance() {
   return apiServerPromise;
 }
 
-// Import Metrics Manager (ES Module)
-let metricsManagerPromise = null;
-async function getMetricsManagerInstance() {
-  console.log('[main.cjs] getMetricsManagerInstance called');
-  if (!metricsManagerPromise) {
-    console.log('[main.cjs] Creating new Metrics Manager instance...');
-    metricsManagerPromise = import('../dist-electron/metrics-manager.js')
+// Import Workspace Context Tracker (ES Module)
+let contextTrackerPromise = null;
+async function getWorkspaceContextTrackerInstance() {
+  console.log('[main.cjs] getWorkspaceContextTrackerInstance called');
+  if (!contextTrackerPromise) {
+    console.log('[main.cjs] Creating new Workspace Context Tracker instance...');
+    contextTrackerPromise = import('../dist-electron/workspace-context-tracker.js')
       .then(module => {
-        console.log('[main.cjs] metrics-manager.js imported successfully');
-        return module.getMetricsManager();
+        console.log('[main.cjs] workspace-context-tracker.js imported successfully');
+        return new module.WorkspaceContextTracker();
       })
       .catch(error => {
-        console.error('[main.cjs] Failed to import metrics-manager.js:', error);
+        console.error('[main.cjs] Failed to import workspace-context-tracker.js:', error);
         throw error;
       });
   }
-  const manager = await metricsManagerPromise;
-  console.log('[main.cjs] Metrics Manager instance ready');
-  return manager;
+  const tracker = await contextTrackerPromise;
+  console.log('[main.cjs] Workspace Context Tracker instance ready');
+  return tracker;
 }
 
 /**
@@ -1242,78 +1242,67 @@ ipcMain.handle('circuit:get-project-path', async () => {
 });
 
 // ============================================================================
-// Circuit Metrics - Usage & Context Monitoring
+// Workspace Context Tracking
 // ============================================================================
 
 /**
- * Start metrics monitoring for Claude Code session
+ * Start tracking context for a workspace
  */
-ipcMain.handle('circuit:metrics-start', async (event, projectPath) => {
+ipcMain.handle('workspace:context-start', async (event, workspaceId, workspacePath) => {
   try {
-    console.log('[Circuit] Starting metrics monitoring for:', projectPath);
-    const manager = await getMetricsManagerInstance();
+    console.log('[Circuit] Starting context tracking for workspace:', workspaceId, workspacePath);
+    const tracker = await getWorkspaceContextTrackerInstance();
 
-    await manager.start(projectPath);
+    const context = await tracker.startTracking(workspaceId, workspacePath);
 
-    // Forward metrics updates to frontend
-    manager.on('metrics-updated', (metrics) => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('circuit:metrics-updated', metrics);
+    if (!context) {
+      console.warn('[Circuit] No active conversation found for workspace');
+      return { success: false, error: 'No active Claude Code session for this workspace' };
+    }
+
+    // Forward context updates to frontend
+    tracker.on('context-updated', (wsId, updatedContext) => {
+      if (wsId === workspaceId && mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('workspace:context-updated', workspaceId, updatedContext);
       }
     });
 
-    manager.on('error', (error) => {
-      console.error('[Circuit] Metrics error:', error);
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('circuit:metrics-error', error.message);
-      }
-    });
+    return { success: true, context };
+  } catch (error) {
+    console.error('[Circuit] Failed to start context tracking:', error);
+    return { success: false, error: error.message };
+  }
+});
 
+/**
+ * Get current context for a workspace (without starting tracking)
+ */
+ipcMain.handle('workspace:context-get', async (event, workspaceId, workspacePath) => {
+  try {
+    const tracker = await getWorkspaceContextTrackerInstance();
+    const context = await tracker.getContext(workspaceId, workspacePath);
+
+    if (!context) {
+      return { success: false, error: 'No active Claude Code session for this workspace' };
+    }
+
+    return { success: true, context };
+  } catch (error) {
+    console.error('[Circuit] Failed to get context:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Stop tracking context for a workspace
+ */
+ipcMain.handle('workspace:context-stop', async (event, workspaceId) => {
+  try {
+    const tracker = await getWorkspaceContextTrackerInstance();
+    await tracker.stopTracking(workspaceId);
     return { success: true };
   } catch (error) {
-    console.error('[Circuit] Failed to start metrics:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-/**
- * Get current metrics (cached)
- */
-ipcMain.handle('circuit:metrics-get', async () => {
-  try {
-    const manager = await getMetricsManagerInstance();
-    const metrics = manager.getCurrentMetrics();
-    return { success: true, metrics };
-  } catch (error) {
-    console.error('[Circuit] Failed to get metrics:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-/**
- * Refresh metrics (force recalculation)
- */
-ipcMain.handle('circuit:metrics-refresh', async () => {
-  try {
-    const manager = await getMetricsManagerInstance();
-    const metrics = await manager.refresh();
-    return { success: true, metrics };
-  } catch (error) {
-    console.error('[Circuit] Failed to refresh metrics:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-/**
- * Stop metrics monitoring
- */
-ipcMain.handle('circuit:metrics-stop', async () => {
-  try {
-    const manager = await getMetricsManagerInstance();
-    manager.stop();
-    return { success: true };
-  } catch (error) {
-    console.error('[Circuit] Failed to stop metrics:', error);
+    console.error('[Circuit] Failed to stop context tracking:', error);
     return { success: false, error: error.message };
   }
 });
