@@ -3,7 +3,7 @@ import type { Workspace } from '@/types/workspace';
 import type { Message } from '@/types/conversation';
 import Editor, { loader } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
-import { Columns2, Maximize2, Save, ArrowUp, Grid3x3, MessageSquare } from 'lucide-react';
+import { Columns2, Maximize2, Save, ArrowUp, Grid3x3, MessageSquare, Paperclip, Globe } from 'lucide-react';
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -157,6 +157,54 @@ interface ChatPanelProps {
   onPrefillCleared?: () => void;
   onConversationChange?: (conversationId: string | null) => void;
 }
+
+// Input Section Style Constants - Shadcn UI Style
+const INPUT_STYLES = {
+  container: {
+    padding: 'p-4',
+    maxWidth: 'max-w-3xl',
+    borderRadius: 'rounded-xl'  // Moderate radius
+  },
+  card: {
+    background: 'bg-card',
+    border: 'border border-input',
+    shadow: 'shadow-sm'
+  },
+  textarea: {
+    minHeight: 'min-h-[60px]',   // 컴팩트한 높이
+    fontSize: 'text-base',        // 14px
+    padding: 'px-4 py-2'          // 적절한 padding
+  },
+  contextButton: {
+    padding: 'px-4 py-2',
+    fontSize: 'text-base',
+    borderRadius: 'rounded-full',
+    gap: 'gap-2'
+  },
+  controlButton: {
+    padding: 'px-3 py-2',
+    fontSize: 'text-sm',
+    borderRadius: 'rounded-lg',
+    gap: 'gap-2',
+    iconSize: 18
+  },
+  sendButton: {
+    size: 'w-10 h-10',           // 40px
+    borderRadius: 'rounded-full',
+    iconSize: 20
+  },
+  controlBar: {
+    padding: 'px-4 pb-4',
+    gap: 'gap-2'
+  }
+} as const;
+
+// Model Mode Configuration
+const MODEL_MODES = [
+  { value: 'sonnet', icon: MessageSquare, label: 'Auto' },
+  { value: 'think', icon: Grid3x3, label: 'Deep Think' },
+  { value: 'agent', icon: MessageSquare, label: 'Agent' }
+] as const;
 
 const ChatPanel: React.FC<ChatPanelProps> = ({
   workspace,
@@ -410,7 +458,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   return (
     <div className="h-full bg-card relative">
       {/* Messages Area - extends behind input */}
-      <div className="h-full overflow-auto p-6 pb-[220px]">
+      <div className="h-full overflow-auto p-6 pb-32">
         {isLoadingConversation ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-sm text-muted-foreground">Loading conversation...</div>
@@ -507,7 +555,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                       }}
                     />
                   ) : (
-                    <div className="text-[17px] font-light text-foreground whitespace-pre-wrap leading-relaxed">
+                    <div className="text-[14px] font-extralight text-foreground whitespace-pre-wrap leading-relaxed">
                       {msg.content}
                     </div>
                   )}
@@ -516,7 +564,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             ))}
             {isSending && (
               <div className="flex justify-start">
-                <div className="text-[17px] font-light text-muted-foreground">Thinking...</div>
+                <div className="text-[14px] font-extralight text-muted-foreground">Thinking...</div>
               </div>
             )}
           </div>
@@ -527,110 +575,81 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         )}
       </div>
 
-      {/* Input Section - Sticky at bottom with glassmorphism */}
-      <div className="sticky bottom-0 p-4 pointer-events-none">
-        <div className="max-w-2xl mx-auto pointer-events-auto">
-          {/* Glassmorphism Input Card */}
-          <div
-            className="relative backdrop-blur-xl border border-white/10"
-            style={{
-              backgroundColor: 'color-mix(in srgb, var(--card) 60%, transparent)',
-              borderRadius: '24px',
-              boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.05) inset'
-            }}
-          >
-            {/* Context Area */}
-            {showContext && (
-              <div className="px-4 pt-4 pb-2 border-b border-white/5">
-                <div className="flex items-center gap-2">
-                  <div className="grid grid-cols-3 gap-0.5 w-4">
-                    {[...Array(9)].map((_, i) => (
-                      <div key={i} className="w-1 h-1 rounded-full bg-pink-500 animate-pulse" />
-                    ))}
-                  </div>
-                  <span className="text-xs text-muted-foreground/80">
-                    {contextMessage}
-                  </span>
-                </div>
-              </div>
-            )}
+      {/* Input Section - Sticky at bottom - Simple Style */}
+      <div className={`sticky bottom-0 ${INPUT_STYLES.container.padding} pointer-events-none`}>
+        <div className={`${INPUT_STYLES.container.maxWidth} mx-auto pointer-events-auto`}>
+          {/* Input Card - Single border container */}
+          <div className="relative w-full flex flex-col border border-input rounded-xl bg-card shadow-sm">
+            {/* Top: Add Context Button */}
+            <div className="px-4 pt-4 pb-2">
+              <button
+                className={`inline-flex items-center ${INPUT_STYLES.contextButton.gap} ${INPUT_STYLES.contextButton.padding} ${INPUT_STYLES.contextButton.borderRadius} ${INPUT_STYLES.contextButton.fontSize} bg-secondary/50 hover:bg-secondary text-secondary-foreground border border-border/50 transition-colors`}
+              >
+                <span className="text-base">@</span>
+                <span>Add context</span>
+              </button>
+            </div>
 
-            {/* Input Area */}
-            <div className="p-4">
-              {/* Textarea */}
-              <textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                    handleSend();
-                  }
-                }}
-                placeholder="Make something wonderful..."
-                disabled={isSending || !sessionId || isLoadingConversation}
-                className="w-full text-base text-foreground placeholder-muted-foreground bg-transparent border-none outline-none resize-none mb-3 leading-relaxed min-h-[60px]"
-                rows={2}
-              />
+            {/* Textarea */}
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                  handleSend();
+                }
+              }}
+              placeholder="Ask, search, or make anything..."
+              disabled={isSending || !sessionId || isLoadingConversation}
+              className={`w-full px-4 bg-transparent border-none outline-none resize-none leading-relaxed text-card-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-0 ${INPUT_STYLES.textarea.fontSize} ${INPUT_STYLES.textarea.minHeight}`}
+              rows={1}
+            />
 
-              {/* Control Bar */}
-              <div className="flex items-center justify-between">
-                {/* Left: Mode Toggles */}
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setSelectedModel('sonnet')}
-                    className={`px-4 py-2 rounded-lg text-base font-medium transition-colors border ${
-                      selectedModel === 'sonnet'
-                        ? 'text-foreground'
-                        : 'text-muted-foreground'
-                    }`}
-                    style={{
-                      backgroundColor: selectedModel === 'sonnet' ? 'var(--chat-button-selected)' : 'var(--chat-button-default)',
-                      borderColor: 'var(--chat-button-selected)'
-                    }}
-                  >
-                    Sonnet
-                  </button>
-                  <button
-                    onClick={() => setSelectedModel('think')}
-                    className={`px-4 py-2 rounded-lg text-base font-medium transition-colors flex items-center gap-1.5 border ${
-                      selectedModel === 'think'
-                        ? 'text-foreground'
-                        : 'text-muted-foreground'
-                    }`}
-                    style={{
-                      backgroundColor: selectedModel === 'think' ? 'var(--chat-button-selected)' : 'var(--chat-button-default)',
-                      borderColor: 'var(--chat-button-selected)'
-                    }}
-                  >
-                    <Grid3x3 size={14} />
-                    Think
-                  </button>
-                  <button
-                    onClick={() => setSelectedModel('agent')}
-                    className={`px-4 py-2 rounded-lg text-base font-medium transition-colors flex items-center gap-1.5 border ${
-                      selectedModel === 'agent'
-                        ? 'text-foreground'
-                        : 'text-muted-foreground'
-                    }`}
-                    style={{
-                      backgroundColor: selectedModel === 'agent' ? 'var(--chat-button-selected)' : 'var(--chat-button-default)',
-                      borderColor: 'var(--chat-button-selected)'
-                    }}
-                  >
-                    <MessageSquare size={14} />
-                    Agent
-                  </button>
-                </div>
-
-                {/* Right: Send Button */}
+            {/* Control Bar - Bottom */}
+            <div className="flex items-center justify-between px-4 pb-4">
+              {/* Left: Mode controls with icon + text */}
+              <div className={`flex ${INPUT_STYLES.controlBar.gap} items-center`}>
+                {/* Paperclip / Attachment */}
                 <button
-                  onClick={handleSend}
-                  disabled={!input.trim() || isSending || !sessionId || isLoadingConversation}
-                  className="px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 disabled:bg-muted disabled:cursor-not-allowed flex items-center justify-center transition-all shadow-sm"
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-muted-foreground hover:text-card-foreground hover:bg-accent transition-colors"
                 >
-                  <ArrowUp size={16} className="text-primary-foreground" strokeWidth={2.5} />
+                  <Paperclip size={INPUT_STYLES.controlButton.iconSize} strokeWidth={1.5} />
+                </button>
+
+                {/* Model Mode Selector */}
+                <button
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-card-foreground hover:bg-accent transition-colors"
+                >
+                  {MODEL_MODES.find(m => m.value === selectedModel)?.icon && (
+                    React.createElement(MODEL_MODES.find(m => m.value === selectedModel)!.icon, {
+                      size: INPUT_STYLES.controlButton.iconSize,
+                      strokeWidth: 1.5
+                    })
+                  )}
+                  <span>{MODEL_MODES.find(m => m.value === selectedModel)?.label}</span>
+                </button>
+
+                {/* All Sources / Context Selector */}
+                <button
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-card-foreground hover:bg-accent transition-colors"
+                >
+                  <Globe size={INPUT_STYLES.controlButton.iconSize} strokeWidth={1.5} />
+                  <span>All Sources</span>
                 </button>
               </div>
+
+              {/* Right: Send button with orange color */}
+              <button
+                onClick={handleSend}
+                disabled={!input.trim() || isSending || !sessionId || isLoadingConversation}
+                className={`${INPUT_STYLES.sendButton.size} ${INPUT_STYLES.sendButton.borderRadius} flex items-center justify-center transition-all shrink-0 ${
+                  !input.trim() || isSending || !sessionId || isLoadingConversation
+                    ? 'bg-muted/50 text-muted-foreground/40 cursor-not-allowed'
+                    : 'bg-orange-500 text-white hover:bg-orange-600'
+                }`}
+              >
+                <ArrowUp size={INPUT_STYLES.sendButton.iconSize} strokeWidth={2} />
+              </button>
             </div>
           </div>
         </div>

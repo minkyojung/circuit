@@ -10,6 +10,7 @@ import type { Block } from '../../types/conversation'
 import { TextBlock } from './TextBlock'
 import { CodeBlock } from './CodeBlock'
 import { CommandBlock } from './CommandBlock'
+import { DiffBlock } from './DiffBlock'
 import { toast } from 'sonner'
 
 interface BlockRendererProps {
@@ -106,69 +107,7 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
       )
 
     case 'diff':
-      return renderWithBlockId(
-        <div className="rounded-lg border border-border bg-black/40 overflow-hidden">
-          {/* Diff header */}
-          <div className="flex items-center justify-between border-b border-border/50 bg-sidebar/30 px-3 py-1.5">
-            <div className="flex items-center gap-2 text-xs">
-              <span className="text-muted-foreground">Diff</span>
-              {block.metadata.fileName && (
-                <span className="font-mono text-muted-foreground">{block.metadata.fileName}</span>
-              )}
-              {block.metadata.additions !== undefined && block.metadata.deletions !== undefined && (
-                <span className="text-muted-foreground">
-                  <span className="text-green-500">+{block.metadata.additions}</span>
-                  {' '}
-                  <span className="text-red-500">-{block.metadata.deletions}</span>
-                </span>
-              )}
-            </div>
-            <button
-              onClick={() => {
-                onCopy(block.content)
-                toast.success('Diff copied to clipboard!')
-              }}
-              className="flex items-center gap-1 rounded px-2 py-0.5 text-xs transition-colors hover:bg-sidebar-accent"
-              title="Copy diff"
-            >
-              <span className="text-muted-foreground">Copy</span>
-            </button>
-          </div>
-
-          {/* Diff content */}
-          <div className="overflow-x-auto">
-            <pre
-              className="p-0 text-sm font-mono"
-              style={{
-                fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-              }}
-            >
-              {block.content.split('\n').map((line, i) => {
-                const isAddition = line.startsWith('+') && !line.startsWith('+++')
-                const isDeletion = line.startsWith('-') && !line.startsWith('---')
-                const isContext = line.startsWith('@@')
-
-                return (
-                  <div
-                    key={i}
-                    className={`px-3 py-0.5 ${
-                      isAddition
-                        ? 'bg-green-500/10 text-green-400'
-                        : isDeletion
-                        ? 'bg-red-500/10 text-red-400'
-                        : isContext
-                        ? 'bg-blue-500/10 text-blue-400'
-                        : 'text-gray-300'
-                    }`}
-                  >
-                    {line || ' '}
-                  </div>
-                )
-              })}
-            </pre>
-          </div>
-        </div>
-      )
+      return renderWithBlockId(<DiffBlock {...commonProps} />)
 
     // Fallback for unsupported types
     case 'diagram':

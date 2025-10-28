@@ -39,7 +39,7 @@ export const TextBlock: React.FC<TextBlockProps> = ({ block, onCopy }) => {
       </button>
 
       {/* Text content with Markdown rendering */}
-      <div className="prose prose-invert max-w-none text-[17px] font-light leading-relaxed">
+      <div className="prose prose-invert max-w-none text-[14px] font-extralight leading-relaxed">
         <ReactMarkdown remarkPlugins={[remarkGfm]}>
           {block.content}
         </ReactMarkdown>
