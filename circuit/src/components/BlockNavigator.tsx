@@ -141,6 +141,9 @@ export function BlockNavigator({ isOpen, onClose, conversationId }: BlockNavigat
 
   return (
     <div className="h-full w-[17rem] flex flex-col flex-shrink-0">
+      {/* Top spacer to align with main header */}
+      <div className="h-[44px] shrink-0" style={{ WebkitAppRegion: 'drag' } as any} />
+
       {/* Header with integrated filter buttons - draggable */}
       <div
         className="flex h-[44px] shrink-0 items-center px-3"
