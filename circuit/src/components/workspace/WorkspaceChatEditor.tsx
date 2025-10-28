@@ -273,11 +273,33 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   };
 
   const handleSend = async () => {
-    if (!input.trim() || isSending || !sessionId || !conversationId) return;
+    if (!input.trim() || isSending || !sessionId) return;
+
+    // Ensure we have a conversationId
+    let activeConversationId = conversationId;
+
+    if (!activeConversationId) {
+      console.warn('[ChatPanel] No conversation ID, creating new conversation');
+      try {
+        const createResult = await ipcRenderer.invoke('conversation:create', workspace.id);
+        if (createResult.success && createResult.conversation) {
+          activeConversationId = createResult.conversation.id;
+          setConversationId(activeConversationId);
+        } else {
+          console.error('[ChatPanel] Failed to create conversation:', createResult.error);
+          alert('Failed to create conversation. Please try again.');
+          return;
+        }
+      } catch (error) {
+        console.error('[ChatPanel] Error creating conversation:', error);
+        alert('Failed to create conversation. Please check console for details.');
+        return;
+      }
+    }
 
     const userMessage: Message = {
       id: `msg-${Date.now()}`,
-      conversationId: conversationId,
+      conversationId: activeConversationId!,
       role: 'user',
       content: input,
       timestamp: Date.now(),
@@ -303,7 +325,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
         const assistantMessage: Message = {
           id: `msg-${Date.now()}`,
-          conversationId: conversationId,
+          conversationId: activeConversationId!,
           role: 'assistant',
           content: result.message,
           timestamp: Date.now(),
@@ -326,7 +348,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
         const errorMessage: Message = {
           id: `msg-${Date.now()}`,
-          conversationId: conversationId,
+          conversationId: activeConversationId!,
           role: 'assistant',
           content: `Error: ${result.error}`,
           timestamp: Date.now(),
@@ -342,7 +364,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
       const errorMessage: Message = {
         id: `msg-${Date.now()}`,
-        conversationId: conversationId,
+        conversationId: activeConversationId!,
         role: 'assistant',
         content: `Error: ${error}`,
         timestamp: Date.now(),
@@ -436,7 +458,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                   }
                 }}
                 placeholder="Make something wonderful..."
-                disabled={isSending || !sessionId}
+                disabled={isSending || !sessionId || isLoadingConversation}
                 className="w-full text-base text-foreground placeholder-muted-foreground bg-transparent border-none outline-none resize-none mb-3 leading-relaxed min-h-[60px]"
                 rows={2}
               />
@@ -494,7 +516,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 {/* Right: Send Button */}
                 <button
                   onClick={handleSend}
-                  disabled={!input.trim() || isSending || !sessionId}
+                  disabled={!input.trim() || isSending || !sessionId || isLoadingConversation}
                   className="px-4 py-2 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-muted disabled:to-muted disabled:cursor-not-allowed flex items-center justify-center transition-all shadow-sm"
                 >
                   <ArrowUp size={16} className="text-white" strokeWidth={2.5} />
