@@ -9,7 +9,7 @@
  */
 
 import React, { useState } from 'react'
-import { Block } from '../../types/conversation'
+import type { Block } from '../../types/conversation'
 import { Copy, Check, Play, Loader2, Terminal, AlertCircle } from 'lucide-react'
 
 interface CommandBlockProps {

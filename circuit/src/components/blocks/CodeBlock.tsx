@@ -6,7 +6,7 @@
  */
 
 import React, { useState } from 'react'
-import { Block } from '../../types/conversation'
+import type { Block } from '../../types/conversation'
 import { Copy, Check, FileCode } from 'lucide-react'
 
 interface CodeBlockProps {

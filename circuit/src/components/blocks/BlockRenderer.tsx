@@ -6,7 +6,7 @@
  */
 
 import React from 'react'
-import { Block } from '../../types/conversation'
+import type { Block } from '../../types/conversation'
 import { TextBlock } from './TextBlock'
 import { CodeBlock } from './CodeBlock'
 import { CommandBlock } from './CommandBlock'
