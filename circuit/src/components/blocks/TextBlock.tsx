@@ -39,7 +39,7 @@ export const TextBlock: React.FC<TextBlockProps> = ({ block, onCopy }) => {
       </button>
 
       {/* Text content */}
-      <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+      <div className="whitespace-pre-wrap text-base leading-relaxed text-foreground">
         {block.content}
       </div>
     </div>
