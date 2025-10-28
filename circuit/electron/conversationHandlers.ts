@@ -256,7 +256,8 @@ export function registerConversationHandlers(): void {
 
         return {
           success: true,
-          blockCount: parseResult.blocks.length
+          blockCount: parseResult.blocks.length,
+          blocks: parseResult.blocks // Return parsed blocks for UI update
         }
       } catch (error: any) {
         console.error('[message:save] Error:', error)

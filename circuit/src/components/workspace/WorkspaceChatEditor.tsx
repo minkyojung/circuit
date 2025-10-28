@@ -312,8 +312,17 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     setInput('');
     setIsSending(true);
 
-    // Save user message to database (async, non-blocking)
-    ipcRenderer.invoke('message:save', userMessage).catch((err: any) => {
+    // Save user message to database and update with blocks
+    ipcRenderer.invoke('message:save', userMessage).then((result: any) => {
+      if (result.success && result.blocks) {
+        // Update the message with parsed blocks
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === userMessage.id ? { ...msg, blocks: result.blocks } : msg
+          )
+        );
+      }
+    }).catch((err: any) => {
       console.error('[ChatPanel] Failed to save user message:', err);
     });
 
@@ -334,8 +343,15 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
         setMessages((prev) => [...prev, assistantMessage]);
 
-        // Save assistant message to database
-        await ipcRenderer.invoke('message:save', assistantMessage);
+        // Save assistant message to database and update with blocks
+        const saveResult = await ipcRenderer.invoke('message:save', assistantMessage);
+        if (saveResult.success && saveResult.blocks) {
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantMessage.id ? { ...msg, blocks: saveResult.blocks } : msg
+            )
+          );
+        }
 
         // Parse and detect file changes
         const editedFiles = parseFileChanges(result.message);
