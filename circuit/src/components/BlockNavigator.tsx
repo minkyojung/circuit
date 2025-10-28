@@ -1,11 +1,12 @@
 import * as React from 'react'
 import { useState, useEffect } from 'react'
-import { List, Code, Terminal, FileText, GitCompare, ChevronRight, RefreshCw, Filter } from 'lucide-react'
+import { List, Code, Terminal, FileText, GitCompare, ChevronRight, RefreshCw, Search, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Block, BlockType } from '@/types/conversation'
 // Removed shadcn/ui sidebar components to avoid SidebarProvider dependency
 // Using plain HTML elements instead
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 
 // @ts-ignore - Electron IPC
 const { ipcRenderer } = window.require('electron')
@@ -21,6 +22,7 @@ export function BlockNavigator({ isOpen, onClose, conversationId }: BlockNavigat
   const [filteredBlocks, setFilteredBlocks] = useState<Block[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [selectedType, setSelectedType] = useState<BlockType | 'all'>('all')
+  const [searchQuery, setSearchQuery] = useState('')
 
   // Load blocks when conversation changes
   useEffect(() => {
@@ -32,14 +34,27 @@ export function BlockNavigator({ isOpen, onClose, conversationId }: BlockNavigat
     }
   }, [conversationId])
 
-  // Filter blocks when type changes
+  // Filter blocks when type or search query changes
   useEffect(() => {
-    if (selectedType === 'all') {
-      setFilteredBlocks(blocks)
-    } else {
-      setFilteredBlocks(blocks.filter(b => b.type === selectedType))
+    let filtered = blocks
+
+    // Filter by type
+    if (selectedType !== 'all') {
+      filtered = filtered.filter(b => b.type === selectedType)
     }
-  }, [blocks, selectedType])
+
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase()
+      filtered = filtered.filter(b =>
+        b.content.toLowerCase().includes(query) ||
+        (b.metadata?.language?.toLowerCase().includes(query)) ||
+        (b.metadata?.fileName?.toLowerCase().includes(query))
+      )
+    }
+
+    setFilteredBlocks(filtered)
+  }, [blocks, selectedType, searchQuery])
 
   const loadBlocks = async () => {
     if (!conversationId) return
@@ -184,6 +199,31 @@ export function BlockNavigator({ isOpen, onClose, conversationId }: BlockNavigat
         </button>
       </div>
 
+      {/* Search Input */}
+      <div className="px-4 pt-3 pb-2">
+        <div className="relative">
+          <Input
+            type="text"
+            placeholder="Search blocks..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className={cn(
+              "h-[30px] pl-3 pr-8 py-0 text-sm bg-sidebar-accent border-sidebar-border",
+              "placeholder:text-sidebar-foreground-muted placeholder:opacity-70",
+              "focus-visible:ring-1 focus-visible:ring-sidebar-ring"
+            )}
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-sidebar-hover transition-colors"
+            >
+              <X size={12} strokeWidth={1.5} className="text-sidebar-foreground-muted" />
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Content - using plain HTML instead of shadcn/ui components */}
       <div className="flex-1 overflow-y-auto p-2">
         {isLoading ? (
@@ -194,15 +234,29 @@ export function BlockNavigator({ isOpen, onClose, conversationId }: BlockNavigat
           </div>
         ) : filteredBlocks.length === 0 ? (
           <div className="px-3 py-6 text-center">
-            <List className="h-12 w-12 mx-auto mb-3 text-sidebar-foreground-muted opacity-20" />
-            <p className="text-sm text-sidebar-foreground-muted mb-1">
-              No blocks found
-            </p>
-            <p className="text-xs text-sidebar-foreground-muted opacity-70">
-              {selectedType === 'all'
-                ? 'Send messages to see blocks here'
-                : `No ${selectedType} blocks in this conversation`}
-            </p>
+            {searchQuery ? (
+              <>
+                <Search className="h-12 w-12 mx-auto mb-3 text-sidebar-foreground-muted opacity-20" />
+                <p className="text-sm text-sidebar-foreground-muted mb-1">
+                  No results for "{searchQuery}"
+                </p>
+                <p className="text-xs text-sidebar-foreground-muted opacity-70">
+                  Try different keywords or clear filters
+                </p>
+              </>
+            ) : (
+              <>
+                <List className="h-12 w-12 mx-auto mb-3 text-sidebar-foreground-muted opacity-20" />
+                <p className="text-sm text-sidebar-foreground-muted mb-1">
+                  No blocks found
+                </p>
+                <p className="text-xs text-sidebar-foreground-muted opacity-70">
+                  {selectedType === 'all'
+                    ? 'Send messages to see blocks here'
+                    : `No ${selectedType} blocks in this conversation`}
+                </p>
+              </>
+            )}
           </div>
         ) : (
           <div className="flex flex-col gap-0.5">
