@@ -88,15 +88,18 @@ export function BlockNavigator({ isOpen, onClose, conversationId }: BlockNavigat
   }
 
   const getBlockIcon = (type: BlockType) => {
+    const iconClass = "h-3 w-3 text-sidebar-foreground-muted"
+    const strokeWidth = 1.5
+
     switch (type) {
       case 'command':
-        return <Terminal className="h-3.5 w-3.5 text-purple-400" />
+        return <Terminal className={iconClass} strokeWidth={strokeWidth} />
       case 'diff':
-        return <GitCompare className="h-3.5 w-3.5 text-green-400" />
+        return <GitCompare className={iconClass} strokeWidth={strokeWidth} />
       case 'code':
-        return <Code className="h-3.5 w-3.5 text-blue-400" />
+        return <Code className={iconClass} strokeWidth={strokeWidth} />
       default:
-        return <FileText className="h-3.5 w-3.5 text-gray-400" />
+        return <FileText className={iconClass} strokeWidth={strokeWidth} />
     }
   }
 
@@ -174,7 +177,7 @@ export function BlockNavigator({ isOpen, onClose, conversationId }: BlockNavigat
               : "text-sidebar-foreground-muted hover:bg-sidebar-accent"
           )}
         >
-          <Code className="h-3 w-3" />
+          <Code className="h-3 w-3" strokeWidth={1.5} />
           Code
         </button>
         <button
@@ -186,7 +189,7 @@ export function BlockNavigator({ isOpen, onClose, conversationId }: BlockNavigat
               : "text-sidebar-foreground-muted hover:bg-sidebar-accent"
           )}
         >
-          <Terminal className="h-3 w-3" />
+          <Terminal className="h-3 w-3" strokeWidth={1.5} />
           Cmd
         </button>
         <button
@@ -198,7 +201,7 @@ export function BlockNavigator({ isOpen, onClose, conversationId }: BlockNavigat
               : "text-sidebar-foreground-muted hover:bg-sidebar-accent"
           )}
         >
-          <GitCompare className="h-3 w-3" />
+          <GitCompare className="h-3 w-3" strokeWidth={1.5} />
           Diff
         </button>
       </div>

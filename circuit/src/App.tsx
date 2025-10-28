@@ -21,7 +21,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import type { Workspace } from "@/types/workspace"
-import { FolderGit2, GitCommit, PanelLeft, PanelRight } from 'lucide-react'
+import { FolderGit2, PanelLeft, PanelRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
@@ -285,7 +285,7 @@ function App() {
                   onClick={() => setIsRightSidebarOpen(!isRightSidebarOpen)}
                   className={`p-2 rounded-lg transition-colors ${
                     isRightSidebarOpen
-                      ? 'bg-primary text-primary-foreground'
+                      ? 'bg-secondary text-secondary-foreground'
                       : 'hover:bg-accent text-muted-foreground hover:text-foreground'
                   }`}
                   title="Toggle blocks"
@@ -298,9 +298,8 @@ function App() {
                 </button>
                 <button
                   onClick={() => setShowCommitDialog(true)}
-                  className="px-3 py-1.5 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium rounded-lg transition-colors flex items-center gap-2"
+                  className="px-4 py-2.5 bg-secondary hover:bg-secondary/80 text-secondary-foreground text-base font-medium rounded-lg transition-colors"
                 >
-                  <GitCommit size={14} />
                   Commit & PR
                 </button>
               </div>

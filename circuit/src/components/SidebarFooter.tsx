@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings, MessageSquare, HelpCircle } from 'lucide-react';
+import { Settings, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { ThemeToggle } from './ThemeToggle';
@@ -39,14 +39,15 @@ export const SidebarFooter: React.FC<SidebarFooterProps> = ({ className }) => {
 
   return (
     <>
-      <div className={cn("flex items-center gap-1 p-2", className)}>
+      <div className={cn("flex items-center justify-between gap-2 p-2", className)}>
         {/* Settings Button */}
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => setIsSettingsOpen(true)}
           className={cn(
-            "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md",
+            "flex items-center justify-center p-2 rounded-md",
+            "h-9 w-9",
             "transition-all duration-200",
             "hover:bg-sidebar-hover",
             "text-sidebar-foreground-muted hover:text-sidebar-foreground"
@@ -65,7 +66,8 @@ export const SidebarFooter: React.FC<SidebarFooterProps> = ({ className }) => {
           whileTap={{ scale: 0.95 }}
           onClick={() => setIsFeedbackOpen(true)}
           className={cn(
-            "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md",
+            "flex items-center justify-center p-2 rounded-md",
+            "h-9 w-9",
             "transition-all duration-200",
             "hover:bg-sidebar-hover",
             "text-sidebar-foreground-muted hover:text-sidebar-foreground"
@@ -73,22 +75,6 @@ export const SidebarFooter: React.FC<SidebarFooterProps> = ({ className }) => {
           title="Send Feedback"
         >
           <MessageSquare size={18} strokeWidth={1.5} />
-        </motion.button>
-
-        {/* Help Button */}
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => window.open('https://docs.conductor.build', '_blank')}
-          className={cn(
-            "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md",
-            "transition-all duration-200",
-            "hover:bg-sidebar-hover",
-            "text-sidebar-foreground-muted hover:text-sidebar-foreground"
-          )}
-          title="Help & Documentation"
-        >
-          <HelpCircle size={18} strokeWidth={1.5} />
         </motion.button>
       </div>
 
