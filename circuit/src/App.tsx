@@ -51,8 +51,8 @@ function LeftSidebarToggle() {
       className={cn(
         "flex h-7 w-7 items-center justify-center rounded-md transition-colors",
         state === "expanded"
-          ? "text-foreground hover:bg-accent"
-          : "text-muted-foreground hover:bg-accent hover:text-foreground"
+          ? "text-foreground hover:bg-sidebar-hover"
+          : "text-muted-foreground hover:bg-sidebar-hover hover:text-foreground"
       )}
       title={state === "expanded" ? "Collapse sidebar" : "Expand sidebar"}
     >
@@ -283,8 +283,8 @@ function App() {
                   className={cn(
                     "flex h-7 w-7 items-center justify-center rounded-md transition-colors",
                     isRightSidebarOpen
-                      ? 'text-foreground hover:bg-accent'
-                      : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                      ? 'text-foreground hover:bg-sidebar-hover'
+                      : 'text-muted-foreground hover:bg-sidebar-hover hover:text-foreground'
                   )}
                   title="Toggle blocks"
                 >
@@ -292,7 +292,7 @@ function App() {
                 </button>
                 <button
                   onClick={() => setShowCommitDialog(true)}
-                  className="h-7 px-4 bg-secondary hover:bg-secondary/80 text-secondary-foreground text-sm font-medium rounded-md transition-colors flex items-center"
+                  className="h-9 px-4 bg-secondary hover:bg-secondary/80 text-secondary-foreground text-sm font-medium rounded-md transition-colors flex items-center"
                 >
                   Commit & PR
                 </button>
