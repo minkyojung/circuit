@@ -9,11 +9,11 @@ interface ThinkingTimelineProps {
   isStreaming?: boolean;
 }
 
-const MAX_VISIBLE_STEPS = 5;
+const MAX_VISIBLE_STEPS = 1;
 
 export const ThinkingTimeline: React.FC<ThinkingTimelineProps> = ({
   groupedSteps,
-  startTime,
+  startTime: _startTime,
   className,
   isStreaming = true,
 }) => {
@@ -114,7 +114,7 @@ const StepLine: React.FC<StepLineProps> = ({ step }) => {
   const detail = getDetail();
 
   return (
-    <div className="flex items-center gap-2 text-xs text-muted-foreground font-light animate-in slide-in-from-bottom-2 duration-300">
+    <div className="flex items-center gap-2 text-sm text-muted-foreground font-light animate-in slide-in-from-bottom-2 duration-300">
       <Icon className="w-3 h-3 flex-shrink-0 opacity-40" strokeWidth={1.5} />
       <span className="opacity-70">{label}</span>
       {detail && <span className="opacity-50 truncate">{detail}</span>}

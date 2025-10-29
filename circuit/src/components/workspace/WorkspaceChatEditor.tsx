@@ -184,6 +184,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const [thinkingDuration, setThinkingDuration] = useState<number>(0);
   const [pendingUserMessage, setPendingUserMessage] = useState<Message | null>(null);
   const [thinkingSteps, setThinkingSteps] = useState<ThinkingStep[]>([]);
+  const [messageThinkingSteps, setMessageThinkingSteps] = useState<Record<string, ThinkingStep[]>>({});
 
   // Use refs for timer to avoid closure issues
   const thinkingTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -405,6 +406,15 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           )
         );
       }
+
+      // Save thinking steps with this message
+      setMessageThinkingSteps((prev) => ({
+        ...prev,
+        [assistantMessage.id]: [...thinkingSteps]
+      }));
+
+      // Clear thinking steps for next message
+      setThinkingSteps([]);
 
       // Parse and detect file changes
       const editedFiles = parseFileChanges(result.message);
@@ -646,6 +656,23 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                   ) : (
                     <div className="text-[14px] font-extralight text-foreground whitespace-pre-wrap leading-relaxed">
                       {msg.content}
+                    </div>
+                  )}
+
+                  {/* Show reasoning dropdown for completed assistant messages */}
+                  {msg.role === 'assistant' && messageThinkingSteps[msg.id] && messageThinkingSteps[msg.id].length > 0 && (
+                    <div className="mt-3">
+                      <Reasoning isStreaming={false} defaultOpen={false}>
+                        <ReasoningTrigger summary={summarizeToolUsage(messageThinkingSteps[msg.id])} />
+                        <ReasoningContent>
+                          <ThinkingTimeline
+                            groupedSteps={groupThinkingSteps(messageThinkingSteps[msg.id], 0)}
+                            startTime={0}
+                            isStreaming={false}
+                            className="pl-1"
+                          />
+                        </ReasoningContent>
+                      </Reasoning>
                     </div>
                   )}
                 </div>
