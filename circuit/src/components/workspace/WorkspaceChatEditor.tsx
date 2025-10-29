@@ -310,21 +310,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   // Scroll handlers
   const handleScroll = useCallback(() => {
     const container = scrollContainerRef.current;
-    if (!container) {
-      console.log('[ScrollDebug] Container not found');
-      return;
-    }
+    if (!container) return;
 
     const { scrollTop, scrollHeight, clientHeight } = container;
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-
-    console.log('[ScrollDebug]', {
-      scrollTop,
-      scrollHeight,
-      clientHeight,
-      distanceFromBottom,
-      isAtBottom: distanceFromBottom < 150
-    });
 
     // Consider "at bottom" if within 150px of bottom
     setIsAtBottom(distanceFromBottom < 150);
@@ -768,15 +757,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-card via-card to-transparent pointer-events-none" />
 
       {/* Scroll to Bottom Button */}
-      {(() => {
-        console.log('[ScrollButton]', { isAtBottom, messagesCount: messages.length, shouldShow: !isAtBottom && messages.length > 0 });
-        return null;
-      })()}
       {!isAtBottom && messages.length > 0 && (
-        <div className="absolute bottom-44 left-1/2 -translate-x-1/2 pointer-events-none z-50">
+        <div className="absolute bottom-[200px] right-8 pointer-events-none z-50">
           <button
             onClick={scrollToBottom}
-            className="pointer-events-auto flex items-center justify-center w-10 h-10 rounded-full bg-blue-500 text-white shadow-lg hover:bg-blue-600 transition-all duration-200"
+            className="pointer-events-auto flex items-center justify-center w-10 h-10 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-all duration-200"
             aria-label="Scroll to bottom"
           >
             <ChevronDown className="w-5 h-5" />
