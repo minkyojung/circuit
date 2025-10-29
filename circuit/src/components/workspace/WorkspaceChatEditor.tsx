@@ -3,7 +3,7 @@ import type { Workspace } from '@/types/workspace';
 import type { Message } from '@/types/conversation';
 import Editor, { loader } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
-import { Columns2, Maximize2, Save } from 'lucide-react';
+import { Columns2, Maximize2, Save, ChevronDown } from 'lucide-react';
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -192,6 +192,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const currentStepMessageRef = useRef<string>('Starting analysis');
   const pendingUserMessageRef = useRef<Message | null>(null);
 
+  // Scroll state
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+
   // Context area state
   const [showContext, setShowContext] = useState(false);
   const [contextMessage, setContextMessage] = useState('');
@@ -302,6 +306,36 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     console.log('[parseFileChanges] Detected files:', files);
     return files;
   }, []);
+
+  // Scroll handlers
+  const handleScroll = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+
+    // Consider "at bottom" if within 150px of bottom
+    setIsAtBottom(distanceFromBottom < 150);
+  }, []);
+
+  const scrollToBottom = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior: 'smooth'
+    });
+  }, []);
+
+  // Auto-scroll to bottom when new messages arrive (only if already at bottom)
+  useEffect(() => {
+    if (isAtBottom && messages.length > 0) {
+      // Small delay to ensure DOM has updated
+      setTimeout(() => scrollToBottom(), 100);
+    }
+  }, [messages.length, isAtBottom, scrollToBottom]);
 
   // Group thinking steps for organized display
   const groupedThinkingSteps = useMemo(() => {
@@ -563,7 +597,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   return (
     <div className="h-full bg-card relative">
       {/* Messages Area - with space for floating input */}
-      <div className="h-full overflow-auto p-6 pb-[400px]">
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="h-full overflow-auto p-6 pb-[400px]"
+      >
         {isLoadingConversation ? (
           <div className="space-y-5 max-w-4xl mx-auto">
             <ChatMessageSkeleton />
@@ -709,6 +747,19 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
       {/* Gradient Fade to hide content behind floating input */}
       <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-card via-card to-transparent pointer-events-none" />
+
+      {/* Scroll to Bottom Button */}
+      {!isAtBottom && (
+        <div className="absolute bottom-[420px] left-1/2 -translate-x-1/2 pointer-events-none">
+          <button
+            onClick={scrollToBottom}
+            className="pointer-events-auto flex items-center justify-center w-10 h-10 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-all duration-200 hover:scale-110"
+            aria-label="Scroll to bottom"
+          >
+            <ChevronDown className="w-5 h-5" />
+          </button>
+        </div>
+      )}
 
       {/* Enhanced Chat Input - Floating */}
       <div className="absolute bottom-0 left-0 right-0 p-4 pointer-events-none">
