@@ -567,6 +567,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             {messages.map((msg) => (
               <div
                 key={msg.id}
+                data-message-id={msg.id}
                 className={`flex ${
                   msg.role === 'user' ? 'justify-end' : 'justify-start'
                 }`}
