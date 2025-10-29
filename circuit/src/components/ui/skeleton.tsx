@@ -82,4 +82,16 @@ export function FileTreeSkeleton() {
   )
 }
 
+export function ChatMessageSkeleton() {
+  return (
+    <div className="flex justify-start">
+      <div className="w-full max-w-3xl space-y-2">
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-[90%]" />
+        <Skeleton className="h-4 w-[75%]" />
+      </div>
+    </div>
+  )
+}
+
 export { Skeleton }

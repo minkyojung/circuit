@@ -225,44 +225,42 @@ function toolInvocationToBlock(
   messageId: string,
   order: number
 ): Block {
+  // Map AI SDK tool state to Tool component state
+  let toolState: 'input-streaming' | 'input-available' | 'output-available' | 'output-error' = 'input-streaming'
+
+  switch (tool.state) {
+    case 'partial-call':
+      toolState = 'input-streaming'
+      break
+    case 'call':
+      toolState = 'input-available'
+      break
+    case 'result':
+      toolState = 'output-available'
+      break
+  }
+
   const metadata: BlockMetadata = {
     toolName: tool.toolName,
     toolCallId: tool.toolCallId,
-    isExecutable: false, // Tools are already executed by AI SDK
+    type: 'tool-call',
+    state: toolState,
+    args: tool.args,
   }
 
-  // Add execution metadata based on tool state
-  switch (tool.state) {
-    case 'result':
-      if (hasToolResult(tool)) {
-        metadata.executedAt = new Date().toISOString()
-        metadata.exitCode = 0
-      }
-      break
-    case 'partial-call':
-      // Still streaming
-      break
-    case 'call':
-      // Ready to execute
-      break
+  // Add result if available
+  if (tool.state === 'result' && hasToolResult(tool)) {
+    metadata.result = tool.result
+    metadata.executedAt = new Date().toISOString()
   }
 
-  // Format content based on tool state
-  let content = ''
-  if (tool.state === 'call' || tool.state === 'partial-call') {
-    content = `Tool: ${tool.toolName}\n${JSON.stringify(tool.args, null, 2)}`
-  } else if (tool.state === 'result' && hasToolResult(tool)) {
-    content = `Tool: ${tool.toolName}\n${JSON.stringify(tool.args, null, 2)}\n\nResult:\n${
-      typeof tool.result === 'string'
-        ? tool.result
-        : JSON.stringify(tool.result, null, 2)
-    }`
-  }
+  // Simple content for text rendering fallback
+  const content = `${tool.toolName}(${JSON.stringify(tool.args)})`
 
   return {
     id: `block-tool-${tool.toolCallId}`,
     messageId,
-    type: 'command', // Tools are rendered as commands
+    type: 'tool',
     content,
     metadata,
     order,

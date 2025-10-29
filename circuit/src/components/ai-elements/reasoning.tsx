@@ -155,7 +155,7 @@ export const ReasoningTrigger = memo(
 export type ReasoningContentProps = ComponentProps<
   typeof CollapsibleContent
 > & {
-  children: string;
+  children?: React.ReactNode;
 };
 
 export const ReasoningContent = memo(
@@ -168,7 +168,11 @@ export const ReasoningContent = memo(
       )}
       {...props}
     >
-      <Response className="grid gap-2">{children}</Response>
+      {typeof children === 'string' ? (
+        <Response className="grid gap-2">{children}</Response>
+      ) : (
+        children
+      )}
     </CollapsibleContent>
   )
 );

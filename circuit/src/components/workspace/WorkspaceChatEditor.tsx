@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type { Workspace } from '@/types/workspace';
 import type { Message } from '@/types/conversation';
 import Editor, { loader } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
-import { Columns2, Maximize2, Save } from 'lucide-react';
+import { Columns2, Maximize2, Save, Brain, FileText, Edit, Terminal, Search } from 'lucide-react';
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -11,6 +11,8 @@ import {
 } from '@/components/ui/resizable';
 import { BlockList } from '@/components/blocks';
 import { ChatInput, type AttachedFile } from './ChatInput';
+import { ChatMessageSkeleton } from '@/components/ui/skeleton';
+import { Reasoning, ReasoningTrigger, ReasoningContent } from '@/components/ai-elements/reasoning';
 
 // Configure Monaco Editor to use local files instead of CDN
 loader.config({ monaco });
@@ -159,6 +161,16 @@ interface ChatPanelProps {
   onConversationChange?: (conversationId: string | null) => void;
 }
 
+interface ThinkingStep {
+  type: 'thinking' | 'tool-use';
+  message: string;
+  timestamp: number;
+  tool?: string;
+  filePath?: string;
+  command?: string;
+  pattern?: string;
+}
+
 // ChatInput component now handles all input styling and controls
 
 const ChatPanel: React.FC<ChatPanelProps> = ({
@@ -175,6 +187,16 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const [isSending, setIsSending] = useState(false);
   const [selectedModel, setSelectedModel] = useState<'sonnet' | 'think' | 'agent'>('sonnet');
   const [isLoadingConversation, setIsLoadingConversation] = useState(true);
+  const [thinkingStep, setThinkingStep] = useState<string>('');
+  const [thinkingDuration, setThinkingDuration] = useState<number>(0);
+  const [pendingUserMessage, setPendingUserMessage] = useState<Message | null>(null);
+  const [thinkingSteps, setThinkingSteps] = useState<ThinkingStep[]>([]);
+
+  // Use refs for timer to avoid closure issues
+  const thinkingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const thinkingStartTimeRef = useRef<number>(0);
+  const currentStepMessageRef = useRef<string>('Starting analysis');
+  const pendingUserMessageRef = useRef<Message | null>(null);
 
   // Context area state
   const [showContext, setShowContext] = useState(false);
@@ -245,7 +267,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     }
   }, [isSending]);
 
-  const parseFileChanges = (response: string): string[] => {
+  const parseFileChanges = useCallback((response: string): string[] => {
     const files: string[] = [];
 
     // Pattern 1: <file_path>path/to/file.ts</file_path>
@@ -285,7 +307,163 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
     console.log('[parseFileChanges] Detected files:', files);
     return files;
-  };
+  }, []);
+
+  // Listen for thinking steps from Electron
+  useEffect(() => {
+    const handleThinkingStart = (event: any, sessionId: string, timestamp: number) => {
+      console.log('[WorkspaceChat] 🧠 Thinking started:', sessionId);
+
+      // Initialize refs and clear history
+      thinkingStartTimeRef.current = Date.now();
+      currentStepMessageRef.current = 'Starting analysis';
+      setThinkingDuration(0);
+      setThinkingSteps([]); // Clear previous history
+
+      // Set initial message immediately
+      setThinkingStep('Starting analysis... (0s)');
+
+      // Client-side timer: Update every 100ms for smooth UX
+      thinkingTimerRef.current = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - thinkingStartTimeRef.current) / 1000);
+        const message = `${currentStepMessageRef.current}... (${elapsed}s)`;
+
+        // DEBUG: Log timer ticks
+        console.log(`[WorkspaceChat] ⏱️  Timer tick: ${elapsed}s - "${message}"`);
+
+        setThinkingStep(message);
+        setThinkingDuration(elapsed);
+      }, 100);
+
+      console.log('[WorkspaceChat] ✅ Timer started');
+    };
+
+    const handleMilestone = (event: any, sessionId: string, milestone: any) => {
+      console.log('[WorkspaceChat] 📍 Milestone:', milestone);
+
+      // Update ref for timer display
+      currentStepMessageRef.current = milestone.message;
+
+      // Add to history array
+      setThinkingSteps(prev => [...prev, {
+        type: milestone.type,
+        message: milestone.message,
+        timestamp: milestone.timestamp || Date.now(),
+        tool: milestone.tool,
+        filePath: milestone.filePath,
+        command: milestone.command,
+        pattern: milestone.pattern
+      }]);
+    };
+
+    const handleThinkingComplete = (event: any, sessionId: string, stats: any) => {
+      console.log('[WorkspaceChat] ✅ Thinking complete:', stats);
+
+      // Stop timer
+      if (thinkingTimerRef.current) {
+        clearInterval(thinkingTimerRef.current);
+        thinkingTimerRef.current = null;
+        console.log('[WorkspaceChat] 🛑 Timer stopped');
+      }
+
+      setThinkingDuration(stats.duration);
+      // Keep the last step visible briefly before clearing
+      setTimeout(() => {
+        setThinkingStep('');
+        setThinkingDuration(0);
+      }, 1000);
+    };
+
+    const handleResponseComplete = async (event: any, result: any) => {
+      console.log('[WorkspaceChat] Response complete:', result);
+
+      const pending = pendingUserMessageRef.current;
+      if (!result.success || !pending) {
+        setIsSending(false);
+        return;
+      }
+
+      const assistantMessage: Message = {
+        id: `msg-${Date.now()}`,
+        conversationId: pending.conversationId,
+        role: 'assistant',
+        content: result.message,
+        timestamp: Date.now(),
+      };
+
+      setMessages((prev) => [...prev, assistantMessage]);
+
+      // Save assistant message to database and update with blocks
+      const saveResult = await ipcRenderer.invoke('message:save', assistantMessage);
+      if (saveResult.success && saveResult.blocks) {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantMessage.id ? { ...msg, blocks: saveResult.blocks } : msg
+          )
+        );
+      }
+
+      // Parse and detect file changes
+      const editedFiles = parseFileChanges(result.message);
+      console.log('[WorkspaceChat] Detected file changes:', editedFiles);
+
+      editedFiles.forEach((file) => {
+        onFileEdit(file);
+      });
+
+      pendingUserMessageRef.current = null;
+      setPendingUserMessage(null);
+      setIsSending(false);
+    };
+
+    const handleResponseError = async (event: any, error: any) => {
+      console.error('[WorkspaceChat] Response error:', error);
+
+      const pending = pendingUserMessageRef.current;
+      if (!pending) {
+        setIsSending(false);
+        return;
+      }
+
+      const errorMessage: Message = {
+        id: `msg-${Date.now()}`,
+        conversationId: pending.conversationId,
+        role: 'assistant',
+        content: `Error: ${error.error || error.message || 'Unknown error'}`,
+        timestamp: Date.now(),
+      };
+
+      setMessages((prev) => [...prev, errorMessage]);
+
+      // Save error message
+      await ipcRenderer.invoke('message:save', errorMessage);
+
+      pendingUserMessageRef.current = null;
+      setPendingUserMessage(null);
+      setIsSending(false);
+    };
+
+    ipcRenderer.on('claude:thinking-start', handleThinkingStart);
+    ipcRenderer.on('claude:milestone', handleMilestone);
+    ipcRenderer.on('claude:thinking-complete', handleThinkingComplete);
+    ipcRenderer.on('claude:response-complete', handleResponseComplete);
+    ipcRenderer.on('claude:response-error', handleResponseError);
+
+    return () => {
+      // Cleanup timer if component unmounts during thinking
+      if (thinkingTimerRef.current) {
+        clearInterval(thinkingTimerRef.current);
+        thinkingTimerRef.current = null;
+        console.log('[WorkspaceChat] 🧹 Timer cleaned up on unmount');
+      }
+
+      ipcRenderer.removeListener('claude:thinking-start', handleThinkingStart);
+      ipcRenderer.removeListener('claude:milestone', handleMilestone);
+      ipcRenderer.removeListener('claude:thinking-complete', handleThinkingComplete);
+      ipcRenderer.removeListener('claude:response-complete', handleResponseComplete);
+      ipcRenderer.removeListener('claude:response-error', handleResponseError);
+    };
+  }, [parseFileChanges, onFileEdit]);
 
   const handleSend = async (inputText: string, attachments: AttachedFile[]) => {
     if (!inputText.trim() && attachments.length === 0) return;
@@ -353,83 +531,23 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       console.error('[ChatPanel] Failed to save user message:', err);
     });
 
-    try {
-      console.log('[ChatPanel] Sending message to Claude...');
-      const result = await ipcRenderer.invoke('claude:send-message', sessionId, currentInput);
+    // Store pending user message for response handlers
+    pendingUserMessageRef.current = userMessage;
+    setPendingUserMessage(userMessage);
 
-      if (result.success) {
-        console.log('[ChatPanel] Received response from Claude');
-
-        const assistantMessage: Message = {
-          id: `msg-${Date.now()}`,
-          conversationId: activeConversationId!,
-          role: 'assistant',
-          content: result.message,
-          timestamp: Date.now(),
-        };
-
-        setMessages((prev) => [...prev, assistantMessage]);
-
-        // Save assistant message to database and update with blocks
-        const saveResult = await ipcRenderer.invoke('message:save', assistantMessage);
-        if (saveResult.success && saveResult.blocks) {
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === assistantMessage.id ? { ...msg, blocks: saveResult.blocks } : msg
-            )
-          );
-        }
-
-        // Parse and detect file changes
-        const editedFiles = parseFileChanges(result.message);
-        console.log('[ChatPanel] Detected file changes:', editedFiles);
-
-        editedFiles.forEach((file) => {
-          onFileEdit(file);
-        });
-      } else {
-        console.error('[ChatPanel] Claude error:', result.error);
-
-        const errorMessage: Message = {
-          id: `msg-${Date.now()}`,
-          conversationId: activeConversationId!,
-          role: 'assistant',
-          content: `Error: ${result.error}`,
-          timestamp: Date.now(),
-        };
-
-        setMessages((prev) => [...prev, errorMessage]);
-
-        // Save error message
-        await ipcRenderer.invoke('message:save', errorMessage);
-      }
-    } catch (error) {
-      console.error('[ChatPanel] Failed to send message:', error);
-
-      const errorMessage: Message = {
-        id: `msg-${Date.now()}`,
-        conversationId: activeConversationId!,
-        role: 'assistant',
-        content: `Error: ${error}`,
-        timestamp: Date.now(),
-      };
-
-      setMessages((prev) => [...prev, errorMessage]);
-
-      // Save error message
-      await ipcRenderer.invoke('message:save', errorMessage);
-    } finally {
-      setIsSending(false);
-    }
+    // Send message (non-blocking) - response will arrive via event listeners
+    console.log('[ChatPanel] Sending message to Claude...');
+    ipcRenderer.send('claude:send-message', sessionId, currentInput);
   };
 
   return (
-    <div className="h-full flex flex-col bg-card">
-      {/* Messages Area */}
-      <div className="flex-1 overflow-auto p-6">
+    <div className="h-full bg-card relative">
+      {/* Messages Area - with space for floating input */}
+      <div className="h-full overflow-auto p-6 pb-[400px]">
         {isLoadingConversation ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-sm text-muted-foreground">Loading conversation...</div>
+          <div className="space-y-5 max-w-4xl mx-auto">
+            <ChatMessageSkeleton />
+            <ChatMessageSkeleton />
           </div>
         ) : messages.length > 0 ? (
           <div className="space-y-5 max-w-4xl mx-auto">
@@ -531,9 +649,54 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
               </div>
             ))}
             {isSending && (
-              <div className="flex justify-start">
-                <div className="text-[14px] font-extralight text-muted-foreground">Thinking...</div>
-              </div>
+              <Reasoning isStreaming={true} defaultOpen={true} duration={thinkingDuration}>
+                <ReasoningTrigger />
+                <ReasoningContent>
+                  <div className="space-y-2">
+                    {thinkingSteps.length === 0 ? (
+                      <div className="text-sm text-muted-foreground">
+                        Analyzing your request and gathering context...
+                      </div>
+                    ) : (
+                      thinkingSteps.map((step, index) => {
+                        // Icon mapping
+                        let Icon = Brain;
+                        if (step.type === 'tool-use') {
+                          if (step.tool === 'Read') Icon = FileText;
+                          else if (step.tool === 'Edit') Icon = Edit;
+                          else if (step.tool === 'Write') Icon = FileText;
+                          else if (step.tool === 'Bash') Icon = Terminal;
+                          else if (step.tool === 'Glob') Icon = Search;
+                          else if (step.tool === 'Grep') Icon = Search;
+                        }
+
+                        return (
+                          <div
+                            key={index}
+                            className="flex items-start gap-2 text-sm p-2 rounded-md bg-muted/30"
+                          >
+                            <Icon className="w-4 h-4 mt-0.5 flex-shrink-0 text-muted-foreground" />
+                            <div className="flex-1">
+                              <div className="font-medium text-foreground">
+                                {step.type === 'thinking' ? 'Thinking' : step.tool}
+                              </div>
+                              <div className="text-muted-foreground text-xs mt-0.5 break-words">
+                                {step.message}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                    {/* Current step with timer */}
+                    {thinkingSteps.length > 0 && (
+                      <div className="text-sm text-muted-foreground mt-2 pl-6">
+                        {thinkingStep}
+                      </div>
+                    )}
+                  </div>
+                </ReasoningContent>
+              </Reasoning>
             )}
           </div>
         ) : (
@@ -543,16 +706,21 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         )}
       </div>
 
-      {/* Enhanced Chat Input with File Attachment */}
-      <div className="p-4 border-t border-border">
-        <ChatInput
-          value={input}
-          onChange={setInput}
-          onSubmit={handleSend}
-          disabled={isSending || !sessionId || isLoadingConversation}
-          placeholder="Ask, search, or make anything..."
-          showControls={true}
-        />
+      {/* Gradient Fade to hide content behind floating input */}
+      <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-card via-card to-transparent pointer-events-none" />
+
+      {/* Enhanced Chat Input - Floating */}
+      <div className="absolute bottom-0 left-0 right-0 p-4 pointer-events-none">
+        <div className="pointer-events-auto">
+          <ChatInput
+            value={input}
+            onChange={setInput}
+            onSubmit={handleSend}
+            disabled={isSending || !sessionId || isLoadingConversation}
+            placeholder="Ask, search, or make anything..."
+            showControls={true}
+          />
+        </div>
       </div>
     </div>
   );

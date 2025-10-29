@@ -2740,15 +2740,17 @@ ipcMain.handle('claude:start-session', async (event, workspacePath) => {
 /**
  * Send message to Claude and get response
  */
-ipcMain.handle('claude:send-message', async (event, sessionId, userMessage) => {
+ipcMain.on('claude:send-message', async (event, sessionId, userMessage) => {
   try {
     const session = activeSessions.get(sessionId);
 
     if (!session) {
-      return {
+      console.error('[Claude] Session not found:', sessionId);
+      event.sender.send('claude:response-error', {
         success: false,
         error: 'Session not found'
-      };
+      });
+      return;
     }
 
     console.log('[Claude] Sending message to session:', sessionId);
@@ -2760,10 +2762,12 @@ ipcMain.handle('claude:send-message', async (event, sessionId, userMessage) => {
       content: userMessage
     });
 
-    // Spawn Claude CLI
+    // Spawn Claude CLI with STREAMING enabled
     const claude = spawn(CLAUDE_CLI_PATH, [
       '--print',
-      '--output-format', 'json',
+      '--verbose',                       // Required for stream-json!
+      '--output-format', 'stream-json',  // Enable real-time streaming!
+      '--include-partial-messages',      // Include partial chunks
       '--model', 'sonnet',
       '--permission-mode', 'acceptEdits'  // Auto-approve file edits
     ], {
@@ -2780,78 +2784,278 @@ ipcMain.handle('claude:send-message', async (event, sessionId, userMessage) => {
     claude.stdin.write(input);
     claude.stdin.end();
 
-    // Collect response
-    let stdout = '';
+    // Collect response and track progress
+    let stdoutBuffer = '';  // Buffer for incomplete JSON lines
+    let fullResponse = '';
     let stderr = '';
+    const startTime = Date.now();
+    let hasStarted = false;
+    let toolCalls = [];
 
     claude.stdout.on('data', (data) => {
-      stdout += data.toString();
+      const chunk = data.toString();
+      stdoutBuffer += chunk;
+
+      // DEBUG: Log every stdout event to see frequency
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      console.log(`[Claude] 📥 stdout event at ${elapsed}s (${chunk.length} bytes)`);
+
+      // Send start event on first chunk
+      if (!hasStarted && event.sender && !event.sender.isDestroyed()) {
+        hasStarted = true;
+        console.log('[Claude] 🧠 Thinking started for session:', sessionId);
+        event.sender.send('claude:thinking-start', sessionId, Date.now());
+      }
+
+      // Process complete JSON lines from stream-json format
+      const lines = stdoutBuffer.split('\n');
+      stdoutBuffer = lines.pop() || '';  // Keep incomplete line in buffer
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+
+        try {
+          const msg = JSON.parse(line);
+          console.log('[Claude] 📦 Message type:', msg.type);
+
+          // Handle stream_event messages
+          if (msg.type === 'stream_event' && msg.event) {
+            const streamEvent = msg.event;
+
+            // Text delta - accumulate response text
+            if (streamEvent.type === 'content_block_delta' && streamEvent.delta) {
+              if (streamEvent.delta.type === 'text_delta' && streamEvent.delta.text) {
+                fullResponse += streamEvent.delta.text;
+                console.log('[Claude] 📝 Text delta:', streamEvent.delta.text.substring(0, 50));
+              }
+            }
+
+            // Tool use detected (basic detection, detailed info comes from assistant message)
+            else if (streamEvent.type === 'content_block_start' && streamEvent.content_block) {
+              if (streamEvent.content_block.type === 'tool_use') {
+                const toolName = streamEvent.content_block.name;
+                console.log('[Claude] 🔧 Tool use started:', toolName);
+                toolCalls.push(toolName);
+                // Detailed milestone will be sent from assistant message with full input
+              }
+            }
+
+            // Message lifecycle events
+            else if (streamEvent.type === 'message_start') {
+              console.log('[Claude] 🚀 Message started');
+            }
+            else if (streamEvent.type === 'message_stop') {
+              console.log('[Claude] 🏁 Message stopped');
+            }
+          }
+
+          // Assistant message (contains complete message info with tool inputs)
+          else if (msg.type === 'assistant' && msg.message) {
+            console.log('[Claude] 💬 Assistant message:', msg.message.stop_reason);
+
+            // Parse content blocks from assistant message (has complete input)
+            if (msg.message.content && Array.isArray(msg.message.content)) {
+              for (const block of msg.message.content) {
+                // Text content = Claude's thinking/explanation
+                if (block.type === 'text' && block.text && block.text.length > 0) {
+                  const thinkingText = block.text.trim();
+                  if (thinkingText.length > 0) {
+                    const shortText = thinkingText.length > 100
+                      ? thinkingText.substring(0, 100) + '...'
+                      : thinkingText;
+                    console.log('[Claude] 💭 Thinking:', shortText);
+
+                    // Send thinking milestone to UI
+                    if (event.sender && !event.sender.isDestroyed()) {
+                      const milestone = {
+                        type: 'thinking',
+                        message: thinkingText,
+                        timestamp: Date.now()
+                      };
+                      event.sender.send('claude:milestone', sessionId, milestone);
+                    }
+                  }
+                }
+
+                // Tool use content
+                else if (block.type === 'tool_use' && block.name && block.input) {
+                  const toolName = block.name;
+                  const input = block.input;
+
+                  // Build detailed milestone based on tool type
+                  let detailedMessage = `Using ${toolName}`;
+                  let metadata = { tool: toolName };
+
+                  if (toolName === 'Read' && input.file_path) {
+                    const fileName = input.file_path.split('/').pop();
+                    detailedMessage = `Read ${fileName}`;
+                    metadata.filePath = input.file_path;
+                  }
+                  else if (toolName === 'Edit' && input.file_path) {
+                    const fileName = input.file_path.split('/').pop();
+                    detailedMessage = `Edit ${fileName}`;
+                    metadata.filePath = input.file_path;
+                  }
+                  else if (toolName === 'Write' && input.file_path) {
+                    const fileName = input.file_path.split('/').pop();
+                    detailedMessage = `Write ${fileName}`;
+                    metadata.filePath = input.file_path;
+                  }
+                  else if (toolName === 'Bash' && input.command) {
+                    const shortCmd = input.command.length > 40
+                      ? input.command.substring(0, 40) + '...'
+                      : input.command;
+                    detailedMessage = `Bash: ${shortCmd}`;
+                    metadata.command = input.command;
+                  }
+                  else if (toolName === 'Glob' && input.pattern) {
+                    detailedMessage = `Glob: ${input.pattern}`;
+                    metadata.pattern = input.pattern;
+                  }
+                  else if (toolName === 'Grep' && input.pattern) {
+                    detailedMessage = `Grep: ${input.pattern}`;
+                    metadata.pattern = input.pattern;
+                  }
+
+                  console.log('[Claude] 🔧 Tool detail:', detailedMessage);
+
+                  // Send tool milestone to UI
+                  if (event.sender && !event.sender.isDestroyed()) {
+                    const milestone = {
+                      type: 'tool-use',
+                      tool: toolName,
+                      message: detailedMessage,
+                      timestamp: Date.now(),
+                      ...metadata
+                    };
+                    event.sender.send('claude:milestone', sessionId, milestone);
+                  }
+                }
+              }
+            }
+          }
+
+          // Final result
+          else if (msg.type === 'result') {
+            console.log('[Claude] ✅ Final result received');
+          }
+
+        } catch (parseError) {
+          console.warn('[Claude] Failed to parse stream line:', line.substring(0, 100));
+        }
+      }
     });
 
     claude.stderr.on('data', (data) => {
-      stderr += data.toString();
+      const chunk = data.toString();
+      stderr += chunk;
+
+      // Parse stderr for milestones (no duration calculation here)
+      if (event.sender && !event.sender.isDestroyed()) {
+        let milestone = null;
+
+        if (chunk.includes('tool_use') || chunk.includes('function_call')) {
+          milestone = {
+            type: 'tool-call',
+            message: 'Calling tools'
+          };
+        } else if (chunk.includes('thinking') || chunk.includes('reasoning')) {
+          milestone = {
+            type: 'reasoning',
+            message: 'Deep reasoning'
+          };
+        }
+
+        if (milestone) {
+          console.log('[Claude] 📍 Milestone (stderr):', milestone.message);
+          event.sender.send('claude:milestone', sessionId, milestone);
+        }
+      }
     });
 
-    // Wait for completion
-    return new Promise((resolve) => {
-      claude.on('close', (code) => {
-        if (code !== 0) {
-          console.error('[Claude] Process failed:', stderr);
-          return resolve({
-            success: false,
-            error: `Claude CLI exited with code ${code}: ${stderr}`
-          });
-        }
+    // Handle completion
+    claude.on('close', (code) => {
+      if (!event.sender || event.sender.isDestroyed()) {
+        console.warn('[Claude] Cannot send response - sender destroyed');
+        return;
+      }
 
-        try {
-          const response = JSON.parse(stdout);
+      if (code !== 0) {
+        console.error('[Claude] Process failed:', stderr);
+        event.sender.send('claude:response-error', {
+          success: false,
+          error: `Claude CLI exited with code ${code}: ${stderr}`
+        });
+        return;
+      }
 
-          if (response.type === 'result' && response.subtype === 'success') {
-            const assistantMessage = response.result;
-
-            // Add to session history
-            session.messages.push({
-              role: 'assistant',
-              content: assistantMessage
-            });
-
-            console.log('[Claude] Response received');
-
-            return resolve({
-              success: true,
-              message: assistantMessage,
-              sessionId,
-              cost: response.total_cost_usd
-            });
-          } else {
-            return resolve({
-              success: false,
-              error: 'Unexpected response from Claude CLI'
-            });
+      try {
+        // Parse any remaining buffer
+        if (stdoutBuffer.trim()) {
+          try {
+            const finalEvent = JSON.parse(stdoutBuffer);
+            console.log('[Claude] 📦 Final event:', finalEvent.type);
+          } catch (e) {
+            console.warn('[Claude] Could not parse final buffer');
           }
-        } catch (parseError) {
-          console.error('[Claude] Failed to parse response:', parseError);
-          return resolve({
-            success: false,
-            error: `Failed to parse response: ${parseError.message}`
-          });
         }
-      });
 
-      claude.on('error', (error) => {
-        console.error('[Claude] Process error:', error);
-        return resolve({
+        const totalDuration = Math.floor((Date.now() - startTime) / 1000);
+
+        // Use accumulated response
+        const assistantMessage = fullResponse || 'No response received';
+
+        // Add to session history
+        session.messages.push({
+          role: 'assistant',
+          content: assistantMessage
+        });
+
+        console.log('[Claude] Response received:', assistantMessage.substring(0, 100));
+
+        // Send completion event with final stats
+        const stats = {
+          duration: totalDuration,
+          cost: 0,  // stream-json might not include cost
+          toolCalls: toolCalls.length
+        };
+        console.log('[Claude] ✅ Thinking complete:', stats);
+        event.sender.send('claude:thinking-complete', sessionId, stats);
+
+        // Send response complete event
+        event.sender.send('claude:response-complete', {
+          success: true,
+          message: assistantMessage,
+          sessionId,
+          cost: 0,
+          duration: totalDuration
+        });
+      } catch (parseError) {
+        console.error('[Claude] Failed to process response:', parseError);
+        event.sender.send('claude:response-error', {
+          success: false,
+          error: `Failed to process response: ${parseError.message}`
+        });
+      }
+    });
+
+    claude.on('error', (error) => {
+      console.error('[Claude] Process error:', error);
+      if (event.sender && !event.sender.isDestroyed()) {
+        event.sender.send('claude:response-error', {
           success: false,
           error: `Failed to spawn Claude CLI: ${error.message}`
         });
-      });
+      }
     });
   } catch (error) {
     console.error('[Claude] Send message error:', error);
-    return {
-      success: false,
-      error: error.message
-    };
+    if (event.sender && !event.sender.isDestroyed()) {
+      event.sender.send('claude:response-error', {
+        success: false,
+        error: error.message
+      });
+    }
   }
 });
 

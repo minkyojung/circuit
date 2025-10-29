@@ -305,7 +305,7 @@
 
     /* Muted/subtle colors */
     --muted: var(--background-elevated-secondary);   /* #3A3A3A - Sidebar bg dark */
-    --muted-foreground: var(--label-secondary);
+    --muted-foreground: rgba(255, 255, 255, 0.5);    /* 50% white - subtle gray like Shadcn */
 
     --accent: oklch(0.30 0.04 40);                   /* Dark orange tint */
     --accent-foreground: oklch(0.65 0.12 40);        /* Brighter orange */

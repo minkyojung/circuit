@@ -11,6 +11,7 @@ import { TextBlock } from './TextBlock'
 import { CodeBlock } from './CodeBlock'
 import { CommandBlock } from './CommandBlock'
 import { DiffBlock } from './DiffBlock'
+import { Tool, ToolHeader, ToolContent, ToolInput, ToolOutput } from '@/components/ai-elements/tool'
 import { toast } from 'sonner'
 
 interface BlockRendererProps {
@@ -108,6 +109,28 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
 
     case 'diff':
       return renderWithBlockId(<DiffBlock {...commonProps} />)
+
+    case 'tool':
+      return renderWithBlockId(
+        <Tool defaultOpen={block.metadata.state === 'output-available' || block.metadata.state === 'output-error'}>
+          <ToolHeader
+            title={block.metadata.toolName || 'Tool Call'}
+            type={block.metadata.type || 'tool-call'}
+            state={block.metadata.state || 'input-streaming'}
+          />
+          <ToolContent>
+            {block.metadata.args && (
+              <ToolInput input={block.metadata.args} />
+            )}
+            {(block.metadata.result || block.metadata.error) && (
+              <ToolOutput
+                output={block.metadata.result}
+                errorText={block.metadata.error}
+              />
+            )}
+          </ToolContent>
+        </Tool>
+      )
 
     // Fallback for unsupported types
     case 'diagram':

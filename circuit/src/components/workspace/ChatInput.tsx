@@ -28,16 +28,29 @@ export interface AttachedFile {
 
 const INPUT_STYLES = {
   container: {
-    maxWidth: 'max-w-3xl',
+    maxWidth: 'max-w-4xl',
+  },
+  addContext: {
+    button: 'h-6 px-3 py-1 text-sm scale-[0.8] origin-left',
   },
   textarea: {
-    minHeight: 'min-h-[60px]',
-    fontSize: 'text-base',
+    padding: 'px-4 py-3',
+    minHeight: 'min-h-[80px]',
+    fontSize: 'text-base font-light',
+  },
+  controls: {
+    gap: 'gap-1',
+    attachButton: 'h-[36px] px-2 py-2 rounded-md',
+    attachIconSize: 16,
+    modelButton: 'h-[36px] px-2 py-2 text-sm rounded-md',
+    modelIconSize: 14,
+    sourcesButton: 'h-[36px] px-2 py-2 text-sm rounded-md',
+    sourcesIconSize: 14,
   },
   sendButton: {
-    size: 'w-10 h-10',
+    size: 'w-[36px] h-[36px]',
     borderRadius: 'rounded-full',
-    iconSize: 20,
+    iconSize: 16,
   },
 } as const
 
@@ -159,11 +172,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
   return (
     <div className={`${INPUT_STYLES.container.maxWidth} mx-auto`}>
-      {/* Input Card */}
-      <div className="relative w-full flex flex-col border border-input rounded-xl bg-card shadow-sm">
+      {/* Input Card - Floating */}
+      <div className="relative w-full flex flex-col border border-border rounded-3xl bg-card shadow-lg">
           {/* Attached Files Preview */}
           {attachedFiles.length > 0 && (
-            <div className="px-4 pt-3 pb-2 border-b border-border">
+            <div className="px-4 pt-4 pb-3 border-b border-border">
               <div className="flex flex-wrap gap-2">
                 {attachedFiles.map((file) => (
                   <div
@@ -194,12 +207,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
           {/* Context Button (placeholder for future) */}
           {showControls && (
-            <div className="px-4 pt-4 pb-2">
+            <div className="px-4 pt-4 pb-1">
               <button
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-base bg-secondary/50 hover:bg-secondary text-secondary-foreground border border-border/50 transition-colors"
+                className={`inline-flex items-center gap-1.5 ${INPUT_STYLES.addContext.button} rounded-full border border-border/40 text-muted-foreground hover:bg-secondary/50 hover:text-foreground transition-colors`}
                 disabled
               >
-                <span className="text-base">@</span>
+                <span className="text-xs">@</span>
                 <span>Add context</span>
               </button>
             </div>
@@ -213,7 +226,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
             disabled={disabled}
-            className={`w-full px-4 bg-transparent border-none outline-none resize-none leading-relaxed text-card-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-0 ${INPUT_STYLES.textarea.fontSize} ${INPUT_STYLES.textarea.minHeight}`}
+            className={`w-full ${INPUT_STYLES.textarea.padding} bg-transparent border-none outline-none resize-none leading-relaxed text-card-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-0 ${INPUT_STYLES.textarea.fontSize} ${INPUT_STYLES.textarea.minHeight}`}
             rows={1}
             style={{ maxHeight: '200px' }}
           />
@@ -222,32 +235,31 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           <div className="flex items-center justify-between px-4 pb-4">
             {/* Left: Control buttons */}
             {showControls && (
-              <div className="flex gap-2 items-center">
+              <div className={`flex ${INPUT_STYLES.controls.gap} items-center`}>
                 {/* Attach File Button */}
                 <button
                   onClick={handleOpenFilePicker}
                   disabled={disabled}
-                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-muted-foreground hover:text-card-foreground hover:bg-accent transition-colors disabled:opacity-50"
-                  title="Attach files (images, PDFs, text)"
+                  className={`inline-flex items-center ${INPUT_STYLES.controls.attachButton} text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-50`}
+                  title="Attach files"
                 >
-                  <Paperclip size={18} strokeWidth={1.5} />
+                  <Paperclip size={INPUT_STYLES.controls.attachIconSize} strokeWidth={1.5} />
                 </button>
 
                 {/* Model Selector (placeholder) */}
                 <button
-                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-card-foreground hover:bg-accent transition-colors"
+                  className={`inline-flex items-center gap-1 ${INPUT_STYLES.controls.modelButton} text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors`}
                   disabled
                 >
-                  <MessageSquare size={18} strokeWidth={1.5} />
                   <span>Auto</span>
                 </button>
 
                 {/* Sources Selector (placeholder) */}
                 <button
-                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-card-foreground hover:bg-accent transition-colors"
+                  className={`inline-flex items-center gap-1 ${INPUT_STYLES.controls.sourcesButton} text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors`}
                   disabled
                 >
-                  <Globe size={18} strokeWidth={1.5} />
+                  <Globe size={INPUT_STYLES.controls.sourcesIconSize} strokeWidth={1.5} />
                   <span>All Sources</span>
                 </button>
               </div>
@@ -260,7 +272,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               className={`${INPUT_STYLES.sendButton.size} ${INPUT_STYLES.sendButton.borderRadius} flex items-center justify-center transition-all shrink-0 ${
                 (!value.trim() && attachedFiles.length === 0) || disabled
                   ? 'bg-muted/50 text-muted-foreground/40 cursor-not-allowed'
-                  : 'bg-orange-500 text-white hover:bg-orange-600'
+                  : 'bg-foreground text-background hover:bg-foreground/90'
               }`}
               title="Send message (Cmd/Ctrl+Enter)"
             >
