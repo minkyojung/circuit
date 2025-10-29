@@ -224,6 +224,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         const loadedMessages = messagesResult.messages || [];
 
         console.log('[ChatPanel] Loaded', loadedMessages.length, 'messages');
+        console.log('[ChatPanel] Messages:', loadedMessages.map(m => ({ id: m.id, role: m.role, content: m.content.slice(0, 50) })));
         setMessages(loadedMessages);
       } catch (error) {
         console.error('[ChatPanel] Failed to load conversation:', error);
@@ -538,7 +539,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     setIsSending(true);
 
     // Save user message to database and update with blocks
+    console.log('[ChatPanel] Saving user message:', userMessage.id, userMessage.content.slice(0, 50));
     ipcRenderer.invoke('message:save', userMessage).then((result: any) => {
+      console.log('[ChatPanel] User message save result:', result);
       if (result.success && result.blocks) {
         // Update the message with parsed blocks
         setMessages((prev) =>
@@ -668,7 +671,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                   )}
 
                   {/* Show reasoning dropdown for completed assistant messages */}
-                  {msg.role === 'assistant' && messageThinkingSteps[msg.id] && messageThinkingSteps[msg.id].steps.length > 0 && (
+                  {msg.role === 'assistant' && messageThinkingSteps[msg.id] && messageThinkingSteps[msg.id]?.steps && messageThinkingSteps[msg.id].steps.length > 0 && (
                     <div className="mt-3">
                       <Reasoning isStreaming={false} defaultOpen={false}>
                         <ReasoningTrigger
