@@ -201,13 +201,7 @@ export function registerConversationHandlers(): void {
       try {
         if (!storage) throw new Error('Storage not initialized')
 
-        console.log('[message:load] Loading messages for conversation:', conversationId)
         const messages = storage.getMessages(conversationId, options)
-        console.log('[message:load] Loaded', messages.length, 'messages from DB')
-        console.log('[message:load] Messages by role:', {
-          user: messages.filter(m => m.role === 'user').length,
-          assistant: messages.filter(m => m.role === 'assistant').length
-        })
 
         // Load blocks for each message
         const messagesWithBlocks = messages.map(message => {
@@ -268,15 +262,7 @@ export function registerConversationHandlers(): void {
         }))
 
         // Save message with blocks
-        console.log('[message:save] Saving message:', {
-          id: normalizedMessage.id,
-          conversationId: normalizedMessage.conversationId,
-          role: normalizedMessage.role,
-          contentPreview: normalizedMessage.content.slice(0, 50)
-        })
         storage.saveMessageWithBlocks(normalizedMessage, blocksForStorage as any)
-
-        console.log('[message:save] Message saved successfully')
 
         return {
           success: true,

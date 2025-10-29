@@ -224,8 +224,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         const loadedMessages = messagesResult.messages || [];
 
         console.log('[ChatPanel] Loaded', loadedMessages.length, 'messages');
-        console.log('[ChatPanel] Messages:', loadedMessages.map(m => ({ id: m.id, role: m.role, content: m.content.slice(0, 50) })));
-        console.log('[ChatPanel] Full messages array:', loadedMessages);
         setMessages(loadedMessages);
       } catch (error) {
         console.error('[ChatPanel] Failed to load conversation:', error);
@@ -540,9 +538,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     setIsSending(true);
 
     // Save user message to database and update with blocks
-    console.log('[ChatPanel] Saving user message:', userMessage.id, userMessage.content.slice(0, 50));
     ipcRenderer.invoke('message:save', userMessage).then((result: any) => {
-      console.log('[ChatPanel] User message save result:', result);
       if (result.success && result.blocks) {
         // Update the message with parsed blocks
         setMessages((prev) =>
@@ -575,10 +571,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           </div>
         ) : messages.length > 0 ? (
           <div className="space-y-5 max-w-4xl mx-auto">
-            {(() => { console.log('[ChatPanel] About to render', messages.length, 'messages'); return null; })()}
-            {messages.map((msg) => {
-              console.log('[ChatPanel] Rendering message:', msg.id, msg.role, msg.content.slice(0, 30));
-              return (
+            {messages.map((msg) => (
               <div
                 key={msg.id}
                 data-message-id={msg.id}
@@ -589,7 +582,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 <div
                   className={`max-w-[75%] ${
                     msg.role === 'user'
-                      ? 'bg-red-500 p-4 rounded-xl text-white font-bold'
+                      ? 'bg-secondary p-4 rounded-xl border border-border'
                       : ''
                   }`}
                 >
