@@ -238,6 +238,16 @@ export function registerConversationHandlers(): void {
       try {
         if (!storage) throw new Error('Storage not initialized')
 
+        // Normalize message metadata to JSON string
+        const normalizedMessage = {
+          ...message,
+          metadata: message.metadata
+            ? (typeof message.metadata === 'string'
+                ? message.metadata
+                : JSON.stringify(message.metadata))
+            : undefined
+        }
+
         // Parse message content into blocks
         const parseResult = parseMessageToBlocks(message.content, message.id)
 
@@ -252,7 +262,7 @@ export function registerConversationHandlers(): void {
         }))
 
         // Save message with blocks
-        storage.saveMessageWithBlocks(message, blocksForStorage as any)
+        storage.saveMessageWithBlocks(normalizedMessage, blocksForStorage as any)
 
         return {
           success: true,
