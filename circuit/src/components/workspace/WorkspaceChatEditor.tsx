@@ -633,7 +633,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 data-message-id={msg.id}
                 className={`flex ${
                   msg.role === 'user' ? 'justify-end' : 'justify-start'
-                }`}
+                } ${msg.role === 'assistant' ? 'mb-2' : ''}`}
               >
                 <div
                   className={`max-w-[75%] ${
