@@ -1,6 +1,7 @@
 import React from 'react';
 import { Brain, FileText, Search, Terminal, Wrench } from 'lucide-react';
 import type { GroupedThinkingSteps, ThinkingStep } from '@/types/thinking';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface ThinkingTimelineProps {
   groupedSteps: GroupedThinkingSteps;
@@ -39,13 +40,15 @@ export const ThinkingTimeline: React.FC<ThinkingTimelineProps> = ({
   return (
     <div className={className}>
       <div className="space-y-1">
-        {visibleSteps.map((step) => (
-          <StepLine
-            key={step.timestamp}
-            step={step}
-            isStreaming={isStreaming}
-          />
-        ))}
+        <AnimatePresence mode="popLayout">
+          {visibleSteps.map((step) => (
+            <StepLine
+              key={step.timestamp}
+              step={step}
+              isStreaming={isStreaming}
+            />
+          ))}
+        </AnimatePresence>
       </div>
     </div>
   );
@@ -127,8 +130,14 @@ const StepLine: React.FC<StepLineProps> = ({ step, isStreaming }) => {
   const detail = getDetail();
 
   return (
-    <div className="flex items-center gap-2 text-base text-muted-foreground font-extralight animate-in slide-in-from-bottom-2 duration-300">
-      <Icon className="w-3.5 h-3.5 flex-shrink-0 opacity-40" strokeWidth={1.5} />
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
+      className="flex items-center gap-2 text-base text-muted-foreground font-thin"
+    >
+      <Icon className="w-3 h-3 flex-shrink-0 opacity-40" strokeWidth={1.5} />
       {isStreaming ? (
         <span
           className="opacity-70 relative inline-block bg-gradient-to-r from-transparent via-muted-foreground/20 to-transparent bg-[length:200%_100%] animate-shimmer"
@@ -141,7 +150,7 @@ const StepLine: React.FC<StepLineProps> = ({ step, isStreaming }) => {
           {detail && <span className="opacity-50 break-words">{detail}</span>}
         </>
       )}
-    </div>
+    </motion.div>
   );
 };
 
