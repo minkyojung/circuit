@@ -121,6 +121,7 @@ export const Reasoning = memo(
 
 export type ReasoningTriggerProps = ComponentProps<typeof CollapsibleTrigger> & {
   summary?: string;
+  duration?: number;
 };
 
 const getThinkingMessage = (isStreaming: boolean, duration?: number, summary?: string) => {
@@ -147,8 +148,9 @@ const getThinkingMessage = (isStreaming: boolean, duration?: number, summary?: s
 };
 
 export const ReasoningTrigger = memo(
-  ({ className, children, summary, ...props }: ReasoningTriggerProps) => {
-    const { isStreaming, isOpen, duration } = useReasoning();
+  ({ className, children, summary, duration: durationProp, ...props }: ReasoningTriggerProps) => {
+    const { isStreaming, isOpen, duration: durationContext } = useReasoning();
+    const duration = durationProp ?? durationContext;
 
     return (
       <CollapsibleTrigger

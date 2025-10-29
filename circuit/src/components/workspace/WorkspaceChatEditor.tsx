@@ -184,7 +184,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const [thinkingDuration, setThinkingDuration] = useState<number>(0);
   const [pendingUserMessage, setPendingUserMessage] = useState<Message | null>(null);
   const [thinkingSteps, setThinkingSteps] = useState<ThinkingStep[]>([]);
-  const [messageThinkingSteps, setMessageThinkingSteps] = useState<Record<string, ThinkingStep[]>>({});
+  const [messageThinkingSteps, setMessageThinkingSteps] = useState<Record<string, { steps: ThinkingStep[], duration: number }>>({});
 
   // Use refs for timer to avoid closure issues
   const thinkingTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -407,10 +407,17 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         );
       }
 
-      // Save thinking steps with this message
+      // Save thinking steps with this message and calculate duration
+      const duration = thinkingStartTimeRef.current > 0
+        ? Math.round((Date.now() - thinkingStartTimeRef.current) / 1000)
+        : 0;
+
       setMessageThinkingSteps((prev) => ({
         ...prev,
-        [assistantMessage.id]: [...thinkingSteps]
+        [assistantMessage.id]: {
+          steps: [...thinkingSteps],
+          duration
+        }
       }));
 
       // Clear thinking steps for next message
@@ -661,13 +668,16 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                   )}
 
                   {/* Show reasoning dropdown for completed assistant messages */}
-                  {msg.role === 'assistant' && messageThinkingSteps[msg.id] && messageThinkingSteps[msg.id].length > 0 && (
+                  {msg.role === 'assistant' && messageThinkingSteps[msg.id] && messageThinkingSteps[msg.id].steps.length > 0 && (
                     <div className="mt-3">
                       <Reasoning isStreaming={false} defaultOpen={false}>
-                        <ReasoningTrigger summary={summarizeToolUsage(messageThinkingSteps[msg.id])} />
+                        <ReasoningTrigger
+                          summary={summarizeToolUsage(messageThinkingSteps[msg.id].steps)}
+                          duration={messageThinkingSteps[msg.id].duration}
+                        />
                         <ReasoningContent>
                           <ThinkingTimeline
-                            groupedSteps={groupThinkingSteps(messageThinkingSteps[msg.id], 0)}
+                            groupedSteps={groupThinkingSteps(messageThinkingSteps[msg.id].steps, 0)}
                             startTime={0}
                             isStreaming={false}
                             className="pl-1"

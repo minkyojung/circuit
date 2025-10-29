@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Code, Terminal, FileText, GitCompare, RefreshCw, Search, X, MessageSquare, User, Bot, RotateCcw } from 'lucide-react'
+import { Code, Terminal, FileText, GitCompare, RefreshCw, Search, X, MessageSquare, User, Bot } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Block, BlockType, Message } from '@/types/conversation'
 // Removed shadcn/ui sidebar components to avoid SidebarProvider dependency
@@ -162,36 +162,6 @@ export function BlockNavigator({ isOpen, onClose, conversationId }: BlockNavigat
         behavior: 'smooth',
         block: 'center'
       })
-    }
-  }
-
-  const handleRevert = async (message: Message) => {
-    const confirm = window.confirm(
-      `Revert conversation to this point? This will remove all messages after "${message.content.slice(0, 50)}..."`
-    )
-    if (!confirm) return
-
-    try {
-      // Find the index of this message
-      const messageIndex = messages.findIndex(m => m.id === message.id)
-      if (messageIndex === -1) return
-
-      // Get all messages to delete (everything after this message)
-      const messagesToDelete = messages.slice(messageIndex + 1)
-
-      // Delete messages
-      for (const msg of messagesToDelete) {
-        await ipcRenderer.invoke('message:delete', msg.id)
-      }
-
-      // Reload data
-      await loadData()
-
-      // Show success message
-      console.log(`[BlockNavigator] Reverted conversation to message ${message.id}`)
-    } catch (error) {
-      console.error('[BlockNavigator] Failed to revert:', error)
-      alert('Failed to revert conversation. Please try again.')
     }
   }
 
@@ -362,20 +332,6 @@ export function BlockNavigator({ isOpen, onClose, conversationId }: BlockNavigat
                         </p>
                       </button>
                     </div>
-
-                    {/* Revert button for assistant messages (except last one) */}
-                    {message.role === 'assistant' && index < filteredMessages.length - 1 && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleRevert(message)
-                        }}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-sidebar-hover rounded"
-                        title="Revert to this point"
-                      >
-                        <RotateCcw className="text-sidebar-foreground-muted" size={12} strokeWidth={1.5} />
-                      </button>
-                    )}
                   </div>
                 </div>
               ))}
