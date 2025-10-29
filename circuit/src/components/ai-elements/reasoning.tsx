@@ -77,7 +77,15 @@ export const Reasoning = memo(
       }
     }, [isStreaming, startTime, setDuration]);
 
-    // Auto-open when streaming starts, auto-close when streaming ends (once only)
+    // Auto-open when streaming starts
+    useEffect(() => {
+      if (isStreaming && defaultOpen) {
+        setIsOpen(true);
+        setHasAutoClosed(false);
+      }
+    }, [isStreaming, defaultOpen, setIsOpen]);
+
+    // Auto-close when streaming ends (once only)
     useEffect(() => {
       if (defaultOpen && !isStreaming && isOpen && !hasAutoClosed) {
         // Add a small delay before closing to allow user to see the content
@@ -111,37 +119,52 @@ export const Reasoning = memo(
   }
 );
 
-export type ReasoningTriggerProps = ComponentProps<typeof CollapsibleTrigger>;
+export type ReasoningTriggerProps = ComponentProps<typeof CollapsibleTrigger> & {
+  summary?: string;
+};
 
-const getThinkingMessage = (isStreaming: boolean, duration?: number) => {
-  if (isStreaming || duration === 0) {
+const getThinkingMessage = (isStreaming: boolean, duration?: number, summary?: string) => {
+  // While streaming
+  if (isStreaming) {
     return <Shimmer duration={1}>Thinking...</Shimmer>;
   }
-  if (duration === undefined) {
+
+  // Completed - show summary
+  if (summary) {
+    return (
+      <span className="text-xs">
+        {summary}
+        {duration && duration > 0 && <span className="text-muted-foreground/50 ml-1.5">• {duration}s</span>}
+      </span>
+    );
+  }
+
+  // Fallback
+  if (duration === undefined || duration === 0) {
     return <p>Thought for a few seconds</p>;
   }
   return <p>Thought for {duration} seconds</p>;
 };
 
 export const ReasoningTrigger = memo(
-  ({ className, children, ...props }: ReasoningTriggerProps) => {
+  ({ className, children, summary, ...props }: ReasoningTriggerProps) => {
     const { isStreaming, isOpen, duration } = useReasoning();
 
     return (
       <CollapsibleTrigger
         className={cn(
-          "flex w-full items-center gap-2 text-muted-foreground text-sm transition-colors hover:text-foreground",
+          "flex w-full items-center gap-2 text-muted-foreground text-xs transition-colors hover:text-foreground",
           className
         )}
         {...props}
       >
         {children ?? (
           <>
-            <BrainIcon className="size-4" />
-            {getThinkingMessage(isStreaming, duration)}
+            <BrainIcon className="size-3.5 opacity-60" />
+            {getThinkingMessage(isStreaming, duration, summary)}
             <ChevronDownIcon
               className={cn(
-                "size-4 transition-transform",
+                "size-3.5 transition-transform ml-auto",
                 isOpen ? "rotate-180" : "rotate-0"
               )}
             />
@@ -158,23 +181,21 @@ export type ReasoningContentProps = ComponentProps<
   children?: React.ReactNode;
 };
 
-export const ReasoningContent = memo(
-  ({ className, children, ...props }: ReasoningContentProps) => (
-    <CollapsibleContent
-      className={cn(
-        "mt-4 text-sm",
-        "data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 text-muted-foreground outline-none data-[state=closed]:animate-out data-[state=open]:animate-in",
-        className
-      )}
-      {...props}
-    >
-      {typeof children === 'string' ? (
-        <Response className="grid gap-2">{children}</Response>
-      ) : (
-        children
-      )}
-    </CollapsibleContent>
-  )
+export const ReasoningContent = ({ className, children, ...props }: ReasoningContentProps) => (
+  <CollapsibleContent
+    className={cn(
+      "mt-4 text-sm",
+      "data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 text-muted-foreground outline-none data-[state=closed]:animate-out data-[state=open]:animate-in",
+      className
+    )}
+    {...props}
+  >
+    {typeof children === 'string' ? (
+      <Response className="grid gap-2">{children}</Response>
+    ) : (
+      children
+    )}
+  </CollapsibleContent>
 );
 
 Reasoning.displayName = "Reasoning";

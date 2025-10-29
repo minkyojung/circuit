@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { Workspace } from '@/types/workspace';
 import type { Message } from '@/types/conversation';
 import Editor, { loader } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
-import { Columns2, Maximize2, Save, Brain, FileText, Edit, Terminal, Search } from 'lucide-react';
+import { Columns2, Maximize2, Save } from 'lucide-react';
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -13,6 +13,9 @@ import { BlockList } from '@/components/blocks';
 import { ChatInput, type AttachedFile } from './ChatInput';
 import { ChatMessageSkeleton } from '@/components/ui/skeleton';
 import { Reasoning, ReasoningTrigger, ReasoningContent } from '@/components/ai-elements/reasoning';
+import { ThinkingTimeline } from '@/components/reasoning/ThinkingTimeline';
+import type { ThinkingStep } from '@/types/thinking';
+import { groupThinkingSteps, summarizeToolUsage } from '@/lib/thinkingUtils';
 
 // Configure Monaco Editor to use local files instead of CDN
 loader.config({ monaco });
@@ -161,16 +164,6 @@ interface ChatPanelProps {
   onConversationChange?: (conversationId: string | null) => void;
 }
 
-interface ThinkingStep {
-  type: 'thinking' | 'tool-use';
-  message: string;
-  timestamp: number;
-  tool?: string;
-  filePath?: string;
-  command?: string;
-  pattern?: string;
-}
-
 // ChatInput component now handles all input styling and controls
 
 const ChatPanel: React.FC<ChatPanelProps> = ({
@@ -308,6 +301,16 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     console.log('[parseFileChanges] Detected files:', files);
     return files;
   }, []);
+
+  // Group thinking steps for organized display
+  const groupedThinkingSteps = useMemo(() => {
+    return groupThinkingSteps(thinkingSteps, thinkingStartTimeRef.current);
+  }, [thinkingSteps]);
+
+  // Calculate tool usage summary for completed reasoning
+  const thinkingSummary = useMemo(() => {
+    return summarizeToolUsage(thinkingSteps);
+  }, [thinkingSteps]);
 
   // Listen for thinking steps from Electron
   useEffect(() => {
@@ -649,54 +652,14 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
               </div>
             ))}
             {isSending && (
-              <Reasoning isStreaming={true} defaultOpen={true} duration={thinkingDuration}>
-                <ReasoningTrigger />
-                <ReasoningContent>
-                  <div className="space-y-2">
-                    {thinkingSteps.length === 0 ? (
-                      <div className="text-sm text-muted-foreground">
-                        Analyzing your request and gathering context...
-                      </div>
-                    ) : (
-                      thinkingSteps.map((step, index) => {
-                        // Icon mapping
-                        let Icon = Brain;
-                        if (step.type === 'tool-use') {
-                          if (step.tool === 'Read') Icon = FileText;
-                          else if (step.tool === 'Edit') Icon = Edit;
-                          else if (step.tool === 'Write') Icon = FileText;
-                          else if (step.tool === 'Bash') Icon = Terminal;
-                          else if (step.tool === 'Glob') Icon = Search;
-                          else if (step.tool === 'Grep') Icon = Search;
-                        }
-
-                        return (
-                          <div
-                            key={index}
-                            className="flex items-start gap-2 text-sm p-2 rounded-md bg-muted/30"
-                          >
-                            <Icon className="w-4 h-4 mt-0.5 flex-shrink-0 text-muted-foreground" />
-                            <div className="flex-1">
-                              <div className="font-medium text-foreground">
-                                {step.type === 'thinking' ? 'Thinking' : step.tool}
-                              </div>
-                              <div className="text-muted-foreground text-xs mt-0.5 break-words">
-                                {step.message}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                    {/* Current step with timer */}
-                    {thinkingSteps.length > 0 && (
-                      <div className="text-sm text-muted-foreground mt-2 pl-6">
-                        {thinkingStep}
-                      </div>
-                    )}
-                  </div>
-                </ReasoningContent>
-              </Reasoning>
+              <div className="my-3">
+                <ThinkingTimeline
+                  groupedSteps={groupedThinkingSteps}
+                  startTime={thinkingStartTimeRef.current}
+                  isStreaming={true}
+                  className="pl-1"
+                />
+              </div>
             )}
           </div>
         ) : (
