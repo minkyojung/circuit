@@ -745,16 +745,16 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
                   {/* Copy button for assistant messages */}
                   {msg.role === 'assistant' && (
-                    <div className="mt-3 flex justify-end">
+                    <div className="mt-5 flex justify-end">
                       <button
                         onClick={() => handleCopyMessage(msg.id, msg.content)}
-                        className="p-1.5 text-muted-foreground hover:text-foreground rounded-md hover:bg-secondary/50 transition-colors"
+                        className="p-1 text-muted-foreground hover:text-foreground rounded-md hover:bg-secondary/50 transition-colors"
                         title="Copy message"
                       >
                         {copiedMessageId === msg.id ? (
-                          <Check className="w-3.5 h-3.5 text-green-500" />
+                          <Check className="w-3 h-3 text-green-500" />
                         ) : (
-                          <Copy className="w-3.5 h-3.5" />
+                          <Copy className="w-3 h-3" />
                         )}
                       </button>
                     </div>
