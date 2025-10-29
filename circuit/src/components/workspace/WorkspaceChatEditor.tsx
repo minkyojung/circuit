@@ -758,13 +758,13 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
       {/* Scroll to Bottom Button */}
       {!isAtBottom && messages.length > 0 && (
-        <div className="absolute bottom-[200px] right-8 pointer-events-none z-50">
+        <div className="absolute bottom-[200px] left-1/2 -translate-x-1/2 pointer-events-none z-50">
           <button
             onClick={scrollToBottom}
-            className="pointer-events-auto flex items-center justify-center w-10 h-10 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-all duration-200"
+            className="pointer-events-auto flex items-center justify-center w-8 h-8 rounded-full bg-secondary text-secondary-foreground shadow-md hover:bg-secondary/80 transition-all duration-200"
             aria-label="Scroll to bottom"
           >
-            <ChevronDown className="w-5 h-5" />
+            <ChevronDown className="w-4 h-4" />
           </button>
         </div>
       )}
