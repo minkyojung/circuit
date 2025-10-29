@@ -208,6 +208,11 @@ export function registerConversationHandlers(): void {
           const blocks = storage!.getBlocks(message.id)
           return {
             ...message,
+            metadata: message.metadata
+              ? (typeof message.metadata === 'string'
+                  ? JSON.parse(message.metadata)
+                  : message.metadata)
+              : undefined,
             blocks: blocks.length > 0 ? blocks.map(b => ({
               ...b,
               metadata: JSON.parse(b.metadata || '{}')
