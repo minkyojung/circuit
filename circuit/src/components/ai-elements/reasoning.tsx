@@ -133,7 +133,7 @@ const getThinkingMessage = (isStreaming: boolean, duration?: number, summary?: s
   // Completed - show summary
   if (summary) {
     return (
-      <span className="text-xs">
+      <span className="text-sm">
         {summary}
         {duration && duration > 0 && <span className="text-muted-foreground/50 ml-1.5">• {duration}s</span>}
       </span>
@@ -155,7 +155,7 @@ export const ReasoningTrigger = memo(
     return (
       <CollapsibleTrigger
         className={cn(
-          "flex w-full items-center gap-2 text-muted-foreground text-xs transition-colors hover:text-foreground",
+          "flex w-full items-center gap-2 text-muted-foreground text-sm transition-colors hover:text-foreground",
           className
         )}
         {...props}

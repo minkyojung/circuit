@@ -135,7 +135,7 @@ const StepLine: React.FC<StepLineProps> = ({ step, isStreaming }) => {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
       transition={{ duration: 0.3, ease: "easeOut" }}
-      className="flex items-center gap-2 text-base text-muted-foreground font-thin"
+      className="flex items-center gap-2 text-base text-muted-foreground font-light"
     >
       <Icon className="w-3 h-3 flex-shrink-0 opacity-40" strokeWidth={1.5} />
       {isStreaming ? (
