@@ -19,7 +19,7 @@ export const ThinkingTimeline: React.FC<ThinkingTimelineProps> = ({
 }) => {
   if (groupedSteps.groups.length === 0) {
     return (
-      <div className="text-xs text-muted-foreground py-2 font-light">
+      <div className="text-base text-muted-foreground py-2 font-normal">
         Analyzing your request...
       </div>
     );
@@ -127,11 +127,11 @@ const StepLine: React.FC<StepLineProps> = ({ step, isStreaming }) => {
   const detail = getDetail();
 
   return (
-    <div className="flex items-center gap-2 text-base text-muted-foreground font-light animate-in slide-in-from-bottom-2 duration-300">
+    <div className="flex items-center gap-2 text-base text-muted-foreground font-extralight animate-in slide-in-from-bottom-2 duration-300">
       <Icon className="w-3.5 h-3.5 flex-shrink-0 opacity-40" strokeWidth={1.5} />
       {isStreaming ? (
         <span
-          className="opacity-70 relative inline-block bg-gradient-to-r from-transparent via-muted-foreground/20 to-transparent bg-[length:200%_100%] animate-[shimmer_2s_ease-in-out_infinite]"
+          className="opacity-70 relative inline-block bg-gradient-to-r from-transparent via-muted-foreground/20 to-transparent bg-[length:200%_100%] animate-shimmer"
         >
           {label} {detail}
         </span>
