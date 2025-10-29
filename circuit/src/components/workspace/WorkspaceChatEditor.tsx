@@ -225,6 +225,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
         console.log('[ChatPanel] Loaded', loadedMessages.length, 'messages');
         console.log('[ChatPanel] Messages:', loadedMessages.map(m => ({ id: m.id, role: m.role, content: m.content.slice(0, 50) })));
+        console.log('[ChatPanel] Full messages array:', loadedMessages);
         setMessages(loadedMessages);
       } catch (error) {
         console.error('[ChatPanel] Failed to load conversation:', error);
@@ -574,7 +575,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           </div>
         ) : messages.length > 0 ? (
           <div className="space-y-5 max-w-4xl mx-auto">
-            {messages.map((msg) => (
+            {(() => { console.log('[ChatPanel] About to render', messages.length, 'messages'); return null; })()}
+            {messages.map((msg) => {
+              console.log('[ChatPanel] Rendering message:', msg.id, msg.role, msg.content.slice(0, 30));
+              return (
               <div
                 key={msg.id}
                 data-message-id={msg.id}
@@ -691,7 +695,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                   )}
                 </div>
               </div>
-            ))}
+            );
+            })}
             {isSending && (
               <div className="my-3">
                 <ThinkingTimeline
