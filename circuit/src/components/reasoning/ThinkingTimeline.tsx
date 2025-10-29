@@ -1,7 +1,6 @@
 import React from 'react';
 import { Brain, FileText, Search, Terminal, Wrench } from 'lucide-react';
 import type { GroupedThinkingSteps, ThinkingStep } from '@/types/thinking';
-import { Shimmer } from '@/components/ai-elements/shimmer';
 
 interface ThinkingTimelineProps {
   groupedSteps: GroupedThinkingSteps;
@@ -129,11 +128,13 @@ const StepLine: React.FC<StepLineProps> = ({ step, isStreaming }) => {
 
   return (
     <div className="flex items-center gap-2 text-base text-muted-foreground font-light animate-in slide-in-from-bottom-2 duration-300">
-      <Icon className="w-3 h-3 flex-shrink-0 opacity-40" strokeWidth={1.5} />
+      <Icon className="w-3.5 h-3.5 flex-shrink-0 opacity-40" strokeWidth={1.5} />
       {isStreaming ? (
-        <Shimmer duration={1.5} className="opacity-70">
+        <span
+          className="opacity-70 relative inline-block bg-gradient-to-r from-transparent via-muted-foreground/20 to-transparent bg-[length:200%_100%] animate-[shimmer_2s_ease-in-out_infinite]"
+        >
           {label} {detail}
-        </Shimmer>
+        </span>
       ) : (
         <>
           <span className="opacity-70">{label}</span>
