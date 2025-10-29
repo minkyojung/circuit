@@ -173,7 +173,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   return (
     <div className={`${INPUT_STYLES.container.maxWidth} mx-auto`}>
       {/* Input Card - Floating */}
-      <div className="relative w-full flex flex-col border-2 border-border rounded-3xl bg-background shadow-lg">
+      <div className="relative w-full flex flex-col border-2 border-border rounded-3xl bg-secondary/30 shadow-lg">
           {/* Attached Files Preview */}
           {attachedFiles.length > 0 && (
             <div className="px-4 pt-4 pb-3 border-b border-border">
