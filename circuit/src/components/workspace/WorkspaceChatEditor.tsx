@@ -310,10 +310,21 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   // Scroll handlers
   const handleScroll = useCallback(() => {
     const container = scrollContainerRef.current;
-    if (!container) return;
+    if (!container) {
+      console.log('[ScrollDebug] Container not found');
+      return;
+    }
 
     const { scrollTop, scrollHeight, clientHeight } = container;
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+
+    console.log('[ScrollDebug]', {
+      scrollTop,
+      scrollHeight,
+      clientHeight,
+      distanceFromBottom,
+      isAtBottom: distanceFromBottom < 150
+    });
 
     // Consider "at bottom" if within 150px of bottom
     setIsAtBottom(distanceFromBottom < 150);
@@ -328,6 +339,14 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       behavior: 'smooth'
     });
   }, []);
+
+  // Check initial scroll position when messages load
+  useEffect(() => {
+    if (messages.length > 0 && scrollContainerRef.current) {
+      // Check scroll position on load
+      handleScroll();
+    }
+  }, [messages.length, handleScroll]);
 
   // Auto-scroll to bottom when new messages arrive (only if already at bottom)
   useEffect(() => {
@@ -749,6 +768,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-card via-card to-transparent pointer-events-none" />
 
       {/* Scroll to Bottom Button */}
+      {(() => {
+        console.log('[ScrollButton]', { isAtBottom, messagesCount: messages.length, shouldShow: !isAtBottom && messages.length > 0 });
+        return null;
+      })()}
       {!isAtBottom && messages.length > 0 && (
         <div className="absolute bottom-44 left-1/2 -translate-x-1/2 pointer-events-none z-50">
           <button
