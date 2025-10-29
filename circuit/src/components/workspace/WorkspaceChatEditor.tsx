@@ -688,8 +688,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                   )}
                 </div>
               </div>
-            );
-            })}
+            ))}
             {isSending && (
               <div className="my-3">
                 <ThinkingTimeline
