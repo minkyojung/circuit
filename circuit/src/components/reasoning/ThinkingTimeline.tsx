@@ -1,6 +1,7 @@
 import React from 'react';
 import { Brain, FileText, Search, Terminal, Wrench } from 'lucide-react';
 import type { GroupedThinkingSteps, ThinkingStep } from '@/types/thinking';
+import { Shimmer } from '@/components/ai-elements/shimmer';
 
 interface ThinkingTimelineProps {
   groupedSteps: GroupedThinkingSteps;
@@ -43,6 +44,7 @@ export const ThinkingTimeline: React.FC<ThinkingTimelineProps> = ({
           <StepLine
             key={step.timestamp}
             step={step}
+            isStreaming={isStreaming}
           />
         ))}
       </div>
@@ -52,9 +54,10 @@ export const ThinkingTimeline: React.FC<ThinkingTimelineProps> = ({
 
 interface StepLineProps {
   step: ThinkingStep;
+  isStreaming: boolean;
 }
 
-const StepLine: React.FC<StepLineProps> = ({ step }) => {
+const StepLine: React.FC<StepLineProps> = ({ step, isStreaming }) => {
   const getIcon = () => {
     if (step.type === 'thinking') return Brain;
 
@@ -88,20 +91,31 @@ const StepLine: React.FC<StepLineProps> = ({ step }) => {
 
   const getDetail = () => {
     if (step.type === 'thinking') {
-      // Truncate thinking message
-      return step.message.length > 60
-        ? step.message.substring(0, 60) + '...'
-        : step.message;
+      // Truncate thinking message only when streaming
+      if (isStreaming) {
+        return step.message.length > 60
+          ? step.message.substring(0, 60) + '...'
+          : step.message;
+      }
+      return step.message;
     }
 
     if (step.filePath) {
-      const fileName = step.filePath.split('/').pop();
-      return fileName || step.filePath;
+      // Show full path when not streaming, filename when streaming
+      if (isStreaming) {
+        const fileName = step.filePath.split('/').pop();
+        return fileName || step.filePath;
+      }
+      return step.filePath;
     }
     if (step.command) {
-      return step.command.length > 40
-        ? step.command.substring(0, 40) + '...'
-        : step.command;
+      // Show full command when not streaming
+      if (isStreaming) {
+        return step.command.length > 40
+          ? step.command.substring(0, 40) + '...'
+          : step.command;
+      }
+      return step.command;
     }
     if (step.pattern) {
       return step.pattern;
@@ -114,10 +128,18 @@ const StepLine: React.FC<StepLineProps> = ({ step }) => {
   const detail = getDetail();
 
   return (
-    <div className="flex items-center gap-2 text-sm text-muted-foreground font-light animate-in slide-in-from-bottom-2 duration-300">
+    <div className="flex items-center gap-2 text-base text-muted-foreground font-light animate-in slide-in-from-bottom-2 duration-300">
       <Icon className="w-3 h-3 flex-shrink-0 opacity-40" strokeWidth={1.5} />
-      <span className="opacity-70">{label}</span>
-      {detail && <span className="opacity-50 truncate">{detail}</span>}
+      {isStreaming ? (
+        <Shimmer duration={1.5} className="opacity-70">
+          {label} {detail}
+        </Shimmer>
+      ) : (
+        <>
+          <span className="opacity-70">{label}</span>
+          {detail && <span className="opacity-50 break-words">{detail}</span>}
+        </>
+      )}
     </div>
   );
 };
