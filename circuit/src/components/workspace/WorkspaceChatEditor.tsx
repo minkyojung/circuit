@@ -749,8 +749,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-card via-card to-transparent pointer-events-none" />
 
       {/* Scroll to Bottom Button */}
-      {!isAtBottom && (
-        <div className="absolute bottom-44 left-1/2 -translate-x-1/2 pointer-events-none">
+      {!isAtBottom && messages.length > 0 && (
+        <div className="absolute bottom-44 left-1/2 -translate-x-1/2 pointer-events-none z-50">
           <button
             onClick={scrollToBottom}
             className="pointer-events-auto flex items-center justify-center w-8 h-8 rounded-full bg-secondary text-secondary-foreground shadow-md hover:bg-secondary/80 transition-all duration-200"
