@@ -3,7 +3,7 @@ import type { Workspace } from '@/types/workspace';
 import type { Message } from '@/types/conversation';
 import Editor, { loader } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
-import { Columns2, Maximize2, Save, ChevronDown } from 'lucide-react';
+import { Columns2, Maximize2, Save, ChevronDown, Copy, Check } from 'lucide-react';
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -196,6 +196,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
 
+  // Copy state
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+
   // Context area state
   const [showContext, setShowContext] = useState(false);
   const [contextMessage, setContextMessage] = useState('');
@@ -327,6 +330,13 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       top: container.scrollHeight,
       behavior: 'smooth'
     });
+  }, []);
+
+  // Copy message handler
+  const handleCopyMessage = useCallback((messageId: string, content: string) => {
+    navigator.clipboard.writeText(content);
+    setCopiedMessageId(messageId);
+    setTimeout(() => setCopiedMessageId(null), 2000);
   }, []);
 
   // Check initial scroll position when messages load
@@ -730,6 +740,28 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                           />
                         </ReasoningContent>
                       </Reasoning>
+                    </div>
+                  )}
+
+                  {/* Copy button for assistant messages */}
+                  {msg.role === 'assistant' && (
+                    <div className="mt-3 flex justify-end">
+                      <button
+                        onClick={() => handleCopyMessage(msg.id, msg.content)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground rounded-md hover:bg-secondary/50 transition-colors"
+                      >
+                        {copiedMessageId === msg.id ? (
+                          <>
+                            <Check className="w-3 h-3 text-green-500" />
+                            <span>Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3 h-3" />
+                            <span>Copy</span>
+                          </>
+                        )}
+                      </button>
                     </div>
                   )}
                 </div>
