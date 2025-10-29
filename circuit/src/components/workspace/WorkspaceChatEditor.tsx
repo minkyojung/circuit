@@ -589,7 +589,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 <div
                   className={`max-w-[75%] ${
                     msg.role === 'user'
-                      ? 'bg-muted p-4 rounded-xl'
+                      ? 'bg-red-500 p-4 rounded-xl text-white font-bold'
                       : ''
                   }`}
                 >
