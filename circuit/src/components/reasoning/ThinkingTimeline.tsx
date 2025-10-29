@@ -39,8 +39,8 @@ export const ThinkingTimeline: React.FC<ThinkingTimelineProps> = ({
 
   return (
     <div className={className}>
-      <div className="space-y-1">
-        <AnimatePresence mode="popLayout">
+      <div className="relative min-h-[28px]">
+        <AnimatePresence mode="wait">
           {visibleSteps.map((step) => (
             <StepLine
               key={step.timestamp}
@@ -134,7 +134,7 @@ const StepLine: React.FC<StepLineProps> = ({ step, isStreaming }) => {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
-      transition={{ duration: 0.4, ease: "easeOut" }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
       className="flex items-center gap-2 text-base text-muted-foreground font-thin"
     >
       <Icon className="w-3 h-3 flex-shrink-0 opacity-40" strokeWidth={1.5} />
