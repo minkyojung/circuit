@@ -339,6 +339,41 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     setTimeout(() => setCopiedMessageId(null), 2000);
   }, []);
 
+  // Group messages by date
+  const groupedMessages = useMemo(() => {
+    const groups: { date: string; messages: Message[] }[] = [];
+
+    messages.forEach((msg) => {
+      const msgDate = new Date(msg.timestamp);
+      const dateKey = msgDate.toDateString();
+
+      const lastGroup = groups[groups.length - 1];
+      if (lastGroup && lastGroup.date === dateKey) {
+        lastGroup.messages.push(msg);
+      } else {
+        groups.push({ date: dateKey, messages: [msg] });
+      }
+    });
+
+    return groups;
+  }, [messages]);
+
+  // Format date label
+  const formatDateLabel = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    if (date.toDateString() === today.toDateString()) {
+      return '오늘';
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      return '어제';
+    } else {
+      return date.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+    }
+  };
+
   // Check initial scroll position when messages load
   useEffect(() => {
     if (messages.length > 0 && scrollContainerRef.current) {
@@ -626,8 +661,21 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             <ChatMessageSkeleton />
           </div>
         ) : messages.length > 0 ? (
-          <div className="space-y-5 max-w-4xl mx-auto">
-            {messages.map((msg) => (
+          <div className="max-w-4xl mx-auto">
+            {groupedMessages.map((group, groupIndex) => (
+              <div key={group.date}>
+                {/* Date separator */}
+                <div className="flex items-center gap-3 my-6">
+                  <div className="h-px flex-1 bg-border"></div>
+                  <div className="text-xs text-muted-foreground px-2">
+                    {formatDateLabel(group.date)}
+                  </div>
+                  <div className="h-px flex-1 bg-border"></div>
+                </div>
+
+                {/* Messages in this date group */}
+                <div className="space-y-3">
+                  {group.messages.map((msg) => (
               <div
                 key={msg.id}
                 data-message-id={msg.id}
@@ -764,6 +812,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                       </button>
                     </div>
                   )}
+                </div>
+              </div>
+                  ))}
                 </div>
               </div>
             ))}
