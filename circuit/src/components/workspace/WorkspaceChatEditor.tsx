@@ -776,10 +776,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         <div className="absolute bottom-44 left-1/2 -translate-x-1/2 pointer-events-none z-50">
           <button
             onClick={scrollToBottom}
-            className="pointer-events-auto flex items-center justify-center w-8 h-8 rounded-full bg-secondary text-secondary-foreground shadow-md hover:bg-secondary/80 transition-all duration-200"
+            className="pointer-events-auto flex items-center justify-center w-10 h-10 rounded-full bg-blue-500 text-white shadow-lg hover:bg-blue-600 transition-all duration-200"
             aria-label="Scroll to bottom"
           >
-            <ChevronDown className="w-4 h-4" />
+            <ChevronDown className="w-5 h-5" />
           </button>
         </div>
       )}
