@@ -662,7 +662,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                       }}
                     />
                   ) : (
-                    <div className="text-[14px] font-extralight text-foreground whitespace-pre-wrap leading-relaxed">
+                    <div className="text-base font-normal text-foreground whitespace-pre-wrap leading-relaxed">
                       {msg.content}
                     </div>
                   )}
