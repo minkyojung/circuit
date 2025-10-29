@@ -3,7 +3,7 @@ import type { Workspace } from '@/types/workspace';
 import type { Message } from '@/types/conversation';
 import Editor, { loader } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
-import { Columns2, Maximize2, Save, ChevronDown, Copy, Check } from 'lucide-react';
+import { Columns2, Maximize2, Save, ChevronDown, Copy, Check, Brain } from 'lucide-react';
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -199,6 +199,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   // Copy state
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
 
+  // Reasoning toggle state
+  const [openReasoningId, setOpenReasoningId] = useState<string | null>(null);
+
   // Context area state
   const [showContext, setShowContext] = useState(false);
   const [contextMessage, setContextMessage] = useState('');
@@ -232,6 +235,18 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
         console.log('[ChatPanel] Loaded', loadedMessages.length, 'messages');
         setMessages(loadedMessages);
+
+        // 4. Restore thinking steps from message metadata
+        const restoredSteps: Record<string, { steps: ThinkingStep[], duration: number }> = {};
+        loadedMessages.forEach((msg: Message) => {
+          if (msg.role === 'assistant' && msg.metadata?.thinkingSteps && msg.metadata?.thinkingDuration) {
+            restoredSteps[msg.id] = {
+              steps: msg.metadata.thinkingSteps,
+              duration: msg.metadata.thinkingDuration
+            };
+          }
+        });
+        setMessageThinkingSteps(restoredSteps);
       } catch (error) {
         console.error('[ChatPanel] Failed to load conversation:', error);
         // On error, start fresh
@@ -439,17 +454,35 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         return;
       }
 
+      // Calculate thinking duration
+      const duration = thinkingStartTimeRef.current > 0
+        ? Math.round((Date.now() - thinkingStartTimeRef.current) / 1000)
+        : 0;
+
       const assistantMessage: Message = {
         id: `msg-${Date.now()}`,
         conversationId: pending.conversationId,
         role: 'assistant',
         content: result.message,
         timestamp: Date.now(),
+        metadata: {
+          thinkingSteps: thinkingSteps,
+          thinkingDuration: duration
+        }
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
 
-      // Save assistant message to database and update with blocks
+      // Save thinking steps to memory
+      setMessageThinkingSteps((prev) => ({
+        ...prev,
+        [assistantMessage.id]: {
+          steps: [...thinkingSteps],
+          duration
+        }
+      }));
+
+      // Save assistant message to database (with thinking steps in metadata)
       const saveResult = await ipcRenderer.invoke('message:save', assistantMessage);
       if (saveResult.success && saveResult.blocks) {
         setMessages((prev) =>
@@ -458,19 +491,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           )
         );
       }
-
-      // Save thinking steps with this message and calculate duration
-      const duration = thinkingStartTimeRef.current > 0
-        ? Math.round((Date.now() - thinkingStartTimeRef.current) / 1000)
-        : 0;
-
-      setMessageThinkingSteps((prev) => ({
-        ...prev,
-        [assistantMessage.id]: {
-          steps: [...thinkingSteps],
-          duration
-        }
-      }));
 
       // Clear thinking steps for next message
       setThinkingSteps([]);
@@ -723,40 +743,47 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                     </div>
                   )}
 
-                  {/* Show reasoning dropdown for completed assistant messages */}
-                  {msg.role === 'assistant' && messageThinkingSteps[msg.id] && messageThinkingSteps[msg.id]?.steps && messageThinkingSteps[msg.id].steps.length > 0 && (
-                    <div className="mt-3">
-                      <Reasoning isStreaming={false} defaultOpen={false}>
-                        <ReasoningTrigger
-                          summary={summarizeToolUsage(messageThinkingSteps[msg.id].steps)}
-                          duration={messageThinkingSteps[msg.id].duration}
-                        />
-                        <ReasoningContent>
-                          <ThinkingTimeline
-                            groupedSteps={groupThinkingSteps(messageThinkingSteps[msg.id].steps, 0)}
-                            startTime={0}
-                            isStreaming={false}
-                            className="pl-1"
-                          />
-                        </ReasoningContent>
-                      </Reasoning>
-                    </div>
-                  )}
-
-                  {/* Copy button for assistant messages */}
+                  {/* Action bar (Copy + Reasoning) */}
                   {msg.role === 'assistant' && (
-                    <div className="mt-5 flex justify-end">
+                    <div className="mt-4 flex items-center justify-between gap-2">
+                      {/* Reasoning button (left) */}
+                      {messageThinkingSteps[msg.id]?.steps?.length > 0 && (
+                        <button
+                          onClick={() => setOpenReasoningId(openReasoningId === msg.id ? null : msg.id)}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-secondary/50 rounded-md transition-colors"
+                        >
+                          <Brain className="w-3.5 h-3.5" />
+                          <span>{messageThinkingSteps[msg.id].duration}s • {summarizeToolUsage(messageThinkingSteps[msg.id].steps)}</span>
+                          <ChevronDown className={`w-3 h-3 transition-transform ${openReasoningId === msg.id ? 'rotate-180' : ''}`} />
+                        </button>
+                      )}
+
+                      {/* Spacer */}
+                      <div className="flex-1" />
+
+                      {/* Copy button (right) */}
                       <button
                         onClick={() => handleCopyMessage(msg.id, msg.content)}
-                        className="p-1 text-muted-foreground hover:text-foreground rounded-md hover:bg-secondary/50 transition-colors"
+                        className="p-1.5 text-muted-foreground hover:text-foreground rounded-md hover:bg-secondary/50 transition-colors"
                         title="Copy message"
                       >
                         {copiedMessageId === msg.id ? (
-                          <Check className="w-3 h-3 text-green-500" />
+                          <Check className="w-3.5 h-3.5 text-green-500" />
                         ) : (
-                          <Copy className="w-3 h-3" />
+                          <Copy className="w-3.5 h-3.5" />
                         )}
                       </button>
+                    </div>
+                  )}
+
+                  {/* Reasoning content (collapsible) */}
+                  {msg.role === 'assistant' && openReasoningId === msg.id && messageThinkingSteps[msg.id]?.steps?.length > 0 && (
+                    <div className="mt-3 pl-1">
+                      <ThinkingTimeline
+                        groupedSteps={groupThinkingSteps(messageThinkingSteps[msg.id].steps, 0)}
+                        startTime={0}
+                        isStreaming={false}
+                      />
                     </div>
                   )}
                 </div>

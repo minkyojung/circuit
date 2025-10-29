@@ -2,6 +2,8 @@
  * Type definitions for conversations and messages
  */
 
+import type { ThinkingStep } from './thinking'
+
 export interface Conversation {
   id: string
   workspaceId: string
@@ -21,6 +23,8 @@ export interface Message {
     files?: string[]
     toolCalls?: string[]
     tokens?: number
+    thinkingSteps?: ThinkingStep[]
+    thinkingDuration?: number
   }
   blocks?: Block[]  // New: Block-based message structure
 }
