@@ -52,7 +52,7 @@ export const ThinkingTimeline: React.FC<ThinkingTimelineProps> = ({
           </AnimatePresence>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-1.5">
           {allSteps.map((step, index) => (
             <StepLine
               key={step.timestamp}
@@ -164,22 +164,22 @@ const StepLine: React.FC<StepLineProps> = ({ step, isStreaming, isLast = false }
 
   // Timeline layout for completed reasoning
   return (
-    <div className="flex gap-3">
+    <div className="flex gap-2.5">
       {/* Timeline indicator */}
       <div className="flex flex-col items-center">
-        <div className="flex items-center justify-center w-6 h-6 rounded-full bg-secondary/50 flex-shrink-0">
-          <Icon className="w-3 h-3 text-muted-foreground" strokeWidth={1.5} />
+        <div className="flex items-center justify-center w-5 h-5 rounded-full bg-secondary/40 flex-shrink-0">
+          <Icon className="w-3 h-3 text-muted-foreground/80" strokeWidth={2} />
         </div>
         {!isLast && (
-          <div className="w-px h-full min-h-[16px] bg-border/50 mt-1" />
+          <div className="w-px h-full min-h-[12px] bg-border/40 mt-1" />
         )}
       </div>
 
       {/* Content */}
-      <div className="flex-1 pt-0.5 pb-1">
-        <div className="text-sm text-foreground font-medium">{label}</div>
+      <div className="flex-1 pt-0 pb-0.5">
+        <div className="text-xs text-foreground/90 font-medium">{label}</div>
         {detail && (
-          <div className="text-xs text-muted-foreground mt-0.5 break-words">
+          <div className="text-xs text-muted-foreground/70 mt-0.5 break-words leading-tight">
             {detail}
           </div>
         )}
