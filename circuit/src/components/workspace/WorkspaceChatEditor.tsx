@@ -16,6 +16,7 @@ import { Reasoning, ReasoningTrigger, ReasoningContent } from '@/components/ai-e
 import { ThinkingTimeline } from '@/components/reasoning/ThinkingTimeline';
 import type { ThinkingStep } from '@/types/thinking';
 import { groupThinkingSteps, summarizeToolUsage } from '@/lib/thinkingUtils';
+import { motion, AnimatePresence } from 'motion/react';
 
 // Configure Monaco Editor to use local files instead of CDN
 loader.config({ monaco });
@@ -776,15 +777,25 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                   )}
 
                   {/* Reasoning content (collapsible) */}
-                  {msg.role === 'assistant' && openReasoningId === msg.id && messageThinkingSteps[msg.id]?.steps?.length > 0 && (
-                    <div className="mt-3 pl-1">
-                      <ThinkingTimeline
-                        groupedSteps={groupThinkingSteps(messageThinkingSteps[msg.id].steps, 0)}
-                        startTime={0}
-                        isStreaming={false}
-                      />
-                    </div>
-                  )}
+                  <AnimatePresence>
+                    {msg.role === 'assistant' && openReasoningId === msg.id && messageThinkingSteps[msg.id]?.steps?.length > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.2, ease: 'easeInOut' }}
+                        className="overflow-hidden"
+                      >
+                        <div className="mt-3 pl-1">
+                          <ThinkingTimeline
+                            groupedSteps={groupThinkingSteps(messageThinkingSteps[msg.id].steps, 0)}
+                            startTime={0}
+                            isStreaming={false}
+                          />
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               </div>
             ))}

@@ -149,8 +149,8 @@ const ToolGroupDisplay: React.FC<ToolGroupDisplayProps> = ({ group }) => {
     return (
       <div>
         {/* Header */}
-        <div className="flex items-center gap-2 text-base text-[#DDDEDD]">
-          <Icon className="w-3 h-3" strokeWidth={1.5} />
+        <div className="flex items-center gap-2 text-base text-[#DDDEDD]/70">
+          <Icon className="w-3 h-3 opacity-70" strokeWidth={1.5} />
           <span>{group.label} {count > 1 ? `${count} patterns` : '1 pattern'}</span>
         </div>
 
@@ -159,7 +159,7 @@ const ToolGroupDisplay: React.FC<ToolGroupDisplayProps> = ({ group }) => {
           {group.steps.map((step, idx) => (
             <div
               key={idx}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-secondary/40 text-base text-[#A7A6A5]"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-secondary/40 text-base text-[#A7A6A5]/80"
             >
               <span>{step.pattern || 'pattern'}</span>
             </div>
@@ -174,8 +174,8 @@ const ToolGroupDisplay: React.FC<ToolGroupDisplayProps> = ({ group }) => {
     return (
       <div>
         {/* Header */}
-        <div className="flex items-center gap-2 text-base text-[#DDDEDD]">
-          <Icon className="w-3 h-3" strokeWidth={1.5} />
+        <div className="flex items-center gap-2 text-base text-[#DDDEDD]/70">
+          <Icon className="w-3 h-3 opacity-70" strokeWidth={1.5} />
           <span>{group.label} {count > 1 ? `${count} files` : '1 file'}</span>
         </div>
 
@@ -188,7 +188,7 @@ const ToolGroupDisplay: React.FC<ToolGroupDisplayProps> = ({ group }) => {
             return (
               <div
                 key={idx}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-secondary/40 text-base text-[#A7A6A5] hover:bg-secondary/50 transition-colors cursor-default"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-secondary/40 text-base text-[#A7A6A5]/80 hover:bg-secondary/50 transition-colors cursor-default"
                 title={fullPath}
               >
                 <span>{fileName}</span>
@@ -205,8 +205,8 @@ const ToolGroupDisplay: React.FC<ToolGroupDisplayProps> = ({ group }) => {
     return (
       <div>
         {/* Header */}
-        <div className="flex items-center gap-2 text-base text-[#DDDEDD]">
-          <Icon className="w-3 h-3" strokeWidth={1.5} />
+        <div className="flex items-center gap-2 text-base text-[#DDDEDD]/70">
+          <Icon className="w-3 h-3 opacity-70" strokeWidth={1.5} />
           <span>{group.label}</span>
         </div>
 
@@ -218,7 +218,7 @@ const ToolGroupDisplay: React.FC<ToolGroupDisplayProps> = ({ group }) => {
             return (
               <div
                 key={idx}
-                className="text-base text-[#A7A6A5] leading-relaxed"
+                className="text-base text-[#A7A6A5]/80 leading-relaxed"
               >
                 {detail}
               </div>
@@ -232,8 +232,8 @@ const ToolGroupDisplay: React.FC<ToolGroupDisplayProps> = ({ group }) => {
   // Default fallback
   return (
     <div>
-      <div className="flex items-center gap-2 text-base text-[#DDDEDD]">
-        <Icon className="w-3 h-3" strokeWidth={1.5} />
+      <div className="flex items-center gap-2 text-base text-[#DDDEDD]/70">
+        <Icon className="w-3 h-3 opacity-70" strokeWidth={1.5} />
         <span>{group.label} ({count})</span>
       </div>
     </div>
