@@ -190,6 +190,12 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const pendingUserMessageRef = useRef<Message | null>(null);
   const pendingAssistantMessageIdRef = useRef<string | null>(null);
 
+  // Refs to hold latest state values (to avoid stale closures in IPC handlers)
+  const conversationIdRef = useRef<string | null>(conversationId);
+  const messagesRef = useRef<Message[]>(messages);
+  const thinkingStepsRef = useRef<ThinkingStep[]>(thinkingSteps);
+  const messageThinkingStepsRef = useRef<Record<string, { steps: ThinkingStep[], duration: number }>>(messageThinkingSteps);
+
   // Scroll state
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
@@ -264,6 +270,23 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
     loadConversation();
   }, [workspace.id]);
+
+  // Sync refs with latest state (to avoid stale closures)
+  useEffect(() => {
+    conversationIdRef.current = conversationId;
+  }, [conversationId]);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  useEffect(() => {
+    thinkingStepsRef.current = thinkingSteps;
+  }, [thinkingSteps]);
+
+  useEffect(() => {
+    messageThinkingStepsRef.current = messageThinkingSteps;
+  }, [messageThinkingSteps]);
 
   // Set prefilled message when provided
   useEffect(() => {
@@ -365,9 +388,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     }
   }, [messages.length, isAtBottom, scrollToBottom]);
 
-  // Listen for thinking steps from Electron
-  useEffect(() => {
-    const handleThinkingStart = (_event: any, sessionId: string, _timestamp: number) => {
+  // IPC Event Handlers (using useCallback to avoid stale closures)
+  const handleThinkingStart = useCallback((_event: any, sessionId: string, _timestamp: number) => {
       console.log('[WorkspaceChat] 🧠 Thinking started:', sessionId);
 
       // Initialize refs and clear history
@@ -378,11 +400,12 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
       // Create empty assistant message immediately for real-time streaming
       const pending = pendingUserMessageRef.current;
-      if (pending && conversationId) {
+      const currentConversationId = conversationIdRef.current;
+      if (pending && currentConversationId) {
         const assistantMessageId = `msg-${Date.now()}`;
         const emptyAssistantMessage: Message = {
           id: assistantMessageId,
-          conversationId,
+          conversationId: currentConversationId,
           role: 'assistant',
           content: '', // Will be filled in by response-complete
           timestamp: Date.now(),
@@ -408,9 +431,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       }, 1000);
 
       console.log('[WorkspaceChat] ✅ Timer started');
-    };
+  }, []);
 
-    const handleMilestone = (_event: any, _sessionId: string, milestone: any) => {
+  const handleMilestone = useCallback((_event: any, _sessionId: string, milestone: any) => {
       console.log('[WorkspaceChat] 📍 Milestone:', milestone);
 
       // Update ref for timer display
@@ -454,9 +477,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       if (milestone.type === 'tool-use' && milestone.tool) {
         console.log('[WorkspaceChat] 📝 Tool step recorded in ReasoningAccordion only:', milestone.tool);
       }
-    };
+  }, []);
 
-    const handleThinkingComplete = (_event: any, sessionId: string, stats: any) => {
+  const handleThinkingComplete = useCallback((_event: any, sessionId: string, stats: any) => {
       console.log('[WorkspaceChat] ✅ Thinking complete:', stats);
 
       // Note: No need to update tool blocks since they're not in msg.blocks anymore
@@ -469,9 +492,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         setCurrentDuration(0);
         console.log('[WorkspaceChat] 🛑 Timer stopped');
       }
-    };
+  }, []);
 
-    const handleResponseComplete = async (_event: any, result: any) => {
+  const handleResponseComplete = useCallback(async (_event: any, result: any) => {
       console.log('[WorkspaceChat] Response complete:', result);
 
       const pending = pendingUserMessageRef.current;
@@ -487,6 +510,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
       // Get existing assistant message ID (created in handleThinkingStart)
       let assistantMessageId = pendingAssistantMessageIdRef.current;
+      const currentThinkingSteps = thinkingStepsRef.current;
 
       if (assistantMessageId) {
         // Update existing assistant message with content
@@ -497,7 +521,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                   ...msg,
                   content: result.message,
                   metadata: {
-                    thinkingSteps: thinkingSteps,
+                    thinkingSteps: currentThinkingSteps,
                     thinkingDuration: duration
                   }
                 }
@@ -514,7 +538,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           content: result.message,
           timestamp: Date.now(),
           metadata: {
-            thinkingSteps: thinkingSteps,
+            thinkingSteps: currentThinkingSteps,
             thinkingDuration: duration
           }
         };
@@ -523,7 +547,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         setMessageThinkingSteps((prev) => ({
           ...prev,
           [assistantMessageId]: {
-            steps: [...thinkingSteps],
+            steps: [...currentThinkingSteps],
             duration
           }
         }));
@@ -550,7 +574,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           content: result.message,
           timestamp: Date.now(),
           metadata: {
-            thinkingSteps: thinkingSteps,
+            thinkingSteps: currentThinkingSteps,
             thinkingDuration: duration
           }
         };
@@ -564,7 +588,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         setMessageThinkingSteps((prev) => ({
           ...prev,
           [newAssistantMessage.id]: {
-            steps: [...thinkingSteps],
+            steps: [...currentThinkingSteps],
             duration
           }
         }));
@@ -582,7 +606,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
       // Auto-open reasoning for completed message if it has thinking steps
       // Use setTimeout to ensure messageThinkingSteps has been updated in the next render
-      const hasThinkingSteps = thinkingSteps.length > 0;
+      const hasThinkingSteps = currentThinkingSteps.length > 0;
       if (assistantMessageId && hasThinkingSteps) {
         setTimeout(() => {
           setOpenReasoningId(assistantMessageId);
@@ -604,9 +628,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       pendingUserMessageRef.current = null;
       pendingAssistantMessageIdRef.current = null; // Clear ref
       setIsSending(false);
-    };
+  }, [parseFileChanges, onFileEdit]);
 
-    const handleResponseError = async (_event: any, error: any) => {
+  const handleResponseError = useCallback(async (_event: any, error: any) => {
       console.error('[WorkspaceChat] Response error:', error);
 
       const pending = pendingUserMessageRef.current;
@@ -630,8 +654,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
       pendingUserMessageRef.current = null;
       setIsSending(false);
-    };
+  }, []);
 
+  // Listen for thinking steps from Electron (separate useEffect to avoid re-registering listeners)
+  useEffect(() => {
     ipcRenderer.on('claude:thinking-start', handleThinkingStart);
     ipcRenderer.on('claude:milestone', handleMilestone);
     ipcRenderer.on('claude:thinking-complete', handleThinkingComplete);
@@ -652,7 +678,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       ipcRenderer.removeListener('claude:response-complete', handleResponseComplete);
       ipcRenderer.removeListener('claude:response-error', handleResponseError);
     };
-  }, [conversationId, messages, thinkingSteps, messageThinkingSteps, parseFileChanges, onFileEdit]);
+  }, [handleThinkingStart, handleMilestone, handleThinkingComplete, handleResponseComplete, handleResponseError]);
 
   const handleSend = async (inputText: string, attachments: AttachedFile[]) => {
     console.log('[DEBUG Problem 3] handleSend CALLED with:', inputText);
@@ -752,9 +778,13 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           <div className="space-y-5 max-w-4xl mx-auto">
             {messages
               .filter((msg) => {
-                // Hide empty assistant messages (during streaming before content arrives)
+                // Hide empty assistant messages UNLESS it's the pending message (in progress)
                 if (msg.role === 'assistant' && !msg.content && (!msg.blocks || msg.blocks.length === 0)) {
-                  return false;
+                  // Keep if it's the pending message currently being streamed
+                  if (isSending && msg.id === pendingAssistantMessageIdRef.current) {
+                    return true;  // Show in-progress message
+                  }
+                  return false;  // Hide other empty messages
                 }
                 return true;
               })
