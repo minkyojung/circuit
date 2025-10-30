@@ -753,7 +753,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                           className="flex items-center gap-1.5 px-2 py-1 text-sm text-muted-foreground/60 hover:text-foreground hover:bg-secondary/50 rounded-md transition-all"
                         >
                           <span className="opacity-80 hover:opacity-100">{messageThinkingSteps[msg.id].duration}s • {summarizeToolUsage(messageThinkingSteps[msg.id].steps)}</span>
-                          <ChevronDown className={`w-2.5 h-2.5 transition-transform ${openReasoningId === msg.id ? 'rotate-180' : ''}`} strokeWidth={2} />
+                          <ChevronDown className={`w-2.5 h-2.5 opacity-80 transition-transform ${openReasoningId === msg.id ? 'rotate-180' : ''}`} strokeWidth={2} />
                         </button>
                       )}
 
