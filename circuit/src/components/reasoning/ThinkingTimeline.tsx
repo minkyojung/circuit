@@ -12,6 +12,78 @@ interface ThinkingTimelineProps {
 
 const MAX_VISIBLE_STEPS = 1;
 
+// Group steps by action type for Perplexity-style display
+interface StepSection {
+  type: 'searching' | 'reading' | 'thinking' | 'running';
+  label: string;
+  steps: ThinkingStep[];
+}
+
+function organizeStepsIntoSections(steps: ThinkingStep[]): StepSection[] {
+  const sections: StepSection[] = [];
+
+  // Group search steps
+  const searchSteps = steps.filter(s =>
+    s.tool === 'Glob' || s.tool === 'Grep'
+  );
+  if (searchSteps.length > 0) {
+    sections.push({
+      type: 'searching',
+      label: 'Searching',
+      steps: searchSteps
+    });
+  }
+
+  // Group read/write steps
+  const fileSteps = steps.filter(s =>
+    s.tool === 'Read' || s.tool === 'Write' || s.tool === 'Edit'
+  );
+  if (fileSteps.length > 0) {
+    sections.push({
+      type: 'reading',
+      label: `Reading ${fileSteps.length} file${fileSteps.length > 1 ? 's' : ''}`,
+      steps: fileSteps
+    });
+  }
+
+  // Group bash/terminal steps
+  const bashSteps = steps.filter(s => s.tool === 'Bash');
+  if (bashSteps.length > 0) {
+    sections.push({
+      type: 'running',
+      label: 'Running commands',
+      steps: bashSteps
+    });
+  }
+
+  // Group thinking steps
+  const thinkingSteps = steps.filter(s => s.type === 'thinking');
+  if (thinkingSteps.length > 0) {
+    sections.push({
+      type: 'thinking',
+      label: 'Thinking',
+      steps: thinkingSteps
+    });
+  }
+
+  return sections;
+}
+
+function generateSummary(steps: ThinkingStep[]): string {
+  const hasSearch = steps.some(s => s.tool === 'Glob' || s.tool === 'Grep');
+  const fileCount = steps.filter(s => s.tool === 'Read' || s.tool === 'Write' || s.tool === 'Edit').length;
+  const hasThinking = steps.some(s => s.type === 'thinking');
+
+  const parts = [];
+  if (hasSearch) parts.push('searching codebase');
+  if (fileCount > 0) parts.push(`analyzing ${fileCount} file${fileCount > 1 ? 's' : ''}`);
+  if (hasThinking) parts.push('processing information');
+
+  return parts.length > 0
+    ? `Completing task by ${parts.join(', ')}.`
+    : 'Processing your request.';
+}
+
 export const ThinkingTimeline: React.FC<ThinkingTimelineProps> = ({
   groupedSteps,
   startTime: _startTime,
@@ -37,32 +109,125 @@ export const ThinkingTimeline: React.FC<ThinkingTimelineProps> = ({
     ? allSteps.slice(-MAX_VISIBLE_STEPS)
     : allSteps;
 
+  // For completed reasoning, use Perplexity-style sections
+  if (!isStreaming) {
+    const sections = organizeStepsIntoSections(allSteps);
+    const summary = generateSummary(allSteps);
+
+    return (
+      <div className={className}>
+        {/* Summary sentence */}
+        <div className="text-xs text-muted-foreground/70 mb-3 leading-relaxed">
+          {summary}
+        </div>
+
+        {/* Sections */}
+        <div className="space-y-4">
+          {sections.map((section, idx) => (
+            <Section key={idx} section={section} />
+          ))}
+        </div>
+
+        {/* Finished marker */}
+        <div className="mt-3 text-xs text-muted-foreground/50">
+          Finished
+        </div>
+      </div>
+    );
+  }
+
+  // Streaming mode - keep existing compact display
   return (
     <div className={className}>
-      {isStreaming ? (
-        <div className="relative min-h-[28px]">
-          <AnimatePresence mode="wait">
-            {visibleSteps.map((step) => (
-              <StepLine
-                key={step.timestamp}
-                step={step}
-                isStreaming={isStreaming}
-              />
-            ))}
-          </AnimatePresence>
-        </div>
-      ) : (
-        <div className="space-y-1.5">
-          {allSteps.map((step, index) => (
+      <div className="relative min-h-[28px]">
+        <AnimatePresence mode="wait">
+          {visibleSteps.map((step) => (
             <StepLine
               key={step.timestamp}
               step={step}
-              isStreaming={false}
-              isLast={index === allSteps.length - 1}
+              isStreaming={isStreaming}
             />
           ))}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+};
+
+// Section component for Perplexity-style display
+interface SectionProps {
+  section: StepSection;
+}
+
+const Section: React.FC<SectionProps> = ({ section }) => {
+  // For search queries, show as horizontal pills
+  if (section.type === 'searching') {
+    return (
+      <div className="space-y-2">
+        <div className="text-xs font-medium text-foreground/80">{section.label}</div>
+        <div className="flex flex-wrap gap-2">
+          {section.steps.map((step, idx) => (
+            <div
+              key={idx}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-secondary/40 text-xs text-muted-foreground/80"
+            >
+              <Search className="w-3 h-3" strokeWidth={2} />
+              <span>{step.pattern || 'searching'}</span>
+            </div>
+          ))}
         </div>
-      )}
+      </div>
+    );
+  }
+
+  // For files, show as list with filenames only
+  if (section.type === 'reading') {
+    return (
+      <div className="space-y-2">
+        <div className="text-xs font-medium text-foreground/80">{section.label}</div>
+        <div className="space-y-1.5">
+          {section.steps.map((step, idx) => {
+            const fileName = step.filePath?.split('/').pop() || 'file';
+            const fullPath = step.filePath || '';
+
+            return (
+              <div
+                key={idx}
+                className="flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-secondary/20 hover:bg-secondary/30 transition-colors"
+                title={fullPath}
+              >
+                <FileText className="w-3 h-3 text-muted-foreground/60 flex-shrink-0" strokeWidth={2} />
+                <span className="text-xs text-foreground/80 truncate">{fileName}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // For other types, show as simple list
+  return (
+    <div className="space-y-2">
+      <div className="text-xs font-medium text-foreground/80">{section.label}</div>
+      <div className="space-y-1.5">
+        {section.steps.map((step, idx) => {
+          const Icon = section.type === 'thinking' ? Brain : Terminal;
+          const detail = step.message || step.command || '';
+
+          return (
+            <div
+              key={idx}
+              className="flex items-start gap-2 px-2.5 py-1.5 rounded-md bg-secondary/20"
+            >
+              <Icon className="w-3 h-3 text-muted-foreground/60 flex-shrink-0 mt-0.5" strokeWidth={2} />
+              <span className="text-xs text-muted-foreground/70 leading-relaxed break-words">
+                {detail}
+              </span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 };
