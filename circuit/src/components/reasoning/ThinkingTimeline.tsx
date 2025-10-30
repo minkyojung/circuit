@@ -39,17 +39,30 @@ export const ThinkingTimeline: React.FC<ThinkingTimelineProps> = ({
 
   return (
     <div className={className}>
-      <div className="relative min-h-[28px]">
-        <AnimatePresence mode="wait">
-          {visibleSteps.map((step) => (
+      {isStreaming ? (
+        <div className="relative min-h-[28px]">
+          <AnimatePresence mode="wait">
+            {visibleSteps.map((step) => (
+              <StepLine
+                key={step.timestamp}
+                step={step}
+                isStreaming={isStreaming}
+              />
+            ))}
+          </AnimatePresence>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {allSteps.map((step, index) => (
             <StepLine
               key={step.timestamp}
               step={step}
-              isStreaming={isStreaming}
+              isStreaming={false}
+              isLast={index === allSteps.length - 1}
             />
           ))}
-        </AnimatePresence>
-      </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -57,9 +70,10 @@ export const ThinkingTimeline: React.FC<ThinkingTimelineProps> = ({
 interface StepLineProps {
   step: ThinkingStep;
   isStreaming: boolean;
+  isLast?: boolean;
 }
 
-const StepLine: React.FC<StepLineProps> = ({ step, isStreaming }) => {
+const StepLine: React.FC<StepLineProps> = ({ step, isStreaming, isLast = false }) => {
   const getIcon = () => {
     if (step.type === 'thinking') return Brain;
 
@@ -129,28 +143,48 @@ const StepLine: React.FC<StepLineProps> = ({ step, isStreaming }) => {
   const label = getLabel();
   const detail = getDetail();
 
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
-      transition={{ duration: 0.3, ease: "easeOut" }}
-      className="flex items-center gap-2 text-base text-muted-foreground font-light"
-    >
-      <Icon className="w-3 h-3 flex-shrink-0 opacity-40" strokeWidth={1.5} />
-      {isStreaming ? (
+  if (isStreaming) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -10 }}
+        transition={{ duration: 0.3, ease: "easeOut" }}
+        className="flex items-center gap-2 text-base text-muted-foreground font-light"
+      >
+        <Icon className="w-3 h-3 flex-shrink-0 opacity-40" strokeWidth={1.5} />
         <span
           className="opacity-70 relative inline-block bg-gradient-to-r from-transparent via-muted-foreground/20 to-transparent bg-[length:200%_100%] animate-shimmer"
         >
           {label} {detail}
         </span>
-      ) : (
-        <>
-          <span className="opacity-70">{label}</span>
-          {detail && <span className="opacity-50 break-words">{detail}</span>}
-        </>
-      )}
-    </motion.div>
+      </motion.div>
+    );
+  }
+
+  // Timeline layout for completed reasoning
+  return (
+    <div className="flex gap-3">
+      {/* Timeline indicator */}
+      <div className="flex flex-col items-center">
+        <div className="flex items-center justify-center w-6 h-6 rounded-full bg-secondary/50 flex-shrink-0">
+          <Icon className="w-3 h-3 text-muted-foreground" strokeWidth={1.5} />
+        </div>
+        {!isLast && (
+          <div className="w-px h-full min-h-[16px] bg-border/50 mt-1" />
+        )}
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 pt-0.5 pb-1">
+        <div className="text-sm text-foreground font-medium">{label}</div>
+        {detail && (
+          <div className="text-xs text-muted-foreground mt-0.5 break-words">
+            {detail}
+          </div>
+        )}
+      </div>
+    </div>
   );
 };
 
