@@ -750,9 +750,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                       {messageThinkingSteps[msg.id]?.steps?.length > 0 && (
                         <button
                           onClick={() => setOpenReasoningId(openReasoningId === msg.id ? null : msg.id)}
-                          className="flex items-center gap-1.5 px-2 py-1 text-xs text-muted-foreground/60 hover:text-foreground hover:bg-secondary/50 rounded-md transition-all"
+                          className="flex items-center gap-1.5 px-2 py-1 text-sm text-muted-foreground/60 hover:text-foreground hover:bg-secondary/50 rounded-md transition-all"
                         >
-                          <Brain className="w-3 h-3 opacity-60 hover:opacity-100 transition-opacity" strokeWidth={2} />
                           <span className="opacity-80 hover:opacity-100">{messageThinkingSteps[msg.id].duration}s • {summarizeToolUsage(messageThinkingSteps[msg.id].steps)}</span>
                           <ChevronDown className={`w-2.5 h-2.5 transition-transform ${openReasoningId === msg.id ? 'rotate-180' : ''}`} strokeWidth={2} />
                         </button>
