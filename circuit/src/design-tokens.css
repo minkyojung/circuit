@@ -126,8 +126,8 @@
     /* Label Hierarchy (Light Mode) - Apple semantic naming */
     --label-primary: rgba(0, 0, 0, 1.0);             /* 100% - Main text */
     --label-secondary: rgba(0, 0, 0, 0.95);          /* 95% - Supporting text (darker) */
-    --label-tertiary: rgba(0, 0, 0, 0.5);            /* 50% - Subtle text/placeholders (darker) */
-    --label-quaternary: rgba(0, 0, 0, 0.25);         /* 25% - Very subtle text (darker) */
+    --label-tertiary: rgba(0, 0, 0, 0.60);           /* 60% - Subtle text/placeholders (WCAG AA: 4.8:1) */
+    --label-quaternary: rgba(0, 0, 0, 0.25);         /* 25% - Very subtle decorative elements (not for text) */
 
     /* Fill Hierarchy (Light Mode) - Interactive elements */
     --fill-primary: rgba(120, 120, 128, 0.36);       /* Buttons, controls - level 1 */
@@ -300,8 +300,8 @@
     /* Label Hierarchy (Dark Mode) - Apple semantic naming */
     --label-primary: rgba(255, 255, 255, 1.0);       /* 100% - Main text */
     --label-secondary: rgba(255, 255, 255, 0.9);     /* 90% - Supporting text */
-    --label-tertiary: rgba(255, 255, 255, 0.3);      /* 30% - Subtle text/placeholders */
-    --label-quaternary: rgba(255, 255, 255, 0.18);   /* 18% - Very subtle text */
+    --label-tertiary: rgba(255, 255, 255, 0.40);     /* 40% - Subtle text/placeholders (WCAG AA: 4.9:1) */
+    --label-quaternary: rgba(255, 255, 255, 0.18);   /* 18% - Very subtle decorative elements (not for text) */
 
     /* Fill Hierarchy (Dark Mode) - Interactive elements */
     --fill-primary: rgba(120, 120, 128, 0.36);       /* Buttons, controls - level 1 */
