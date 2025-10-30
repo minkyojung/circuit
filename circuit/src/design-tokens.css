@@ -228,19 +228,21 @@
     --statusbar-label: rgba(0, 0, 0, 0.5);           /* 50% - More subtle label */
     --statusbar-value: rgba(0, 0, 0, 0.4);           /* 40% - More subtle value */
     --statusbar-progress-bg: rgba(0, 0, 0, 0.04);    /* Ultra subtle track */
-    --statusbar-progress-green: rgba(52, 199, 89, 0.7);   /* More subtle green */
-    --statusbar-progress-yellow: rgba(255, 214, 10, 0.7); /* More subtle yellow */
-    --statusbar-progress-orange: rgba(255, 159, 10, 0.7); /* More subtle orange */
-    --statusbar-progress-red: rgba(255, 69, 58, 0.7);     /* More subtle red */
 
-    /* Git status colors */
-    --status-merged: oklch(0.55 0.25 290);           /* Purple - more vibrant */
-    --status-working: oklch(0.62 0.18 60);           /* Yellow-orange - more vibrant */
-    --status-ahead: oklch(0.55 0.22 250);            /* Blue - more vibrant */
-    --status-behind: oklch(0.55 0.28 25);            /* Red - more vibrant */
-    --status-diverged: oklch(0.58 0.18 40);          /* Orange - more vibrant */
-    --status-synced: oklch(0.55 0.22 150);           /* Green - more vibrant */
-    --status-local: oklch(0.55 0.12 250);            /* Gray - more vibrant */
+    /* StatusBar progress colors - aliased to semantic colors for consistency */
+    --statusbar-progress-green: var(--success);      /* Green progress → success color */
+    --statusbar-progress-yellow: var(--warning);     /* Yellow progress → warning color */
+    --statusbar-progress-orange: var(--warning);     /* Orange progress → warning color */
+    --statusbar-progress-red: var(--destructive);    /* Red progress → destructive color */
+
+    /* Git status colors - Git-specific states with semantic color relationships */
+    --status-merged: oklch(0.55 0.25 290);           /* Purple (unique) - PR merged */
+    --status-working: oklch(0.62 0.18 60);           /* Yellow-orange (≈ warning) - changes in working tree */
+    --status-ahead: oklch(0.55 0.22 250);            /* Blue (≈ info) - commits ahead of remote */
+    --status-behind: oklch(0.55 0.28 25);            /* Red (≈ destructive) - commits behind remote */
+    --status-diverged: oklch(0.58 0.18 40);          /* Orange (unique) - branches diverged */
+    --status-synced: oklch(0.55 0.22 150);           /* Green (≈ success) - in sync with remote */
+    --status-local: oklch(0.55 0.12 250);            /* Gray (unique) - local branch only */
 
     /* ===== GLASS/OVERLAY EFFECTS ===== */
     /* Glass backgrounds and borders */
@@ -255,10 +257,16 @@
     --bg-section: var(--background-primary);        /* 섹션 배경 */
 
     /* Overlay system for hover/interaction states */
-    --overlay-thin: rgba(0, 0, 0, 0.02);           /* 매우 약한 오버레이 (2%) */
-    --overlay-light: rgba(0, 0, 0, 0.04);          /* 가벼운 오버레이 (4%) */
-    --overlay-medium: rgba(0, 0, 0, 0.08);         /* 중간 오버레이 (8%) */
-    --overlay-strong: rgba(0, 0, 0, 0.12);         /* 강한 오버레이 (12%) */
+    --overlay-thin: rgba(0, 0, 0, 0.02);           /* 매우 약한 오버레이 (2%) - subtle backgrounds */
+    --overlay-light: rgba(0, 0, 0, 0.04);          /* 가벼운 오버레이 (4%) - hover states */
+    --overlay-medium: rgba(0, 0, 0, 0.08);         /* 중간 오버레이 (8%) - active/pressed states */
+    --overlay-strong: rgba(0, 0, 0, 0.12);         /* 강한 오버레이 (12%) - emphasis */
+
+    /* Interactive state tokens - semantic aliases for consistency */
+    --state-hover: var(--overlay-light);           /* Hover overlay (4%) */
+    --state-active: var(--overlay-medium);         /* Active/pressed overlay (8%) */
+    --state-focus-ring: var(--ring);               /* Focus ring color (blue) */
+    --state-disabled-opacity: 0.5;                 /* Disabled state opacity */
 
     /* Border overlays for subtle borders */
     --border-thin: rgba(0, 0, 0, 0.05);            /* 매우 약한 테두리 (5%) */
@@ -394,19 +402,21 @@
     --statusbar-label: rgba(255, 255, 255, 0.4);     /* 40% - More subtle label */
     --statusbar-value: rgba(255, 255, 255, 0.3);     /* 30% - More subtle value */
     --statusbar-progress-bg: rgba(255, 255, 255, 0.04); /* Ultra subtle track */
-    --statusbar-progress-green: rgba(52, 199, 89, 0.6);   /* More subtle green */
-    --statusbar-progress-yellow: rgba(255, 214, 10, 0.6); /* More subtle yellow */
-    --statusbar-progress-orange: rgba(255, 159, 10, 0.6); /* More subtle orange */
-    --statusbar-progress-red: rgba(255, 69, 58, 0.6);     /* More subtle red */
 
-    /* Git status colors - brightened for visibility */
-    --status-merged: oklch(0.65 0.28 290);           /* Brighter purple - more vibrant */
-    --status-working: oklch(0.72 0.20 60);           /* Brighter yellow - more vibrant */
-    --status-ahead: oklch(0.65 0.25 250);            /* Brighter blue - more vibrant */
-    --status-behind: oklch(0.65 0.30 25);            /* Brighter red - more vibrant */
-    --status-diverged: oklch(0.68 0.20 40);          /* Brighter orange - more vibrant */
-    --status-synced: oklch(0.65 0.25 150);           /* Brighter green - more vibrant */
-    --status-local: oklch(0.65 0.15 250);            /* Brighter gray - more vibrant */
+    /* StatusBar progress colors - aliased to semantic colors for consistency */
+    --statusbar-progress-green: var(--success);      /* Green progress → success color */
+    --statusbar-progress-yellow: var(--warning);     /* Yellow progress → warning color */
+    --statusbar-progress-orange: var(--warning);     /* Orange progress → warning color */
+    --statusbar-progress-red: var(--destructive);    /* Red progress → destructive color */
+
+    /* Git status colors - Git-specific states with semantic color relationships (brightened for dark mode) */
+    --status-merged: oklch(0.65 0.28 290);           /* Purple (unique) - PR merged */
+    --status-working: oklch(0.72 0.20 60);           /* Yellow-orange (≈ warning) - changes in working tree */
+    --status-ahead: oklch(0.65 0.25 250);            /* Blue (≈ info) - commits ahead of remote */
+    --status-behind: oklch(0.65 0.30 25);            /* Red (≈ destructive) - commits behind remote */
+    --status-diverged: oklch(0.68 0.20 40);          /* Orange (unique) - branches diverged */
+    --status-synced: oklch(0.65 0.25 150);           /* Green (≈ success) - in sync with remote */
+    --status-local: oklch(0.65 0.15 250);            /* Gray (unique) - local branch only */
 
     /* ===== GLASS/OVERLAY EFFECTS (DARK) ===== */
     /* Glass hover - inverted for dark mode */
@@ -419,10 +429,16 @@
     --bg-section: var(--background-primary);        /* 섹션 배경 */
 
     /* Overlay system - inverted for dark mode */
-    --overlay-thin: rgba(255, 255, 255, 0.02);     /* 매우 약한 오버레이 (2%) */
-    --overlay-light: rgba(255, 255, 255, 0.04);    /* 가벼운 오버레이 (4%) */
-    --overlay-medium: rgba(255, 255, 255, 0.08);   /* 중간 오버레이 (8%) */
-    --overlay-strong: rgba(255, 255, 255, 0.12);   /* 강한 오버레이 (12%) */
+    --overlay-thin: rgba(255, 255, 255, 0.02);     /* 매우 약한 오버레이 (2%) - subtle backgrounds */
+    --overlay-light: rgba(255, 255, 255, 0.04);    /* 가벼운 오버레이 (4%) - hover states */
+    --overlay-medium: rgba(255, 255, 255, 0.08);   /* 중간 오버레이 (8%) - active/pressed states */
+    --overlay-strong: rgba(255, 255, 255, 0.12);   /* 강한 오버레이 (12%) - emphasis */
+
+    /* Interactive state tokens - semantic aliases (auto-adjust with overlays) */
+    --state-hover: var(--overlay-light);           /* Hover overlay (4%) */
+    --state-active: var(--overlay-medium);         /* Active/pressed overlay (8%) */
+    --state-focus-ring: var(--ring);               /* Focus ring color (blue) */
+    --state-disabled-opacity: 0.5;                 /* Disabled state opacity */
 
     /* Border overlays - inverted for dark mode */
     --border-thin: rgba(255, 255, 255, 0.05);      /* 매우 약한 테두리 (5%) */
