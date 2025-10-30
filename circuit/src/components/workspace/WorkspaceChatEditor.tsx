@@ -739,63 +739,66 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                       }}
                     />
                   ) : (
-                    <div className="text-base font-normal text-foreground whitespace-pre-wrap leading-relaxed">
-                      {msg.content}
-                    </div>
-                  )}
+                    <>
+                      {/* Action bar (Copy + Reasoning) - Moved to top */}
+                      {msg.role === 'assistant' && (
+                        <div className="mb-3 flex items-center justify-between gap-2">
+                          {/* Reasoning button (left) */}
+                          {messageThinkingSteps[msg.id]?.steps?.length > 0 && (
+                            <button
+                              onClick={() => setOpenReasoningId(openReasoningId === msg.id ? null : msg.id)}
+                              className="flex items-center gap-1 text-base text-muted-foreground/60 hover:text-foreground transition-all"
+                            >
+                              <span className="opacity-80 hover:opacity-100">{messageThinkingSteps[msg.id].duration}s • {summarizeToolUsage(messageThinkingSteps[msg.id].steps)}</span>
+                              <ChevronDown className={`w-4 h-4 opacity-80 transition-transform ${openReasoningId === msg.id ? 'rotate-180' : ''}`} strokeWidth={1.5} />
+                            </button>
+                          )}
 
-                  {/* Action bar (Copy + Reasoning) */}
-                  {msg.role === 'assistant' && (
-                    <div className="mt-4 flex items-center justify-between gap-2">
-                      {/* Reasoning button (left) */}
-                      {messageThinkingSteps[msg.id]?.steps?.length > 0 && (
-                        <button
-                          onClick={() => setOpenReasoningId(openReasoningId === msg.id ? null : msg.id)}
-                          className="flex items-center gap-1 text-base text-muted-foreground/60 hover:text-foreground transition-all"
-                        >
-                          <span className="opacity-80 hover:opacity-100">{messageThinkingSteps[msg.id].duration}s • {summarizeToolUsage(messageThinkingSteps[msg.id].steps)}</span>
-                          <ChevronDown className={`w-4 h-4 opacity-80 transition-transform ${openReasoningId === msg.id ? 'rotate-180' : ''}`} strokeWidth={1.5} />
-                        </button>
+                          {/* Spacer */}
+                          <div className="flex-1" />
+
+                          {/* Copy button (right) */}
+                          <button
+                            onClick={() => handleCopyMessage(msg.id, msg.content)}
+                            className="p-1 text-muted-foreground/60 hover:text-foreground rounded-md hover:bg-secondary/50 transition-all"
+                            title="Copy message"
+                          >
+                            {copiedMessageId === msg.id ? (
+                              <Check className="w-3 h-3 text-green-500" strokeWidth={1.5} />
+                            ) : (
+                              <Copy className="w-3 h-3 opacity-60 hover:opacity-100 transition-opacity" strokeWidth={1.5} />
+                            )}
+                          </button>
+                        </div>
                       )}
 
-                      {/* Spacer */}
-                      <div className="flex-1" />
-
-                      {/* Copy button (right) */}
-                      <button
-                        onClick={() => handleCopyMessage(msg.id, msg.content)}
-                        className="p-1 text-muted-foreground/60 hover:text-foreground rounded-md hover:bg-secondary/50 transition-all"
-                        title="Copy message"
-                      >
-                        {copiedMessageId === msg.id ? (
-                          <Check className="w-3 h-3 text-green-500" strokeWidth={1.5} />
-                        ) : (
-                          <Copy className="w-3 h-3 opacity-60 hover:opacity-100 transition-opacity" strokeWidth={1.5} />
+                      {/* Reasoning content (collapsible) - Above message content */}
+                      <AnimatePresence>
+                        {msg.role === 'assistant' && openReasoningId === msg.id && messageThinkingSteps[msg.id]?.steps?.length > 0 && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            transition={{ duration: 0.2, ease: 'easeInOut' }}
+                            className="overflow-hidden"
+                          >
+                            <div className="mb-3 pl-1">
+                              <ThinkingTimeline
+                                groupedSteps={groupThinkingSteps(messageThinkingSteps[msg.id].steps, 0)}
+                                startTime={0}
+                                isStreaming={false}
+                              />
+                            </div>
+                          </motion.div>
                         )}
-                      </button>
-                    </div>
-                  )}
+                      </AnimatePresence>
 
-                  {/* Reasoning content (collapsible) */}
-                  <AnimatePresence>
-                    {msg.role === 'assistant' && openReasoningId === msg.id && messageThinkingSteps[msg.id]?.steps?.length > 0 && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.2, ease: 'easeInOut' }}
-                        className="overflow-hidden"
-                      >
-                        <div className="mt-3 pl-1">
-                          <ThinkingTimeline
-                            groupedSteps={groupThinkingSteps(messageThinkingSteps[msg.id].steps, 0)}
-                            startTime={0}
-                            isStreaming={false}
-                          />
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                      {/* Message content */}
+                      <div className="text-base font-normal text-foreground whitespace-pre-wrap leading-relaxed">
+                        {msg.content}
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             ))}
