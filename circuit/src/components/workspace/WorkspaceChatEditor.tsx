@@ -750,10 +750,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                       {messageThinkingSteps[msg.id]?.steps?.length > 0 && (
                         <button
                           onClick={() => setOpenReasoningId(openReasoningId === msg.id ? null : msg.id)}
-                          className="flex items-center gap-1.5 px-2 py-1 text-base text-muted-foreground/60 hover:text-foreground hover:bg-secondary/50 rounded-md transition-all"
+                          className="flex items-center gap-1 text-base text-muted-foreground/60 hover:text-foreground transition-all"
                         >
                           <span className="opacity-80 hover:opacity-100">{messageThinkingSteps[msg.id].duration}s • {summarizeToolUsage(messageThinkingSteps[msg.id].steps)}</span>
-                          <ChevronDown className={`w-3 h-3 opacity-80 transition-transform ${openReasoningId === msg.id ? 'rotate-180' : ''}`} strokeWidth={1.5} />
+                          <ChevronDown className={`w-4 h-4 opacity-80 transition-transform ${openReasoningId === msg.id ? 'rotate-180' : ''}`} strokeWidth={1.5} />
                         </button>
                       )}
 
