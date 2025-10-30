@@ -76,8 +76,8 @@ export const ContextBar: React.FC<ContextBarProps> = ({
   return (
     <div className={cn(
       "rounded-lg p-3 space-y-2",
-      "bg-black/20 dark:bg-white/5",
-      "backdrop-blur-sm border border-white/10"
+      "bg-[var(--overlay-thin)]",
+      "backdrop-blur-sm border border-[var(--border-light)]"
     )}>
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -86,7 +86,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
           <span className="text-xs font-medium text-sidebar-foreground opacity-90">
             Session context
           </span>
-          <span className="text-[9px] px-1.5 py-0.5 rounded bg-black/20 dark:bg-white/10 text-sidebar-foreground-muted">
+          <span className="text-[9px] px-1.5 py-0.5 rounded bg-[var(--overlay-light)] text-sidebar-foreground-muted">
             estimated
           </span>
         </div>
@@ -107,7 +107,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
       </div>
 
       {/* Progress Bar */}
-      <div className="relative h-1.5 bg-black/20 dark:bg-white/10 rounded-full overflow-hidden">
+      <div className="relative h-1.5 bg-[var(--overlay-light)] rounded-full overflow-hidden">
         <div
           className={cn(
             "h-full transition-all duration-300 rounded-full",

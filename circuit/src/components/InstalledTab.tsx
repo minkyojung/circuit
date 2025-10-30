@@ -286,7 +286,7 @@ export function InstalledTab() {
         )}
 
         {servers.map(server => (
-          <Card key={server.id} className="glass-card overflow-hidden border border-white/5">
+          <Card key={server.id} className="glass-card overflow-hidden border border-[var(--border-thin)]">
             <div className="p-3">
               <div className="flex items-center justify-between mb-2">
                 {/* Server Info */}
@@ -403,7 +403,7 @@ export function InstalledTab() {
                     {server.tools.slice(0, 4).map((tool) => (
                       <div
                         key={tool.name}
-                        className="p-2 rounded bg-[var(--bg-section)] hover:bg-[var(--bg-card)] border border-white/5 hover:border-white/10 transition-colors"
+                        className="p-2 rounded bg-[var(--bg-section)] hover:bg-[var(--bg-card)] border border-[var(--border-thin)] hover:border-[var(--border-light)] transition-colors"
                       >
                         <div className="flex items-start justify-between gap-1.5 mb-0.5">
                           <code className="text-xs font-medium leading-tight text-[var(--circuit-orange)]">

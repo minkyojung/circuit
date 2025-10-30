@@ -249,7 +249,7 @@ export function HistoryPanel({ serverId }: HistoryPanelProps) {
 
       {/* Analytics Dashboard */}
       {analyticsEnabled && stats && stats.totalCalls > 0 && (
-        <Card className="p-3 glass-card border border-white/5">
+        <Card className="p-3 glass-card border border-[var(--border-thin)]">
           <div className="flex items-center gap-2 mb-2">
             <TrendingUp className="h-3.5 w-3.5 text-[var(--circuit-orange)]" />
             <h4 className="text-xs font-semibold text-[var(--text-primary)]">Analytics</h4>
@@ -337,7 +337,7 @@ export function HistoryPanel({ serverId }: HistoryPanelProps) {
           calls.map((call) => (
             <Card
               key={call.id}
-              className="glass-card border border-white/5 overflow-hidden"
+              className="glass-card border border-[var(--border-thin)] overflow-hidden"
             >
               <div className="p-3">
                 {/* Call Summary */}

@@ -241,6 +241,33 @@
     --status-diverged: oklch(0.58 0.18 40);          /* Orange - more vibrant */
     --status-synced: oklch(0.55 0.22 150);           /* Green - more vibrant */
     --status-local: oklch(0.55 0.12 250);            /* Gray - more vibrant */
+
+    /* ===== GLASS/OVERLAY EFFECTS ===== */
+    /* Glass backgrounds and borders */
+    --glass-bg: var(--material-regular);             /* 유리 배경 효과 */
+    --glass-border: var(--separator-opaque);         /* 유리 테두리 */
+    --glass-hover: rgba(0, 0, 0, 0.04);             /* 호버 오버레이 (4% black) */
+
+    /* Additional semantic names for existing tokens */
+    --text-muted: var(--label-tertiary);            /* 흐린 텍스트 (50% opacity) */
+    --bg-card: var(--background-secondary);         /* 카드 배경 */
+    --bg-card-elevated: var(--background-tertiary); /* 더 높은 카드 배경 */
+    --bg-section: var(--background-primary);        /* 섹션 배경 */
+
+    /* Overlay system for hover/interaction states */
+    --overlay-thin: rgba(0, 0, 0, 0.02);           /* 매우 약한 오버레이 (2%) */
+    --overlay-light: rgba(0, 0, 0, 0.04);          /* 가벼운 오버레이 (4%) */
+    --overlay-medium: rgba(0, 0, 0, 0.08);         /* 중간 오버레이 (8%) */
+    --overlay-strong: rgba(0, 0, 0, 0.12);         /* 강한 오버레이 (12%) */
+
+    /* Border overlays for subtle borders */
+    --border-thin: rgba(0, 0, 0, 0.05);            /* 매우 약한 테두리 (5%) */
+    --border-light: rgba(0, 0, 0, 0.10);           /* 가벼운 테두리 (10%) */
+    --border-medium: rgba(0, 0, 0, 0.15);          /* 중간 테두리 (15%) */
+
+    /* Circuit brand color */
+    --circuit-orange: oklch(0.65 0.15 40);         /* Circuit 브랜드 오렌지 */
+    --circuit-error: var(--destructive);           /* 에러 색상 */
   }
 
   /* ===== DARK MODE COLORS ===== */
@@ -380,6 +407,31 @@
     --status-diverged: oklch(0.68 0.20 40);          /* Brighter orange - more vibrant */
     --status-synced: oklch(0.65 0.25 150);           /* Brighter green - more vibrant */
     --status-local: oklch(0.65 0.15 250);            /* Brighter gray - more vibrant */
+
+    /* ===== GLASS/OVERLAY EFFECTS (DARK) ===== */
+    /* Glass hover - inverted for dark mode */
+    --glass-hover: rgba(255, 255, 255, 0.06);       /* 호버 오버레이 (6% white) */
+
+    /* Additional semantic names - same mappings */
+    --text-muted: var(--label-tertiary);            /* 흐린 텍스트 (30% opacity in dark) */
+    --bg-card: var(--background-secondary);         /* 카드 배경 */
+    --bg-card-elevated: var(--background-tertiary); /* 더 높은 카드 배경 */
+    --bg-section: var(--background-primary);        /* 섹션 배경 */
+
+    /* Overlay system - inverted for dark mode */
+    --overlay-thin: rgba(255, 255, 255, 0.02);     /* 매우 약한 오버레이 (2%) */
+    --overlay-light: rgba(255, 255, 255, 0.04);    /* 가벼운 오버레이 (4%) */
+    --overlay-medium: rgba(255, 255, 255, 0.08);   /* 중간 오버레이 (8%) */
+    --overlay-strong: rgba(255, 255, 255, 0.12);   /* 강한 오버레이 (12%) */
+
+    /* Border overlays - inverted for dark mode */
+    --border-thin: rgba(255, 255, 255, 0.05);      /* 매우 약한 테두리 (5%) */
+    --border-light: rgba(255, 255, 255, 0.10);     /* 가벼운 테두리 (10%) */
+    --border-medium: rgba(255, 255, 255, 0.15);    /* 중간 테두리 (15%) */
+
+    /* Circuit brand color - slightly brighter for dark mode */
+    --circuit-orange: oklch(0.70 0.18 40);         /* Circuit 브랜드 오렌지 (brighter) */
+    --circuit-error: var(--destructive);           /* 에러 색상 */
   }
 
   /* ===== CODE BLOCK SURFACES (APPLE HIG - MINIMAL DIFFERENTIATION) ===== */

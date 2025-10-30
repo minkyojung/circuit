@@ -144,7 +144,7 @@ function PeekTab({ data, onExpand }: { data: any; onExpand: () => void }) {
   return (
     <div
       onClick={onExpand}
-      className="w-full h-full flex flex-col items-center justify-center gap-3 cursor-pointer bg-transparent hover:bg-white/10 transition-all duration-200 group"
+      className="w-full h-full flex flex-col items-center justify-center gap-3 cursor-pointer bg-transparent hover:bg-[var(--overlay-light)] transition-all duration-200 group"
     >
       {/* Status Dot - larger and more prominent */}
       <div
@@ -153,14 +153,14 @@ function PeekTab({ data, onExpand }: { data: any; onExpand: () => void }) {
           ${statusDot.bg}
           ${statusDot.shadow}
           ${statusDot.animate}
-          border border-white/30
+          border border-[var(--border-medium)]
           group-hover:scale-110
           transition-transform duration-200
         `}
       />
 
       {/* Vertical bar hint */}
-      <div className="w-0.5 h-6 bg-gradient-to-b from-white/20 to-transparent rounded-full" />
+      <div className="w-0.5 h-6 bg-gradient-to-b from-[var(--overlay-light)] to-transparent rounded-full" />
     </div>
   )
 }
@@ -221,7 +221,7 @@ function CompactView({
         error: 'bg-destructive ',
         stopped: 'bg-muted '
       }
-      return <div className={`w-2 h-2 rounded-full ${dotColors[status]} ring-1 ring-white/20`} />
+      return <div className={`w-2 h-2 rounded-full ${dotColors[status]} ring-1 ring-[var(--overlay-light)]`} />
     }
 
     const getMessage = () => {
@@ -247,7 +247,7 @@ function CompactView({
               </div>
             ))}
             {servers.length > 3 && (
-              <span className="text-[9px] text-white/50 ml-1">+{servers.length - 3}</span>
+              <span className="text-[9px] text-[var(--label-tertiary)] ml-1">+{servers.length - 3}</span>
             )}
           </div>
 
@@ -262,16 +262,16 @@ function CompactView({
           )}
 
           {/* Time - Right aligned */}
-          <span className="text-[10px] text-white/40 flex-shrink-0">{timeAgo}</span>
+          <span className="text-[10px] text-[var(--label-tertiary)] flex-shrink-0">{timeAgo}</span>
         </div>
 
         {/* Secondary Details - Ultra subtle */}
         <div className="flex items-center gap-1 pl-[20px]">
-          <span className="text-[10px] text-white/50">{multiData.totalActivityCount} requests</span>
+          <span className="text-[10px] text-[var(--label-tertiary)]">{multiData.totalActivityCount} requests</span>
           {highlightServer?.recentActivity[0]?.latency && (
             <>
-              <span className="text-[10px] text-white/30">•</span>
-              <span className="text-[10px] text-white/40">{highlightServer.recentActivity[0].latency}ms</span>
+              <span className="text-[10px] text-[var(--label-quaternary)]">•</span>
+              <span className="text-[10px] text-[var(--label-tertiary)]">{highlightServer.recentActivity[0].latency}ms</span>
             </>
           )}
         </div>
@@ -309,17 +309,17 @@ function CompactView({
           </span>
 
           {/* Time - Right aligned */}
-          <span className="text-[10px] text-white/40 flex-shrink-0">{timeAgo}</span>
+          <span className="text-[10px] text-[var(--label-tertiary)] flex-shrink-0">{timeAgo}</span>
         </div>
 
         {/* Secondary Details - Ultra subtle */}
         {testData.total && (
           <div className="flex items-center gap-1 pl-[16px]">
-            <span className="text-[10px] text-white/50">{testData.total} total</span>
+            <span className="text-[10px] text-[var(--label-tertiary)]">{testData.total} total</span>
             {testData.duration && (
               <>
-                <span className="text-[10px] text-white/30">•</span>
-                <span className="text-[10px] text-white/40">{(testData.duration / 1000).toFixed(1)}s</span>
+                <span className="text-[10px] text-[var(--label-quaternary)]">•</span>
+                <span className="text-[10px] text-[var(--label-tertiary)]">{(testData.duration / 1000).toFixed(1)}s</span>
               </>
             )}
           </div>
@@ -327,7 +327,7 @@ function CompactView({
 
         {/* Auto-hide progress bar */}
         {autoHideProgress > 0 && (
-          <div className="absolute bottom-0 left-0 w-full h-0.5 bg-white/10 rounded-b-lg overflow-hidden">
+          <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[var(--overlay-light)] rounded-b-lg overflow-hidden">
             <div
               className="h-full bg-[var(--circuit-orange)] transition-all duration-100 ease-linear"
               style={{ width: `${100 - autoHideProgress}%` }}
@@ -383,20 +383,20 @@ function CompactView({
           </span>
 
           {/* Time - Right aligned */}
-          <span className="text-[10px] text-white/40 flex-shrink-0">{timeAgo}</span>
+          <span className="text-[10px] text-[var(--label-tertiary)] flex-shrink-0">{timeAgo}</span>
         </div>
 
         {/* Secondary Details - Ultra subtle */}
         {latestActivity && (
           <div className="flex items-center gap-1 pl-[16px]">
             {latestActivity.latency && (
-              <span className="text-[10px] text-white/50">{latestActivity.latency}ms</span>
+              <span className="text-[10px] text-[var(--label-tertiary)]">{latestActivity.latency}ms</span>
             )}
             {latestActivity.method && latestActivity.latency && (
-              <span className="text-[10px] text-white/30">•</span>
+              <span className="text-[10px] text-[var(--label-quaternary)]">•</span>
             )}
             {latestActivity.method && (
-              <span className="text-[10px] text-white/40 truncate">{latestActivity.method}</span>
+              <span className="text-[10px] text-[var(--label-tertiary)] truncate">{latestActivity.method}</span>
             )}
           </div>
         )}
@@ -434,13 +434,13 @@ function CompactView({
           </span>
 
           {/* Time - Right aligned */}
-          <span className="text-[10px] text-white/40 flex-shrink-0">{timeAgo}</span>
+          <span className="text-[10px] text-[var(--label-tertiary)] flex-shrink-0">{timeAgo}</span>
         </div>
 
         {/* Secondary Details - Ultra subtle */}
         {customData.title && (
           <div className="flex items-center gap-1 pl-[16px]">
-            <span className="text-[10px] text-white/50 truncate">{customData.title}</span>
+            <span className="text-[10px] text-[var(--label-tertiary)] truncate">{customData.title}</span>
           </div>
         )}
       </div>
@@ -479,19 +479,19 @@ function CompactView({
           </span>
 
           {/* Time - Right aligned */}
-          <span className="text-[10px] text-white/40 flex-shrink-0">{timeAgo}</span>
+          <span className="text-[10px] text-[var(--label-tertiary)] flex-shrink-0">{timeAgo}</span>
         </div>
 
         {/* Secondary Details - Ultra subtle */}
         <div className="flex items-center gap-1 pl-[16px]">
-          <span className="text-[10px] text-white/50">{deployData.branch}</span>
-          <span className="text-[10px] text-white/30">•</span>
-          <span className="text-[10px] text-white/40 truncate">{deployData.commit.slice(0, 7)}</span>
+          <span className="text-[10px] text-[var(--label-tertiary)]">{deployData.branch}</span>
+          <span className="text-[10px] text-[var(--label-quaternary)]">•</span>
+          <span className="text-[10px] text-[var(--label-tertiary)] truncate">{deployData.commit.slice(0, 7)}</span>
         </div>
 
         {/* Auto-hide progress bar */}
         {autoHideProgress > 0 && (
-          <div className="absolute bottom-0 left-0 w-full h-0.5 bg-white/10 rounded-b-lg overflow-hidden">
+          <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[var(--overlay-light)] rounded-b-lg overflow-hidden">
             <div
               className="h-full bg-[var(--circuit-orange)] transition-all duration-100 ease-linear"
               style={{ width: `${100 - autoHideProgress}%` }}
@@ -521,17 +521,17 @@ function CompactView({
             <span className="text-xs font-normal text-white truncate flex-1">
               {pusher} pushed to {ref}
             </span>
-            <span className="text-[10px] text-white/40 flex-shrink-0">{timeAgo}</span>
+            <span className="text-[10px] text-[var(--label-tertiary)] flex-shrink-0">{timeAgo}</span>
           </div>
           <div className="flex items-center gap-1 pl-[16px]">
-            <span className="text-[10px] text-white/50">{commits.length} commit{commits.length !== 1 ? 's' : ''}</span>
-            <span className="text-[10px] text-white/30">•</span>
-            <span className="text-[10px] text-white/40 truncate">{commits[0]?.sha}</span>
+            <span className="text-[10px] text-[var(--label-tertiary)]">{commits.length} commit{commits.length !== 1 ? 's' : ''}</span>
+            <span className="text-[10px] text-[var(--label-quaternary)]">•</span>
+            <span className="text-[10px] text-[var(--label-tertiary)] truncate">{commits[0]?.sha}</span>
           </div>
 
           {/* Auto-hide progress bar */}
           {autoHideProgress > 0 && (
-            <div className="absolute bottom-0 left-0 w-full h-0.5 bg-white/10 rounded-b-lg overflow-hidden">
+            <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[var(--overlay-light)] rounded-b-lg overflow-hidden">
               <div
                 className="h-full bg-[var(--circuit-orange)] transition-all duration-100 ease-linear"
                 style={{ width: `${100 - autoHideProgress}%` }}
@@ -561,17 +561,17 @@ function CompactView({
             <span className="text-xs font-normal text-white truncate flex-1">
               PR #{number} {action}
             </span>
-            <span className="text-[10px] text-white/40 flex-shrink-0">{timeAgo}</span>
+            <span className="text-[10px] text-[var(--label-tertiary)] flex-shrink-0">{timeAgo}</span>
           </div>
           <div className="flex items-center gap-1 pl-[16px]">
-            <span className="text-[10px] text-white/50 truncate">{title}</span>
-            <span className="text-[10px] text-white/30">•</span>
-            <span className="text-[10px] text-white/40">{author}</span>
+            <span className="text-[10px] text-[var(--label-tertiary)] truncate">{title}</span>
+            <span className="text-[10px] text-[var(--label-quaternary)]">•</span>
+            <span className="text-[10px] text-[var(--label-tertiary)]">{author}</span>
           </div>
 
           {/* Auto-hide progress bar */}
           {autoHideProgress > 0 && (
-            <div className="absolute bottom-0 left-0 w-full h-0.5 bg-white/10 rounded-b-lg overflow-hidden">
+            <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[var(--overlay-light)] rounded-b-lg overflow-hidden">
               <div
                 className="h-full bg-[var(--circuit-orange)] transition-all duration-100 ease-linear"
                 style={{ width: `${100 - autoHideProgress}%` }}
@@ -603,17 +603,17 @@ function CompactView({
             <span className="text-xs font-normal text-white truncate flex-1">
               {name} {isCompleted ? conclusion : status}
             </span>
-            <span className="text-[10px] text-white/40 flex-shrink-0">{timeAgo}</span>
+            <span className="text-[10px] text-[var(--label-tertiary)] flex-shrink-0">{timeAgo}</span>
           </div>
           <div className="flex items-center gap-1 pl-[16px]">
-            <span className="text-[10px] text-white/50">{branch}</span>
-            <span className="text-[10px] text-white/30">•</span>
-            <span className="text-[10px] text-white/40">{commit}</span>
+            <span className="text-[10px] text-[var(--label-tertiary)]">{branch}</span>
+            <span className="text-[10px] text-[var(--label-quaternary)]">•</span>
+            <span className="text-[10px] text-[var(--label-tertiary)]">{commit}</span>
           </div>
 
           {/* Auto-hide progress bar */}
           {autoHideProgress > 0 && (
-            <div className="absolute bottom-0 left-0 w-full h-0.5 bg-white/10 rounded-b-lg overflow-hidden">
+            <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[var(--overlay-light)] rounded-b-lg overflow-hidden">
               <div
                 className="h-full bg-[var(--circuit-orange)] transition-all duration-100 ease-linear"
                 style={{ width: `${100 - autoHideProgress}%` }}
@@ -643,10 +643,10 @@ function CompactView({
             <span className="text-xs font-normal text-white truncate flex-1">
               {reviewer} reviewed PR #{pullRequestNumber}
             </span>
-            <span className="text-[10px] text-white/40 flex-shrink-0">{timeAgo}</span>
+            <span className="text-[10px] text-[var(--label-tertiary)] flex-shrink-0">{timeAgo}</span>
           </div>
           <div className="flex items-center gap-1 pl-[16px]">
-            <span className="text-[10px] text-white/50">
+            <span className="text-[10px] text-[var(--label-tertiary)]">
               {isApproved && 'Approved'}
               {isChangesRequested && 'Changes requested'}
               {!isApproved && !isChangesRequested && 'Commented'}
@@ -655,7 +655,7 @@ function CompactView({
 
           {/* Auto-hide progress bar */}
           {autoHideProgress > 0 && (
-            <div className="absolute bottom-0 left-0 w-full h-0.5 bg-white/10 rounded-b-lg overflow-hidden">
+            <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[var(--overlay-light)] rounded-b-lg overflow-hidden">
               <div
                 className="h-full bg-[var(--circuit-orange)] transition-all duration-100 ease-linear"
                 style={{ width: `${100 - autoHideProgress}%` }}
@@ -680,15 +680,15 @@ function CompactView({
             <span className="text-xs font-normal text-white truncate flex-1">
               {author} commented on {commit}
             </span>
-            <span className="text-[10px] text-white/40 flex-shrink-0">{timeAgo}</span>
+            <span className="text-[10px] text-[var(--label-tertiary)] flex-shrink-0">{timeAgo}</span>
           </div>
           <div className="flex items-center gap-1 pl-[16px]">
-            <span className="text-[10px] text-white/50 truncate">{body}</span>
+            <span className="text-[10px] text-[var(--label-tertiary)] truncate">{body}</span>
           </div>
 
           {/* Auto-hide progress bar */}
           {autoHideProgress > 0 && (
-            <div className="absolute bottom-0 left-0 w-full h-0.5 bg-white/10 rounded-b-lg overflow-hidden">
+            <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[var(--overlay-light)] rounded-b-lg overflow-hidden">
               <div
                 className="h-full bg-[var(--circuit-orange)] transition-all duration-100 ease-linear"
                 style={{ width: `${100 - autoHideProgress}%` }}

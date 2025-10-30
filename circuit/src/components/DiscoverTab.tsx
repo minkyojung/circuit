@@ -436,7 +436,7 @@ export function DiscoverTab({ onNavigateToInstalled }: DiscoverTabProps) {
                   key={mcp.id}
                   onClick={() => handleInstall(mcp)}
                   disabled={isInstalling}
-                  className="p-2.5 rounded-lg bg-[var(--bg-section)] hover:bg-[var(--bg-card)] border border-white/5 hover:border-white/10 transition-colors text-left group shadow-none disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="p-2.5 rounded-lg bg-[var(--bg-section)] hover:bg-[var(--bg-card)] border border-[var(--border-thin)] hover:border-[var(--border-light)] transition-colors text-left group shadow-none disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <div className="flex items-start gap-2 mb-1.5">
                     {isInstalling ? (
@@ -500,7 +500,7 @@ export function DiscoverTab({ onNavigateToInstalled }: DiscoverTabProps) {
       {/* MCP Cards */}
       <div className="space-y-2">
         {filteredMCPs.map(mcp => (
-          <Card key={mcp.id} className="p-3 bg-[var(--bg-section)] hover:bg-[var(--bg-card)] border border-white/5 hover:border-white/10 transition-colors shadow-none">
+          <Card key={mcp.id} className="p-3 bg-[var(--bg-section)] hover:bg-[var(--bg-card)] border border-[var(--border-thin)] hover:border-[var(--border-light)] transition-colors shadow-none">
             <div className="flex items-start gap-3">
               {/* Icon/Avatar */}
               <div className="w-10 h-10 rounded-lg bg-[var(--bg-card-elevated)] flex items-center justify-center flex-shrink-0">
