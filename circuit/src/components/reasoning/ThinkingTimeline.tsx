@@ -150,7 +150,7 @@ const ToolGroupDisplay: React.FC<ToolGroupDisplayProps> = ({ group }) => {
       <div>
         {/* Header */}
         <div className="flex items-center gap-2 text-base text-[#DDDEDD]">
-          <Icon className="w-3.5 h-3.5" strokeWidth={1.5} />
+          <Icon className="w-3 h-3" strokeWidth={1.5} />
           <span>{group.label} {count > 1 ? `${count} patterns` : '1 pattern'}</span>
         </div>
 
@@ -175,7 +175,7 @@ const ToolGroupDisplay: React.FC<ToolGroupDisplayProps> = ({ group }) => {
       <div>
         {/* Header */}
         <div className="flex items-center gap-2 text-base text-[#DDDEDD]">
-          <Icon className="w-3.5 h-3.5" strokeWidth={1.5} />
+          <Icon className="w-3 h-3" strokeWidth={1.5} />
           <span>{group.label} {count > 1 ? `${count} files` : '1 file'}</span>
         </div>
 
@@ -206,7 +206,7 @@ const ToolGroupDisplay: React.FC<ToolGroupDisplayProps> = ({ group }) => {
       <div>
         {/* Header */}
         <div className="flex items-center gap-2 text-base text-[#DDDEDD]">
-          <Icon className="w-3.5 h-3.5" strokeWidth={1.5} />
+          <Icon className="w-3 h-3" strokeWidth={1.5} />
           <span>{group.label}</span>
         </div>
 
@@ -233,7 +233,7 @@ const ToolGroupDisplay: React.FC<ToolGroupDisplayProps> = ({ group }) => {
   return (
     <div>
       <div className="flex items-center gap-2 text-base text-[#DDDEDD]">
-        <Icon className="w-3.5 h-3.5" strokeWidth={1.5} />
+        <Icon className="w-3 h-3" strokeWidth={1.5} />
         <span>{group.label} ({count})</span>
       </div>
     </div>
@@ -281,7 +281,7 @@ const StepLine: React.FC<StepLineProps> = ({ step }) => {
       transition={{ duration: 0.3, ease: "easeOut" }}
       className="flex items-center gap-2 text-base text-[#A7A6A5] font-light"
     >
-      <Icon className="w-3.5 h-3.5 flex-shrink-0 opacity-50" strokeWidth={1.5} />
+      <Icon className="w-3 h-3 flex-shrink-0 opacity-50" strokeWidth={1.5} />
       <span className="opacity-70">
         {label} {detail}
       </span>
