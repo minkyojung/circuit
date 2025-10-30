@@ -12,76 +12,70 @@ interface ThinkingTimelineProps {
 
 const MAX_VISIBLE_STEPS = 1;
 
-// Group steps by action type for Perplexity-style display
-interface StepSection {
-  type: 'searching' | 'reading' | 'thinking' | 'running';
+// Group consecutive steps of same tool type
+interface ToolGroup {
+  tool: string;
+  icon: React.ElementType;
   label: string;
   steps: ThinkingStep[];
 }
 
-function organizeStepsIntoSections(steps: ThinkingStep[]): StepSection[] {
-  const sections: StepSection[] = [];
+function groupStepsByTool(steps: ThinkingStep[]): ToolGroup[] {
+  const groups: ToolGroup[] = [];
 
-  // Group search steps
-  const searchSteps = steps.filter(s =>
-    s.tool === 'Glob' || s.tool === 'Grep'
-  );
-  if (searchSteps.length > 0) {
-    sections.push({
-      type: 'searching',
-      label: 'Searching',
-      steps: searchSteps
-    });
+  for (const step of steps) {
+    const tool = step.type === 'thinking' ? 'thinking' : (step.tool || 'unknown');
+
+    // Check if we can append to the last group
+    const lastGroup = groups[groups.length - 1];
+    if (lastGroup && lastGroup.tool === tool) {
+      lastGroup.steps.push(step);
+    } else {
+      // Create new group
+      const icon = getIconForTool(step);
+      const label = getLabelForTool(step);
+      groups.push({
+        tool,
+        icon,
+        label,
+        steps: [step]
+      });
+    }
   }
 
-  // Group read/write steps
-  const fileSteps = steps.filter(s =>
-    s.tool === 'Read' || s.tool === 'Write' || s.tool === 'Edit'
-  );
-  if (fileSteps.length > 0) {
-    sections.push({
-      type: 'reading',
-      label: `Reading ${fileSteps.length} file${fileSteps.length > 1 ? 's' : ''}`,
-      steps: fileSteps
-    });
-  }
-
-  // Group bash/terminal steps
-  const bashSteps = steps.filter(s => s.tool === 'Bash');
-  if (bashSteps.length > 0) {
-    sections.push({
-      type: 'running',
-      label: 'Running commands',
-      steps: bashSteps
-    });
-  }
-
-  // Group thinking steps
-  const thinkingSteps = steps.filter(s => s.type === 'thinking');
-  if (thinkingSteps.length > 0) {
-    sections.push({
-      type: 'thinking',
-      label: 'Thinking',
-      steps: thinkingSteps
-    });
-  }
-
-  return sections;
+  return groups;
 }
 
-function generateSummary(steps: ThinkingStep[]): string {
-  const hasSearch = steps.some(s => s.tool === 'Glob' || s.tool === 'Grep');
-  const fileCount = steps.filter(s => s.tool === 'Read' || s.tool === 'Write' || s.tool === 'Edit').length;
-  const hasThinking = steps.some(s => s.type === 'thinking');
+function getIconForTool(step: ThinkingStep): React.ElementType {
+  if (step.type === 'thinking') return Brain;
 
-  const parts = [];
-  if (hasSearch) parts.push('searching codebase');
-  if (fileCount > 0) parts.push(`analyzing ${fileCount} file${fileCount > 1 ? 's' : ''}`);
-  if (hasThinking) parts.push('processing information');
+  switch (step.tool) {
+    case 'Read':
+    case 'Write':
+    case 'Edit':
+      return FileText;
+    case 'Glob':
+    case 'Grep':
+      return Search;
+    case 'Bash':
+      return Terminal;
+    default:
+      return Wrench;
+  }
+}
 
-  return parts.length > 0
-    ? `Completing task by ${parts.join(', ')}.`
-    : 'Processing your request.';
+function getLabelForTool(step: ThinkingStep): string {
+  if (step.type === 'thinking') return 'Thinking';
+
+  switch (step.tool) {
+    case 'Read': return 'Read';
+    case 'Write': return 'Write';
+    case 'Edit': return 'Edit';
+    case 'Glob': return 'Glob';
+    case 'Grep': return 'Grep';
+    case 'Bash': return 'Run';
+    default: return step.tool || 'Unknown';
+  }
 }
 
 export const ThinkingTimeline: React.FC<ThinkingTimelineProps> = ({
@@ -92,7 +86,7 @@ export const ThinkingTimeline: React.FC<ThinkingTimelineProps> = ({
 }) => {
   if (groupedSteps.groups.length === 0) {
     return (
-      <div className="text-base text-muted-foreground py-2 font-normal">
+      <div className="text-base text-[#A7A6A5] py-2 font-normal">
         Analyzing your request...
       </div>
     );
@@ -109,28 +103,16 @@ export const ThinkingTimeline: React.FC<ThinkingTimelineProps> = ({
     ? allSteps.slice(-MAX_VISIBLE_STEPS)
     : allSteps;
 
-  // For completed reasoning, use Perplexity-style sections
+  // For completed reasoning, use flat tool-grouped display
   if (!isStreaming) {
-    const sections = organizeStepsIntoSections(allSteps);
-    const summary = generateSummary(allSteps);
+    const toolGroups = groupStepsByTool(allSteps);
 
     return (
       <div className={className}>
-        {/* Summary sentence */}
-        <div className="text-xs text-muted-foreground/70 mb-4 leading-relaxed">
-          {summary}
-        </div>
-
-        {/* Sections */}
-        <div className="space-y-6">
-          {sections.map((section, idx) => (
-            <Section key={idx} section={section} />
+        <div className="space-y-3">
+          {toolGroups.map((group, idx) => (
+            <ToolGroupDisplay key={idx} group={group} />
           ))}
-        </div>
-
-        {/* Finished marker */}
-        <div className="mt-4 text-xs text-muted-foreground/50">
-          Finished
         </div>
       </div>
     );
@@ -145,7 +127,6 @@ export const ThinkingTimeline: React.FC<ThinkingTimelineProps> = ({
             <StepLine
               key={step.timestamp}
               step={step}
-              isStreaming={isStreaming}
             />
           ))}
         </AnimatePresence>
@@ -154,25 +135,33 @@ export const ThinkingTimeline: React.FC<ThinkingTimelineProps> = ({
   );
 };
 
-// Section component for Perplexity-style display
-interface SectionProps {
-  section: StepSection;
+// Tool group display component - flat hierarchy with indented details
+interface ToolGroupDisplayProps {
+  group: ToolGroup;
 }
 
-const Section: React.FC<SectionProps> = ({ section }) => {
-  // For search queries, show as horizontal pills
-  if (section.type === 'searching') {
+const ToolGroupDisplay: React.FC<ToolGroupDisplayProps> = ({ group }) => {
+  const Icon = group.icon;
+  const count = group.steps.length;
+
+  // For search/glob tools, show patterns as pills
+  if (group.tool === 'Glob' || group.tool === 'Grep') {
     return (
-      <div className="space-y-2">
-        <div className="text-sm font-medium text-foreground/80">{section.label}</div>
-        <div className="flex flex-wrap gap-2">
-          {section.steps.map((step, idx) => (
+      <div>
+        {/* Header */}
+        <div className="flex items-center gap-2 text-sm text-[#DDDEDD]">
+          <Icon className="w-4 h-4" strokeWidth={2} />
+          <span>{group.label} {count > 1 ? `${count} patterns` : '1 pattern'}</span>
+        </div>
+
+        {/* Details - indented pills */}
+        <div className="ml-6 mt-1.5 flex flex-wrap gap-2">
+          {group.steps.map((step, idx) => (
             <div
               key={idx}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary/50 text-xs text-muted-foreground/80"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-secondary/40 text-sm text-[#A7A6A5]"
             >
-              <Search className="w-3 h-3" strokeWidth={2} />
-              <span>{step.pattern || 'searching'}</span>
+              <span>{step.pattern || 'pattern'}</span>
             </div>
           ))}
         </div>
@@ -180,24 +169,29 @@ const Section: React.FC<SectionProps> = ({ section }) => {
     );
   }
 
-  // For files, show as list with filenames only
-  if (section.type === 'reading') {
+  // For file operations, show filenames as pills
+  if (group.tool === 'Read' || group.tool === 'Write' || group.tool === 'Edit') {
     return (
-      <div className="space-y-2">
-        <div className="text-sm font-medium text-foreground/80">{section.label}</div>
-        <div className="space-y-1.5">
-          {section.steps.map((step, idx) => {
+      <div>
+        {/* Header */}
+        <div className="flex items-center gap-2 text-sm text-[#DDDEDD]">
+          <Icon className="w-4 h-4" strokeWidth={2} />
+          <span>{group.label} {count > 1 ? `${count} files` : '1 file'}</span>
+        </div>
+
+        {/* Details - indented pills */}
+        <div className="ml-6 mt-1.5 flex flex-wrap gap-2">
+          {group.steps.map((step, idx) => {
             const fileName = step.filePath?.split('/').pop() || 'file';
             const fullPath = step.filePath || '';
 
             return (
               <div
                 key={idx}
-                className="flex items-center gap-2 px-3 py-2 rounded-md bg-secondary/30 hover:bg-secondary/40 transition-colors"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-secondary/40 text-sm text-[#A7A6A5] hover:bg-secondary/50 transition-colors cursor-default"
                 title={fullPath}
               >
-                <FileText className="w-3 h-3 text-muted-foreground/60 flex-shrink-0" strokeWidth={2} />
-                <span className="text-xs text-foreground/80 truncate">{fileName}</span>
+                <span>{fileName}</span>
               </div>
             );
           })}
@@ -206,97 +200,70 @@ const Section: React.FC<SectionProps> = ({ section }) => {
     );
   }
 
-  // For other types, show as simple list
-  return (
-    <div className="space-y-2">
-      <div className="text-sm font-medium text-foreground/80">{section.label}</div>
-      <div className="space-y-1.5">
-        {section.steps.map((step, idx) => {
-          const Icon = section.type === 'thinking' ? Brain : Terminal;
-          const detail = step.message || step.command || '';
+  // For thinking/bash, show messages as text
+  if (group.tool === 'thinking' || group.tool === 'Bash') {
+    return (
+      <div>
+        {/* Header */}
+        <div className="flex items-center gap-2 text-sm text-[#DDDEDD]">
+          <Icon className="w-4 h-4" strokeWidth={2} />
+          <span>{group.label}</span>
+        </div>
 
-          return (
-            <div
-              key={idx}
-              className="flex items-start gap-2 px-3 py-2 rounded-md bg-secondary/30"
-            >
-              <Icon className="w-3 h-3 text-muted-foreground/60 flex-shrink-0 mt-0.5" strokeWidth={2} />
-              <span className="text-xs text-muted-foreground/70 leading-relaxed break-words">
+        {/* Details - indented text */}
+        <div className="ml-6 mt-1 space-y-1">
+          {group.steps.map((step, idx) => {
+            const detail = step.message || step.command || '';
+
+            return (
+              <div
+                key={idx}
+                className="text-sm text-[#A7A6A5] leading-relaxed"
+              >
                 {detail}
-              </span>
-            </div>
-          );
-        })}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // Default fallback
+  return (
+    <div>
+      <div className="flex items-center gap-2 text-sm text-[#DDDEDD]">
+        <Icon className="w-4 h-4" strokeWidth={2} />
+        <span>{group.label} ({count})</span>
       </div>
     </div>
   );
 };
 
+// Streaming display - simple single line
 interface StepLineProps {
   step: ThinkingStep;
-  isStreaming: boolean;
-  isLast?: boolean;
 }
 
-const StepLine: React.FC<StepLineProps> = ({ step, isStreaming, isLast = false }) => {
-  const getIcon = () => {
-    if (step.type === 'thinking') return Brain;
-
-    switch (step.tool) {
-      case 'Read':
-      case 'Write':
-        return FileText;
-      case 'Glob':
-      case 'Grep':
-        return Search;
-      case 'Bash':
-        return Terminal;
-      default:
-        return Wrench;
-    }
-  };
-
-  const getLabel = () => {
-    if (step.type === 'thinking') return 'Thinking';
-
-    switch (step.tool) {
-      case 'Read': return 'Reading';
-      case 'Write': return 'Writing';
-      case 'Edit': return 'Editing';
-      case 'Glob': return 'Searching';
-      case 'Grep': return 'Searching';
-      case 'Bash': return 'Running';
-      default: return step.tool;
-    }
-  };
+const StepLine: React.FC<StepLineProps> = ({ step }) => {
+  const Icon = getIconForTool(step);
+  const label = getLabelForTool(step);
 
   const getDetail = () => {
     if (step.type === 'thinking') {
-      // Truncate thinking message only when streaming
-      if (isStreaming) {
-        return step.message.length > 60
-          ? step.message.substring(0, 60) + '...'
-          : step.message;
-      }
-      return step.message;
+      return step.message.length > 60
+        ? step.message.substring(0, 60) + '...'
+        : step.message;
     }
 
     if (step.filePath) {
-      // Show full path when not streaming, filename when streaming
-      if (isStreaming) {
-        const fileName = step.filePath.split('/').pop();
-        return fileName || step.filePath;
-      }
-      return step.filePath;
+      const fileName = step.filePath.split('/').pop();
+      return fileName || step.filePath;
     }
     if (step.command) {
-      // Show full command when not streaming
-      if (isStreaming) {
-        return step.command.length > 40
-          ? step.command.substring(0, 40) + '...'
-          : step.command;
-      }
-      return step.command;
+      return step.command.length > 40
+        ? step.command.substring(0, 40) + '...'
+        : step.command;
     }
     if (step.pattern) {
       return step.pattern;
@@ -304,52 +271,21 @@ const StepLine: React.FC<StepLineProps> = ({ step, isStreaming, isLast = false }
     return '';
   };
 
-  const Icon = getIcon();
-  const label = getLabel();
   const detail = getDetail();
 
-  if (isStreaming) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -10 }}
-        transition={{ duration: 0.3, ease: "easeOut" }}
-        className="flex items-center gap-2 text-base text-muted-foreground font-light"
-      >
-        <Icon className="w-3 h-3 flex-shrink-0 opacity-40" strokeWidth={1.5} />
-        <span
-          className="opacity-70 relative inline-block bg-gradient-to-r from-transparent via-muted-foreground/20 to-transparent bg-[length:200%_100%] animate-shimmer"
-        >
-          {label} {detail}
-        </span>
-      </motion.div>
-    );
-  }
-
-  // Timeline layout for completed reasoning
   return (
-    <div className="flex gap-2.5">
-      {/* Timeline indicator */}
-      <div className="flex flex-col items-center">
-        <div className="flex items-center justify-center w-5 h-5 rounded-full bg-secondary/40 flex-shrink-0">
-          <Icon className="w-3 h-3 text-muted-foreground/80" strokeWidth={2} />
-        </div>
-        {!isLast && (
-          <div className="w-px h-full min-h-[12px] bg-border/40 mt-1" />
-        )}
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 pt-0 pb-0.5">
-        <div className="text-xs text-foreground/90 font-medium">{label}</div>
-        {detail && (
-          <div className="text-xs text-muted-foreground/70 mt-0.5 break-words leading-tight">
-            {detail}
-          </div>
-        )}
-      </div>
-    </div>
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
+      className="flex items-center gap-2 text-base text-[#A7A6A5] font-light"
+    >
+      <Icon className="w-4 h-4 flex-shrink-0 opacity-50" strokeWidth={2} />
+      <span className="opacity-70">
+        {label} {detail}
+      </span>
+    </motion.div>
   );
 };
 
