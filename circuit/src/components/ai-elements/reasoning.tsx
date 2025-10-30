@@ -7,10 +7,9 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
-import { BrainIcon, ChevronDownIcon } from "lucide-react";
+import { ChevronDownIcon } from "lucide-react";
 import type { ComponentProps } from "react";
 import { createContext, memo, useContext, useEffect, useState } from "react";
-import { Response } from "./response";
 import { Shimmer } from "./shimmer";
 
 type ReasoningContextValue = {
@@ -192,7 +191,7 @@ export const ReasoningContent = ({ className, children, ...props }: ReasoningCon
     {...props}
   >
     {typeof children === 'string' ? (
-      <Response className="grid gap-2">{children}</Response>
+      <div className="grid gap-2">{children}</div>
     ) : (
       children
     )}

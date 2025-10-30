@@ -12,7 +12,6 @@ import { CodeBlock } from './CodeBlock'
 import { CommandBlock } from './CommandBlock'
 import { DiffBlock } from './DiffBlock'
 import { Tool, ToolHeader, ToolContent, ToolInput, ToolOutput } from '@/components/ai-elements/tool'
-import { toast } from 'sonner'
 
 interface BlockRendererProps {
   block: Block
@@ -112,20 +111,20 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
 
     case 'tool':
       return renderWithBlockId(
-        <Tool defaultOpen={block.metadata.state === 'output-available' || block.metadata.state === 'output-error'}>
+        <Tool defaultOpen={false}>
           <ToolHeader
-            title={block.metadata.toolName || 'Tool Call'}
-            type={block.metadata.type || 'tool-call'}
+            title={block.content || `${block.metadata.toolName || 'Tool Call'}`}
+            type={(block.metadata.type || 'tool-call') as `tool-${string}`}
             state={block.metadata.state || 'input-streaming'}
           />
           <ToolContent>
             {block.metadata.args && (
               <ToolInput input={block.metadata.args} />
             )}
-            {(block.metadata.result || block.metadata.error) && (
+            {(block.metadata.result !== undefined || block.metadata.error !== undefined) && (
               <ToolOutput
                 output={block.metadata.result}
-                errorText={block.metadata.error}
+                errorText={block.metadata.error as string | undefined}
               />
             )}
           </ToolContent>

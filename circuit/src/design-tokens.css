@@ -381,4 +381,34 @@
     --status-synced: oklch(0.65 0.25 150);           /* Brighter green - more vibrant */
     --status-local: oklch(0.65 0.15 250);            /* Brighter gray - more vibrant */
   }
+
+  /* ===== CODE BLOCK SURFACES (APPLE HIG - MINIMAL DIFFERENTIATION) ===== */
+
+  :root {
+    /* Base code surface - 읽기 전용 코드 (CodeBlock) */
+    --code-bg: var(--background-secondary);          /* #FFFFFF - Elevated card */
+    --code-border: var(--separator-opaque);          /* rgba(0,0,0,0.1) - Clear divider */
+    --code-header: var(--fill-quaternary);           /* Subtle header background */
+
+    /* Command surface - 실행 가능한 명령어 (CommandBlock) */
+    /* Light mode: 살짝 더 어두운 elevated surface로 구별 */
+    --command-bg: var(--background-tertiary);        /* #F5F5F5 - Slightly darker */
+    --command-border: var(--separator-opaque);
+    --command-header: var(--fill-tertiary);          /* 조금 더 진한 header */
+    --command-accent: var(--label-tertiary);         /* Subtle text accent */
+
+    /* Diff surface - 변경사항 표시 (DiffBlock) */
+    --diff-bg: var(--code-bg);                       /* 기본 코드와 동일 */
+    --diff-border: var(--code-border);
+    --diff-header: var(--code-header);
+    --diff-addition: var(--success);                 /* Green for additions */
+    --diff-deletion: var(--destructive);             /* Red for deletions */
+  }
+
+  .dark {
+    /* Command surface - Dark mode에서는 더 밝은 elevated로 구별 */
+    --command-bg: var(--background-elevated-tertiary); /* #424242 - More elevated */
+    --command-header: var(--fill-secondary);           /* 더 밝은 header */
+    --command-accent: var(--label-tertiary);           /* Subtle text accent */
+  }
 }

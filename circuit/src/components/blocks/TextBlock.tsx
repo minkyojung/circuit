@@ -15,7 +15,7 @@ interface TextBlockProps {
 
 export const TextBlock: React.FC<TextBlockProps> = ({ block }) => {
   return (
-    <div className="prose prose-invert max-w-none text-base font-normal leading-relaxed">
+    <div className="prose dark:prose-invert max-w-none text-base font-normal leading-relaxed">
       <ReactMarkdown remarkPlugins={[remarkGfm]}>
         {block.content}
       </ReactMarkdown>

@@ -4,9 +4,10 @@
 
 import { ipcMain, IpcMainInvokeEvent } from 'electron'
 import { ConversationStorage, Conversation, Message, Block, BlockBookmark, BlockExecution } from './conversationStorage'
-import { parseMessageToBlocks } from './messageParser'
+import { parseMessageToBlocks, Block as ParsedBlock } from './messageParser'
 import { exec } from 'child_process'
 import { promisify } from 'util'
+import { randomUUID } from 'crypto'
 
 const execAsync = promisify(exec)
 
@@ -253,15 +254,20 @@ export function registerConversationHandlers(): void {
             : undefined
         }
 
-        // Parse message content into blocks
+        // Parse message content into text blocks
         const parseResult = parseMessageToBlocks(message.content, message.id)
 
         if (parseResult.errors.length > 0) {
           console.warn('[message:save] Parse errors:', parseResult.errors)
         }
 
+        // Note: Tool blocks are NOT stored in message body
+        // They are stored in metadata.thinkingSteps and displayed in ReasoningAccordion only
+        // This prevents duplicate rendering and reduces message body clutter
+        let allBlocks: ParsedBlock[] = [...parseResult.blocks]
+
         // Convert blocks to storage format (metadata as JSON string)
-        const blocksForStorage = parseResult.blocks.map(block => ({
+        const blocksForStorage = allBlocks.map(block => ({
           ...block,
           metadata: JSON.stringify(block.metadata)
         }))
@@ -271,8 +277,8 @@ export function registerConversationHandlers(): void {
 
         return {
           success: true,
-          blockCount: parseResult.blocks.length,
-          blocks: parseResult.blocks // Return parsed blocks for UI update
+          blockCount: allBlocks.length,
+          blocks: allBlocks // Return all blocks (including tool blocks) for UI update
         }
       } catch (error: any) {
         console.error('[message:save] Error:', error)

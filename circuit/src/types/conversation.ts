@@ -52,6 +52,7 @@ export type BlockType =
   | 'quote'      // Quote block
   | 'list'       // Checklist
   | 'table'      // Table data
+  | 'tool'       // Tool invocation (AI SDK integration)
 
 /**
  * Metadata for different block types
@@ -90,6 +91,15 @@ export interface BlockMetadata {
   // Bookmark
   isBookmarked?: boolean
   bookmarkNote?: string
+
+  // Tool blocks (AI SDK integration)
+  toolName?: string
+  toolCallId?: string
+  type?: string
+  state?: 'input-streaming' | 'input-available' | 'output-available' | 'output-error'
+  args?: Record<string, unknown>
+  result?: unknown
+  error?: unknown
 }
 
 /**

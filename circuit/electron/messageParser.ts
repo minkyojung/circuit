@@ -37,9 +37,13 @@ export type BlockType =
   | 'file'       // File reference
   | 'diff'       // Git diff
   | 'error'      // Error message
+  | 'result'     // Command output
   | 'diagram'    // Mermaid diagram
+  | 'link'       // URL reference
+  | 'quote'      // Quote block
   | 'list'       // Checklist/TODO
-  | 'table';     // Table data
+  | 'table'      // Table data
+  | 'tool';      // Tool invocation (AI SDK integration)
 
 /**
  * Metadata specific to each block type.
@@ -82,6 +86,15 @@ export interface BlockMetadata {
   // Bookmarking
   isBookmarked?: boolean;
   bookmarkNote?: string;
+
+  // Tool blocks (AI SDK integration)
+  toolName?: string;
+  toolCallId?: string;
+  type?: string;
+  state?: 'input-streaming' | 'input-available' | 'output-available' | 'output-error';
+  args?: Record<string, unknown>;
+  result?: unknown;
+  error?: unknown;
 }
 
 /**

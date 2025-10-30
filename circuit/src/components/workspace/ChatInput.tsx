@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useRef, useCallback } from 'react'
-import { ArrowUp, Paperclip, X, Globe, MessageSquare } from 'lucide-react'
+import { ArrowUp, Paperclip, X, Globe } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface ChatInputProps {

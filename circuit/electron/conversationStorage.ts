@@ -28,6 +28,7 @@ export interface Message {
   content: string
   timestamp: number
   metadata?: string // JSON string
+  blocks?: Block[] // Optional blocks array (for real-time streaming)
 }
 
 export interface WorkspaceMetadata {

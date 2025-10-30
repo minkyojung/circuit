@@ -16,8 +16,8 @@
  */
 
 import { nanoid } from 'nanoid'
-import type { Message as AIMessage, ToolInvocation } from 'ai'
-import type { Message, Block, BlockType, BlockMetadata } from '@/types/conversation'
+import type { UIMessage as AIMessage, UIToolInvocation as ToolInvocation } from 'ai'
+import type { Message, Block, BlockMetadata } from '@/types/conversation'
 
 // Note: messageParser is in electron/ folder but we import it here for type conversion
 // This creates a shared parsing logic between frontend and backend

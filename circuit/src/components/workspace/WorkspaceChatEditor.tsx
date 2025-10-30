@@ -3,7 +3,7 @@ import type { Workspace } from '@/types/workspace';
 import type { Message } from '@/types/conversation';
 import Editor, { loader } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
-import { Columns2, Maximize2, Save, ChevronDown, Copy, Check, Brain } from 'lucide-react';
+import { Columns2, Maximize2, Save, ChevronDown, Copy, Check } from 'lucide-react';
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -12,10 +12,10 @@ import {
 import { BlockList } from '@/components/blocks';
 import { ChatInput, type AttachedFile } from './ChatInput';
 import { ChatMessageSkeleton } from '@/components/ui/skeleton';
-import { Reasoning, ReasoningTrigger, ReasoningContent } from '@/components/ai-elements/reasoning';
-import { ThinkingTimeline } from '@/components/reasoning/ThinkingTimeline';
+import { Shimmer } from '@/components/ai-elements/shimmer';
+import { ReasoningAccordion } from '@/components/reasoning/ReasoningAccordion';
 import type { ThinkingStep } from '@/types/thinking';
-import { groupThinkingSteps, summarizeToolUsage } from '@/lib/thinkingUtils';
+import { summarizeToolUsage } from '@/lib/thinkingUtils';
 import { motion, AnimatePresence } from 'motion/react';
 
 // Configure Monaco Editor to use local files instead of CDN
@@ -179,11 +179,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<'sonnet' | 'think' | 'agent'>('sonnet');
   const [isLoadingConversation, setIsLoadingConversation] = useState(true);
-  const [thinkingStep, setThinkingStep] = useState<string>('');
-  const [thinkingDuration, setThinkingDuration] = useState<number>(0);
-  const [pendingUserMessage, setPendingUserMessage] = useState<Message | null>(null);
   const [thinkingSteps, setThinkingSteps] = useState<ThinkingStep[]>([]);
   const [messageThinkingSteps, setMessageThinkingSteps] = useState<Record<string, { steps: ThinkingStep[], duration: number }>>({});
 
@@ -192,6 +188,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const thinkingStartTimeRef = useRef<number>(0);
   const currentStepMessageRef = useRef<string>('Starting analysis');
   const pendingUserMessageRef = useRef<Message | null>(null);
+  const pendingAssistantMessageIdRef = useRef<string | null>(null);
 
   // Scroll state
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -203,9 +200,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   // Reasoning toggle state
   const [openReasoningId, setOpenReasoningId] = useState<string | null>(null);
 
-  // Context area state
-  const [showContext, setShowContext] = useState(false);
-  const [contextMessage, setContextMessage] = useState('');
+  // Real-time duration for in-progress message
+  const [currentDuration, setCurrentDuration] = useState<number>(0);
 
   // Load conversation when workspace changes
   useEffect(() => {
@@ -235,19 +231,27 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         const loadedMessages = messagesResult.messages || [];
 
         console.log('[ChatPanel] Loaded', loadedMessages.length, 'messages');
+        console.log('[DEBUG Problem 3] Loaded message IDs:', loadedMessages.map((m: Message) => ({ id: m.id, role: m.role, preview: m.content.substring(0, 30) })));
         setMessages(loadedMessages);
 
         // 4. Restore thinking steps from message metadata
         const restoredSteps: Record<string, { steps: ThinkingStep[], duration: number }> = {};
         loadedMessages.forEach((msg: Message) => {
-          if (msg.role === 'assistant' && msg.metadata?.thinkingSteps && msg.metadata?.thinkingDuration) {
-            restoredSteps[msg.id] = {
-              steps: msg.metadata.thinkingSteps,
-              duration: msg.metadata.thinkingDuration
-            };
+          if (msg.role === 'assistant' && msg.metadata) {
+            // Parse metadata if it's a string
+            const metadata = typeof msg.metadata === 'string' ? JSON.parse(msg.metadata) : msg.metadata;
+
+            if (metadata.thinkingSteps && metadata.thinkingDuration) {
+              restoredSteps[msg.id] = {
+                steps: metadata.thinkingSteps,
+                duration: metadata.thinkingDuration
+              };
+              console.log('[ChatPanel] Restored thinking steps for message:', msg.id, metadata.duration, 's');
+            }
           }
         });
         setMessageThinkingSteps(restoredSteps);
+        console.log('[ChatPanel] Restored', Object.keys(restoredSteps).length, 'thinking step sets');
       } catch (error) {
         console.error('[ChatPanel] Failed to load conversation:', error);
         // On error, start fresh
@@ -273,16 +277,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   useEffect(() => {
     onConversationChange?.(conversationId);
   }, [conversationId, onConversationChange]);
-
-  // Show/hide context when AI is thinking
-  useEffect(() => {
-    if (isSending) {
-      setContextMessage('Analyzing request...');
-      setShowContext(true);
-    } else {
-      setShowContext(false);
-    }
-  }, [isSending]);
 
   const parseFileChanges = useCallback((response: string): string[] => {
     const files: string[] = [];
@@ -371,53 +365,59 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     }
   }, [messages.length, isAtBottom, scrollToBottom]);
 
-  // Group thinking steps for organized display
-  const groupedThinkingSteps = useMemo(() => {
-    return groupThinkingSteps(thinkingSteps, thinkingStartTimeRef.current);
-  }, [thinkingSteps]);
-
-  // Calculate tool usage summary for completed reasoning
-  const thinkingSummary = useMemo(() => {
-    return summarizeToolUsage(thinkingSteps);
-  }, [thinkingSteps]);
-
   // Listen for thinking steps from Electron
   useEffect(() => {
-    const handleThinkingStart = (event: any, sessionId: string, timestamp: number) => {
+    const handleThinkingStart = (_event: any, sessionId: string, _timestamp: number) => {
       console.log('[WorkspaceChat] 🧠 Thinking started:', sessionId);
 
       // Initialize refs and clear history
       thinkingStartTimeRef.current = Date.now();
       currentStepMessageRef.current = 'Starting analysis';
-      setThinkingDuration(0);
       setThinkingSteps([]); // Clear previous history
+      setCurrentDuration(0); // Reset duration timer
 
-      // Set initial message immediately
-      setThinkingStep('Starting analysis... (0s)');
+      // Create empty assistant message immediately for real-time streaming
+      const pending = pendingUserMessageRef.current;
+      if (pending && conversationId) {
+        const assistantMessageId = `msg-${Date.now()}`;
+        const emptyAssistantMessage: Message = {
+          id: assistantMessageId,
+          conversationId,
+          role: 'assistant',
+          content: '', // Will be filled in by response-complete
+          timestamp: Date.now(),
+          blocks: [], // Will be populated with tool blocks in real-time
+          metadata: {}
+        };
 
-      // Client-side timer: Update every 100ms for smooth UX
+        // Add to messages state immediately
+        setMessages((prev) => [...prev, emptyAssistantMessage]);
+        pendingAssistantMessageIdRef.current = assistantMessageId;
+
+        // Auto-open reasoning dropdown for real-time visibility
+        setOpenReasoningId(assistantMessageId);
+
+        console.log('[WorkspaceChat] ✅ Empty assistant message created:', assistantMessageId);
+      }
+
+      // Client-side timer: Update every 1s for duration display
       thinkingTimerRef.current = setInterval(() => {
         const elapsed = Math.floor((Date.now() - thinkingStartTimeRef.current) / 1000);
-        const message = `${currentStepMessageRef.current}... (${elapsed}s)`;
-
-        // DEBUG: Log timer ticks
-        console.log(`[WorkspaceChat] ⏱️  Timer tick: ${elapsed}s - "${message}"`);
-
-        setThinkingStep(message);
-        setThinkingDuration(elapsed);
-      }, 100);
+        setCurrentDuration(elapsed);
+        console.log(`[WorkspaceChat] ⏱️  Timer tick: ${elapsed}s`);
+      }, 1000);
 
       console.log('[WorkspaceChat] ✅ Timer started');
     };
 
-    const handleMilestone = (event: any, sessionId: string, milestone: any) => {
+    const handleMilestone = (_event: any, _sessionId: string, milestone: any) => {
       console.log('[WorkspaceChat] 📍 Milestone:', milestone);
 
       // Update ref for timer display
       currentStepMessageRef.current = milestone.message;
 
       // Add to history array
-      setThinkingSteps(prev => [...prev, {
+      const newStep = {
         type: milestone.type,
         message: milestone.message,
         timestamp: milestone.timestamp || Date.now(),
@@ -425,28 +425,53 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         filePath: milestone.filePath,
         command: milestone.command,
         pattern: milestone.pattern
-      }]);
+      };
+
+      setThinkingSteps(prev => {
+        const updatedSteps = [...prev, newStep];
+
+        // Update messageThinkingSteps in real-time for the pending assistant message
+        if (pendingAssistantMessageIdRef.current) {
+          const duration = thinkingStartTimeRef.current > 0
+            ? Math.round((Date.now() - thinkingStartTimeRef.current) / 1000)
+            : 0;
+
+          setMessageThinkingSteps((prevSteps) => ({
+            ...prevSteps,
+            [pendingAssistantMessageIdRef.current!]: {
+              steps: updatedSteps,
+              duration
+            }
+          }));
+        }
+
+        return updatedSteps;
+      });
+
+      // Note: Tool blocks are NOT added to msg.blocks
+      // They are only stored in messageThinkingSteps and displayed in ReasoningAccordion
+      // This prevents duplicate rendering (ReasoningAccordion + BlockRenderer)
+      if (milestone.type === 'tool-use' && milestone.tool) {
+        console.log('[WorkspaceChat] 📝 Tool step recorded in ReasoningAccordion only:', milestone.tool);
+      }
     };
 
-    const handleThinkingComplete = (event: any, sessionId: string, stats: any) => {
+    const handleThinkingComplete = (_event: any, sessionId: string, stats: any) => {
       console.log('[WorkspaceChat] ✅ Thinking complete:', stats);
 
-      // Stop timer
+      // Note: No need to update tool blocks since they're not in msg.blocks anymore
+      // Tool execution status is shown in ReasoningAccordion via messageThinkingSteps
+
+      // Stop timer and reset currentDuration
       if (thinkingTimerRef.current) {
         clearInterval(thinkingTimerRef.current);
         thinkingTimerRef.current = null;
+        setCurrentDuration(0);
         console.log('[WorkspaceChat] 🛑 Timer stopped');
       }
-
-      setThinkingDuration(stats.duration);
-      // Keep the last step visible briefly before clearing
-      setTimeout(() => {
-        setThinkingStep('');
-        setThinkingDuration(0);
-      }, 1000);
     };
 
-    const handleResponseComplete = async (event: any, result: any) => {
+    const handleResponseComplete = async (_event: any, result: any) => {
       console.log('[WorkspaceChat] Response complete:', result);
 
       const pending = pendingUserMessageRef.current;
@@ -460,37 +485,109 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         ? Math.round((Date.now() - thinkingStartTimeRef.current) / 1000)
         : 0;
 
-      const assistantMessage: Message = {
-        id: `msg-${Date.now()}`,
-        conversationId: pending.conversationId,
-        role: 'assistant',
-        content: result.message,
-        timestamp: Date.now(),
-        metadata: {
-          thinkingSteps: thinkingSteps,
-          thinkingDuration: duration
-        }
-      };
+      // Get existing assistant message ID (created in handleThinkingStart)
+      let assistantMessageId = pendingAssistantMessageIdRef.current;
 
-      setMessages((prev) => [...prev, assistantMessage]);
-
-      // Save thinking steps to memory
-      setMessageThinkingSteps((prev) => ({
-        ...prev,
-        [assistantMessage.id]: {
-          steps: [...thinkingSteps],
-          duration
-        }
-      }));
-
-      // Save assistant message to database (with thinking steps in metadata)
-      const saveResult = await ipcRenderer.invoke('message:save', assistantMessage);
-      if (saveResult.success && saveResult.blocks) {
+      if (assistantMessageId) {
+        // Update existing assistant message with content
         setMessages((prev) =>
           prev.map((msg) =>
-            msg.id === assistantMessage.id ? { ...msg, blocks: saveResult.blocks } : msg
+            msg.id === assistantMessageId
+              ? {
+                  ...msg,
+                  content: result.message,
+                  metadata: {
+                    thinkingSteps: thinkingSteps,
+                    thinkingDuration: duration
+                  }
+                }
+              : msg
           )
         );
+
+        // Create complete message object for saving
+        // Note: No tool blocks in message body - they're only in ReasoningAccordion
+        const assistantMessage: Message = {
+          id: assistantMessageId,
+          conversationId: pending.conversationId,
+          role: 'assistant',
+          content: result.message,
+          timestamp: Date.now(),
+          metadata: {
+            thinkingSteps: thinkingSteps,
+            thinkingDuration: duration
+          }
+        };
+
+        // Save thinking steps to memory
+        setMessageThinkingSteps((prev) => ({
+          ...prev,
+          [assistantMessageId]: {
+            steps: [...thinkingSteps],
+            duration
+          }
+        }));
+
+        // Save assistant message to database (with thinking steps in metadata)
+        const saveResult = await ipcRenderer.invoke('message:save', assistantMessage);
+        if (saveResult.success && saveResult.blocks) {
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantMessageId ? { ...msg, blocks: saveResult.blocks } : msg
+            )
+          );
+        }
+
+        console.log('[WorkspaceChat] ✅ Assistant message updated with content and blocks');
+      } else {
+        // Fallback: Create new message (shouldn't happen in normal flow)
+        console.warn('[WorkspaceChat] ⚠️ No pending assistant message ID, creating new message');
+
+        const newAssistantMessage: Message = {
+          id: `msg-${Date.now()}`,
+          conversationId: pending.conversationId,
+          role: 'assistant',
+          content: result.message,
+          timestamp: Date.now(),
+          metadata: {
+            thinkingSteps: thinkingSteps,
+            thinkingDuration: duration
+          }
+        };
+
+        // Set assistantMessageId for auto-open reasoning
+        assistantMessageId = newAssistantMessage.id;
+
+        setMessages((prev) => [...prev, newAssistantMessage]);
+
+        // Save thinking steps to memory
+        setMessageThinkingSteps((prev) => ({
+          ...prev,
+          [newAssistantMessage.id]: {
+            steps: [...thinkingSteps],
+            duration
+          }
+        }));
+
+        // Save assistant message to database
+        const saveResult = await ipcRenderer.invoke('message:save', newAssistantMessage);
+        if (saveResult.success && saveResult.blocks) {
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === newAssistantMessage.id ? { ...msg, blocks: saveResult.blocks } : msg
+            )
+          );
+        }
+      }
+
+      // Auto-open reasoning for completed message if it has thinking steps
+      // Use setTimeout to ensure messageThinkingSteps has been updated in the next render
+      const hasThinkingSteps = thinkingSteps.length > 0;
+      if (assistantMessageId && hasThinkingSteps) {
+        setTimeout(() => {
+          setOpenReasoningId(assistantMessageId);
+          console.log('[WorkspaceChat] ✅ Auto-opened reasoning for completed message');
+        }, 100);
       }
 
       // Clear thinking steps for next message
@@ -505,11 +602,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       });
 
       pendingUserMessageRef.current = null;
-      setPendingUserMessage(null);
+      pendingAssistantMessageIdRef.current = null; // Clear ref
       setIsSending(false);
     };
 
-    const handleResponseError = async (event: any, error: any) => {
+    const handleResponseError = async (_event: any, error: any) => {
       console.error('[WorkspaceChat] Response error:', error);
 
       const pending = pendingUserMessageRef.current;
@@ -532,7 +629,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       await ipcRenderer.invoke('message:save', errorMessage);
 
       pendingUserMessageRef.current = null;
-      setPendingUserMessage(null);
       setIsSending(false);
     };
 
@@ -556,9 +652,13 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       ipcRenderer.removeListener('claude:response-complete', handleResponseComplete);
       ipcRenderer.removeListener('claude:response-error', handleResponseError);
     };
-  }, [parseFileChanges, onFileEdit]);
+  }, [conversationId, messages, thinkingSteps, messageThinkingSteps, parseFileChanges, onFileEdit]);
 
   const handleSend = async (inputText: string, attachments: AttachedFile[]) => {
+    console.log('[DEBUG Problem 3] handleSend CALLED with:', inputText);
+    console.log('[DEBUG Problem 3] Current messages.length:', messages.length);
+    console.log('[DEBUG Problem 3] isSending:', isSending, 'sessionId:', sessionId);
+
     if (!inputText.trim() && attachments.length === 0) return;
     if (isSending || !sessionId) return;
 
@@ -606,6 +706,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
     // Optimistic UI update
     setMessages([...messages, userMessage]);
+    console.log('[DEBUG Problem 3] After optimistic update, messages.length:', messages.length + 1);
+    console.log('[DEBUG Problem 3] userMessage.id:', userMessage.id);
+
     const currentInput = inputText;
     setInput('');
     setIsSending(true);
@@ -626,7 +729,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
     // Store pending user message for response handlers
     pendingUserMessageRef.current = userMessage;
-    setPendingUserMessage(userMessage);
 
     // Send message (non-blocking) - response will arrive via event listeners
     console.log('[ChatPanel] Sending message to Claude...');
@@ -648,7 +750,15 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           </div>
         ) : messages.length > 0 ? (
           <div className="space-y-5 max-w-4xl mx-auto">
-            {messages.map((msg) => (
+            {messages
+              .filter((msg) => {
+                // Hide empty assistant messages (during streaming before content arrives)
+                if (msg.role === 'assistant' && !msg.content && (!msg.blocks || msg.blocks.length === 0)) {
+                  return false;
+                }
+                return true;
+              })
+              .map((msg) => (
               <div
                 key={msg.id}
                 data-message-id={msg.id}
@@ -666,13 +776,18 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                   {/* Action bar (Copy + Reasoning) - Always show for assistant */}
                   {msg.role === 'assistant' && (
                     <div className="mb-3 flex items-center justify-between gap-2">
-                      {/* Reasoning button (left) */}
-                      {messageThinkingSteps[msg.id]?.steps?.length > 0 && (
+                      {/* Reasoning button (left) - Show for in-progress or completed messages */}
+                      {(messageThinkingSteps[msg.id]?.steps?.length > 0 || (isSending && msg.id === pendingAssistantMessageIdRef.current)) && (
                         <button
                           onClick={() => setOpenReasoningId(openReasoningId === msg.id ? null : msg.id)}
                           className="flex items-center gap-1 text-base text-muted-foreground/60 hover:text-foreground transition-all"
                         >
-                          <span className="opacity-80 hover:opacity-100">{messageThinkingSteps[msg.id].duration}s • {summarizeToolUsage(messageThinkingSteps[msg.id].steps)}</span>
+                          <span className="opacity-80 hover:opacity-100">
+                            {isSending && msg.id === pendingAssistantMessageIdRef.current
+                              ? `${currentDuration}s • ${summarizeToolUsage(messageThinkingSteps[msg.id]?.steps || [])}`
+                              : `${messageThinkingSteps[msg.id].duration}s • ${summarizeToolUsage(messageThinkingSteps[msg.id].steps)}`
+                            }
+                          </span>
                           <ChevronDown className={`w-4 h-4 opacity-80 transition-transform ${openReasoningId === msg.id ? 'rotate-180' : ''}`} strokeWidth={1.5} />
                         </button>
                       )}
@@ -706,10 +821,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                         className="overflow-hidden"
                       >
                         <div className="mb-3 pl-1">
-                          <ThinkingTimeline
-                            groupedSteps={groupThinkingSteps(messageThinkingSteps[msg.id].steps, 0)}
-                            startTime={0}
-                            isStreaming={false}
+                          <ReasoningAccordion
+                            steps={messageThinkingSteps[msg.id].steps}
                           />
                         </div>
                       </motion.div>
@@ -717,6 +830,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                   </AnimatePresence>
 
                   {/* Block-based rendering with fallback */}
+                  {/* DEBUG: Log message content for Problem 2 investigation */}
+                  {msg.role === 'assistant' && console.log('[DEBUG Problem 2] msg.content:', msg.content)}
+
                   {msg.blocks && msg.blocks.length > 0 ? (
                     <BlockList
                       blocks={msg.blocks}
@@ -799,14 +915,16 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 </div>
               </div>
             ))}
-            {isSending && (
-              <div className="my-3">
-                <ThinkingTimeline
-                  groupedSteps={groupedThinkingSteps}
-                  startTime={thinkingStartTimeRef.current}
-                  isStreaming={true}
-                  className="pl-1"
-                />
+            {isSending && thinkingSteps.length === 0 && (
+              <div className="flex justify-start my-3">
+                <div className="max-w-[75%] w-full">
+                  {/* Initial loading state with Shimmer */}
+                  <div className="space-y-2 pl-1">
+                    <Shimmer duration={2} className="text-sm text-muted-foreground">
+                      Analyzing your request...
+                    </Shimmer>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -948,16 +1066,16 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
   return (
     <div className="h-full flex flex-col">
       {/* Editor Header */}
-      <div className="h-[50px] border-b border-[#333] flex items-center justify-between px-4">
+      <div className="h-[50px] border-b border-border flex items-center justify-between px-4">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium">Editor</span>
           {activeFile && (
             <>
-              <span className="text-xs text-[#666]">
+              <span className="text-xs text-muted-foreground">
                 {activeFile}
               </span>
               {hasUnsavedChanges && (
-                <span className="text-xs text-[#FFA500]">• (unsaved)</span>
+                <span className="text-xs text-warning">• (unsaved)</span>
               )}
             </>
           )}
@@ -969,7 +1087,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
             <button
               onClick={handleSaveFile}
               disabled={isSaving}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-[#4CAF50] hover:bg-[#45a049] disabled:bg-[#333] disabled:cursor-not-allowed text-white rounded transition-colors"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-success hover:bg-success/90 disabled:bg-secondary disabled:cursor-not-allowed text-white rounded transition-colors"
               title="Save file (Cmd+S)"
             >
               <Save size={14} />
@@ -981,7 +1099,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
           {onToggleSplit && (
             <button
               onClick={onToggleSplit}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-[#666] hover:text-white hover:bg-[#333] rounded transition-colors"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-secondary rounded transition-colors"
               title={isSplitMode ? "Hide chat" : "Show chat"}
             >
               {isSplitMode ? (
@@ -1001,7 +1119,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
       </div>
 
       {/* Editor Content */}
-      <div className="flex-1 flex items-center justify-center text-[#666]">
+      <div className="flex-1 flex items-center justify-center text-muted-foreground">
         {!activeFile ? (
           <div className="text-center">
             <p>No files open</p>
@@ -1011,7 +1129,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
           <div className="w-full h-full flex flex-col">
             {isLoadingFile ? (
               <div className="flex-1 flex items-center justify-center">
-                <div className="text-sm text-[#666]">Loading {activeFile}...</div>
+                <div className="text-sm text-muted-foreground">Loading {activeFile}...</div>
               </div>
             ) : (
               <Editor
