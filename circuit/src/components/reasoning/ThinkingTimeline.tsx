@@ -117,19 +117,19 @@ export const ThinkingTimeline: React.FC<ThinkingTimelineProps> = ({
     return (
       <div className={className}>
         {/* Summary sentence */}
-        <div className="text-xs text-muted-foreground/70 mb-3 leading-relaxed">
+        <div className="text-xs text-muted-foreground/70 mb-4 leading-relaxed">
           {summary}
         </div>
 
         {/* Sections */}
-        <div className="space-y-4">
+        <div className="space-y-6">
           {sections.map((section, idx) => (
             <Section key={idx} section={section} />
           ))}
         </div>
 
         {/* Finished marker */}
-        <div className="mt-3 text-xs text-muted-foreground/50">
+        <div className="mt-4 text-xs text-muted-foreground/50">
           Finished
         </div>
       </div>
@@ -164,12 +164,12 @@ const Section: React.FC<SectionProps> = ({ section }) => {
   if (section.type === 'searching') {
     return (
       <div className="space-y-2">
-        <div className="text-xs font-medium text-foreground/80">{section.label}</div>
+        <div className="text-sm font-medium text-foreground/80">{section.label}</div>
         <div className="flex flex-wrap gap-2">
           {section.steps.map((step, idx) => (
             <div
               key={idx}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-secondary/40 text-xs text-muted-foreground/80"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-secondary/50 text-xs text-muted-foreground/80"
             >
               <Search className="w-3 h-3" strokeWidth={2} />
               <span>{step.pattern || 'searching'}</span>
@@ -184,7 +184,7 @@ const Section: React.FC<SectionProps> = ({ section }) => {
   if (section.type === 'reading') {
     return (
       <div className="space-y-2">
-        <div className="text-xs font-medium text-foreground/80">{section.label}</div>
+        <div className="text-sm font-medium text-foreground/80">{section.label}</div>
         <div className="space-y-1.5">
           {section.steps.map((step, idx) => {
             const fileName = step.filePath?.split('/').pop() || 'file';
@@ -193,7 +193,7 @@ const Section: React.FC<SectionProps> = ({ section }) => {
             return (
               <div
                 key={idx}
-                className="flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-secondary/20 hover:bg-secondary/30 transition-colors"
+                className="flex items-center gap-2 px-3 py-2 rounded-md bg-secondary/30 hover:bg-secondary/40 transition-colors"
                 title={fullPath}
               >
                 <FileText className="w-3 h-3 text-muted-foreground/60 flex-shrink-0" strokeWidth={2} />
@@ -209,7 +209,7 @@ const Section: React.FC<SectionProps> = ({ section }) => {
   // For other types, show as simple list
   return (
     <div className="space-y-2">
-      <div className="text-xs font-medium text-foreground/80">{section.label}</div>
+      <div className="text-sm font-medium text-foreground/80">{section.label}</div>
       <div className="space-y-1.5">
         {section.steps.map((step, idx) => {
           const Icon = section.type === 'thinking' ? Brain : Terminal;
@@ -218,7 +218,7 @@ const Section: React.FC<SectionProps> = ({ section }) => {
           return (
             <div
               key={idx}
-              className="flex items-start gap-2 px-2.5 py-1.5 rounded-md bg-secondary/20"
+              className="flex items-start gap-2 px-3 py-2 rounded-md bg-secondary/30"
             >
               <Icon className="w-3 h-3 text-muted-foreground/60 flex-shrink-0 mt-0.5" strokeWidth={2} />
               <span className="text-xs text-muted-foreground/70 leading-relaxed break-words">
