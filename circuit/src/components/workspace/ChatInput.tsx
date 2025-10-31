@@ -6,9 +6,10 @@
  */
 
 import React, { useState, useRef, useCallback } from 'react'
-import { ArrowUp, Paperclip, X, Globe } from 'lucide-react'
+import { ArrowUp, Paperclip, X, Globe, ChevronDown, ChevronUp } from 'lucide-react'
 import { toast } from 'sonner'
 import { useSettingsContext } from '@/contexts/SettingsContext'
+import { AnimatePresence, motion } from 'framer-motion'
 
 interface ChatInputProps {
   value: string
@@ -217,47 +218,68 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     <div className={`${INPUT_STYLES.container.maxWidth} mx-auto`}>
       {/* Input Card - Floating */}
       <div className="relative w-full flex flex-col border-2 border-border rounded-3xl bg-muted shadow-lg">
-          {/* Attached Files Preview */}
-          {attachedFiles.length > 0 && (
-            <div className="px-4 pt-4 pb-3 border-b border-border">
-              <div className="flex flex-wrap gap-2">
-                {attachedFiles.map((file) => (
-                  <div
-                    key={file.id}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-secondary/50 text-sm"
-                  >
-                    {file.type.startsWith('image/') ? (
-                      <img
-                        src={file.url}
-                        alt={file.name}
-                        className="w-6 h-6 rounded object-cover"
-                      />
-                    ) : (
-                      <Paperclip className="w-4 h-4 text-muted-foreground" />
-                    )}
-                    <span className="max-w-[150px] truncate">{file.name}</span>
-                    <button
-                      onClick={() => handleRemoveFile(file.id)}
-                      className="hover:text-destructive transition-colors"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Context Button (placeholder for future) */}
+          {/* Context Section - Expandable */}
           {showControls && (
-            <div className="px-4 pt-4 pb-1">
-              <button
-                className={`inline-flex items-center gap-1.5 ${INPUT_STYLES.addContext.button} rounded-full border border-border/40 text-muted-foreground hover:bg-secondary/50 hover:text-foreground transition-colors`}
-                disabled
-              >
-                <span className="text-xs">@</span>
-                <span>Add context</span>
-              </button>
+            <div className="overflow-hidden">
+              {/* Add Context Button */}
+              <div className="px-4 pt-4 pb-1">
+                <button
+                  className={`inline-flex items-center gap-1.5 ${INPUT_STYLES.addContext.button} rounded-full border border-border/40 text-muted-foreground hover:bg-secondary/50 hover:text-foreground transition-colors`}
+                  disabled
+                >
+                  <span className="text-xs">@</span>
+                  <span>Add context</span>
+                  {attachedFiles.length > 0 && (
+                    <ChevronUp className="w-3 h-3 ml-1" />
+                  )}
+                </button>
+              </div>
+
+              {/* Expandable Attached Files - Animated */}
+              <AnimatePresence>
+                {attachedFiles.length > 0 && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2, ease: 'easeInOut' }}
+                    className="overflow-hidden"
+                  >
+                    <div className="px-4 pt-2 pb-3">
+                      <div className="flex flex-wrap gap-2">
+                        {attachedFiles.map((file) => (
+                          <div
+                            key={file.id}
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-secondary/50 text-sm"
+                          >
+                            {file.type.startsWith('image/') ? (
+                              <img
+                                src={file.url}
+                                alt={file.name}
+                                className="w-6 h-6 rounded object-cover"
+                              />
+                            ) : (
+                              <Paperclip className="w-4 h-4 text-muted-foreground" />
+                            )}
+                            <span className="max-w-[150px] truncate">{file.name}</span>
+                            <button
+                              onClick={() => handleRemoveFile(file.id)}
+                              className="hover:text-destructive transition-colors"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Border separator only when files exist */}
+              {attachedFiles.length > 0 && (
+                <div className="border-b border-border" />
+              )}
             </div>
           )}
 
