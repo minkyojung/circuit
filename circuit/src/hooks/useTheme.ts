@@ -1,17 +1,15 @@
 import { useEffect, useState } from 'react';
-
-type Theme = 'light' | 'dark' | 'system';
+import { useSettingsContext } from '@/contexts/SettingsContext';
+import type { ThemeMode } from '@/types/settings';
 
 /**
- * Custom hook for managing theme state with localStorage persistence
+ * Custom hook for managing theme state integrated with settings system
  * Supports light, dark, and system preference modes
+ * Now uses the unified settings context instead of direct localStorage
  */
 export function useTheme() {
-  const [theme, setTheme] = useState<Theme>(() => {
-    // Check localStorage first
-    const stored = localStorage.getItem('circuit-theme') as Theme;
-    return stored || 'system';
-  });
+  const { settings, updateSetting } = useSettingsContext();
+  const theme = settings.theme.mode;
 
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('light');
 
@@ -29,9 +27,6 @@ export function useTheme() {
 
     // Update resolved theme state
     setResolvedTheme(effectiveTheme);
-
-    // Persist to localStorage
-    localStorage.setItem('circuit-theme', theme);
   }, [theme]);
 
   // Listen to system theme changes when in system mode
@@ -51,16 +46,21 @@ export function useTheme() {
     return () => mediaQuery.removeEventListener('change', handleChange);
   }, [theme]);
 
+  const setTheme = (newTheme: ThemeMode) => {
+    updateSetting('theme', 'mode', newTheme);
+  };
+
   return {
     theme,
     resolvedTheme,
     setTheme,
     toggleTheme: () => {
-      setTheme((current) => {
-        if (current === 'light') return 'dark';
-        if (current === 'dark') return 'system';
-        return 'light';
-      });
+      const current = theme;
+      let next: ThemeMode;
+      if (current === 'light') next = 'dark';
+      else if (current === 'dark') next = 'system';
+      else next = 'light';
+      setTheme(next);
     },
   };
 }
