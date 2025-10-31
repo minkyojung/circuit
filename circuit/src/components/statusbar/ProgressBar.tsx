@@ -24,7 +24,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
   return (
     <div className={cn("flex items-center gap-2", className)}>
       {/* Progress bar */}
-      <div className="relative h-1.5 flex-1 bg-white/10 rounded-full overflow-hidden">
+      <div className="relative h-1.5 flex-1 bg-[var(--state-hover)] rounded-full overflow-hidden">
         <div
           className={cn(
             "h-full transition-all duration-300 rounded-full",
@@ -37,7 +37,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
 
       {/* Percentage label */}
       {showLabel && (
-        <span className="text-[10px] font-mono text-white/70 min-w-[32px] text-right">
+        <span className="text-[10px] font-mono text-[var(--label-secondary)] min-w-[32px] text-right">
           {percentage.toFixed(0)}%
         </span>
       )}

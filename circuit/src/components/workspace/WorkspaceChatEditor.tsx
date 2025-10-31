@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type { Workspace } from '@/types/workspace';
 import type { Message } from '@/types/conversation';
 import Editor, { loader } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
-import { Columns2, Maximize2, Save, ChevronDown, Copy, Check } from 'lucide-react';
+import { Columns2, Maximize2, Save, ChevronDown, Copy, Check, Paperclip } from 'lucide-react';
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -479,7 +479,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       }
   }, []);
 
-  const handleThinkingComplete = useCallback((_event: any, sessionId: string, stats: any) => {
+  const handleThinkingComplete = useCallback((_event: any, _sessionId: string, stats: any) => {
       console.log('[WorkspaceChat] ✅ Thinking complete:', stats);
 
       // Note: No need to update tool blocks since they're not in msg.blocks anymore
@@ -546,7 +546,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         // Save thinking steps to memory
         setMessageThinkingSteps((prev) => ({
           ...prev,
-          [assistantMessageId]: {
+          [assistantMessageId!]: {
             steps: [...currentThinkingSteps],
             duration
           }
@@ -710,14 +710,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       }
     }
 
-    // Build content with attachments
-    let content = inputText;
-    if (attachments.length > 0) {
-      content += '\n\nAttached files:\n';
-      attachments.forEach(file => {
-        content += `- ${file.name} (${(file.size / 1024).toFixed(1)}KB)\n`;
-      });
-    }
+    // Build content - no need to include file list in content anymore
+    const content = inputText;
 
     const userMessage: Message = {
       id: `msg-${Date.now()}`,
@@ -726,7 +720,12 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       content,
       timestamp: Date.now(),
       metadata: {
-        files: attachments.map(f => f.name),
+        attachments: attachments.map(f => ({
+          id: f.id,
+          name: f.name,
+          type: f.type,
+          size: f.size,
+        })),
       },
     };
 
@@ -758,7 +757,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
     // Send message (non-blocking) - response will arrive via event listeners
     console.log('[ChatPanel] Sending message to Claude...');
-    ipcRenderer.send('claude:send-message', sessionId, currentInput);
+    console.log('[ChatPanel] Attachments:', attachments);
+    ipcRenderer.send('claude:send-message', sessionId, currentInput, attachments);
   };
 
   return (
@@ -803,6 +803,47 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                       : ''
                   }`}
                 >
+                  {/* Attachment pills - Only for user messages with attachments */}
+                  {msg.role === 'user' && msg.metadata?.attachments && msg.metadata.attachments.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {msg.metadata.attachments.map((file: any) => {
+                        // Extract file extension
+                        const extension = file.name.split('.').pop()?.toUpperCase() || 'FILE';
+                        const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
+
+                        return (
+                          <div
+                            key={file.id}
+                            className="group flex items-center gap-2 pl-2 pr-2 py-2 rounded-xl bg-card transition-all"
+                          >
+                            {/* Icon/Thumbnail - Vertical rectangle */}
+                            <div className="flex-shrink-0">
+                              {file.type.startsWith('image/') ? (
+                                <div className="w-6 h-[30px] rounded-md bg-black flex items-center justify-center">
+                                  <Paperclip className="w-3 h-3 text-muted-foreground" />
+                                </div>
+                              ) : (
+                                <div className="w-6 h-[30px] rounded-md bg-black flex items-center justify-center">
+                                  <Paperclip className="w-3 h-3 text-muted-foreground" />
+                                </div>
+                              )}
+                            </div>
+
+                            {/* File info - Vertical layout with spacing */}
+                            <div className="flex flex-col justify-center min-w-0 gap-1">
+                              <span className="text-sm font-light text-foreground max-w-[160px] truncate leading-tight">
+                                {nameWithoutExt}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground font-medium leading-tight">
+                                {extension}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
                   {/* Action bar (Copy + Reasoning) - Always show for assistant */}
                   {msg.role === 'assistant' && (
                     <div className="mb-3 flex items-center justify-between gap-2">
@@ -841,28 +882,33 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                   )}
 
                   {/* Reasoning content (collapsible) - Above message content */}
-                  <AnimatePresence>
-                    {msg.role === 'assistant' && openReasoningId === msg.id && messageThinkingSteps[msg.id]?.steps?.length > 0 && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.2, ease: 'easeInOut' }}
-                        className="overflow-hidden"
-                      >
-                        <div className="mb-3 pl-1">
-                          <ReasoningAccordion
-                            steps={messageThinkingSteps[msg.id].steps}
-                          />
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                  {(() => {
+                    const shouldShowReasoning = msg.role === 'assistant' && 
+                      openReasoningId === msg.id && 
+                      (messageThinkingSteps[msg.id]?.steps?.length ?? 0) > 0;
+                    
+                    if (!shouldShowReasoning) return null;
+                    
+                    return (
+                      <AnimatePresence>
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.2, ease: 'easeInOut' }}
+                          className="overflow-hidden"
+                        >
+                          <div className="mb-3 pl-1">
+                            <ReasoningAccordion
+                              steps={messageThinkingSteps[msg.id].steps}
+                            />
+                          </div>
+                        </motion.div>
+                      </AnimatePresence>
+                    );
+                  })()}
 
                   {/* Block-based rendering with fallback */}
-                  {/* DEBUG: Log message content for Problem 2 investigation */}
-                  {msg.role === 'assistant' && console.log('[DEBUG Problem 2] msg.content:', msg.content)}
-
                   {msg.blocks && msg.blocks.length > 0 ? (
                     <BlockList
                       blocks={msg.blocks}

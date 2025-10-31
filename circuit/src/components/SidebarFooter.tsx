@@ -3,6 +3,7 @@ import { Settings, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { ThemeToggle } from './ThemeToggle';
+import { SettingsDialog } from './SettingsDialog';
 import {
   Dialog,
   DialogContent,
@@ -10,12 +11,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
 
 interface SidebarFooterProps {
   className?: string;
@@ -78,206 +77,11 @@ export const SidebarFooter: React.FC<SidebarFooterProps> = ({ className }) => {
         </motion.button>
       </div>
 
-      {/* Settings Modal */}
-      <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
-        <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Settings</DialogTitle>
-            <DialogDescription>
-              Manage your preferences and application settings
-            </DialogDescription>
-          </DialogHeader>
-
-          <Tabs defaultValue="general" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="general">General</TabsTrigger>
-              <TabsTrigger value="editor">Editor</TabsTrigger>
-              <TabsTrigger value="git">Git</TabsTrigger>
-              <TabsTrigger value="advanced">Advanced</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="general" className="space-y-4">
-              <div className="space-y-4">
-                <h4 className="text-sm font-medium">General Settings</h4>
-
-                <div className="space-y-2">
-                  <Label htmlFor="workspace-path">Default Workspace Path</Label>
-                  <Input
-                    id="workspace-path"
-                    placeholder="/Users/you/projects"
-                    className="font-mono text-sm"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="auto-save">Auto-save</Label>
-                  <select
-                    id="auto-save"
-                    className="w-full px-3 py-2 rounded-md border border-input bg-background"
-                  >
-                    <option value="off">Off</option>
-                    <option value="afterDelay">After Delay</option>
-                    <option value="onFocusChange">On Focus Change</option>
-                  </select>
-                </div>
-
-                <Separator />
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Show line numbers</Label>
-                    <p className="text-sm text-muted-foreground">Display line numbers in editor</p>
-                  </div>
-                  <input type="checkbox" defaultChecked className="h-4 w-4" />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Word wrap</Label>
-                    <p className="text-sm text-muted-foreground">Wrap long lines</p>
-                  </div>
-                  <input type="checkbox" className="h-4 w-4" />
-                </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="editor" className="space-y-4">
-              <div className="space-y-4">
-                <h4 className="text-sm font-medium">Editor Settings</h4>
-
-                <div className="space-y-2">
-                  <Label htmlFor="font-size">Font Size</Label>
-                  <Input
-                    id="font-size"
-                    type="number"
-                    defaultValue="14"
-                    min="10"
-                    max="24"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="tab-size">Tab Size</Label>
-                  <Input
-                    id="tab-size"
-                    type="number"
-                    defaultValue="2"
-                    min="1"
-                    max="8"
-                  />
-                </div>
-
-                <Separator />
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Format on save</Label>
-                    <p className="text-sm text-muted-foreground">Automatically format code when saving</p>
-                  </div>
-                  <input type="checkbox" defaultChecked className="h-4 w-4" />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Auto closing brackets</Label>
-                    <p className="text-sm text-muted-foreground">Automatically close brackets and quotes</p>
-                  </div>
-                  <input type="checkbox" defaultChecked className="h-4 w-4" />
-                </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="git" className="space-y-4">
-              <div className="space-y-4">
-                <h4 className="text-sm font-medium">Git Settings</h4>
-
-                <div className="space-y-2">
-                  <Label htmlFor="git-name">User Name</Label>
-                  <Input
-                    id="git-name"
-                    placeholder="Your Name"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="git-email">Email</Label>
-                  <Input
-                    id="git-email"
-                    type="email"
-                    placeholder="your.email@example.com"
-                  />
-                </div>
-
-                <Separator />
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Auto fetch</Label>
-                    <p className="text-sm text-muted-foreground">Automatically fetch from remote</p>
-                  </div>
-                  <input type="checkbox" defaultChecked className="h-4 w-4" />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Confirm before push</Label>
-                    <p className="text-sm text-muted-foreground">Ask for confirmation before pushing</p>
-                  </div>
-                  <input type="checkbox" defaultChecked className="h-4 w-4" />
-                </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="advanced" className="space-y-4">
-              <div className="space-y-4">
-                <h4 className="text-sm font-medium">Advanced Settings</h4>
-
-                <div className="space-y-2">
-                  <Label htmlFor="max-files">Maximum Files to Watch</Label>
-                  <Input
-                    id="max-files"
-                    type="number"
-                    defaultValue="10000"
-                  />
-                </div>
-
-                <Separator />
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Enable telemetry</Label>
-                    <p className="text-sm text-muted-foreground">Help improve Conductor by sending usage data</p>
-                  </div>
-                  <input type="checkbox" className="h-4 w-4" />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Developer mode</Label>
-                    <p className="text-sm text-muted-foreground">Enable advanced debugging features</p>
-                  </div>
-                  <input type="checkbox" className="h-4 w-4" />
-                </div>
-
-                <Separator />
-
-                <Button variant="outline" className="w-full">
-                  Reset All Settings
-                </Button>
-              </div>
-            </TabsContent>
-          </Tabs>
-
-          <div className="flex justify-end gap-2 pt-4">
-            <Button variant="outline" onClick={() => setIsSettingsOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => setIsSettingsOpen(false)}>
-              Save Changes
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Settings Dialog - New Comprehensive Settings */}
+      <SettingsDialog
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+      />
 
       {/* Feedback Modal */}
       <Dialog open={isFeedbackOpen} onOpenChange={setIsFeedbackOpen}>

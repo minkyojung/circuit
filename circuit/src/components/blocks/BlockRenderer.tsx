@@ -94,7 +94,7 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
     case 'result':
       return renderWithBlockId(
         <div className="rounded border border-green-500/30 bg-green-500/5 p-3">
-          <div className="mb-1 text-xs text-green-600 dark:text-green-400">Output:</div>
+          <div className="mb-1 text-xs text-[var(--success)]">Output:</div>
           <pre className="whitespace-pre-wrap font-mono text-sm text-foreground">
             {block.content}
           </pre>

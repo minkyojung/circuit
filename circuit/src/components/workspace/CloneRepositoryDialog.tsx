@@ -37,7 +37,7 @@ export const CloneRepositoryDialog: React.FC<CloneRepositoryDialogProps> = ({
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/50 z-50"
+        className="fixed inset-0 bg-[var(--overlay-backdrop)] z-50"
         onClick={handleCancel}
       />
 

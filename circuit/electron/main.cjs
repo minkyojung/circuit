@@ -2513,7 +2513,7 @@ ipcMain.handle('claude:start-session', async (event, workspacePath) => {
 /**
  * Send message to Claude and get response
  */
-ipcMain.on('claude:send-message', async (event, sessionId, userMessage) => {
+ipcMain.on('claude:send-message', async (event, sessionId, userMessage, attachments = []) => {
   try {
     const session = activeSessions.get(sessionId);
 
@@ -2528,11 +2528,80 @@ ipcMain.on('claude:send-message', async (event, sessionId, userMessage) => {
 
     console.log('[Claude] Sending message to session:', sessionId);
     console.log('[Claude] Message:', userMessage);
+    console.log('[Claude] Attachments:', attachments.length);
+
+    // Build multimodal content array
+    const content = [];
+
+    // Add text message
+    if (userMessage && userMessage.trim()) {
+      content.push({
+        type: 'text',
+        text: userMessage
+      });
+    }
+
+    // Process attachments
+    for (const file of attachments) {
+      console.log('[Claude] Processing attachment:', file.name, file.type);
+
+      if (file.type.startsWith('image/')) {
+        // Image attachment - extract base64 from data URL
+        const base64Match = file.url.match(/^data:([^;]+);base64,(.+)$/);
+        if (base64Match) {
+          const mediaType = base64Match[1];
+          const base64Data = base64Match[2];
+
+          content.push({
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: mediaType,
+              data: base64Data
+            }
+          });
+          console.log('[Claude] Added image attachment:', file.name);
+        }
+
+      } else if (file.type === 'application/pdf') {
+        // PDF attachment - extract base64 from data URL
+        const base64Match = file.url.match(/^data:([^;]+);base64,(.+)$/);
+        if (base64Match) {
+          const base64Data = base64Match[2];
+
+          content.push({
+            type: 'document',
+            source: {
+              type: 'base64',
+              media_type: 'application/pdf',
+              data: base64Data
+            }
+          });
+          console.log('[Claude] Added PDF attachment:', file.name);
+        }
+
+      } else if (file.type.startsWith('text/')) {
+        // Text file - decode from data URL
+        const base64Match = file.url.match(/^data:([^;]+);base64,(.+)$/);
+        if (base64Match) {
+          const base64Data = base64Match[2];
+          const textContent = Buffer.from(base64Data, 'base64').toString('utf-8');
+
+          content.push({
+            type: 'text',
+            text: `\n\n<file name="${file.name}">\n${textContent}\n</file>`
+          });
+          console.log('[Claude] Added text file attachment:', file.name);
+        }
+      }
+    }
+
+    console.log('[Claude] Built content with', content.length, 'blocks');
 
     // Add user message to history
     session.messages.push({
       role: 'user',
-      content: userMessage
+      content: content.length === 1 ? content[0].text : content
     });
 
     // Spawn Claude CLI with STREAMING enabled
@@ -2548,10 +2617,10 @@ ipcMain.on('claude:send-message', async (event, sessionId, userMessage) => {
       stdio: ['pipe', 'pipe', 'pipe']
     });
 
-    // Send message
+    // Send message with multimodal content
     const input = JSON.stringify({
       role: 'user',
-      content: userMessage
+      content: content.length === 1 ? content[0].text : content
     });
 
     claude.stdin.write(input);

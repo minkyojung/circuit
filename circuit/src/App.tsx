@@ -24,6 +24,9 @@ import { FolderGit2, PanelLeft, PanelRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
+import { SettingsProvider } from '@/contexts/SettingsContext'
+import { CompactBanner } from '@/components/CompactBanner'
+import { CompactUrgentModal } from '@/components/CompactUrgentModal'
 import { Toaster } from 'sonner'
 import './App.css'
 
@@ -199,8 +202,9 @@ function App() {
   })
 
   return (
-    <ProjectPathContext.Provider value={{ projectPath, isLoading: isLoadingPath }}>
-      <div
+    <SettingsProvider>
+      <ProjectPathContext.Provider value={{ projectPath, isLoading: isLoadingPath }}>
+        <div
         className="h-screen overflow-hidden backdrop-blur-xl flex"
         style={{
           backgroundColor: 'var(--window-glass)'
@@ -219,6 +223,12 @@ function App() {
           "bg-card transition-[border-radius] duration-300",
           isRightSidebarOpen && "rounded-r-xl"
         )}>
+          {/* Compact Warning Banner */}
+          <CompactBanner
+            workspaceId={selectedWorkspace?.id}
+            workspacePath={selectedWorkspace?.path}
+          />
+
           {/* Main Header with Breadcrumb */}
           <header
             className="flex h-[44px] shrink-0 items-center gap-2 border-b border-border px-4"
@@ -368,6 +378,12 @@ function App() {
         onCreateWorkspace={handleCreateWorkspace}
       />
 
+      {/* Compact Urgent Modal */}
+      <CompactUrgentModal
+        workspaceId={selectedWorkspace?.id}
+        workspacePath={selectedWorkspace?.path}
+      />
+
       {/* Toast Notifications */}
       <Toaster
         position="bottom-right"
@@ -379,7 +395,8 @@ function App() {
         }}
       />
       </div>
-    </ProjectPathContext.Provider>
+      </ProjectPathContext.Provider>
+    </SettingsProvider>
   )
 }
 

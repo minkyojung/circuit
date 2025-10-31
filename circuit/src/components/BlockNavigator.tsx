@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { Code, Terminal, FileText, GitCompare, RefreshCw, Search, X, MessageSquare, User, Bot } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Block, BlockType, Message } from '@/types/conversation'
@@ -18,7 +18,7 @@ interface BlockNavigatorProps {
 
 type FilterType = BlockType | 'all' | 'messages'
 
-export function BlockNavigator({ isOpen, onClose, conversationId }: BlockNavigatorProps) {
+export function BlockNavigator({ isOpen: _isOpen, onClose: _onClose, conversationId }: BlockNavigatorProps) {
   const [blocks, setBlocks] = useState<Block[]>([])
   const [messages, setMessages] = useState<Message[]>([])
   const [filteredBlocks, setFilteredBlocks] = useState<Block[]>([])
@@ -69,15 +69,6 @@ export function BlockNavigator({ isOpen, onClose, conversationId }: BlockNavigat
     }
   }, [blocks, messages, selectedType, searchQuery])
 
-  // Calculate block counts by type
-  const blockCounts = useMemo(() => {
-    return {
-      all: blocks.length,
-      code: blocks.filter(b => b.type === 'code').length,
-      command: blocks.filter(b => b.type === 'command').length,
-      diff: blocks.filter(b => b.type === 'diff').length,
-    }
-  }, [blocks])
 
   const loadData = async () => {
     if (!conversationId) return
@@ -299,7 +290,7 @@ export function BlockNavigator({ isOpen, onClose, conversationId }: BlockNavigat
             </div>
           ) : (
             <div className="flex flex-col gap-0.5">
-              {filteredMessages.map((message, index) => (
+              {filteredMessages.map((message) => (
                 <div
                   key={message.id}
                   className={cn(

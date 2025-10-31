@@ -22,7 +22,7 @@ export const MetricSection: React.FC<MetricSectionProps> = ({
       {/* Icon + Label */}
       <div className="flex items-center gap-1.5 min-w-[80px]">
         <span className="text-xs opacity-80">{icon}</span>
-        <span className="text-[10px] font-medium text-white/70">{label}</span>
+        <span className="text-[10px] font-medium text-[var(--label-secondary)]">{label}</span>
       </div>
 
       {/* Progress bar */}
@@ -33,7 +33,7 @@ export const MetricSection: React.FC<MetricSectionProps> = ({
 
       {/* Optional detail */}
       {detail && (
-        <span className="text-[9px] text-white/50 min-w-[60px] text-right">
+        <span className="text-[9px] text-[var(--label-tertiary)] min-w-[60px] text-right">
           {detail}
         </span>
       )}

@@ -16,13 +16,62 @@
  */
 
 import { nanoid } from 'nanoid'
-import type { UIMessage as AIMessage, UIToolInvocation as ToolInvocation } from 'ai'
+import type { UIMessage as BaseUIMessage } from 'ai'
 import type { Message, Block, BlockMetadata } from '@/types/conversation'
 
 // Note: messageParser is in electron/ folder but we import it here for type conversion
 // This creates a shared parsing logic between frontend and backend
 // TODO: Consider moving shared parsing logic to src/lib/ in the future
 import type { ParseResult } from '../../electron/messageParser'
+
+// ============================================================================
+// AI SDK v5 Type Adapters
+// ============================================================================
+
+/**
+ * AI SDK v5 changed UIMessage structure from having `content` and `toolInvocations`
+ * to using a `parts` array. These helper types and functions maintain compatibility.
+ */
+type AIMessage = BaseUIMessage<unknown, any, any>
+
+/**
+ * Internal tool invocation type for compatibility
+ * Bridges between v5 tool parts and our internal representation
+ */
+interface InternalToolInvocation {
+  toolCallId: string
+  toolName: string
+  state: 'input-streaming' | 'input-available' | 'output-available' | 'output-error'
+  args: any
+  result?: any
+}
+
+/**
+ * Extract text content from AI SDK v5 message parts
+ */
+function getMessageContent(message: AIMessage): string {
+  return message.parts
+    .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+    .map(part => part.text)
+    .join('\n\n')
+}
+
+/**
+ * Extract tool invocations from AI SDK v5 message parts
+ */
+function getToolInvocations(message: AIMessage): InternalToolInvocation[] {
+  return message.parts
+    .filter((part: any) =>
+      typeof part.type === 'string' && (part.type.startsWith('tool-') || part.type === 'dynamic-tool')
+    )
+    .map((part: any) => ({
+      toolCallId: part.toolCallId,
+      toolName: part.toolName || part.type.replace('tool-', ''),
+      state: part.state,
+      args: part.input,
+      ...(part.state === 'output-available' && { result: part.output }),
+    } as InternalToolInvocation))
+}
 
 // We'll need to handle parsing differently since electron code can't be imported directly
 // For now, we'll inline a simplified version of the parsing logic
@@ -150,7 +199,7 @@ function parseMessageToBlocks(content: string, messageId: string): ParseResult {
 /**
  * Check if a tool invocation has a result
  */
-function hasToolResult(tool: ToolInvocation): tool is ToolInvocation & { result: unknown } {
+function hasToolResult(tool: InternalToolInvocation): tool is InternalToolInvocation & { result: unknown } {
   return 'result' in tool && tool.result !== undefined
 }
 
@@ -179,14 +228,15 @@ function hasToolResult(tool: ToolInvocation): tool is ToolInvocation & { result:
  */
 export function aiMessageToBlocks(
   aiMessage: AIMessage,
-  conversationId: string
+  _conversationId: string
 ): Block[] {
   const blocks: Block[] = []
   let order = 0
 
   // 1. Convert text content to blocks
-  if (aiMessage.content && typeof aiMessage.content === 'string') {
-    const parsed = parseMessageToBlocks(aiMessage.content, aiMessage.id)
+  const content = getMessageContent(aiMessage)
+  if (content) {
+    const parsed = parseMessageToBlocks(content, aiMessage.id)
 
     // Add conversationId to each block
     const contentBlocks = parsed.blocks.map(block => ({
@@ -199,8 +249,9 @@ export function aiMessageToBlocks(
   }
 
   // 2. Convert tool invocations to blocks
-  if (aiMessage.toolInvocations && aiMessage.toolInvocations.length > 0) {
-    for (const tool of aiMessage.toolInvocations) {
+  const toolInvocations = getToolInvocations(aiMessage)
+  if (toolInvocations.length > 0) {
+    for (const tool of toolInvocations) {
       const toolBlock = toolInvocationToBlock(tool, aiMessage.id, order++)
       blocks.push(toolBlock)
     }
@@ -221,35 +272,20 @@ export function aiMessageToBlocks(
  * which allows them to be rendered with execution status.
  */
 function toolInvocationToBlock(
-  tool: ToolInvocation,
+  tool: InternalToolInvocation,
   messageId: string,
   order: number
 ): Block {
-  // Map AI SDK tool state to Tool component state
-  let toolState: 'input-streaming' | 'input-available' | 'output-available' | 'output-error' = 'input-streaming'
-
-  switch (tool.state) {
-    case 'partial-call':
-      toolState = 'input-streaming'
-      break
-    case 'call':
-      toolState = 'input-available'
-      break
-    case 'result':
-      toolState = 'output-available'
-      break
-  }
-
   const metadata: BlockMetadata = {
     toolName: tool.toolName,
     toolCallId: tool.toolCallId,
     type: 'tool-call',
-    state: toolState,
+    state: tool.state,
     args: tool.args,
   }
 
   // Add result if available
-  if (tool.state === 'result' && hasToolResult(tool)) {
+  if (tool.state === 'output-available' && hasToolResult(tool)) {
     metadata.result = tool.result
     metadata.executedAt = new Date().toISOString()
   }
@@ -288,8 +324,8 @@ export function aiMessagesToMessages(
     id: aiMsg.id,
     conversationId,
     role: aiMsg.role as 'user' | 'assistant',
-    content: typeof aiMsg.content === 'string' ? aiMsg.content : '',
-    timestamp: aiMsg.createdAt?.getTime() || Date.now(),
+    content: getMessageContent(aiMsg),
+    timestamp: Date.now(), // v5 removed createdAt
     blocks: aiMessageToBlocks(aiMsg, conversationId),
   }))
 }
@@ -326,7 +362,6 @@ export function blocksToAIMessage(
   }
 
   const messageId = blocks[0].messageId
-  const createdAt = new Date(blocks[0].createdAt)
 
   // Reconstruct content from text blocks
   const textBlocks = blocks.filter(b =>
@@ -345,13 +380,29 @@ export function blocksToAIMessage(
     .filter(b => b.metadata.toolCallId)
     .map(blockToToolInvocation)
 
+  // Convert to v5 parts format
+  const parts: any[] = []
+
+  if (content) {
+    parts.push({ type: 'text', text: content })
+  }
+
+  // Add tool invocations as parts (simplified conversion)
+  for (const tool of toolInvocations) {
+    parts.push({
+      type: `tool-${tool.toolName}`,
+      toolCallId: tool.toolCallId,
+      state: tool.state,
+      input: tool.args,
+      ...(tool.state === 'output-available' && tool.result !== undefined && { output: tool.result }),
+    })
+  }
+
   return {
     id: messageId,
     role,
-    content,
-    createdAt,
-    ...(toolInvocations.length > 0 && { toolInvocations }),
-  }
+    parts,
+  } as AIMessage
 }
 
 /**
@@ -377,44 +428,41 @@ function formatBlockContent(block: Block): string {
 }
 
 /**
- * Convert a block with tool metadata back to ToolInvocation
+ * Convert a block with tool metadata back to InternalToolInvocation
  */
-function blockToToolInvocation(block: Block): ToolInvocation {
+function blockToToolInvocation(block: Block): InternalToolInvocation {
   const toolName = block.metadata.toolName || 'unknown'
   const toolCallId = block.metadata.toolCallId || nanoid()
 
-  // Parse args from content (best effort)
-  let args: Record<string, unknown> = {}
-  try {
-    const jsonMatch = block.content.match(/\{[\s\S]*\}/)
-    if (jsonMatch) {
-      args = JSON.parse(jsonMatch[0])
+  // Parse args from content (best effort) or use metadata
+  let args: Record<string, unknown> = block.metadata.args || {}
+  if (Object.keys(args).length === 0) {
+    try {
+      const jsonMatch = block.content.match(/\{[\s\S]*\}/)
+      if (jsonMatch) {
+        args = JSON.parse(jsonMatch[0])
+      }
+    } catch {
+      // If parsing fails, use empty args
     }
-  } catch {
-    // If parsing fails, use empty args
   }
 
   // Determine state based on metadata
-  const state = block.metadata.exitCode !== undefined ? 'result' : 'call'
+  const state = (block.metadata.state as any) ||
+    (block.metadata.exitCode !== undefined ? 'output-available' : 'input-available')
 
-  const baseInvocation: ToolInvocation = {
+  const invocation: InternalToolInvocation = {
     toolCallId,
     toolName,
     args,
     state,
   }
 
-  if (state === 'result') {
-    return {
-      ...baseInvocation,
-      state: 'result',
-      result: block.metadata.executedAt
-        ? 'Execution completed'
-        : undefined,
-    } as ToolInvocation
+  if (state === 'output-available' && block.metadata.result !== undefined) {
+    invocation.result = block.metadata.result
   }
 
-  return baseInvocation
+  return invocation
 }
 
 /**
@@ -431,9 +479,8 @@ export function messageToAIMessage(message: Message): AIMessage {
   return {
     id: message.id,
     role: message.role,
-    content: message.content,
-    createdAt: new Date(message.timestamp),
-  }
+    parts: [{ type: 'text', text: message.content }],
+  } as AIMessage
 }
 
 /**
@@ -462,12 +509,12 @@ export function messagesToAIMessages(messages: Message[]): AIMessage[] {
  * During streaming, AI SDK sends partial messages. This function helps
  * merge the updates without losing block metadata.
  *
- * @param existingBlocks - Current blocks for the message
+ * @param _existingBlocks - Current blocks for the message (unused in simple strategy)
  * @param updatedAIMessage - New message data from AI SDK
  * @returns Updated block array
  */
 export function mergeMessageUpdate(
-  existingBlocks: Block[],
+  _existingBlocks: Block[],
   updatedAIMessage: AIMessage,
   conversationId: string
 ): Block[] {
@@ -503,5 +550,5 @@ export function estimateBlockTokens(blocks: Block[]): number {
 
 export type {
   AIMessage,
-  ToolInvocation,
+  InternalToolInvocation as ToolInvocation,
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Brain, FileText, Search, Terminal, Wrench, ChevronDown } from 'lucide-react';
+import { Brain, FileText, Search, Terminal, Wrench } from 'lucide-react';
 import type { ThinkingStep } from '@/types/thinking';
 import {
   Accordion,

@@ -196,7 +196,7 @@ export const ConflictResolverDialog: React.FC<ConflictResolverDialogProps> = ({
     const progress = totalFiles > 0 ? (analyzedFiles / totalFiles) * 100 : 0;
 
     return (
-      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+      <div className="fixed inset-0 bg-[var(--overlay-backdrop)] flex items-center justify-center z-50">
         <div className="bg-card border border-border rounded-lg p-8 w-[500px] shadow-xl">
           <div className="flex items-center gap-3 mb-4">
             <Loader2 className="animate-spin text-primary" size={24} />
@@ -235,7 +235,7 @@ export const ConflictResolverDialog: React.FC<ConflictResolverDialogProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-[var(--overlay-backdrop)] flex items-center justify-center z-50 p-4">
       <div className="bg-card border border-border rounded-lg w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-border">
