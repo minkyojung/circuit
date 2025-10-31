@@ -18,7 +18,7 @@ export const ContextChip: React.FC<ContextChipProps> = ({ label, onRemove }) => 
       <span>{label}</span>
       <button
         onClick={onRemove}
-        className="text-muted-foreground hover:text-foreground transition-colors"
+        className="text-muted-foreground hover:text-foreground dark:hover:text-white transition-colors"
         aria-label="Remove context"
       >
         <X size={12} />
