@@ -191,7 +191,7 @@ export function MemoryForm({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-[var(--overlay-backdrop)] flex items-center justify-center z-50 p-4">
       <div className="glass-card w-full max-w-xl p-6 max-h-[85vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between mb-6 flex-shrink-0">

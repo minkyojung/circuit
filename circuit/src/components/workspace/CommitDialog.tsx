@@ -154,7 +154,7 @@ export const CommitDialog: React.FC<CommitDialogProps> = ({
   if (prUrl) {
     // Success state - show PR URL
     return (
-      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+      <div className="fixed inset-0 bg-[var(--overlay-backdrop)] flex items-center justify-center z-50">
         <div className="bg-card border border-border rounded-lg w-[600px] p-6 shadow-2xl">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
@@ -195,7 +195,7 @@ export const CommitDialog: React.FC<CommitDialogProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-[var(--overlay-backdrop)] flex items-center justify-center z-50">
       <div className="bg-card border border-border rounded-lg w-[800px] max-h-[90vh] flex flex-col shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-border">
