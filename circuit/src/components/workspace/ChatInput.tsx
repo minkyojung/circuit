@@ -239,7 +239,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                       return (
                         <div
                           key={file.id}
-                          className="group flex items-center gap-2 pl-2.5 pr-2 py-2 rounded-xl bg-accent border border-border/50 hover:border-border transition-all shadow-sm hover:shadow-md"
+                          className="group flex items-center gap-2 pl-2.5 pr-2 py-2 rounded-xl bg-secondary/40 border border-border/50 hover:border-border transition-all shadow-sm hover:shadow-md"
                         >
                           {/* Icon/Thumbnail */}
                           <div className="flex-shrink-0">
@@ -258,10 +258,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
                           {/* File info - Vertical layout */}
                           <div className="flex flex-col justify-center min-w-0">
-                            <span className="text-sm font-medium text-foreground max-w-[160px] truncate leading-tight">
+                            <span className="text-sm font-normal text-muted-foreground max-w-[160px] truncate leading-tight">
                               {nameWithoutExt}
                             </span>
-                            <span className="text-[10px] text-muted-foreground font-medium leading-tight">
+                            <span className="text-[10px] text-muted-foreground/70 font-medium leading-tight">
                               {extension}
                             </span>
                           </div>
