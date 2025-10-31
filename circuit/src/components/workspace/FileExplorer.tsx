@@ -166,7 +166,7 @@ const FileTreeItem: React.FC<{
 
             <CollapsibleTrigger asChild>
               <SidebarMenuButton
-                className="w-full h-auto py-px gap-2 group hover:bg-black/[0.02] dark:hover:bg-white/[0.03]"
+                className="w-full h-auto py-px gap-2 group hover:bg-[var(--state-hover)]"
                 style={{ paddingLeft: `${depth * 12 + 8}px` }}
               >
                 <motion.div
@@ -248,7 +248,7 @@ const FileTreeItem: React.FC<{
         <SidebarMenuButton
           onClick={() => onSelect?.(node.path)}
           isActive={isSelected}
-          className="w-full h-auto py-px gap-2 group pr-1 hover:bg-black/[0.02] dark:hover:bg-white/[0.03]"
+          className="w-full h-auto py-px gap-2 group pr-1 hover:bg-[var(--state-hover)]"
           style={{ paddingLeft: `${depth * 12 + 8}px` }}
         >
           {/* File type icon */}
@@ -333,7 +333,7 @@ const FileTreeItem: React.FC<{
                         e.stopPropagation()
                         // TODO: Implement delete functionality
                       }}
-                      className="text-red-600 dark:text-red-400"
+                      className="text-[var(--destructive)]"
                     >
                       <Trash2 size={14} className="mr-2" />
                       Delete
