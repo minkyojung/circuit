@@ -38,9 +38,12 @@ export class WorkspaceContextTracker extends EventEmitter {
    * Convert workspace path to Claude Code session directory name
    * /Users/williamjung/conductor/circuit-1/.conductor/vienna
    * → -Users-williamjung-conductor-circuit-1--conductor-vienna
+   *
+   * Note: Both / and . are converted to -
    */
   private pathToSessionDir(workspacePath: string): string {
-    return '-' + workspacePath.replace(/\//g, '-');
+    // Replace / and . with -, which naturally creates leading - from the initial /
+    return workspacePath.replace(/[/.]/g, '-');
   }
 
   /**

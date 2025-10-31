@@ -31,7 +31,10 @@ export class ContextTracker {
   private readonly SYSTEM_OVERHEAD = 1.05; // 5% 시스템 프롬프트 오버헤드
 
   /**
-   * 세션 전체 컨텍스트 계산 (최적화: 단일 패스)
+   * 세션 전체 컨텍스트 계산
+   *
+   * 중요: Claude API는 매 호출마다 전체 context를 전송합니다.
+   * 따라서 가장 최근 assistant 응답의 usage만 사용합니다.
    */
   async calculateContext(jsonlPath: string): Promise<ContextMetrics> {
     try {
@@ -40,11 +43,10 @@ export class ContextTracker {
         .split('\n')
         .filter(line => line.trim());
 
-      // 단일 패스로 모든 정보 수집
+      // 최신 context 계산 (가장 최근 API 호출 기준)
       const result = this.analyzeLinesOptimized(lines);
 
-      const startTime = result.lastCompact || result.sessionStart;
-      const adjustedContext = Math.floor(result.totalTokens * this.SYSTEM_OVERHEAD);
+      const adjustedContext = Math.floor(result.currentContextTokens * this.SYSTEM_OVERHEAD);
       const percentage = (adjustedContext / this.CONTEXT_LIMIT) * 100;
       const prunableTokens = this.estimatePrunableTokens(adjustedContext);
       const shouldCompact = percentage >= this.COMPACT_THRESHOLD;
@@ -66,15 +68,21 @@ export class ContextTracker {
 
   /**
    * 최적화된 단일 패스 분석
+   *
+   * Claude API의 특성:
+   * - 매 호출마다 전체 context를 전송
+   * - usage.input_tokens = 새로운 입력 (캐시 제외)
+   * - usage.cache_read_input_tokens = 캐시에서 읽은 context
+   * - 따라서 가장 최근 assistant 응답의 input + cache_read가 현재 context
    */
   private analyzeLinesOptimized(lines: string[]): {
     sessionStart: Date;
     lastCompact: Date | null;
-    totalTokens: number;
+    currentContextTokens: number;
   } {
     let sessionStart: Date | null = null;
     let lastCompactCommand: { timestamp: Date; index: number } | null = null;
-    let totalTokens = 0;
+    let currentContextTokens = 0;
     const tokensAtIndex: Map<number, number> = new Map();
 
     // 단일 패스로 모든 데이터 수집
@@ -106,24 +114,34 @@ export class ContextTracker {
           }
         }
 
-        // 토큰 수집
-        const usage = event.message?.usage || event.usage;
-        if (usage) {
-          const tokens = (usage.input_tokens || 0) + (usage.output_tokens || 0);
+        // Assistant 응답의 usage만 추적 (가장 최근 것이 현재 context)
+        if (event.type === 'assistant' && event.message?.usage) {
+          const usage = event.message.usage;
+
+          // 현재 context = input + cache_read + output
+          // (Claude는 매 호출마다 전체 context를 보내므로)
+          const tokens =
+            (usage.input_tokens || 0) +
+            (usage.cache_read_input_tokens || 0) +
+            (usage.cache_creation_input_tokens || 0) +
+            (usage.output_tokens || 0);
+
           tokensAtIndex.set(i, tokens);
-          totalTokens += tokens;
+          // 가장 최근 것이 현재 context (덮어쓰기)
+          currentContextTokens = tokens;
         }
       } catch {
         continue;
       }
     }
 
-    // compact 검증 (전후 토큰 비교 - 완화된 기준)
+    // compact 검증 (개선된 로직 - 더 유연한 감지)
     let verifiedCompact: Date | null = null;
     if (lastCompactCommand) {
       const tokensBeforeCompact: number[] = [];
       const tokensAfterCompact: number[] = [];
 
+      // 전후 5-10개 이벤트의 토큰 비교
       for (const [index, tokens] of tokensAtIndex.entries()) {
         if (index < lastCompactCommand.index && index > lastCompactCommand.index - 5) {
           tokensBeforeCompact.push(tokens);
@@ -132,19 +150,21 @@ export class ContextTracker {
         }
       }
 
-      // 토큰 감소 확인 (10% 이상 감소면 유효한 compact로 인정)
+      // 토큰 감소 확인 (5% 이상 감소면 유효한 compact로 인정 - 완화)
       if (tokensBeforeCompact.length > 0 && tokensAfterCompact.length > 0) {
         const avgBefore = tokensBeforeCompact.reduce((a, b) => a + b, 0) / tokensBeforeCompact.length;
         const avgAfter = tokensAfterCompact.reduce((a, b) => a + b, 0) / tokensAfterCompact.length;
         const reductionRate = (avgBefore - avgAfter) / avgBefore;
 
-        if (reductionRate >= 0.1) {  // 10% 이상 감소
+        if (reductionRate >= 0.05) {  // 5% 이상 감소 (10% → 5%로 완화)
           verifiedCompact = lastCompactCommand.timestamp;
         }
-      } else if (lastCompactCommand) {
-        // 토큰 데이터가 없으면 /compact 명령만으로도 인정 (최근 5분 이내)
+      }
+
+      // Fallback: /compact 명령이 있고 최근 10분 이내면 인정
+      if (!verifiedCompact && lastCompactCommand) {
         const timeSinceCompact = Date.now() - lastCompactCommand.timestamp.getTime();
-        if (timeSinceCompact < 5 * 60 * 1000) {  // 5분 이내
+        if (timeSinceCompact < 10 * 60 * 1000) {  // 10분 이내 (5분 → 10분으로 완화)
           verifiedCompact = lastCompactCommand.timestamp;
         }
       }
@@ -153,7 +173,7 @@ export class ContextTracker {
     return {
       sessionStart: sessionStart || new Date(),
       lastCompact: verifiedCompact,
-      totalTokens
+      currentContextTokens
     };
   }
 
