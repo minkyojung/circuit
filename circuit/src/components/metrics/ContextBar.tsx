@@ -38,9 +38,9 @@ export const ContextBar: React.FC<ContextBarProps> = ({
 
   // Helper functions
   const getColor = () => {
-    if (percentage >= 95) return 'text-red-500 dark:text-red-400';
-    if (percentage >= 80) return 'text-yellow-500 dark:text-yellow-400';
-    return 'text-green-500 dark:text-green-400';
+    if (percentage >= 95) return 'text-[var(--destructive)]';
+    if (percentage >= 80) return 'text-[var(--warning)]';
+    return 'text-[var(--success)]';
   };
 
   const getProgressColor = () => {

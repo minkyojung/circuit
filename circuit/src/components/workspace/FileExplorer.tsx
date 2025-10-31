@@ -418,7 +418,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     <div className="h-full flex flex-col">
       {/* Header with actions */}
       <div className="px-3 py-3 flex items-center gap-1">
-        <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(255, 255, 255, 0.15)' }} />
+        <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--separator-translucent)' }} />
         <button
           onClick={() => {
             setIsSearchOpen(!isSearchOpen)

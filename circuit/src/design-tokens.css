@@ -262,6 +262,11 @@
     --overlay-medium: rgba(0, 0, 0, 0.08);         /* 중간 오버레이 (8%) - active/pressed states */
     --overlay-strong: rgba(0, 0, 0, 0.12);         /* 강한 오버레이 (12%) - emphasis */
 
+    /* Modal/Dialog backdrop overlays */
+    --overlay-backdrop: rgba(0, 0, 0, 0.5);        /* 50% - Standard modal backdrop */
+    --overlay-backdrop-light: rgba(0, 0, 0, 0.3);  /* 30% - Lighter backdrop */
+    --overlay-backdrop-strong: rgba(0, 0, 0, 0.7); /* 70% - Stronger backdrop */
+
     /* Interactive state tokens - semantic aliases for consistency */
     --state-hover: var(--overlay-light);           /* Hover overlay (4%) */
     --state-active: var(--overlay-medium);         /* Active/pressed overlay (8%) */
@@ -433,6 +438,11 @@
     --overlay-light: rgba(255, 255, 255, 0.04);    /* 가벼운 오버레이 (4%) - hover states */
     --overlay-medium: rgba(255, 255, 255, 0.08);   /* 중간 오버레이 (8%) - active/pressed states */
     --overlay-strong: rgba(255, 255, 255, 0.12);   /* 강한 오버레이 (12%) - emphasis */
+
+    /* Modal/Dialog backdrop overlays - slightly stronger for dark mode */
+    --overlay-backdrop: rgba(0, 0, 0, 0.6);        /* 60% - Standard modal backdrop (darker for dark mode) */
+    --overlay-backdrop-light: rgba(0, 0, 0, 0.4);  /* 40% - Lighter backdrop */
+    --overlay-backdrop-strong: rgba(0, 0, 0, 0.75); /* 75% - Stronger backdrop */
 
     /* Interactive state tokens - semantic aliases (auto-adjust with overlays) */
     --state-hover: var(--overlay-light);           /* Hover overlay (4%) */
