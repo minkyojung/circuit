@@ -6,15 +6,23 @@
  */
 
 import React, { useState, useRef, useCallback } from 'react'
-import { ArrowUp, Paperclip, X, Globe, ChevronDown, ChevronUp } from 'lucide-react'
+import { ArrowUp, Paperclip, X, Globe, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { useSettingsContext } from '@/contexts/SettingsContext'
 import { AnimatePresence, motion } from 'framer-motion'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+
+export type ThinkingMode = 'normal' | 'think' | 'megathink' | 'ultrathink'
 
 interface ChatInputProps {
   value: string
   onChange: (value: string) => void
-  onSubmit: (value: string, attachments: AttachedFile[]) => void | Promise<void>
+  onSubmit: (value: string, attachments: AttachedFile[], thinkingMode: ThinkingMode) => void | Promise<void>
   disabled?: boolean
   placeholder?: string
   showControls?: boolean
@@ -66,8 +74,16 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 }) => {
   const { settings } = useSettingsContext()
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
+  const [thinkingMode, setThinkingMode] = useState<ThinkingMode>('normal')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  const thinkingModeLabels: Record<ThinkingMode, string> = {
+    normal: 'Normal',
+    think: 'Think',
+    megathink: 'Megathink',
+    ultrathink: 'Ultrathink',
+  }
 
   // File attachment handling
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -142,13 +158,15 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     if (disabled) return
 
     try {
-      await onSubmit(value, attachedFiles)
+      await onSubmit(value, attachedFiles, thinkingMode)
       setAttachedFiles([]) // Clear attachments after send
+      // Reset to normal after send
+      setThinkingMode('normal')
     } catch (error) {
       console.error('[ChatInput] Submit error:', error)
       toast.error('Failed to send message')
     }
-  }, [value, attachedFiles, disabled, onSubmit])
+  }, [value, attachedFiles, thinkingMode, disabled, onSubmit])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -174,7 +192,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
         // Create a text file from pasted content
         const blob = new Blob([pastedText], { type: 'text/plain' })
-        const file = new File([blob], 'pasted_text.txt', { type: 'text/plain' })
 
         // Convert to data URL
         const reader = new FileReader()
@@ -312,13 +329,44 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   <Paperclip size={INPUT_STYLES.controls.attachIconSize} strokeWidth={1.5} />
                 </button>
 
-                {/* Model Selector (placeholder) */}
-                <button
-                  className={`inline-flex items-center gap-1 ${INPUT_STYLES.controls.modelButton} text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors`}
-                  disabled
-                >
-                  <span>Auto</span>
-                </button>
+                {/* Thinking Mode Selector */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className={`inline-flex items-center gap-1 ${INPUT_STYLES.controls.modelButton} text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors`}
+                      disabled={disabled}
+                    >
+                      <span>{thinkingModeLabels[thinkingMode]}</span>
+                      <ChevronDown size={12} strokeWidth={1.5} />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-40 p-1">
+                    <DropdownMenuItem
+                      onClick={() => setThinkingMode('normal')}
+                      className={`py-2 px-3 cursor-pointer hover:bg-secondary/50 focus:bg-secondary/50 ${thinkingMode === 'normal' ? 'bg-secondary' : ''}`}
+                    >
+                      <span className="text-sm font-light">Normal</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => setThinkingMode('think')}
+                      className={`py-2 px-3 cursor-pointer hover:bg-secondary/50 focus:bg-secondary/50 ${thinkingMode === 'think' ? 'bg-secondary' : ''}`}
+                    >
+                      <span className="text-sm font-light">Think</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => setThinkingMode('megathink')}
+                      className={`py-2 px-3 cursor-pointer hover:bg-secondary/50 focus:bg-secondary/50 ${thinkingMode === 'megathink' ? 'bg-secondary' : ''}`}
+                    >
+                      <span className="text-sm font-light">Megathink</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => setThinkingMode('ultrathink')}
+                      className={`py-2 px-3 cursor-pointer hover:bg-secondary/50 focus:bg-secondary/50 ${thinkingMode === 'ultrathink' ? 'bg-secondary' : ''}`}
+                    >
+                      <span className="text-sm font-light">Ultrathink</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
                 {/* Sources Selector (placeholder) */}
                 <button

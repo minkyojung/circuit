@@ -6,7 +6,7 @@
  */
 
 import React, { useState } from 'react';
-import { X, Settings as SettingsIcon, Cpu, Sparkles, Sliders } from 'lucide-react';
+import { X, Settings as SettingsIcon, Cpu, Sparkles, Sliders, Archive } from 'lucide-react';
 import { useSettingsContext } from '@/contexts/SettingsContext';
 import {
   SettingSection,
@@ -24,7 +24,7 @@ interface SettingsDialogProps {
   onClose: () => void;
 }
 
-type SettingsCategory = 'general' | 'model' | 'ai' | 'advanced';
+type SettingsCategory = 'general' | 'model' | 'ai' | 'advanced' | 'archive';
 
 interface NavItem {
   id: SettingsCategory;
@@ -37,6 +37,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'model', label: 'Model', icon: Cpu },
   { id: 'ai', label: 'AI', icon: Sparkles },
   { id: 'advanced', label: 'Advanced', icon: Sliders },
+  { id: 'archive', label: 'Archive', icon: Archive },
 ];
 
 export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose }) => {
@@ -106,6 +107,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
                 {activeCategory === 'model' && <ModelSettings settings={settings} updateSettings={updateSettings} />}
                 {activeCategory === 'ai' && <AISettings settings={settings} updateSettings={updateSettings} />}
                 {activeCategory === 'advanced' && <AdvancedSettings settings={settings} updateSettings={updateSettings} />}
+                {activeCategory === 'archive' && <ArchiveSettings />}
               </div>
             </div>
           </div>
@@ -367,3 +369,177 @@ const AdvancedSettings: React.FC<SettingsPanelProps> = ({ settings, updateSettin
     />
   </SettingSection>
 );
+
+const ArchiveSettings: React.FC = () => {
+  const [workspaces, setWorkspaces] = React.useState<any[]>([])
+  const [isLoading, setIsLoading] = React.useState(true)
+  const [searchQuery, setSearchQuery] = React.useState('')
+
+  // @ts-ignore - Electron IPC
+  const { ipcRenderer } = window.require('electron')
+
+  React.useEffect(() => {
+    loadWorkspaces()
+  }, [])
+
+  const loadWorkspaces = async () => {
+    try {
+      setIsLoading(true)
+      const result = await ipcRenderer.invoke('workspace:list')
+
+      console.log('[ArchiveSettings] Loaded workspaces:', result)
+
+      if (result.success && result.workspaces) {
+        console.log('[ArchiveSettings] All workspaces:', result.workspaces.map((w: any) => ({ id: w.id, archived: w.archived })))
+        const archived = result.workspaces.filter((w: any) => w.archived)
+        console.log('[ArchiveSettings] Archived workspaces:', archived)
+        setWorkspaces(archived)
+      }
+    } catch (error) {
+      console.error('Error loading workspaces:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleUnarchive = async (workspaceId: string) => {
+    try {
+      const result = await ipcRenderer.invoke('workspace:unarchive', workspaceId)
+
+      if (result.success) {
+        await loadWorkspaces()
+      } else {
+        alert(`Failed to unarchive: ${result.error}`)
+      }
+    } catch (error) {
+      console.error('Error unarchiving workspace:', error)
+      alert(`Error: ${error}`)
+    }
+  }
+
+  const handleDelete = async (workspace: any) => {
+    const confirmed = confirm(
+      `Permanently delete "${workspace.name}"?\n\nThis action cannot be undone.`
+    )
+
+    if (!confirmed) return
+
+    try {
+      const result = await ipcRenderer.invoke('workspace:delete', workspace.id)
+
+      if (result.success) {
+        await loadWorkspaces()
+      } else {
+        alert(`Failed to delete: ${result.error}`)
+      }
+    } catch (error) {
+      console.error('Error deleting workspace:', error)
+      alert(`Error: ${error}`)
+    }
+  }
+
+  const filteredWorkspaces = workspaces.filter((workspace) => {
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase()
+      return (
+        workspace.name.toLowerCase().includes(query) ||
+        workspace.branch.toLowerCase().includes(query)
+      )
+    }
+    return true
+  })
+
+  const formatRelativeTime = (isoString?: string) => {
+    if (!isoString) return 'Unknown'
+
+    const date = new Date(isoString)
+    if (isNaN(date.getTime())) return 'Unknown'
+
+    const now = Date.now()
+    const archived = date.getTime()
+    const diff = now - archived
+
+    const minutes = Math.floor(diff / 60000)
+    const hours = Math.floor(diff / 3600000)
+    const days = Math.floor(diff / 86400000)
+
+    if (minutes < 1) return 'just now'
+    if (minutes < 60) return `${minutes}m ago`
+    if (hours < 24) return `${hours}h ago`
+    if (days < 7) return `${days}d ago`
+    if (days < 30) return `${Math.floor(days / 7)}w ago`
+    return `${Math.floor(days / 30)}mo ago`
+  }
+
+  return (
+    <SettingSection title="Archived Workspaces" description={`${workspaces.length} archived workspace${workspaces.length !== 1 ? 's' : ''}`}>
+      {/* Search */}
+      <div className="mb-3">
+        <input
+          type="text"
+          placeholder="Search archived workspaces..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full px-3 py-1.5 text-sm bg-muted border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary"
+        />
+      </div>
+
+      {/* Workspace List */}
+      {isLoading ? (
+        <div className="text-sm text-muted-foreground py-4 text-center">
+          Loading...
+        </div>
+      ) : filteredWorkspaces.length === 0 && workspaces.length === 0 ? (
+        <div className="text-sm text-muted-foreground py-8 text-center">
+          <div className="text-2xl mb-2">📦</div>
+          <p>No archived workspaces</p>
+          <p className="text-xs mt-1">Archive workspaces by right-clicking them</p>
+        </div>
+      ) : filteredWorkspaces.length === 0 ? (
+        <div className="text-sm text-muted-foreground py-4 text-center">
+          No matching workspaces
+        </div>
+      ) : (
+        <div className="space-y-2 max-h-[400px] overflow-y-auto">
+          {filteredWorkspaces.map((workspace) => (
+            <div
+              key={workspace.id}
+              className="p-3 rounded-md border border-border bg-muted/30 hover:bg-muted/50 transition-colors"
+            >
+              <div className="flex items-start justify-between gap-3">
+                {/* Workspace Info */}
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-foreground truncate">
+                    {workspace.name}
+                  </div>
+                  <div className="text-xs text-muted-foreground font-mono mt-0.5 truncate">
+                    {workspace.branch}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Archived {formatRelativeTime(workspace.archivedAt)}
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-1.5 flex-shrink-0">
+                  <button
+                    onClick={() => handleUnarchive(workspace.id)}
+                    className="px-2.5 py-1 text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 rounded transition-colors"
+                  >
+                    Restore
+                  </button>
+                  <button
+                    onClick={() => handleDelete(workspace)}
+                    className="px-2.5 py-1 text-xs font-medium text-destructive hover:bg-destructive/10 rounded transition-colors"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </SettingSection>
+  )
+};

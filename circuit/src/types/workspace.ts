@@ -69,6 +69,12 @@ export interface Workspace {
   /** Whether this workspace is currently active */
   isActive: boolean;
 
+  /** Whether this workspace is archived */
+  archived: boolean;
+
+  /** ISO timestamp when archived (if archived) */
+  archivedAt?: string;
+
   /** Legacy: kept for backwards compatibility, same as displayName */
   name: string;
 }

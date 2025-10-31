@@ -2048,6 +2048,37 @@ async function generateWorkspaceName(projectPath) {
 }
 
 /**
+ * Get workspace metadata (archived status, etc.)
+ */
+async function getWorkspaceMetadata(projectPath) {
+  try {
+    const metadataPath = path.join(projectPath, '.conductor', 'workspace-metadata.json');
+    const data = await fs.readFile(metadataPath, 'utf-8');
+    return JSON.parse(data);
+  } catch (error) {
+    // If file doesn't exist, return empty metadata
+    return {};
+  }
+}
+
+/**
+ * Save workspace metadata
+ */
+async function saveWorkspaceMetadata(projectPath, metadata) {
+  try {
+    const conductorDir = path.join(projectPath, '.conductor');
+    await fs.mkdir(conductorDir, { recursive: true });
+
+    const metadataPath = path.join(conductorDir, 'workspace-metadata.json');
+    await fs.writeFile(metadataPath, JSON.stringify(metadata, null, 2), 'utf-8');
+    return true;
+  } catch (error) {
+    console.error('[Workspace] Failed to save metadata:', error);
+    throw error;
+  }
+}
+
+/**
  * Create a new Git worktree workspace
  */
 async function createWorktree(projectPath, branchName) {
@@ -2070,13 +2101,22 @@ async function createWorktree(projectPath, branchName) {
       cwd: projectPath
     });
 
+    // Initialize metadata with archived: false
+    const metadata = await getWorkspaceMetadata(projectPath);
+    metadata[branchName] = {
+      archived: false,
+      archivedAt: null
+    };
+    await saveWorkspaceMetadata(projectPath, metadata);
+
     return {
       id: branchName,
       name: branchName,
       branch: branchName,
       path: worktreePath,
       createdAt: new Date().toISOString(),
-      isActive: false
+      isActive: false,
+      archived: false
     };
   } catch (error) {
     throw new Error(`Failed to create workspace: ${error.message}`);
@@ -2115,6 +2155,9 @@ async function listWorktrees(projectPath) {
       }
     }
 
+    // Load metadata
+    const metadata = await getWorkspaceMetadata(projectPath);
+
     // Transform to our workspace format
     const workspacePromises = worktrees
       .filter(wt => wt.path.includes('.conductor/workspaces'))
@@ -2128,13 +2171,18 @@ async function listWorktrees(projectPath) {
           console.warn('[Workspace] Could not get creation time for', wt.path);
         }
 
+        const workspaceId = wt.branch || path.basename(wt.path);
+        const workspaceMeta = metadata[workspaceId] || { archived: false };
+
         return {
-          id: wt.branch || path.basename(wt.path),
-          name: wt.branch || path.basename(wt.path),
+          id: workspaceId,
+          name: workspaceId,
           branch: wt.branch || 'detached',
           path: wt.path,
           createdAt,
-          isActive: false // Will be determined by current workspace
+          isActive: false, // Will be determined by current workspace
+          archived: workspaceMeta.archived || false,
+          archivedAt: workspaceMeta.archivedAt || undefined
         };
       });
 
@@ -2166,9 +2214,59 @@ async function deleteWorktree(projectPath, branchName) {
       console.warn('[Workspace] Failed to delete branch (may not exist):', branchError.message);
     }
 
+    // Remove from metadata
+    const metadata = await getWorkspaceMetadata(projectPath);
+    if (metadata[branchName]) {
+      delete metadata[branchName];
+      await saveWorkspaceMetadata(projectPath, metadata);
+    }
+
     return true;
   } catch (error) {
     throw new Error(`Failed to delete workspace: ${error.message}`);
+  }
+}
+
+/**
+ * Archive a workspace
+ */
+async function archiveWorkspace(projectPath, workspaceId) {
+  try {
+    const metadata = await getWorkspaceMetadata(projectPath);
+
+    if (!metadata[workspaceId]) {
+      metadata[workspaceId] = {};
+    }
+
+    metadata[workspaceId].archived = true;
+    metadata[workspaceId].archivedAt = new Date().toISOString();
+
+    await saveWorkspaceMetadata(projectPath, metadata);
+    return true;
+  } catch (error) {
+    console.error('[Archive] Error:', error);
+    throw new Error(`Failed to archive workspace: ${error.message}`);
+  }
+}
+
+/**
+ * Unarchive a workspace
+ */
+async function unarchiveWorkspace(projectPath, workspaceId) {
+  try {
+    const metadata = await getWorkspaceMetadata(projectPath);
+
+    if (!metadata[workspaceId]) {
+      metadata[workspaceId] = {};
+    }
+
+    metadata[workspaceId].archived = false;
+    metadata[workspaceId].archivedAt = null;
+
+    await saveWorkspaceMetadata(projectPath, metadata);
+    return true;
+  } catch (error) {
+    throw new Error(`Failed to unarchive workspace: ${error.message}`);
   }
 }
 
@@ -2439,6 +2537,46 @@ ipcMain.handle('workspace:delete', async (event, workspaceId) => {
 });
 
 /**
+ * Archive a workspace
+ */
+ipcMain.handle('workspace:archive', async (event, workspaceId) => {
+  try {
+    // Validate workspaceId to prevent path traversal
+    if (!workspaceId || typeof workspaceId !== 'string' || workspaceId.includes('..') || workspaceId.includes('/') || workspaceId.includes('\\')) {
+      return { success: false, error: 'Invalid workspace ID' };
+    }
+
+    const projectPath = path.resolve(__dirname, '../../../..');
+    await archiveWorkspace(projectPath, workspaceId);
+
+    return { success: true };
+  } catch (error) {
+    console.error('[Workspace] Archive error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Unarchive a workspace
+ */
+ipcMain.handle('workspace:unarchive', async (event, workspaceId) => {
+  try {
+    // Validate workspaceId to prevent path traversal
+    if (!workspaceId || typeof workspaceId !== 'string' || workspaceId.includes('..') || workspaceId.includes('/') || workspaceId.includes('\\')) {
+      return { success: false, error: 'Invalid workspace ID' };
+    }
+
+    const projectPath = path.resolve(__dirname, '../../../..');
+    await unarchiveWorkspace(projectPath, workspaceId);
+
+    return { success: true };
+  } catch (error) {
+    console.error('[Workspace] Unarchive error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
  * Get workspace status (Git status)
  */
 ipcMain.handle('workspace:get-status', async (event, workspacePath) => {
@@ -2513,7 +2651,7 @@ ipcMain.handle('claude:start-session', async (event, workspacePath) => {
 /**
  * Send message to Claude and get response
  */
-ipcMain.on('claude:send-message', async (event, sessionId, userMessage, attachments = []) => {
+ipcMain.on('claude:send-message', async (event, sessionId, userMessage, attachments = [], thinkingMode = 'normal') => {
   try {
     const session = activeSessions.get(sessionId);
 
@@ -2526,18 +2664,36 @@ ipcMain.on('claude:send-message', async (event, sessionId, userMessage, attachme
       return;
     }
 
-    console.log('[Claude] Sending message to session:', sessionId);
-    console.log('[Claude] Message:', userMessage);
-    console.log('[Claude] Attachments:', attachments.length);
+    // Validate thinkingMode
+    const validModes = ['normal', 'think', 'megathink', 'ultrathink'];
+    if (!validModes.includes(thinkingMode)) {
+      thinkingMode = 'normal';
+    }
 
     // Build multimodal content array
     const content = [];
 
-    // Add text message
+    // Add thinking mode instruction prefix
+    let thinkingInstruction = '';
+    if (thinkingMode === 'think') {
+      thinkingInstruction = '<thinking_instruction>Think carefully and systematically about this request before responding. Take your time to reason through the problem.</thinking_instruction>\n\n';
+    } else if (thinkingMode === 'megathink') {
+      thinkingInstruction = '<thinking_instruction>Think very deeply about this request. Consider multiple approaches, potential edge cases, and implications. Reason through each step carefully and thoroughly.</thinking_instruction>\n\n';
+    } else if (thinkingMode === 'ultrathink') {
+      thinkingInstruction = '<thinking_instruction>Think comprehensively and exhaustively about this request. Explore all possible approaches, consider every edge case, analyze all implications, and reason through the problem with maximum depth and rigor. Take as much time as needed to fully understand and solve the problem.</thinking_instruction>\n\n';
+    }
+
+    // Add text message with thinking instruction prefix
     if (userMessage && userMessage.trim()) {
       content.push({
         type: 'text',
-        text: userMessage
+        text: thinkingInstruction + userMessage
+      });
+    } else if (thinkingInstruction) {
+      // If no user message but thinking instruction exists, add it anyway
+      content.push({
+        type: 'text',
+        text: thinkingInstruction.trim()
       });
     }
 

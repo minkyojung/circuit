@@ -1,12 +1,19 @@
 import * as React from 'react'
 import { useState, useEffect, useMemo } from 'react'
 import type { Workspace, WorkspaceCreateResult, WorkspaceListResult, WorkspaceStatus, Repository } from '@/types/workspace'
-import { Plus, GitBranch, Check, GitMerge, GitCommit } from 'lucide-react'
+import { Plus, GitBranch, Check, GitMerge, GitCommit, Archive, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useProjectPath } from '@/App'
 import { RepositorySwitcher } from './workspace/RepositorySwitcher'
 import { CloneRepositoryDialog } from './workspace/CloneRepositoryDialog'
 import { FileExplorer, type FileNode } from './workspace/FileExplorer'
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu'
 import {
   Sidebar,
   SidebarContent,
@@ -300,13 +307,35 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
     await loadWorkspaces()
   }
 
-  // @ts-ignore - unused but kept for future use
+  const archiveWorkspace = async (workspaceId: string) => {
+    try {
+      const result = await ipcRenderer.invoke('workspace:archive', workspaceId)
+
+      if (result.success) {
+        // Reload workspaces to update the list
+        await loadWorkspaces()
+
+        // Clear active workspace if it was archived
+        if (selectedWorkspaceId === workspaceId) {
+          onSelectWorkspace(null)
+        }
+      } else {
+        console.error('Failed to archive workspace:', result.error)
+        alert(`Failed to archive workspace: ${result.error}`)
+      }
+    } catch (error) {
+      console.error('Error archiving workspace:', error)
+      alert(`Error archiving workspace: ${error}`)
+    }
+  }
+
   const deleteWorkspace = async (workspaceId: string) => {
     try {
       const result = await ipcRenderer.invoke('workspace:delete', workspaceId)
 
       if (result.success) {
-        setWorkspaces(workspaces.filter((w) => w.id !== workspaceId))
+        // Reload workspaces to update the list
+        await loadWorkspaces()
 
         // Clear active workspace if it was deleted
         if (selectedWorkspaceId === workspaceId) {
@@ -322,17 +351,23 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
     }
   }
 
-  // Commented out unused function - may be used in future
-  // const handleDeleteWorkspace = (e: React.MouseEvent, workspaceId: string, workspaceName: string, isMerged: boolean = false) => {
-  //   e.stopPropagation()
-  //   const message = isMerged
-  //     ? `Archive workspace "${workspaceName}"? This will remove it from the list.`
-  //     : `Delete workspace "${workspaceName}"?`
+  const handleArchiveWorkspace = (e: React.MouseEvent, workspaceId: string, workspaceName: string) => {
+    e.stopPropagation()
+    const message = `Archive workspace "${workspaceName}"?\n\nArchived workspaces can be restored from the Archive tab.`
 
-  //   if (confirm(message)) {
-  //     deleteWorkspace(workspaceId)
-  //   }
-  // }
+    if (confirm(message)) {
+      archiveWorkspace(workspaceId)
+    }
+  }
+
+  const handleDeleteWorkspace = (e: React.MouseEvent, workspaceId: string, workspaceName: string) => {
+    e.stopPropagation()
+    const message = `Permanently delete workspace "${workspaceName}"?\n\nThis will remove the worktree and all local changes.\nThis action cannot be undone.`
+
+    if (confirm(message)) {
+      deleteWorkspace(workspaceId)
+    }
+  }
 
   const handleRefreshFileTree = () => {
     if (selectedWorkspace) {
@@ -373,7 +408,7 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
         {/* Workspaces */}
         <SidebarGroup>
           <SidebarMenu>
-            {workspaces.length === 0 ? (
+            {workspaces.filter(w => !w.archived).length === 0 ? (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -385,7 +420,7 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
               </motion.div>
             ) : (
               <AnimatePresence mode="popLayout">
-                {workspaces.map((workspace, index) => {
+                {workspaces.filter(w => !w.archived).map((workspace, index) => {
                   const status = statuses[workspace.id]
                   const badge = getStatusBadge(status)
                   const isActive = workspace.id === selectedWorkspaceId
@@ -401,17 +436,19 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                       exit="exit"
                       layout
                     >
-                      <SidebarMenuItem className={cn("my-0", isMerged && "opacity-60")}>
-                        <motion.div
-                          whileHover={{ scale: 1.01 }}
-                          whileTap={{ scale: 0.98 }}
-                          transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
-                        >
-                          <SidebarMenuButton
-                            onClick={() => onSelectWorkspace(workspace)}
-                            isActive={isActive}
-                            className="h-auto py-2 px-2 group transition-all duration-200 ease-out"
-                          >
+                      <ContextMenu>
+                        <ContextMenuTrigger asChild>
+                          <SidebarMenuItem className={cn("my-0", isMerged && "opacity-60")}>
+                            <motion.div
+                              whileHover={{ scale: 1.01 }}
+                              whileTap={{ scale: 0.98 }}
+                              transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
+                            >
+                              <SidebarMenuButton
+                                onClick={() => onSelectWorkspace(workspace)}
+                                isActive={isActive}
+                                className="h-auto py-2 px-2 group transition-all duration-200 ease-out"
+                              >
                       {/* Improved layout */}
                       <div className="flex gap-3 w-full min-w-0">
                         {/* Branch icon - aligned with first line text */}
@@ -496,8 +533,27 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
                         </div>
                       </div>
                           </SidebarMenuButton>
-                        </motion.div>
-                      </SidebarMenuItem>
+                            </motion.div>
+                          </SidebarMenuItem>
+                        </ContextMenuTrigger>
+                        <ContextMenuContent className="w-48">
+                          <ContextMenuItem
+                            onClick={(e) => handleArchiveWorkspace(e, workspace.id, workspace.name)}
+                            className="gap-2"
+                          >
+                            <Archive size={14} />
+                            Archive
+                          </ContextMenuItem>
+                          <ContextMenuSeparator />
+                          <ContextMenuItem
+                            onClick={(e) => handleDeleteWorkspace(e, workspace.id, workspace.name)}
+                            className="gap-2 text-destructive focus:text-destructive"
+                          >
+                            <Trash2 size={14} />
+                            Delete
+                          </ContextMenuItem>
+                        </ContextMenuContent>
+                      </ContextMenu>
                     </motion.div>
                   )
                 })}
