@@ -228,27 +228,39 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 transition={{ duration: 0.2, ease: 'easeInOut' }}
                 className="overflow-hidden border-b border-border"
               >
-                <div className="px-4 pt-4 pb-3">
-                  {/* Attachments Pills */}
+                <div className="pt-3 pb-3 pl-4">
+                  {/* Attachments Pills - Arc-inspired design */}
                   <div className="flex flex-wrap gap-2">
                     {attachedFiles.map((file) => (
                       <div
                         key={file.id}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-secondary/50 text-sm"
+                        className="group flex items-center gap-2.5 pl-2.5 pr-2 py-2 rounded-xl bg-muted border border-border/50 hover:border-border transition-all shadow-sm hover:shadow-md"
                       >
-                        {file.type.startsWith('image/') ? (
-                          <img
-                            src={file.url}
-                            alt={file.name}
-                            className="w-6 h-6 rounded object-cover"
-                          />
-                        ) : (
-                          <Paperclip className="w-4 h-4 text-muted-foreground" />
-                        )}
-                        <span className="max-w-[150px] truncate">{file.name}</span>
+                        {/* Icon/Thumbnail */}
+                        <div className="flex-shrink-0">
+                          {file.type.startsWith('image/') ? (
+                            <img
+                              src={file.url}
+                              alt={file.name}
+                              className="w-7 h-7 rounded-md object-cover"
+                            />
+                          ) : (
+                            <div className="w-7 h-7 rounded-md bg-secondary/80 flex items-center justify-center">
+                              <Paperclip className="w-4 h-4 text-muted-foreground" />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* File name */}
+                        <span className="text-sm font-medium text-foreground max-w-[200px] truncate">
+                          {file.name}
+                        </span>
+
+                        {/* Remove button */}
                         <button
                           onClick={() => handleRemoveFile(file.id)}
-                          className="hover:text-destructive transition-colors"
+                          className="ml-1 p-1 rounded-md hover:bg-destructive/10 hover:text-destructive transition-colors opacity-60 group-hover:opacity-100"
+                          aria-label="Remove attachment"
                         >
                           <X className="w-3.5 h-3.5" />
                         </button>
