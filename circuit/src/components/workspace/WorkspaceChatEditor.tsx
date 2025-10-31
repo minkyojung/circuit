@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type { Workspace } from '@/types/workspace';
 import type { Message } from '@/types/conversation';
 import Editor, { loader } from '@monaco-editor/react';
@@ -479,7 +479,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       }
   }, []);
 
-  const handleThinkingComplete = useCallback((_event: any, sessionId: string, stats: any) => {
+  const handleThinkingComplete = useCallback((_event: any, _sessionId: string, stats: any) => {
       console.log('[WorkspaceChat] ✅ Thinking complete:', stats);
 
       // Note: No need to update tool blocks since they're not in msg.blocks anymore

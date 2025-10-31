@@ -1,4 +1,4 @@
-import type { ThinkingStep, StepGroup, GroupedThinkingSteps, StepGroupType } from '@/types/thinking';
+import type { ThinkingStep, StepGroup, GroupedThinkingSteps } from '@/types/thinking';
 
 /**
  * Groups thinking steps into logical phases:
@@ -45,7 +45,7 @@ export function groupThinkingSteps(steps: ThinkingStep[], startTime: number): Gr
   return { groups, totalDuration };
 }
 
-function createStepGroup(steps: ThinkingStep[], absoluteStartTime: number, index: number): StepGroup {
+function createStepGroup(steps: ThinkingStep[], _absoluteStartTime: number, _index: number): StepGroup {
   const startTime = steps[0].timestamp;
   const endTime = steps[steps.length - 1].timestamp;
   const duration = Math.ceil((endTime - startTime) / 1000);
