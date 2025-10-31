@@ -239,7 +239,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                       return (
                         <div
                           key={file.id}
-                          className="group flex items-center gap-2 pl-2 pr-1.5 py-2 rounded-xl bg-card border border-border/50 hover:border-border transition-all shadow-sm hover:shadow-md"
+                          className="group flex items-center gap-2 pl-2 pr-1.5 py-2 rounded-xl bg-background border border-border/50 hover:border-border transition-all shadow-sm hover:shadow-md"
                         >
                           {/* Icon/Thumbnail */}
                           <div className="flex-shrink-0">
@@ -247,11 +247,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                               <img
                                 src={file.url}
                                 alt={file.name}
-                                className="w-7 h-7 rounded-md object-cover"
+                                className="w-6 h-6 rounded-md object-cover"
                               />
                             ) : (
-                              <div className="w-7 h-7 rounded-md bg-secondary/80 flex items-center justify-center">
-                                <Paperclip className="w-3.5 h-3.5 text-muted-foreground" />
+                              <div className="w-6 h-6 rounded-md bg-secondary/80 flex items-center justify-center">
+                                <Paperclip className="w-3 h-3 text-muted-foreground" />
                               </div>
                             )}
                           </div>
@@ -272,7 +272,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                             className="ml-0.5 p-0.5 rounded-md hover:bg-destructive/10 hover:text-destructive transition-colors opacity-60 group-hover:opacity-100"
                             aria-label="Remove attachment"
                           >
-                            <X className="w-3.5 h-3.5" />
+                            <X className="w-3 h-3" />
                           </button>
                         </div>
                       );
