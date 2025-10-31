@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { RefreshCw, ChevronUp, ChevronDown, Brain } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useWorkspaceContext } from '@/hooks/useWorkspaceContext';
+import { CompactIndicator } from './CompactIndicator';
 
 interface Workspace {
   id: string;
@@ -134,6 +135,12 @@ export const StatusBar: React.FC<StatusBarProps> = ({ selectedWorkspace }) => {
             {context.percentage.toFixed(0)}%
           </span>
         </div>
+
+        {/* Compact Warning Indicator */}
+        <CompactIndicator
+          workspaceId={selectedWorkspace?.id}
+          workspacePath={selectedWorkspace?.path}
+        />
 
         {/* Actions */}
         <div className="flex items-center gap-0.5 ml-1.5">
