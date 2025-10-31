@@ -217,7 +217,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   return (
     <div className={`${INPUT_STYLES.container.maxWidth} mx-auto`}>
       {/* Input Card - Floating */}
-      <div className="relative w-full flex flex-col border-2 border-border rounded-3xl bg-muted shadow-lg">
+      <div className="relative w-full flex flex-col border border-border rounded-3xl bg-muted shadow-lg">
           {/* Attachments - Only appears when files exist */}
           <AnimatePresence>
             {attachedFiles.length > 0 && (
@@ -269,7 +269,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                           {/* Remove button */}
                           <button
                             onClick={() => handleRemoveFile(file.id)}
-                            className="ml-0.5 p-0.5 rounded-md hover:bg-destructive/10 hover:text-destructive transition-colors opacity-60 group-hover:opacity-100"
+                            className="ml-0.5 p-0.5 rounded-md transition-colors opacity-60 group-hover:opacity-100 hover:text-foreground hover:bg-secondary/30 dark:hover:text-white dark:hover:bg-secondary/20"
                             aria-label="Remove attachment"
                           >
                             <X className="w-3 h-3" />
