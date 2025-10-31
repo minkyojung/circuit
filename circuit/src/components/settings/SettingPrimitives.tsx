@@ -26,17 +26,14 @@ export const SettingSection: React.FC<SettingSectionProps> = ({
   children,
 }) => {
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        {Icon && <Icon size={16} className="text-muted-foreground" />}
-        <div>
-          <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-          {description && (
-            <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
-          )}
-        </div>
+    <div className="space-y-3">
+      <div>
+        <h3 className="text-sm font-medium text-foreground">{title}</h3>
+        {description && (
+          <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
+        )}
       </div>
-      <div className="space-y-3 pl-0">{children}</div>
+      <div className="space-y-2.5">{children}</div>
     </div>
   );
 };
@@ -222,7 +219,54 @@ export const SliderSetting: React.FC<SliderSettingProps> = ({
 };
 
 // ============================================================================
-// RadioGroupSetting - Radio button group
+// SegmentedControl - Compact button group (Apple-style)
+// ============================================================================
+
+interface SegmentOption {
+  value: string;
+  label: string;
+}
+
+interface SegmentedControlProps {
+  value: string;
+  options: SegmentOption[];
+  onChange: (value: string) => void;
+  disabled?: boolean;
+}
+
+export const SegmentedControl: React.FC<SegmentedControlProps> = ({
+  value,
+  options,
+  onChange,
+  disabled = false,
+}) => {
+  return (
+    <div className="inline-flex rounded-md border border-input bg-background p-1">
+      {options.map((option, idx) => (
+        <button
+          key={option.value}
+          type="button"
+          onClick={() => onChange(option.value)}
+          disabled={disabled}
+          className={cn(
+            'px-3 py-1 text-xs font-medium rounded transition-colors',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            value === option.value
+              ? 'bg-primary text-primary-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted',
+            disabled && 'opacity-50 cursor-not-allowed',
+            idx > 0 && 'ml-1'
+          )}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+};
+
+// ============================================================================
+// RadioGroupSetting - Compact radio buttons (no giant boxes)
 // ============================================================================
 
 interface RadioOption {
@@ -249,21 +293,19 @@ export const RadioGroupSetting: React.FC<RadioGroupSettingProps> = ({
   disabled = false,
 }) => {
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <div>
         <label className="text-sm font-medium text-foreground">{label}</label>
         {description && (
           <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
         )}
       </div>
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         {options.map((option) => (
           <label
             key={option.value}
             className={cn(
-              'flex items-start gap-3 p-3 rounded-md border border-input cursor-pointer transition-colors',
-              'hover:bg-accent',
-              value === option.value && 'border-primary bg-accent',
+              'flex items-center gap-2 cursor-pointer group',
               disabled && 'opacity-50 cursor-not-allowed'
             )}
           >
@@ -273,14 +315,14 @@ export const RadioGroupSetting: React.FC<RadioGroupSettingProps> = ({
               checked={value === option.value}
               onChange={(e) => onChange(e.target.value)}
               disabled={disabled}
-              className="mt-0.5 h-4 w-4 text-primary focus:ring-2 focus:ring-ring"
+              className="h-3.5 w-3.5 text-primary focus:ring-2 focus:ring-ring focus:ring-offset-0"
             />
             <div className="flex-1">
-              <div className="text-sm font-medium text-foreground">{option.label}</div>
+              <span className="text-sm text-foreground">{option.label}</span>
               {option.description && (
-                <div className="text-xs text-muted-foreground mt-0.5">
-                  {option.description}
-                </div>
+                <span className="text-xs text-muted-foreground ml-1.5">
+                  — {option.description}
+                </span>
               )}
             </div>
           </label>
