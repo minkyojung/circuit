@@ -868,9 +868,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                   })()}
 
                   {/* Block-based rendering with fallback */}
-                  {/* DEBUG: Log message content for Problem 2 investigation */}
-//                  {msg.role === 'assistant' && console.log('[DEBUG Problem 2] msg.content:', msg.content)}
-
                   {msg.blocks && msg.blocks.length > 0 ? (
                     <BlockList
                       blocks={msg.blocks}

@@ -8,6 +8,7 @@
 import React, { useState, useRef, useCallback } from 'react'
 import { ArrowUp, Paperclip, X, Globe } from 'lucide-react'
 import { toast } from 'sonner'
+import { useSettingsContext } from '@/contexts/SettingsContext'
 
 interface ChatInputProps {
   value: string
@@ -62,6 +63,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   placeholder = 'Ask, search, or make anything...',
   showControls = true,
 }) => {
+  const { settings } = useSettingsContext()
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -157,6 +159,47 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     [handleSend]
   )
 
+  // Handle paste - auto-convert long text to attachment
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      // Check if auto-conversion is enabled
+      if (!settings.attachments.autoConvertLongText) return
+
+      const pastedText = e.clipboardData.getData('text')
+
+      // Check if text exceeds threshold
+      if (pastedText.length > settings.attachments.threshold) {
+        e.preventDefault() // Prevent default paste
+
+        // Create a text file from pasted content
+        const blob = new Blob([pastedText], { type: 'text/plain' })
+        const file = new File([blob], 'pasted_text.txt', { type: 'text/plain' })
+
+        // Convert to data URL
+        const reader = new FileReader()
+        reader.onload = (event) => {
+          if (event.target?.result) {
+            const newFile: AttachedFile = {
+              id: `paste-${Date.now()}`,
+              name: 'pasted_text.txt',
+              type: 'text/plain',
+              size: blob.size,
+              url: event.target.result as string,
+            }
+
+            setAttachedFiles((prev) => [...prev, newFile])
+            toast.success(
+              `Long text (${(pastedText.length / 1000).toFixed(1)}k chars) converted to attachment`
+            )
+          }
+        }
+        reader.readAsDataURL(blob)
+      }
+      // If text is under threshold, allow normal paste (do nothing)
+    },
+    [settings.attachments]
+  )
+
   // Auto-resize textarea
   const handleTextareaChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -224,6 +267,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             value={value}
             onChange={handleTextareaChange}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             placeholder={placeholder}
             disabled={disabled}
             className={`w-full ${INPUT_STYLES.textarea.padding} bg-transparent border-none outline-none resize-none leading-relaxed text-card-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-0 ${INPUT_STYLES.textarea.fontSize} ${INPUT_STYLES.textarea.minHeight}`}
