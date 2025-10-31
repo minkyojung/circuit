@@ -13,7 +13,6 @@ import {
   ToggleSetting,
   SelectSetting,
   SliderSetting,
-  RadioGroupSetting,
   SegmentedControl,
 } from './settings/SettingPrimitives';
 import { useTheme } from '@/hooks/useTheme';
@@ -220,10 +219,9 @@ const ModelSettings: React.FC<SettingsPanelProps> = ({ settings, updateSettings 
       label="Model"
       value={settings.model.default}
       options={[
-        { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet (Latest)' },
-        { value: 'claude-3-5-sonnet-20240620', label: 'Claude 3.5 Sonnet (June)' },
-        { value: 'claude-3-opus-20240229', label: 'Claude 3 Opus' },
-        { value: 'claude-3-haiku-20240307', label: 'Claude 3 Haiku' },
+        { value: 'claude-sonnet-4-5-20250929', label: 'Claude Sonnet 4.5 (Latest)' },
+        { value: 'claude-opus-4-20250514', label: 'Claude Opus 4' },
+        { value: 'claude-haiku-4-20250918', label: 'Claude Haiku 4' },
       ]}
       onChange={(value) => updateSettings('model', { default: value as ClaudeModel })}
     />

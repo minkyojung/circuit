@@ -22,7 +22,6 @@ interface SettingSectionProps {
 export const SettingSection: React.FC<SettingSectionProps> = ({
   title,
   description,
-  icon: Icon,
   children,
 }) => {
   return (
