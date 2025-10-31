@@ -20,7 +20,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import type { Workspace } from "@/types/workspace"
-import { FolderGit2, PanelLeft, PanelRight } from 'lucide-react'
+import { PanelLeft, PanelRight, FolderGit2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'

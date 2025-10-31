@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Workspace Archive System** - Archive/unarchive workspaces with metadata persistence
+  - Archive tab in Settings dialog with search and management interface
+  - Context menu option to archive workspaces from sidebar
+  - Metadata stored in `.conductor/workspace-metadata.json`
+  - Archived workspaces filtered from main workspace list
+- **Thinking Modes** - Adjustable reasoning depth for Claude responses
+  - Normal mode: Standard fast responses
+  - Think mode: Careful systematic reasoning
+  - Megathink mode: Deep analysis with edge case consideration
+  - Ultrathink mode: Comprehensive exhaustive reasoning
+  - Mode selector dropdown in chat input (replaces "Auto" button)
+  - Auto-reset to Normal mode after each message
 - **AI SDK Type Adapter Layer** - Bidirectional conversion between AI SDK types and Block system (`aiSDKAdapter.ts`)
 - **Enhanced Chat Input with File Attachments** - New `ChatInput` component supporting images, PDFs, and text files (up to 10MB)
 - **File Attachment Validation** - Type and size checking with user-friendly error messages
@@ -25,8 +37,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Session file detection failure** - Large files (>500KB) failed to parse due to truncated JSON
 - Redundant full file re-parsing on every change (now using incremental reads)
 - Missing async/await on watcher.close() calls
+- Attachment pill padding when close button is absent
+- Dropdown hover state now uses lighter color (50% opacity)
 
 ### Changed
+- **Removed obsolete tabs** - Deleted DeploymentsTab, GitHubTab, MemoryTab, TestFixTab components
 - **WorkspaceChatEditor Input Refactor** - Replaced 80-line manual textarea implementation with reusable `ChatInput` component (91% code reduction)
 - **Message metadata extended** - Added `files` array to track attached file names
 - **handleSend signature** - Now accepts `(inputText, attachments)` instead of using closure over state
@@ -36,6 +51,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Status bar messaging: "No active Claude Code session" → "Waiting for session" (more accurate)
 - Removed excessive debug logging from production code
 - Built-in `readline` module instead of external streaming libraries
+- **Thinking mode integration** - handleSend signature updated to accept thinkingMode parameter
+- **Build configuration** - Test files now excluded from production builds (tsconfig.app.json)
 
 ### Performance
 - **10x faster session file detection** - Using mtime instead of reading/parsing file contents
@@ -149,6 +166,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sidebar border visibility for better glass effect definition
 
 ### Security
+- **Path traversal protection** - Validate workspaceId to prevent directory traversal attacks
+  - Block special characters (/, \, ..) in workspace identifiers
+  - Validate input type (must be string)
+- **Input validation for thinking modes** - Whitelist valid thinking mode values
+  - Automatically fallback to 'normal' for invalid modes
 - Restrict CORS to localhost origins only to prevent unauthorized access
 - Add payload size limit (1MB) to API server to prevent DoS attacks
 - Sanitize error messages in API responses to prevent information leakage

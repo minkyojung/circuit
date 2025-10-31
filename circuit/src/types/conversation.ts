@@ -25,6 +25,12 @@ export interface Message {
     tokens?: number
     thinkingSteps?: ThinkingStep[]
     thinkingDuration?: number
+    attachments?: Array<{
+      id: string
+      name: string
+      type: string
+      size: number
+    }>
   }
   blocks?: Block[]  // New: Block-based message structure
 }

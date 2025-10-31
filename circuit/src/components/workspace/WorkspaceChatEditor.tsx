@@ -237,7 +237,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         const loadedMessages = messagesResult.messages || [];
 
         console.log('[ChatPanel] Loaded', loadedMessages.length, 'messages');
-        console.log('[DEBUG Problem 3] Loaded message IDs:', loadedMessages.map((m: Message) => ({ id: m.id, role: m.role, preview: m.content.substring(0, 30) })));
         setMessages(loadedMessages);
 
         // 4. Restore thinking steps from message metadata
@@ -680,11 +679,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     };
   }, [handleThinkingStart, handleMilestone, handleThinkingComplete, handleResponseComplete, handleResponseError]);
 
-  const handleSend = async (inputText: string, attachments: AttachedFile[]) => {
-    console.log('[DEBUG Problem 3] handleSend CALLED with:', inputText);
-    console.log('[DEBUG Problem 3] Current messages.length:', messages.length);
-    console.log('[DEBUG Problem 3] isSending:', isSending, 'sessionId:', sessionId);
-
+  const handleSend = async (inputText: string, attachments: AttachedFile[], thinkingMode: import('./ChatInput').ThinkingMode) => {
     if (!inputText.trim() && attachments.length === 0) return;
     if (isSending || !sessionId) return;
 
@@ -731,9 +726,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
     // Optimistic UI update
     setMessages([...messages, userMessage]);
-    console.log('[DEBUG Problem 3] After optimistic update, messages.length:', messages.length + 1);
-    console.log('[DEBUG Problem 3] userMessage.id:', userMessage.id);
-
     const currentInput = inputText;
     setInput('');
     setIsSending(true);
@@ -756,9 +748,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     pendingUserMessageRef.current = userMessage;
 
     // Send message (non-blocking) - response will arrive via event listeners
-    console.log('[ChatPanel] Sending message to Claude...');
-    console.log('[ChatPanel] Attachments:', attachments);
-    ipcRenderer.send('claude:send-message', sessionId, currentInput, attachments);
+    ipcRenderer.send('claude:send-message', sessionId, currentInput, attachments, thinkingMode);
   };
 
   return (
@@ -814,7 +804,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                         return (
                           <div
                             key={file.id}
-                            className="group flex items-center gap-2 pl-2 pr-2 py-2 rounded-xl bg-card transition-all"
+                            className="group flex items-center gap-2 pl-2 pr-3 py-2 rounded-xl bg-card transition-all"
                           >
                             {/* Icon/Thumbnail - Vertical rectangle */}
                             <div className="flex-shrink-0">
