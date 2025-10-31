@@ -546,7 +546,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         // Save thinking steps to memory
         setMessageThinkingSteps((prev) => ({
           ...prev,
-          [assistantMessageId]: {
+          [assistantMessageId!]: {
             steps: [...currentThinkingSteps],
             duration
           }
@@ -841,27 +841,35 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                   )}
 
                   {/* Reasoning content (collapsible) - Above message content */}
-                  <AnimatePresence>
-                    {msg.role === 'assistant' && openReasoningId === msg.id && messageThinkingSteps[msg.id]?.steps?.length > 0 && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.2, ease: 'easeInOut' }}
-                        className="overflow-hidden"
-                      >
-                        <div className="mb-3 pl-1">
-                          <ReasoningAccordion
-                            steps={messageThinkingSteps[msg.id].steps}
-                          />
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                  {(() => {
+                    const shouldShowReasoning = msg.role === 'assistant' && 
+                      openReasoningId === msg.id && 
+                      (messageThinkingSteps[msg.id]?.steps?.length ?? 0) > 0;
+                    
+                    if (!shouldShowReasoning) return null;
+                    
+                    return (
+                      <AnimatePresence>
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.2, ease: 'easeInOut' }}
+                          className="overflow-hidden"
+                        >
+                          <div className="mb-3 pl-1">
+                            <ReasoningAccordion
+                              steps={messageThinkingSteps[msg.id].steps}
+                            />
+                          </div>
+                        </motion.div>
+                      </AnimatePresence>
+                    );
+                  })()}
 
                   {/* Block-based rendering with fallback */}
                   {/* DEBUG: Log message content for Problem 2 investigation */}
-                  {msg.role === 'assistant' && console.log('[DEBUG Problem 2] msg.content:', msg.content)}
+//                  {msg.role === 'assistant' && console.log('[DEBUG Problem 2] msg.content:', msg.content)}
 
                   {msg.blocks && msg.blocks.length > 0 ? (
                     <BlockList

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { Code, Terminal, FileText, GitCompare, RefreshCw, Search, X, MessageSquare, User, Bot } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Block, BlockType, Message } from '@/types/conversation'
