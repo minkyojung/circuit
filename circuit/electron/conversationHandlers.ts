@@ -3,7 +3,13 @@
  */
 
 import { ipcMain, IpcMainInvokeEvent } from 'electron'
-import { ConversationStorage, Conversation, Message } from './conversationStorage'
+import { ConversationStorage, Conversation, Message, Block, BlockBookmark, BlockExecution } from './conversationStorage'
+import { parseMessageToBlocks, Block as ParsedBlock } from './messageParser'
+import { exec } from 'child_process'
+import { promisify } from 'util'
+import { randomUUID } from 'crypto'
+
+const execAsync = promisify(exec)
 
 let storage: ConversationStorage | null = null
 
@@ -188,7 +194,7 @@ export function registerConversationHandlers(): void {
   // ============================================================================
 
   /**
-   * Load all messages for a conversation
+   * Load all messages for a conversation (with blocks)
    */
   ipcMain.handle(
     'message:load',
@@ -198,9 +204,26 @@ export function registerConversationHandlers(): void {
 
         const messages = storage.getMessages(conversationId, options)
 
+        // Load blocks for each message
+        const messagesWithBlocks = messages.map(message => {
+          const blocks = storage!.getBlocks(message.id)
+          return {
+            ...message,
+            metadata: message.metadata
+              ? (typeof message.metadata === 'string'
+                  ? JSON.parse(message.metadata)
+                  : message.metadata)
+              : undefined,
+            blocks: blocks.length > 0 ? blocks.map(b => ({
+              ...b,
+              metadata: JSON.parse(b.metadata || '{}')
+            })) : undefined
+          }
+        })
+
         return {
           success: true,
-          messages
+          messages: messagesWithBlocks
         }
       } catch (error: any) {
         console.error('[message:load] Error:', error)
@@ -213,7 +236,7 @@ export function registerConversationHandlers(): void {
   )
 
   /**
-   * Save a single message
+   * Save a single message (with automatic block parsing)
    */
   ipcMain.handle(
     'message:save',
@@ -221,10 +244,41 @@ export function registerConversationHandlers(): void {
       try {
         if (!storage) throw new Error('Storage not initialized')
 
-        storage.saveMessage(message)
+        // Normalize message metadata to JSON string
+        const normalizedMessage = {
+          ...message,
+          metadata: message.metadata
+            ? (typeof message.metadata === 'string'
+                ? message.metadata
+                : JSON.stringify(message.metadata))
+            : undefined
+        }
+
+        // Parse message content into text blocks
+        const parseResult = parseMessageToBlocks(message.content, message.id)
+
+        if (parseResult.errors.length > 0) {
+          console.warn('[message:save] Parse errors:', parseResult.errors)
+        }
+
+        // Note: Tool blocks are NOT stored in message body
+        // They are stored in metadata.thinkingSteps and displayed in ReasoningAccordion only
+        // This prevents duplicate rendering and reduces message body clutter
+        let allBlocks: ParsedBlock[] = [...parseResult.blocks]
+
+        // Convert blocks to storage format (metadata as JSON string)
+        const blocksForStorage = allBlocks.map(block => ({
+          ...block,
+          metadata: JSON.stringify(block.metadata)
+        }))
+
+        // Save message with blocks
+        storage.saveMessageWithBlocks(normalizedMessage, blocksForStorage as any)
 
         return {
-          success: true
+          success: true,
+          blockCount: allBlocks.length,
+          blocks: allBlocks // Return all blocks (including tool blocks) for UI update
         }
       } catch (error: any) {
         console.error('[message:save] Error:', error)
@@ -333,6 +387,313 @@ export function registerConversationHandlers(): void {
         return {
           success: false,
           error: error.message
+        }
+      }
+    }
+  )
+
+  // ============================================================================
+  // Block Handlers
+  // ============================================================================
+
+  /**
+   * Get blocks for a message
+   */
+  ipcMain.handle(
+    'block:get-blocks',
+    async (_event: IpcMainInvokeEvent, messageId: string) => {
+      try {
+        if (!storage) throw new Error('Storage not initialized')
+
+        const blocks = storage.getBlocks(messageId)
+
+        // Parse metadata JSON
+        const blocksWithMetadata = blocks.map(b => ({
+          ...b,
+          metadata: JSON.parse(b.metadata || '{}')
+        }))
+
+        return {
+          success: true,
+          blocks: blocksWithMetadata
+        }
+      } catch (error: any) {
+        console.error('[block:get-blocks] Error:', error)
+        return {
+          success: false,
+          error: error.message
+        }
+      }
+    }
+  )
+
+  /**
+   * Search blocks
+   */
+  ipcMain.handle(
+    'block:search',
+    async (_event: IpcMainInvokeEvent, query: string, filters?: { blockType?: string; workspaceId?: string; limit?: number }) => {
+      try {
+        if (!storage) throw new Error('Storage not initialized')
+
+        const results = storage.searchBlocks(query, filters as any)
+
+        // Parse metadata JSON
+        const resultsWithMetadata = results.map(b => ({
+          ...b,
+          metadata: JSON.parse(b.metadata || '{}')
+        }))
+
+        return {
+          success: true,
+          results: resultsWithMetadata
+        }
+      } catch (error: any) {
+        console.error('[block:search] Error:', error)
+        return {
+          success: false,
+          error: error.message
+        }
+      }
+    }
+  )
+
+  /**
+   * Save block bookmark
+   */
+  ipcMain.handle(
+    'block:bookmark',
+    async (_event: IpcMainInvokeEvent, bookmark: BlockBookmark) => {
+      try {
+        if (!storage) throw new Error('Storage not initialized')
+
+        // Convert tags array to JSON string
+        const bookmarkForStorage = {
+          ...bookmark,
+          tags: bookmark.tags ? JSON.stringify(bookmark.tags) : undefined
+        }
+
+        storage.saveBlockBookmark(bookmarkForStorage as any)
+
+        return {
+          success: true
+        }
+      } catch (error: any) {
+        console.error('[block:bookmark] Error:', error)
+        return {
+          success: false,
+          error: error.message
+        }
+      }
+    }
+  )
+
+  /**
+   * Get all block bookmarks
+   */
+  ipcMain.handle(
+    'block:get-bookmarks',
+    async (_event: IpcMainInvokeEvent) => {
+      try {
+        if (!storage) throw new Error('Storage not initialized')
+
+        const bookmarks = storage.getBlockBookmarks()
+
+        // Parse tags JSON
+        const bookmarksWithTags = bookmarks.map(b => ({
+          ...b,
+          tags: b.tags ? JSON.parse(b.tags) : []
+        }))
+
+        return {
+          success: true,
+          bookmarks: bookmarksWithTags
+        }
+      } catch (error: any) {
+        console.error('[block:get-bookmarks] Error:', error)
+        return {
+          success: false,
+          error: error.message
+        }
+      }
+    }
+  )
+
+  /**
+   * Delete block bookmark
+   */
+  ipcMain.handle(
+    'block:delete-bookmark',
+    async (_event: IpcMainInvokeEvent, bookmarkId: string) => {
+      try {
+        if (!storage) throw new Error('Storage not initialized')
+
+        storage.deleteBlockBookmark(bookmarkId)
+
+        return {
+          success: true
+        }
+      } catch (error: any) {
+        console.error('[block:delete-bookmark] Error:', error)
+        return {
+          success: false,
+          error: error.message
+        }
+      }
+    }
+  )
+
+  /**
+   * Record block execution
+   */
+  ipcMain.handle(
+    'block:record-execution',
+    async (_event: IpcMainInvokeEvent, execution: BlockExecution) => {
+      try {
+        if (!storage) throw new Error('Storage not initialized')
+
+        storage.recordBlockExecution(execution)
+
+        return {
+          success: true
+        }
+      } catch (error: any) {
+        console.error('[block:record-execution] Error:', error)
+        return {
+          success: false,
+          error: error.message
+        }
+      }
+    }
+  )
+
+  /**
+   * Get block execution history
+   */
+  ipcMain.handle(
+    'block:get-executions',
+    async (_event: IpcMainInvokeEvent, blockId: string) => {
+      try {
+        if (!storage) throw new Error('Storage not initialized')
+
+        const executions = storage.getBlockExecutions(blockId)
+
+        return {
+          success: true,
+          executions
+        }
+      } catch (error: any) {
+        console.error('[block:get-executions] Error:', error)
+        return {
+          success: false,
+          error: error.message
+        }
+      }
+    }
+  )
+
+  /**
+   * Execute a command block
+   *
+   * Security: Basic validation to prevent dangerous commands
+   */
+  ipcMain.handle(
+    'command:execute',
+    async (_event: IpcMainInvokeEvent, options: {
+      command: string
+      workingDirectory: string
+      blockId?: string
+    }) => {
+      try {
+        const { command, workingDirectory, blockId } = options
+
+        // Basic security checks
+        const dangerousPatterns = [
+          /rm\s+-rf\s+\//, // rm -rf /
+          /sudo/i,          // sudo commands
+          /:\(\)\{/,        // Fork bomb
+          /mkfs/i,          // Format disk
+          /dd\s+if=/i,      // Disk operations
+        ]
+
+        for (const pattern of dangerousPatterns) {
+          if (pattern.test(command)) {
+            throw new Error('Command contains potentially dangerous operations and was blocked')
+          }
+        }
+
+        console.log(`[command:execute] Executing: ${command}`)
+        console.log(`[command:execute] Working directory: ${workingDirectory}`)
+
+        const startTime = Date.now()
+
+        // Execute command with timeout
+        const result = await execAsync(command, {
+          cwd: workingDirectory,
+          timeout: 30000, // 30 seconds timeout
+          maxBuffer: 1024 * 1024 * 10, // 10MB max output
+        })
+
+        const duration = Date.now() - startTime
+        const exitCode = result.stdout || result.stderr ? 0 : 1
+
+        // Combine stdout and stderr
+        const output = (result.stdout + result.stderr).trim()
+
+        console.log(`[command:execute] Success (${duration}ms)`)
+        console.log(`[command:execute] Output length: ${output.length} bytes`)
+
+        // Record execution if blockId provided
+        if (blockId && storage) {
+          const execution: BlockExecution = {
+            id: `exec-${Date.now()}`,
+            blockId,
+            executedAt: new Date().toISOString(),
+            exitCode: 0,
+            output: output.slice(0, 10000), // Limit to 10KB
+            durationMs: duration
+          }
+
+          storage.recordBlockExecution(execution)
+        }
+
+        return {
+          success: true,
+          output,
+          exitCode: 0,
+          duration
+        }
+      } catch (error: any) {
+        console.error('[command:execute] Error:', error.message)
+
+        // Check if it's a timeout
+        if (error.killed || error.signal === 'SIGTERM') {
+          return {
+            success: false,
+            error: 'Command timed out after 30 seconds',
+            exitCode: 124
+          }
+        }
+
+        // Record failed execution
+        if (options.blockId && storage) {
+          const execution: BlockExecution = {
+            id: `exec-${Date.now()}`,
+            blockId: options.blockId,
+            executedAt: new Date().toISOString(),
+            exitCode: error.code || 1,
+            output: error.message,
+            durationMs: 0
+          }
+
+          storage.recordBlockExecution(execution)
+        }
+
+        return {
+          success: false,
+          error: error.message,
+          output: error.stdout || error.stderr || error.message,
+          exitCode: error.code || 1
         }
       }
     }

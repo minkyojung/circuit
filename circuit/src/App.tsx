@@ -3,6 +3,7 @@ import { WorkspaceChatEditor } from "@/components/workspace"
 import { CommitDialog } from "@/components/workspace/CommitDialog"
 import { CommandPalette } from "@/components/CommandPalette"
 import { AppSidebar } from "@/components/AppSidebar"
+import { BlockNavigator } from "@/components/BlockNavigator"
 import { StatusBar } from "@/components/statusbar/StatusBar"
 import {
   Breadcrumb,
@@ -16,12 +17,14 @@ import { Separator } from "@/components/ui/separator"
 import {
   SidebarInset,
   SidebarProvider,
-  SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar"
 import type { Workspace } from "@/types/workspace"
-import { FolderGit2, GitCommit } from 'lucide-react'
+import { FolderGit2, PanelLeft, PanelRight } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
+import { Toaster } from 'sonner'
 import './App.css'
 
 // Project Path Context
@@ -37,6 +40,26 @@ const ProjectPathContext = createContext<ProjectPathContextValue>({
 
 export const useProjectPath = () => useContext(ProjectPathContext)
 
+// Custom sidebar toggle button component
+function LeftSidebarToggle() {
+  const { state, toggleSidebar } = useSidebar()
+
+  return (
+    <button
+      onClick={toggleSidebar}
+      className={cn(
+        "flex h-7 w-7 items-center justify-center rounded-md transition-colors",
+        state === "expanded"
+          ? "text-foreground hover:bg-sidebar-hover"
+          : "text-muted-foreground hover:bg-sidebar-hover hover:text-foreground"
+      )}
+      title={state === "expanded" ? "Collapse sidebar" : "Expand sidebar"}
+    >
+      <PanelLeft size={16} />
+    </button>
+  )
+}
+
 function App() {
   const [projectPath, setProjectPath] = useState<string>('')
   const [isLoadingPath, setIsLoadingPath] = useState<boolean>(true)
@@ -45,6 +68,8 @@ function App() {
   const [showCommitDialog, setShowCommitDialog] = useState<boolean>(false)
   const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false)
   const [chatPrefillMessage, setChatPrefillMessage] = useState<string | null>(null)
+  const [isRightSidebarOpen, setIsRightSidebarOpen] = useState<boolean>(false)
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
 
   // Workspace navigation refs (for keyboard shortcuts)
   const workspacesRef = useRef<Workspace[]>([])
@@ -176,12 +201,12 @@ function App() {
   return (
     <ProjectPathContext.Provider value={{ projectPath, isLoading: isLoadingPath }}>
       <div
-        className="h-screen overflow-hidden backdrop-blur-xl"
+        className="h-screen overflow-hidden backdrop-blur-xl flex"
         style={{
           backgroundColor: 'var(--window-glass)'
         }}
       >
-        <SidebarProvider>
+        <SidebarProvider className="flex-1">
         <AppSidebar
           selectedWorkspaceId={selectedWorkspace?.id || null}
           selectedWorkspace={selectedWorkspace}
@@ -190,7 +215,10 @@ function App() {
           onFileSelect={handleFileSelect}
           onWorkspacesLoaded={setWorkspacesForShortcuts}
         />
-        <SidebarInset className="bg-card">
+        <SidebarInset className={cn(
+          "bg-card transition-[border-radius] duration-300",
+          isRightSidebarOpen && "rounded-r-xl"
+        )}>
           {/* Main Header with Breadcrumb */}
           <header
             className="flex h-[44px] shrink-0 items-center gap-2 border-b border-border px-4"
@@ -200,7 +228,7 @@ function App() {
               className="flex items-center gap-2"
               style={{ WebkitAppRegion: 'no-drag' } as any}
             >
-              <SidebarTrigger className="-ml-1" />
+              <LeftSidebarToggle />
               <Separator orientation="vertical" className="mr-2 h-4" />
               {selectedWorkspace ? (
                 <Breadcrumb>
@@ -208,14 +236,14 @@ function App() {
                     <BreadcrumbItem>
                       <BreadcrumbLink
                         onClick={() => setSelectedWorkspace(null)}
-                        className="cursor-pointer hover:text-foreground transition-colors"
+                        className="cursor-pointer text-muted-foreground hover:text-foreground transition-colors"
                       >
                         {repositoryName}
                       </BreadcrumbLink>
                     </BreadcrumbItem>
                     <BreadcrumbSeparator />
                     <BreadcrumbItem>
-                      <BreadcrumbPage className="font-medium">
+                      <BreadcrumbPage className="font-medium text-muted-foreground">
                         {selectedWorkspace.name}
                       </BreadcrumbPage>
                     </BreadcrumbItem>
@@ -231,7 +259,7 @@ function App() {
                 <Breadcrumb>
                   <BreadcrumbList>
                     <BreadcrumbItem>
-                      <BreadcrumbPage className="font-medium">
+                      <BreadcrumbPage className="font-medium text-muted-foreground">
                         {repositoryName}
                       </BreadcrumbPage>
                     </BreadcrumbItem>
@@ -243,17 +271,28 @@ function App() {
             {/* Spacer */}
             <div className="flex-1" />
 
-            {/* Right side - Commit button (when workspace selected) */}
+            {/* Right side - Blocks and Commit buttons (when workspace selected) */}
             {selectedWorkspace && (
               <div
                 className="flex items-center gap-2"
                 style={{ WebkitAppRegion: 'no-drag' } as any}
               >
                 <button
-                  onClick={() => setShowCommitDialog(true)}
-                  className="px-3 py-1.5 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium rounded-lg transition-colors flex items-center gap-2"
+                  onClick={() => setIsRightSidebarOpen(!isRightSidebarOpen)}
+                  className={cn(
+                    "flex h-7 w-7 items-center justify-center rounded-md transition-colors",
+                    isRightSidebarOpen
+                      ? 'text-foreground hover:bg-sidebar-hover'
+                      : 'text-muted-foreground hover:bg-sidebar-hover hover:text-foreground'
+                  )}
+                  title="Toggle blocks"
                 >
-                  <GitCommit size={14} />
+                  <PanelRight size={16} />
+                </button>
+                <button
+                  onClick={() => setShowCommitDialog(true)}
+                  className="px-4 py-[7px] bg-secondary hover:bg-secondary/80 text-secondary-foreground text-sm font-medium rounded-md transition-colors"
+                >
                   Commit & PR
                 </button>
               </div>
@@ -269,6 +308,7 @@ function App() {
                   selectedFile={selectedFile}
                   prefillMessage={chatPrefillMessage}
                   onPrefillCleared={() => setChatPrefillMessage(null)}
+                  onConversationChange={setActiveConversationId}
                 />
 
                 {/* Commit Dialog */}
@@ -305,6 +345,20 @@ function App() {
         </SidebarInset>
       </SidebarProvider>
 
+      {/* Right Sidebar - Block Navigator */}
+      <div
+        className={cn(
+          "h-full transition-all duration-300 ease-in-out overflow-hidden",
+          isRightSidebarOpen ? "w-[17rem]" : "w-0"
+        )}
+      >
+        <BlockNavigator
+          isOpen={isRightSidebarOpen}
+          onClose={() => setIsRightSidebarOpen(false)}
+          conversationId={activeConversationId}
+        />
+      </div>
+
       {/* Command Palette */}
       <CommandPalette
         open={showCommandPalette}
@@ -312,6 +366,17 @@ function App() {
         workspaces={workspacesRef.current}
         onSelectWorkspace={setSelectedWorkspace}
         onCreateWorkspace={handleCreateWorkspace}
+      />
+
+      {/* Toast Notifications */}
+      <Toaster
+        position="bottom-right"
+        toastOptions={{
+          duration: 3000,
+          style: {
+            borderRadius: 'var(--radius-lg)',
+          },
+        }}
       />
       </div>
     </ProjectPathContext.Provider>

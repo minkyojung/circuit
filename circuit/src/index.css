@@ -28,14 +28,6 @@
     background-color: transparent;
   }
 
-  /* Force transparency for peek panel (Electron specific) */
-  html.peek-panel,
-  html.peek-panel body,
-  html.peek-panel #root {
-    background-color: transparent !important;
-    background: transparent !important;
-  }
-
   /* Border color utility */
   * {
     @apply border-border;
@@ -47,6 +39,59 @@
   /* Sidebar layout fixes */
   .group\/sidebar-wrapper:has([data-state="collapsed"][data-variant="inset"]) {
     @apply bg-sidebar;
+  }
+
+  /* Toast Glassmorphism Styling */
+  [data-sonner-toast] {
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    background: var(--material-regular) !important;
+    border: 1px solid var(--separator-opaque) !important;
+    box-shadow: 0 8px 16px 0 rgba(0, 0, 0, 0.1),
+                0 4px 8px 0 rgba(0, 0, 0, 0.08) !important;
+    color: var(--label-primary) !important;
+  }
+
+  /* Toast success variant */
+  [data-sonner-toast][data-type="success"] {
+    background: rgba(34, 197, 94, 0.15) !important;
+    backdrop-filter: blur(12px) !important;
+    border: 1px solid rgba(34, 197, 94, 0.3) !important;
+  }
+
+  /* Toast error variant */
+  [data-sonner-toast][data-type="error"] {
+    background: rgba(239, 68, 68, 0.15) !important;
+    backdrop-filter: blur(12px) !important;
+    border: 1px solid rgba(239, 68, 68, 0.3) !important;
+  }
+
+  /* Toast icon */
+  [data-sonner-toast] [data-icon] {
+    color: var(--label-primary) !important;
+  }
+
+  /* Toast title */
+  [data-sonner-toast] [data-title] {
+    color: var(--label-primary) !important;
+    font-weight: var(--font-medium);
+  }
+
+  /* Toast description */
+  [data-sonner-toast] [data-description] {
+    color: var(--label-secondary) !important;
+  }
+
+  /* Toast close button */
+  [data-sonner-toast] [data-close-button] {
+    background: var(--fill-tertiary) !important;
+    border: 1px solid var(--separator-translucent) !important;
+    color: var(--label-secondary) !important;
+  }
+
+  [data-sonner-toast] [data-close-button]:hover {
+    background: var(--fill-secondary) !important;
+    color: var(--label-primary) !important;
   }
 
   [data-state="collapsed"][data-variant="inset"] ~ main {

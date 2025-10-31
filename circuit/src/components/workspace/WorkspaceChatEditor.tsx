@@ -1,14 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { Workspace } from '@/types/workspace';
 import type { Message } from '@/types/conversation';
 import Editor, { loader } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
-import { Columns2, Maximize2, Save, ArrowUp, Grid3x3, MessageSquare } from 'lucide-react';
+import { Columns2, Maximize2, Save, ChevronDown, Copy, Check } from 'lucide-react';
 import {
   ResizablePanelGroup,
   ResizablePanel,
   ResizableHandle,
 } from '@/components/ui/resizable';
+import { BlockList } from '@/components/blocks';
+import { ChatInput, type AttachedFile } from './ChatInput';
+import { ChatMessageSkeleton } from '@/components/ui/skeleton';
+import { Shimmer } from '@/components/ai-elements/shimmer';
+import { ReasoningAccordion } from '@/components/reasoning/ReasoningAccordion';
+import type { ThinkingStep } from '@/types/thinking';
+import { summarizeToolUsage } from '@/lib/thinkingUtils';
+import { motion, AnimatePresence } from 'motion/react';
 
 // Configure Monaco Editor to use local files instead of CDN
 loader.config({ monaco });
@@ -21,6 +29,7 @@ interface WorkspaceChatEditorProps {
   selectedFile: string | null;
   prefillMessage?: string | null;
   onPrefillCleared?: () => void;
+  onConversationChange?: (conversationId: string | null) => void;
 }
 
 type ViewMode = 'chat' | 'editor' | 'split';
@@ -29,7 +38,8 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
   workspace,
   selectedFile,
   prefillMessage = null,
-  onPrefillCleared
+  onPrefillCleared,
+  onConversationChange
 }) => {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [openFiles, setOpenFiles] = useState<string[]>([]);
@@ -95,6 +105,7 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
             onFileEdit={handleFileEdit}
             prefillMessage={prefillMessage}
             onPrefillCleared={onPrefillCleared}
+            onConversationChange={onConversationChange}
           />
         </div>
       )}
@@ -122,6 +133,7 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
               onFileEdit={handleFileEdit}
               prefillMessage={prefillMessage}
               onPrefillCleared={onPrefillCleared}
+              onConversationChange={onConversationChange}
             />
           </ResizablePanel>
           <ResizableHandle />
@@ -150,25 +162,52 @@ interface ChatPanelProps {
   onFileEdit: (filePath: string) => void;
   prefillMessage?: string | null;
   onPrefillCleared?: () => void;
+  onConversationChange?: (conversationId: string | null) => void;
 }
+
+// ChatInput component now handles all input styling and controls
 
 const ChatPanel: React.FC<ChatPanelProps> = ({
   workspace,
   sessionId,
   onFileEdit,
   prefillMessage,
-  onPrefillCleared
+  onPrefillCleared,
+  onConversationChange
 }) => {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<'sonnet' | 'think' | 'agent'>('sonnet');
   const [isLoadingConversation, setIsLoadingConversation] = useState(true);
+  const [thinkingSteps, setThinkingSteps] = useState<ThinkingStep[]>([]);
+  const [messageThinkingSteps, setMessageThinkingSteps] = useState<Record<string, { steps: ThinkingStep[], duration: number }>>({});
 
-  // Context area state
-  const [showContext, setShowContext] = useState(false);
-  const [contextMessage, setContextMessage] = useState('');
+  // Use refs for timer to avoid closure issues
+  const thinkingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const thinkingStartTimeRef = useRef<number>(0);
+  const currentStepMessageRef = useRef<string>('Starting analysis');
+  const pendingUserMessageRef = useRef<Message | null>(null);
+  const pendingAssistantMessageIdRef = useRef<string | null>(null);
+
+  // Refs to hold latest state values (to avoid stale closures in IPC handlers)
+  const conversationIdRef = useRef<string | null>(conversationId);
+  const messagesRef = useRef<Message[]>(messages);
+  const thinkingStepsRef = useRef<ThinkingStep[]>(thinkingSteps);
+  const messageThinkingStepsRef = useRef<Record<string, { steps: ThinkingStep[], duration: number }>>(messageThinkingSteps);
+
+  // Scroll state
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+
+  // Copy state
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+
+  // Reasoning toggle state
+  const [openReasoningId, setOpenReasoningId] = useState<string | null>(null);
+
+  // Real-time duration for in-progress message
+  const [currentDuration, setCurrentDuration] = useState<number>(0);
 
   // Load conversation when workspace changes
   useEffect(() => {
@@ -198,7 +237,27 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         const loadedMessages = messagesResult.messages || [];
 
         console.log('[ChatPanel] Loaded', loadedMessages.length, 'messages');
+        console.log('[DEBUG Problem 3] Loaded message IDs:', loadedMessages.map((m: Message) => ({ id: m.id, role: m.role, preview: m.content.substring(0, 30) })));
         setMessages(loadedMessages);
+
+        // 4. Restore thinking steps from message metadata
+        const restoredSteps: Record<string, { steps: ThinkingStep[], duration: number }> = {};
+        loadedMessages.forEach((msg: Message) => {
+          if (msg.role === 'assistant' && msg.metadata) {
+            // Parse metadata if it's a string
+            const metadata = typeof msg.metadata === 'string' ? JSON.parse(msg.metadata) : msg.metadata;
+
+            if (metadata.thinkingSteps && metadata.thinkingDuration) {
+              restoredSteps[msg.id] = {
+                steps: metadata.thinkingSteps,
+                duration: metadata.thinkingDuration
+              };
+              console.log('[ChatPanel] Restored thinking steps for message:', msg.id, metadata.duration, 's');
+            }
+          }
+        });
+        setMessageThinkingSteps(restoredSteps);
+        console.log('[ChatPanel] Restored', Object.keys(restoredSteps).length, 'thinking step sets');
       } catch (error) {
         console.error('[ChatPanel] Failed to load conversation:', error);
         // On error, start fresh
@@ -212,6 +271,23 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     loadConversation();
   }, [workspace.id]);
 
+  // Sync refs with latest state (to avoid stale closures)
+  useEffect(() => {
+    conversationIdRef.current = conversationId;
+  }, [conversationId]);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  useEffect(() => {
+    thinkingStepsRef.current = thinkingSteps;
+  }, [thinkingSteps]);
+
+  useEffect(() => {
+    messageThinkingStepsRef.current = messageThinkingSteps;
+  }, [messageThinkingSteps]);
+
   // Set prefilled message when provided
   useEffect(() => {
     if (prefillMessage) {
@@ -220,17 +296,12 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     }
   }, [prefillMessage, onPrefillCleared]);
 
-  // Show/hide context when AI is thinking
+  // Notify parent when conversationId changes
   useEffect(() => {
-    if (isSending) {
-      setContextMessage('Analyzing request...');
-      setShowContext(true);
-    } else {
-      setShowContext(false);
-    }
-  }, [isSending]);
+    onConversationChange?.(conversationId);
+  }, [conversationId, onConversationChange]);
 
-  const parseFileChanges = (response: string): string[] => {
+  const parseFileChanges = useCallback((response: string): string[] => {
     const files: string[] = [];
 
     // Pattern 1: <file_path>path/to/file.ts</file_path>
@@ -270,10 +341,352 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
     console.log('[parseFileChanges] Detected files:', files);
     return files;
-  };
+  }, []);
 
-  const handleSend = async () => {
-    if (!input.trim() || isSending || !sessionId) return;
+  // Scroll handlers
+  const handleScroll = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+
+    // Consider "at bottom" if within 150px of bottom
+    setIsAtBottom(distanceFromBottom < 150);
+  }, []);
+
+  const scrollToBottom = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior: 'smooth'
+    });
+  }, []);
+
+  // Copy message handler
+  const handleCopyMessage = useCallback((messageId: string, content: string) => {
+    navigator.clipboard.writeText(content);
+    setCopiedMessageId(messageId);
+    setTimeout(() => setCopiedMessageId(null), 2000);
+  }, []);
+
+  // Check initial scroll position when messages load
+  useEffect(() => {
+    if (messages.length > 0 && scrollContainerRef.current) {
+      // Check scroll position on load
+      handleScroll();
+    }
+  }, [messages.length, handleScroll]);
+
+  // Auto-scroll to bottom when new messages arrive (only if already at bottom)
+  useEffect(() => {
+    if (isAtBottom && messages.length > 0) {
+      // Small delay to ensure DOM has updated
+      setTimeout(() => scrollToBottom(), 100);
+    }
+  }, [messages.length, isAtBottom, scrollToBottom]);
+
+  // IPC Event Handlers (using useCallback to avoid stale closures)
+  const handleThinkingStart = useCallback((_event: any, sessionId: string, _timestamp: number) => {
+      console.log('[WorkspaceChat] 🧠 Thinking started:', sessionId);
+
+      // Initialize refs and clear history
+      thinkingStartTimeRef.current = Date.now();
+      currentStepMessageRef.current = 'Starting analysis';
+      setThinkingSteps([]); // Clear previous history
+      setCurrentDuration(0); // Reset duration timer
+
+      // Create empty assistant message immediately for real-time streaming
+      const pending = pendingUserMessageRef.current;
+      const currentConversationId = conversationIdRef.current;
+      if (pending && currentConversationId) {
+        const assistantMessageId = `msg-${Date.now()}`;
+        const emptyAssistantMessage: Message = {
+          id: assistantMessageId,
+          conversationId: currentConversationId,
+          role: 'assistant',
+          content: '', // Will be filled in by response-complete
+          timestamp: Date.now(),
+          blocks: [], // Will be populated with tool blocks in real-time
+          metadata: {}
+        };
+
+        // Add to messages state immediately
+        setMessages((prev) => [...prev, emptyAssistantMessage]);
+        pendingAssistantMessageIdRef.current = assistantMessageId;
+
+        // Auto-open reasoning dropdown for real-time visibility
+        setOpenReasoningId(assistantMessageId);
+
+        console.log('[WorkspaceChat] ✅ Empty assistant message created:', assistantMessageId);
+      }
+
+      // Client-side timer: Update every 1s for duration display
+      thinkingTimerRef.current = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - thinkingStartTimeRef.current) / 1000);
+        setCurrentDuration(elapsed);
+        console.log(`[WorkspaceChat] ⏱️  Timer tick: ${elapsed}s`);
+      }, 1000);
+
+      console.log('[WorkspaceChat] ✅ Timer started');
+  }, []);
+
+  const handleMilestone = useCallback((_event: any, _sessionId: string, milestone: any) => {
+      console.log('[WorkspaceChat] 📍 Milestone:', milestone);
+
+      // Update ref for timer display
+      currentStepMessageRef.current = milestone.message;
+
+      // Add to history array
+      const newStep = {
+        type: milestone.type,
+        message: milestone.message,
+        timestamp: milestone.timestamp || Date.now(),
+        tool: milestone.tool,
+        filePath: milestone.filePath,
+        command: milestone.command,
+        pattern: milestone.pattern
+      };
+
+      setThinkingSteps(prev => {
+        const updatedSteps = [...prev, newStep];
+
+        // Update messageThinkingSteps in real-time for the pending assistant message
+        if (pendingAssistantMessageIdRef.current) {
+          const duration = thinkingStartTimeRef.current > 0
+            ? Math.round((Date.now() - thinkingStartTimeRef.current) / 1000)
+            : 0;
+
+          setMessageThinkingSteps((prevSteps) => ({
+            ...prevSteps,
+            [pendingAssistantMessageIdRef.current!]: {
+              steps: updatedSteps,
+              duration
+            }
+          }));
+        }
+
+        return updatedSteps;
+      });
+
+      // Note: Tool blocks are NOT added to msg.blocks
+      // They are only stored in messageThinkingSteps and displayed in ReasoningAccordion
+      // This prevents duplicate rendering (ReasoningAccordion + BlockRenderer)
+      if (milestone.type === 'tool-use' && milestone.tool) {
+        console.log('[WorkspaceChat] 📝 Tool step recorded in ReasoningAccordion only:', milestone.tool);
+      }
+  }, []);
+
+  const handleThinkingComplete = useCallback((_event: any, sessionId: string, stats: any) => {
+      console.log('[WorkspaceChat] ✅ Thinking complete:', stats);
+
+      // Note: No need to update tool blocks since they're not in msg.blocks anymore
+      // Tool execution status is shown in ReasoningAccordion via messageThinkingSteps
+
+      // Stop timer and reset currentDuration
+      if (thinkingTimerRef.current) {
+        clearInterval(thinkingTimerRef.current);
+        thinkingTimerRef.current = null;
+        setCurrentDuration(0);
+        console.log('[WorkspaceChat] 🛑 Timer stopped');
+      }
+  }, []);
+
+  const handleResponseComplete = useCallback(async (_event: any, result: any) => {
+      console.log('[WorkspaceChat] Response complete:', result);
+
+      const pending = pendingUserMessageRef.current;
+      if (!result.success || !pending) {
+        setIsSending(false);
+        return;
+      }
+
+      // Calculate thinking duration
+      const duration = thinkingStartTimeRef.current > 0
+        ? Math.round((Date.now() - thinkingStartTimeRef.current) / 1000)
+        : 0;
+
+      // Get existing assistant message ID (created in handleThinkingStart)
+      let assistantMessageId = pendingAssistantMessageIdRef.current;
+      const currentThinkingSteps = thinkingStepsRef.current;
+
+      if (assistantMessageId) {
+        // Update existing assistant message with content
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantMessageId
+              ? {
+                  ...msg,
+                  content: result.message,
+                  metadata: {
+                    thinkingSteps: currentThinkingSteps,
+                    thinkingDuration: duration
+                  }
+                }
+              : msg
+          )
+        );
+
+        // Create complete message object for saving
+        // Note: No tool blocks in message body - they're only in ReasoningAccordion
+        const assistantMessage: Message = {
+          id: assistantMessageId,
+          conversationId: pending.conversationId,
+          role: 'assistant',
+          content: result.message,
+          timestamp: Date.now(),
+          metadata: {
+            thinkingSteps: currentThinkingSteps,
+            thinkingDuration: duration
+          }
+        };
+
+        // Save thinking steps to memory
+        setMessageThinkingSteps((prev) => ({
+          ...prev,
+          [assistantMessageId]: {
+            steps: [...currentThinkingSteps],
+            duration
+          }
+        }));
+
+        // Save assistant message to database (with thinking steps in metadata)
+        const saveResult = await ipcRenderer.invoke('message:save', assistantMessage);
+        if (saveResult.success && saveResult.blocks) {
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantMessageId ? { ...msg, blocks: saveResult.blocks } : msg
+            )
+          );
+        }
+
+        console.log('[WorkspaceChat] ✅ Assistant message updated with content and blocks');
+      } else {
+        // Fallback: Create new message (shouldn't happen in normal flow)
+        console.warn('[WorkspaceChat] ⚠️ No pending assistant message ID, creating new message');
+
+        const newAssistantMessage: Message = {
+          id: `msg-${Date.now()}`,
+          conversationId: pending.conversationId,
+          role: 'assistant',
+          content: result.message,
+          timestamp: Date.now(),
+          metadata: {
+            thinkingSteps: currentThinkingSteps,
+            thinkingDuration: duration
+          }
+        };
+
+        // Set assistantMessageId for auto-open reasoning
+        assistantMessageId = newAssistantMessage.id;
+
+        setMessages((prev) => [...prev, newAssistantMessage]);
+
+        // Save thinking steps to memory
+        setMessageThinkingSteps((prev) => ({
+          ...prev,
+          [newAssistantMessage.id]: {
+            steps: [...currentThinkingSteps],
+            duration
+          }
+        }));
+
+        // Save assistant message to database
+        const saveResult = await ipcRenderer.invoke('message:save', newAssistantMessage);
+        if (saveResult.success && saveResult.blocks) {
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === newAssistantMessage.id ? { ...msg, blocks: saveResult.blocks } : msg
+            )
+          );
+        }
+      }
+
+      // Auto-open reasoning for completed message if it has thinking steps
+      // Use setTimeout to ensure messageThinkingSteps has been updated in the next render
+      const hasThinkingSteps = currentThinkingSteps.length > 0;
+      if (assistantMessageId && hasThinkingSteps) {
+        setTimeout(() => {
+          setOpenReasoningId(assistantMessageId);
+          console.log('[WorkspaceChat] ✅ Auto-opened reasoning for completed message');
+        }, 100);
+      }
+
+      // Clear thinking steps for next message
+      setThinkingSteps([]);
+
+      // Parse and detect file changes
+      const editedFiles = parseFileChanges(result.message);
+      console.log('[WorkspaceChat] Detected file changes:', editedFiles);
+
+      editedFiles.forEach((file) => {
+        onFileEdit(file);
+      });
+
+      pendingUserMessageRef.current = null;
+      pendingAssistantMessageIdRef.current = null; // Clear ref
+      setIsSending(false);
+  }, [parseFileChanges, onFileEdit]);
+
+  const handleResponseError = useCallback(async (_event: any, error: any) => {
+      console.error('[WorkspaceChat] Response error:', error);
+
+      const pending = pendingUserMessageRef.current;
+      if (!pending) {
+        setIsSending(false);
+        return;
+      }
+
+      const errorMessage: Message = {
+        id: `msg-${Date.now()}`,
+        conversationId: pending.conversationId,
+        role: 'assistant',
+        content: `Error: ${error.error || error.message || 'Unknown error'}`,
+        timestamp: Date.now(),
+      };
+
+      setMessages((prev) => [...prev, errorMessage]);
+
+      // Save error message
+      await ipcRenderer.invoke('message:save', errorMessage);
+
+      pendingUserMessageRef.current = null;
+      setIsSending(false);
+  }, []);
+
+  // Listen for thinking steps from Electron (separate useEffect to avoid re-registering listeners)
+  useEffect(() => {
+    ipcRenderer.on('claude:thinking-start', handleThinkingStart);
+    ipcRenderer.on('claude:milestone', handleMilestone);
+    ipcRenderer.on('claude:thinking-complete', handleThinkingComplete);
+    ipcRenderer.on('claude:response-complete', handleResponseComplete);
+    ipcRenderer.on('claude:response-error', handleResponseError);
+
+    return () => {
+      // Cleanup timer if component unmounts during thinking
+      if (thinkingTimerRef.current) {
+        clearInterval(thinkingTimerRef.current);
+        thinkingTimerRef.current = null;
+        console.log('[WorkspaceChat] 🧹 Timer cleaned up on unmount');
+      }
+
+      ipcRenderer.removeListener('claude:thinking-start', handleThinkingStart);
+      ipcRenderer.removeListener('claude:milestone', handleMilestone);
+      ipcRenderer.removeListener('claude:thinking-complete', handleThinkingComplete);
+      ipcRenderer.removeListener('claude:response-complete', handleResponseComplete);
+      ipcRenderer.removeListener('claude:response-error', handleResponseError);
+    };
+  }, [handleThinkingStart, handleMilestone, handleThinkingComplete, handleResponseComplete, handleResponseError]);
+
+  const handleSend = async (inputText: string, attachments: AttachedFile[]) => {
+    console.log('[DEBUG Problem 3] handleSend CALLED with:', inputText);
+    console.log('[DEBUG Problem 3] Current messages.length:', messages.length);
+    console.log('[DEBUG Problem 3] isSending:', isSending, 'sessionId:', sessionId);
+
+    if (!inputText.trim() && attachments.length === 0) return;
+    if (isSending || !sessionId) return;
 
     // Ensure we have a conversationId
     let activeConversationId = conversationId;
@@ -297,117 +710,251 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       }
     }
 
+    // Build content with attachments
+    let content = inputText;
+    if (attachments.length > 0) {
+      content += '\n\nAttached files:\n';
+      attachments.forEach(file => {
+        content += `- ${file.name} (${(file.size / 1024).toFixed(1)}KB)\n`;
+      });
+    }
+
     const userMessage: Message = {
       id: `msg-${Date.now()}`,
       conversationId: activeConversationId!,
       role: 'user',
-      content: input,
+      content,
       timestamp: Date.now(),
+      metadata: {
+        files: attachments.map(f => f.name),
+      },
     };
 
     // Optimistic UI update
     setMessages([...messages, userMessage]);
-    const currentInput = input;
+    console.log('[DEBUG Problem 3] After optimistic update, messages.length:', messages.length + 1);
+    console.log('[DEBUG Problem 3] userMessage.id:', userMessage.id);
+
+    const currentInput = inputText;
     setInput('');
     setIsSending(true);
 
-    // Save user message to database (async, non-blocking)
-    ipcRenderer.invoke('message:save', userMessage).catch((err: any) => {
+    // Save user message to database and update with blocks
+    ipcRenderer.invoke('message:save', userMessage).then((result: any) => {
+      if (result.success && result.blocks) {
+        // Update the message with parsed blocks
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === userMessage.id ? { ...msg, blocks: result.blocks } : msg
+          )
+        );
+      }
+    }).catch((err: any) => {
       console.error('[ChatPanel] Failed to save user message:', err);
     });
 
-    try {
-      console.log('[ChatPanel] Sending message to Claude...');
-      const result = await ipcRenderer.invoke('claude:send-message', sessionId, currentInput);
+    // Store pending user message for response handlers
+    pendingUserMessageRef.current = userMessage;
 
-      if (result.success) {
-        console.log('[ChatPanel] Received response from Claude');
-
-        const assistantMessage: Message = {
-          id: `msg-${Date.now()}`,
-          conversationId: activeConversationId!,
-          role: 'assistant',
-          content: result.message,
-          timestamp: Date.now(),
-        };
-
-        setMessages((prev) => [...prev, assistantMessage]);
-
-        // Save assistant message to database
-        await ipcRenderer.invoke('message:save', assistantMessage);
-
-        // Parse and detect file changes
-        const editedFiles = parseFileChanges(result.message);
-        console.log('[ChatPanel] Detected file changes:', editedFiles);
-
-        editedFiles.forEach((file) => {
-          onFileEdit(file);
-        });
-      } else {
-        console.error('[ChatPanel] Claude error:', result.error);
-
-        const errorMessage: Message = {
-          id: `msg-${Date.now()}`,
-          conversationId: activeConversationId!,
-          role: 'assistant',
-          content: `Error: ${result.error}`,
-          timestamp: Date.now(),
-        };
-
-        setMessages((prev) => [...prev, errorMessage]);
-
-        // Save error message
-        await ipcRenderer.invoke('message:save', errorMessage);
-      }
-    } catch (error) {
-      console.error('[ChatPanel] Failed to send message:', error);
-
-      const errorMessage: Message = {
-        id: `msg-${Date.now()}`,
-        conversationId: activeConversationId!,
-        role: 'assistant',
-        content: `Error: ${error}`,
-        timestamp: Date.now(),
-      };
-
-      setMessages((prev) => [...prev, errorMessage]);
-
-      // Save error message
-      await ipcRenderer.invoke('message:save', errorMessage);
-    } finally {
-      setIsSending(false);
-    }
+    // Send message (non-blocking) - response will arrive via event listeners
+    console.log('[ChatPanel] Sending message to Claude...');
+    ipcRenderer.send('claude:send-message', sessionId, currentInput);
   };
 
   return (
     <div className="h-full bg-card relative">
-      {/* Messages Area - extends behind input */}
-      <div className="h-full overflow-auto p-6 pb-[220px]">
+      {/* Messages Area - with space for floating input */}
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="h-full overflow-auto p-6 pb-[400px]"
+      >
         {isLoadingConversation ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-sm text-muted-foreground">Loading conversation...</div>
+          <div className="space-y-5 max-w-4xl mx-auto">
+            <ChatMessageSkeleton />
+            <ChatMessageSkeleton />
           </div>
         ) : messages.length > 0 ? (
-          <div className="space-y-3 max-w-3xl mx-auto">
-            {messages.map((msg) => (
+          <div className="space-y-5 max-w-4xl mx-auto">
+            {messages
+              .filter((msg) => {
+                // Hide empty assistant messages UNLESS it's the pending message (in progress)
+                if (msg.role === 'assistant' && !msg.content && (!msg.blocks || msg.blocks.length === 0)) {
+                  // Keep if it's the pending message currently being streamed
+                  if (isSending && msg.id === pendingAssistantMessageIdRef.current) {
+                    return true;  // Show in-progress message
+                  }
+                  return false;  // Hide other empty messages
+                }
+                return true;
+              })
+              .map((msg) => (
               <div
                 key={msg.id}
-                className={`p-3 rounded-lg ${
-                  msg.role === 'user'
-                    ? 'bg-sidebar ml-12'
-                    : 'bg-sidebar mr-12 border border-border'
-                }`}
+                data-message-id={msg.id}
+                className={`flex ${
+                  msg.role === 'user' ? 'justify-end' : 'justify-start'
+                } ${msg.role === 'assistant' ? 'mb-2' : ''}`}
               >
-                <div className="text-xs text-muted-foreground mb-1.5 font-medium">
-                  {msg.role === 'user' ? 'You' : 'Claude'}
+                <div
+                  className={`max-w-[75%] ${
+                    msg.role === 'user'
+                      ? 'bg-secondary p-4 rounded-xl border border-border'
+                      : ''
+                  }`}
+                >
+                  {/* Action bar (Copy + Reasoning) - Always show for assistant */}
+                  {msg.role === 'assistant' && (
+                    <div className="mb-3 flex items-center justify-between gap-2">
+                      {/* Reasoning button (left) - Show for in-progress or completed messages */}
+                      {(messageThinkingSteps[msg.id]?.steps?.length > 0 || (isSending && msg.id === pendingAssistantMessageIdRef.current)) && (
+                        <button
+                          onClick={() => setOpenReasoningId(openReasoningId === msg.id ? null : msg.id)}
+                          className="flex items-center gap-1 text-base text-muted-foreground/60 hover:text-foreground transition-all"
+                        >
+                          <span className="opacity-80 hover:opacity-100">
+                            {isSending && msg.id === pendingAssistantMessageIdRef.current
+                              ? `${currentDuration}s • ${summarizeToolUsage(messageThinkingSteps[msg.id]?.steps || [])}`
+                              : `${messageThinkingSteps[msg.id].duration}s • ${summarizeToolUsage(messageThinkingSteps[msg.id].steps)}`
+                            }
+                          </span>
+                          <ChevronDown className={`w-4 h-4 opacity-80 transition-transform ${openReasoningId === msg.id ? 'rotate-180' : ''}`} strokeWidth={1.5} />
+                        </button>
+                      )}
+
+                      {/* Spacer */}
+                      <div className="flex-1" />
+
+                      {/* Copy button (right) */}
+                      <button
+                        onClick={() => handleCopyMessage(msg.id, msg.content)}
+                        className="p-1 text-muted-foreground/60 hover:text-foreground rounded-md hover:bg-secondary/50 transition-all"
+                        title="Copy message"
+                      >
+                        {copiedMessageId === msg.id ? (
+                          <Check className="w-3 h-3 text-green-500" strokeWidth={1.5} />
+                        ) : (
+                          <Copy className="w-3 h-3 opacity-60 hover:opacity-100 transition-opacity" strokeWidth={1.5} />
+                        )}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Reasoning content (collapsible) - Above message content */}
+                  <AnimatePresence>
+                    {msg.role === 'assistant' && openReasoningId === msg.id && messageThinkingSteps[msg.id]?.steps?.length > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.2, ease: 'easeInOut' }}
+                        className="overflow-hidden"
+                      >
+                        <div className="mb-3 pl-1">
+                          <ReasoningAccordion
+                            steps={messageThinkingSteps[msg.id].steps}
+                          />
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Block-based rendering with fallback */}
+                  {/* DEBUG: Log message content for Problem 2 investigation */}
+                  {msg.role === 'assistant' && console.log('[DEBUG Problem 2] msg.content:', msg.content)}
+
+                  {msg.blocks && msg.blocks.length > 0 ? (
+                    <BlockList
+                      blocks={msg.blocks}
+                      onCopy={(content) => navigator.clipboard.writeText(content)}
+                      onExecute={async (command) => {
+                      try {
+                        const result = await ipcRenderer.invoke('command:execute', {
+                          command,
+                          workingDirectory: workspace.path,
+                          blockId: undefined
+                        });
+
+                        if (result.success) {
+                          console.log('[CommandBlock] Execution success:', result.output);
+
+                          // Add result as a new assistant message with output
+                          const resultMessage: Message = {
+                            id: `msg-${Date.now()}`,
+                            conversationId: conversationId!,
+                            role: 'assistant',
+                            content: `Command executed successfully (${result.duration}ms)\n\n\`\`\`\n${result.output}\n\`\`\`\n\nExit code: ${result.exitCode}`,
+                            timestamp: Date.now(),
+                          };
+
+                          setMessages((prev) => [...prev, resultMessage]);
+
+                          // Save to database with block parsing
+                          const saveResult = await ipcRenderer.invoke('message:save', resultMessage);
+                          if (saveResult.success && saveResult.blocks) {
+                            setMessages((prev) =>
+                              prev.map((msg) =>
+                                msg.id === resultMessage.id ? { ...msg, blocks: saveResult.blocks } : msg
+                              )
+                            );
+                          }
+                        } else {
+                          console.error('[CommandBlock] Execution failed:', result.error);
+
+                          // Add error as a new assistant message
+                          const errorMessage: Message = {
+                            id: `msg-${Date.now()}`,
+                            conversationId: conversationId!,
+                            role: 'assistant',
+                            content: `Command execution failed\n\n\`\`\`\n${result.error}\n${result.output || ''}\n\`\`\``,
+                            timestamp: Date.now(),
+                          };
+
+                          setMessages((prev) => [...prev, errorMessage]);
+
+                          const saveResult = await ipcRenderer.invoke('message:save', errorMessage);
+                          if (saveResult.success && saveResult.blocks) {
+                            setMessages((prev) =>
+                              prev.map((msg) =>
+                                msg.id === errorMessage.id ? { ...msg, blocks: saveResult.blocks } : msg
+                              )
+                            );
+                          }
+                        }
+                      } catch (error) {
+                        console.error('[CommandBlock] Execute error:', error);
+
+                        const errorMessage: Message = {
+                          id: `msg-${Date.now()}`,
+                          conversationId: conversationId!,
+                          role: 'assistant',
+                          content: `Failed to execute command: ${error}`,
+                          timestamp: Date.now(),
+                        };
+
+                        setMessages((prev) => [...prev, errorMessage]);
+                        await ipcRenderer.invoke('message:save', errorMessage);
+                      }
+                      }}
+                    />
+                  ) : (
+                    <div className="text-base font-normal text-foreground whitespace-pre-wrap leading-relaxed">
+                      {msg.content}
+                    </div>
+                  )}
                 </div>
-                <div className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{msg.content}</div>
               </div>
             ))}
-            {isSending && (
-              <div className="p-3 rounded-lg bg-sidebar mr-12 border border-border">
-                <div className="text-xs text-muted-foreground mb-1.5 font-medium">Claude</div>
-                <div className="text-sm text-muted-foreground">Thinking...</div>
+            {isSending && thinkingSteps.length === 0 && (
+              <div className="flex justify-start my-3">
+                <div className="max-w-[75%] w-full">
+                  {/* Initial loading state with Shimmer */}
+                  <div className="space-y-2 pl-1">
+                    <Shimmer duration={2} className="text-sm text-muted-foreground">
+                      Analyzing your request...
+                    </Shimmer>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -418,112 +965,33 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         )}
       </div>
 
-      {/* Input Section - Sticky at bottom with glassmorphism */}
-      <div className="sticky bottom-0 p-4 pointer-events-none">
-        <div className="max-w-2xl mx-auto pointer-events-auto">
-          {/* Glassmorphism Input Card */}
-          <div
-            className="relative backdrop-blur-xl border border-white/10"
-            style={{
-              backgroundColor: 'color-mix(in srgb, var(--card) 60%, transparent)',
-              borderRadius: '24px',
-              boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.05) inset'
-            }}
+      {/* Gradient Fade to hide content behind floating input */}
+      <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-card via-card to-transparent pointer-events-none" />
+
+      {/* Scroll to Bottom Button */}
+      {!isAtBottom && messages.length > 0 && (
+        <div className="absolute bottom-[230px] left-1/2 -translate-x-1/2 pointer-events-none z-50">
+          <button
+            onClick={scrollToBottom}
+            className="pointer-events-auto flex items-center justify-center w-6 h-6 rounded-full bg-muted text-foreground border-2 border-border shadow-lg hover:bg-muted/80 transition-all duration-200"
+            aria-label="Scroll to bottom"
           >
-            {/* Context Area */}
-            {showContext && (
-              <div className="px-4 pt-4 pb-2 border-b border-white/5">
-                <div className="flex items-center gap-2">
-                  <div className="grid grid-cols-3 gap-0.5 w-4">
-                    {[...Array(9)].map((_, i) => (
-                      <div key={i} className="w-1 h-1 rounded-full bg-pink-500 animate-pulse" />
-                    ))}
-                  </div>
-                  <span className="text-xs text-muted-foreground/80">
-                    {contextMessage}
-                  </span>
-                </div>
-              </div>
-            )}
+            <ChevronDown className="w-3 h-3" />
+          </button>
+        </div>
+      )}
 
-            {/* Input Area */}
-            <div className="p-4">
-              {/* Textarea */}
-              <textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                    handleSend();
-                  }
-                }}
-                placeholder="Make something wonderful..."
-                disabled={isSending || !sessionId || isLoadingConversation}
-                className="w-full text-base text-foreground placeholder-muted-foreground bg-transparent border-none outline-none resize-none mb-3 leading-relaxed min-h-[60px]"
-                rows={2}
-              />
-
-              {/* Control Bar */}
-              <div className="flex items-center justify-between">
-                {/* Left: Mode Toggles */}
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setSelectedModel('sonnet')}
-                    className={`px-4 py-2 rounded-lg text-base font-medium transition-colors border ${
-                      selectedModel === 'sonnet'
-                        ? 'text-foreground'
-                        : 'text-muted-foreground'
-                    }`}
-                    style={{
-                      backgroundColor: selectedModel === 'sonnet' ? 'var(--chat-button-selected)' : 'var(--chat-button-default)',
-                      borderColor: 'var(--chat-button-selected)'
-                    }}
-                  >
-                    Sonnet
-                  </button>
-                  <button
-                    onClick={() => setSelectedModel('think')}
-                    className={`px-4 py-2 rounded-lg text-base font-medium transition-colors flex items-center gap-1.5 border ${
-                      selectedModel === 'think'
-                        ? 'text-foreground'
-                        : 'text-muted-foreground'
-                    }`}
-                    style={{
-                      backgroundColor: selectedModel === 'think' ? 'var(--chat-button-selected)' : 'var(--chat-button-default)',
-                      borderColor: 'var(--chat-button-selected)'
-                    }}
-                  >
-                    <Grid3x3 size={14} />
-                    Think
-                  </button>
-                  <button
-                    onClick={() => setSelectedModel('agent')}
-                    className={`px-4 py-2 rounded-lg text-base font-medium transition-colors flex items-center gap-1.5 border ${
-                      selectedModel === 'agent'
-                        ? 'text-foreground'
-                        : 'text-muted-foreground'
-                    }`}
-                    style={{
-                      backgroundColor: selectedModel === 'agent' ? 'var(--chat-button-selected)' : 'var(--chat-button-default)',
-                      borderColor: 'var(--chat-button-selected)'
-                    }}
-                  >
-                    <MessageSquare size={14} />
-                    Agent
-                  </button>
-                </div>
-
-                {/* Right: Send Button */}
-                <button
-                  onClick={handleSend}
-                  disabled={!input.trim() || isSending || !sessionId || isLoadingConversation}
-                  className="px-4 py-2 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-muted disabled:to-muted disabled:cursor-not-allowed flex items-center justify-center transition-all shadow-sm"
-                >
-                  <ArrowUp size={16} className="text-white" strokeWidth={2.5} />
-                </button>
-              </div>
-            </div>
-          </div>
+      {/* Enhanced Chat Input - Floating */}
+      <div className="absolute bottom-0 left-0 right-0 p-4 pointer-events-none">
+        <div className="pointer-events-auto">
+          <ChatInput
+            value={input}
+            onChange={setInput}
+            onSubmit={handleSend}
+            disabled={isSending || !sessionId || isLoadingConversation}
+            placeholder="Ask, search, or make anything..."
+            showControls={true}
+          />
         </div>
       </div>
     </div>
@@ -628,16 +1096,16 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
   return (
     <div className="h-full flex flex-col">
       {/* Editor Header */}
-      <div className="h-[50px] border-b border-[#333] flex items-center justify-between px-4">
+      <div className="h-[50px] border-b border-border flex items-center justify-between px-4">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium">Editor</span>
           {activeFile && (
             <>
-              <span className="text-xs text-[#666]">
+              <span className="text-xs text-muted-foreground">
                 {activeFile}
               </span>
               {hasUnsavedChanges && (
-                <span className="text-xs text-[#FFA500]">• (unsaved)</span>
+                <span className="text-xs text-warning">• (unsaved)</span>
               )}
             </>
           )}
@@ -649,7 +1117,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
             <button
               onClick={handleSaveFile}
               disabled={isSaving}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-[#4CAF50] hover:bg-[#45a049] disabled:bg-[#333] disabled:cursor-not-allowed text-white rounded transition-colors"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-success hover:bg-success/90 disabled:bg-secondary disabled:cursor-not-allowed text-white rounded transition-colors"
               title="Save file (Cmd+S)"
             >
               <Save size={14} />
@@ -661,7 +1129,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
           {onToggleSplit && (
             <button
               onClick={onToggleSplit}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-[#666] hover:text-white hover:bg-[#333] rounded transition-colors"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-secondary rounded transition-colors"
               title={isSplitMode ? "Hide chat" : "Show chat"}
             >
               {isSplitMode ? (
@@ -681,7 +1149,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
       </div>
 
       {/* Editor Content */}
-      <div className="flex-1 flex items-center justify-center text-[#666]">
+      <div className="flex-1 flex items-center justify-center text-muted-foreground">
         {!activeFile ? (
           <div className="text-center">
             <p>No files open</p>
@@ -691,7 +1159,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
           <div className="w-full h-full flex flex-col">
             {isLoadingFile ? (
               <div className="flex-1 flex items-center justify-center">
-                <div className="text-sm text-[#666]">Loading {activeFile}...</div>
+                <div className="text-sm text-muted-foreground">Loading {activeFile}...</div>
               </div>
             ) : (
               <Editor

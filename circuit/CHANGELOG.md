@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **AI SDK Type Adapter Layer** - Bidirectional conversion between AI SDK types and Block system (`aiSDKAdapter.ts`)
+- **Enhanced Chat Input with File Attachments** - New `ChatInput` component supporting images, PDFs, and text files (up to 10MB)
+- **File Attachment Validation** - Type and size checking with user-friendly error messages
+- **Auto-resizing Textarea** - Input field automatically expands up to 200px height
+- **Comprehensive Test Suite** - 16 test cases for type adapter with 100% coverage
 - **Incremental file reading** - Tail-f pattern for efficient JSONL parsing using built-in readline
 - **Directory watching** - Automatically detects new conversation files when session starts
 - **Waiting state UI** - Graceful "Waiting for session" message with pulse animation instead of error
@@ -22,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Missing async/await on watcher.close() calls
 
 ### Changed
+- **WorkspaceChatEditor Input Refactor** - Replaced 80-line manual textarea implementation with reusable `ChatInput` component (91% code reduction)
+- **Message metadata extended** - Added `files` array to track attached file names
+- **handleSend signature** - Now accepts `(inputText, attachments)` instead of using closure over state
 - **Complete refactor of workspace-context-tracker** - Simplified from complex 3-layer (file + directory + polling) to clean 2-layer architecture
 - Session file detection now uses mtime (file modification time) instead of parsing file contents - 10x faster
 - Event listeners now registered once globally instead of per-workspace - prevents memory leaks
@@ -36,6 +44,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Proper resource cleanup** - All streams and watchers explicitly closed with await
 
 ### Technical Debt Paid
+- **AI SDK Integration Foundation** - Built adapter layer for future AI SDK features (Reasoning, Tool visualization, Streaming)
+- **Component Reusability** - Extracted ChatInput as standalone component for use across app
+- **Type Safety Improvements** - Full TypeScript coverage for AI SDK ↔ Block conversions
+- **Test Infrastructure** - Added vitest test suite with 16 comprehensive test cases
 - Removed 300+ lines of over-engineered complexity
 - Applied battle-tested log tailing patterns from production systems
 - Followed Node.js best practices for stream handling

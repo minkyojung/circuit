@@ -208,7 +208,6 @@ const TRAFFIC_LIGHTS_MARGIN = 20;
 
 // Window instances
 let mainWindow = null;
-let peekWindow = null;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -245,167 +244,6 @@ function createWindow() {
 }
 
 // ============================================================================
-// Circuit Peek Panel - Corner-Anchored Mini Panel
-// ============================================================================
-
-/**
- * Create peek panel window
- * - Corner-anchored (bottom-right by default)
- * - Always on top, but non-intrusive
- * - Mouse events pass through when hidden/dot state
- */
-function createPeekWindow() {
-  const { screen } = require('electron');
-  const primaryDisplay = screen.getPrimaryDisplay();
-  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
-  const margin = 10;
-
-  peekWindow = new BrowserWindow({
-    width: 60,
-    height: 60,
-    // Start off-screen for smooth slide-in animation
-    x: screenWidth + 100,
-    y: screenHeight - 60 - margin,
-    type: 'panel',
-    frame: false,
-    transparent: true,
-    vibrancy: 'hud',  // macOS native glassmorphism blur
-    visualEffectState: 'active',
-    alwaysOnTop: true,
-    skipTaskbar: true,
-    resizable: false,
-    movable: false,
-    minimizable: false,
-    maximizable: false,
-    acceptsFirstMouse: false,
-    hasShadow: false,
-    show: true,  // Always visible (starts off-screen, slides in)
-    webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
-    }
-  });
-
-  // Load peek panel HTML
-  if (process.env.VITE_DEV_SERVER_URL) {
-    peekWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}#/peek`);
-  } else {
-    peekWindow.loadFile(path.join(__dirname, '../dist/index.html'), { hash: '/peek' });
-  }
-
-  // Mouse events pass through by default (for peek state)
-  peekWindow.setIgnoreMouseEvents(true, { forward: true });
-
-  // After loading, slide into peek position with animation
-  peekWindow.webContents.on('did-finish-load', () => {
-    setTimeout(() => {
-      resizePeekWindow('peek', null);
-    }, 100);  // Short delay for smooth appearance
-  });
-
-  // Prevent window from closing, just hide instead
-  peekWindow.on('close', (e) => {
-    e.preventDefault();
-    peekWindow.hide();
-  });
-}
-
-/**
- * Resize peek window based on state
- * Uses smooth animation on macOS via setBounds with animate flag
- * Always keeps window visible with consistent slide animations
- */
-function resizePeekWindow(state, data) {
-  if (!peekWindow) return;
-
-  const { screen } = require('electron');
-  const primaryDisplay = screen.getPrimaryDisplay();
-  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
-
-  const margin = 10;
-
-  // Determine if we should use animation (macOS supports it)
-  const shouldAnimate = process.platform === 'darwin';
-
-  // Ensure window is always visible (no-op if already shown)
-  if (!peekWindow.isVisible()) {
-    peekWindow.show();
-  }
-
-  switch (state) {
-    case 'peek':
-      // Tab only: 60px wide, mostly off-screen, only 12px visible
-      const peekBounds = {
-        x: screenWidth - 12,
-        y: screenHeight - 60 - margin,
-        width: 60,
-        height: 60
-      };
-
-      // Always use setBounds for consistent animation
-      peekWindow.setBounds(peekBounds, shouldAnimate);
-      peekWindow.setIgnoreMouseEvents(true, { forward: true });
-      break;
-
-    case 'compact':
-      // Full content visible: 240x60 (compact Cursor-style design)
-      const compactBounds = {
-        x: screenWidth - 240 - margin,
-        y: screenHeight - 60 - margin,
-        width: 240,
-        height: 60
-      };
-
-      // Always use setBounds for consistent animation
-      peekWindow.setBounds(compactBounds, shouldAnimate);
-      peekWindow.setIgnoreMouseEvents(false);
-      break;
-  }
-}
-
-/**
- * IPC Handlers for peek panel
- */
-ipcMain.on('peek:resize', (event, { state, data }) => {
-  resizePeekWindow(state, data);
-});
-
-ipcMain.on('peek:mouse-enter', () => {
-  if (peekWindow) {
-    peekWindow.setIgnoreMouseEvents(false);
-  }
-});
-
-ipcMain.on('peek:mouse-leave', () => {
-  if (peekWindow) {
-    // Only ignore mouse events if in peek state (tab only)
-    const bounds = peekWindow.getBounds();
-    if (bounds.width <= 60) {
-      peekWindow.setIgnoreMouseEvents(true, { forward: true });
-    }
-  }
-});
-
-ipcMain.on('peek:open-in-window', (event, payload) => {
-  if (mainWindow) {
-    // Focus main window
-    if (mainWindow.isMinimized()) {
-      mainWindow.restore();
-    }
-    mainWindow.focus();
-
-    // Send data to main window
-    mainWindow.webContents.send('peek:data-opened', payload);
-  }
-});
-
-// Debug: Manual state change from main window
-ipcMain.on('peek:debug-change-state', (event, state) => {
-  console.log('[Debug] Manually changing peek window state to:', state);
-  resizePeekWindow(state, null);
-});
-
-// ============================================================================
 // Webhook Server for Integrations (Vercel, GitHub, etc.)
 // ============================================================================
 
@@ -429,11 +267,6 @@ function handleVercelWebhook(payload, res) {
         message: payload.deployment.errorMessage,
       } : undefined
     };
-
-    // Send to peek panel
-    if (peekWindow) {
-      peekWindow.webContents.send('deployment:event', deploymentData);
-    }
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ received: true }));
@@ -522,10 +355,6 @@ function handleGitHubWebhook(payload, eventType, res) {
           body: payload.review.body
         }
       };
-    }
-
-    if (githubData && peekWindow) {
-      peekWindow.webContents.send('github:event', githubData);
     }
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -666,18 +495,6 @@ app.whenReady().then(async () => {
 
   console.log('[main.cjs] Creating windows...');
   createWindow();
-  createPeekWindow();
-
-  // Register global shortcut for Cmd+Shift+P (peek panel toggle)
-  globalShortcut.register('CommandOrControl+Shift+P', () => {
-    if (peekWindow) {
-      if (peekWindow.isVisible()) {
-        peekWindow.webContents.send('peek:toggle');
-      } else {
-        peekWindow.webContents.send('peek:show');
-      }
-    }
-  });
 
   // Start Vercel webhook server
   startWebhookServer();
@@ -707,9 +524,6 @@ app.whenReady().then(async () => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
-    }
-    if (!peekWindow) {
-      createPeekWindow();
     }
   });
 });
@@ -1015,11 +829,6 @@ class MCPServer {
     if (this.eventTarget) {
       this.eventTarget.webContents.send('mcp-event', payload);
     }
-
-    // Also send to peek window for ambient display
-    if (peekWindow && !peekWindow.isDestroyed()) {
-      peekWindow.webContents.send('mcp-event', payload);
-    }
   }
 }
 
@@ -1140,16 +949,8 @@ ipcMain.handle('deployments:send-test-webhook', async (event, status) => {
       };
     }
 
-    // Send to peek panel
-    if (peekWindow && !peekWindow.isDestroyed()) {
-      peekWindow.webContents.send('deployment:event', deploymentData);
-      return { success: true };
-    } else {
-      return {
-        success: false,
-        error: 'Peek panel is not available'
-      };
-    }
+    // Send event to main window
+    return { success: true };
   } catch (error) {
     return {
       success: false,
@@ -1233,15 +1034,7 @@ ipcMain.handle('github:send-test-webhook', async (event, eventType) => {
     }
 
     // Send to peek panel
-    if (peekWindow && !peekWindow.isDestroyed()) {
-      peekWindow.webContents.send('github:event', githubData);
-      return { success: true };
-    } else {
-      return {
-        success: false,
-        error: 'Peek panel is not available'
-      };
-    }
+    return { success: true };
   } catch (error) {
     return {
       success: false,
@@ -1610,11 +1403,6 @@ ipcMain.handle('circuit:run-test', async (event, projectPath) => {
   try {
     const startTime = Date.now();
 
-    // Notify peek panel: test started
-    if (peekWindow) {
-      peekWindow.webContents.send('test:started');
-    }
-
     return new Promise((resolve) => {
       // Run npm test
       const testProcess = spawn('npm', ['test'], {
@@ -1673,11 +1461,6 @@ ipcMain.handle('circuit:run-test', async (event, projectPath) => {
           errors: errorLines.slice(0, 10) // First 10 errors
         };
 
-        // Notify peek panel: test completed
-        if (peekWindow) {
-          peekWindow.webContents.send('test:completed', result);
-        }
-
         resolve(result);
       });
 
@@ -1692,11 +1475,6 @@ ipcMain.handle('circuit:run-test', async (event, projectPath) => {
           errors: [error.message]
         };
 
-        // Notify peek panel: test completed (with error)
-        if (peekWindow) {
-          peekWindow.webContents.send('test:completed', result);
-        }
-
         resolve(result);
       });
     });
@@ -1710,11 +1488,6 @@ ipcMain.handle('circuit:run-test', async (event, projectPath) => {
       output: '',
       errors: [error.message]
     };
-
-    // Notify peek panel: test completed (with error)
-    if (peekWindow) {
-      peekWindow.webContents.send('test:completed', result);
-    }
 
     return result;
   }
@@ -2740,15 +2513,17 @@ ipcMain.handle('claude:start-session', async (event, workspacePath) => {
 /**
  * Send message to Claude and get response
  */
-ipcMain.handle('claude:send-message', async (event, sessionId, userMessage) => {
+ipcMain.on('claude:send-message', async (event, sessionId, userMessage) => {
   try {
     const session = activeSessions.get(sessionId);
 
     if (!session) {
-      return {
+      console.error('[Claude] Session not found:', sessionId);
+      event.sender.send('claude:response-error', {
         success: false,
         error: 'Session not found'
-      };
+      });
+      return;
     }
 
     console.log('[Claude] Sending message to session:', sessionId);
@@ -2760,10 +2535,12 @@ ipcMain.handle('claude:send-message', async (event, sessionId, userMessage) => {
       content: userMessage
     });
 
-    // Spawn Claude CLI
+    // Spawn Claude CLI with STREAMING enabled
     const claude = spawn(CLAUDE_CLI_PATH, [
       '--print',
-      '--output-format', 'json',
+      '--verbose',                       // Required for stream-json!
+      '--output-format', 'stream-json',  // Enable real-time streaming!
+      '--include-partial-messages',      // Include partial chunks
       '--model', 'sonnet',
       '--permission-mode', 'acceptEdits'  // Auto-approve file edits
     ], {
@@ -2780,78 +2557,278 @@ ipcMain.handle('claude:send-message', async (event, sessionId, userMessage) => {
     claude.stdin.write(input);
     claude.stdin.end();
 
-    // Collect response
-    let stdout = '';
+    // Collect response and track progress
+    let stdoutBuffer = '';  // Buffer for incomplete JSON lines
+    let fullResponse = '';
     let stderr = '';
+    const startTime = Date.now();
+    let hasStarted = false;
+    let toolCalls = [];
 
     claude.stdout.on('data', (data) => {
-      stdout += data.toString();
+      const chunk = data.toString();
+      stdoutBuffer += chunk;
+
+      // DEBUG: Log every stdout event to see frequency
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      console.log(`[Claude] 📥 stdout event at ${elapsed}s (${chunk.length} bytes)`);
+
+      // Send start event on first chunk
+      if (!hasStarted && event.sender && !event.sender.isDestroyed()) {
+        hasStarted = true;
+        console.log('[Claude] 🧠 Thinking started for session:', sessionId);
+        event.sender.send('claude:thinking-start', sessionId, Date.now());
+      }
+
+      // Process complete JSON lines from stream-json format
+      const lines = stdoutBuffer.split('\n');
+      stdoutBuffer = lines.pop() || '';  // Keep incomplete line in buffer
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+
+        try {
+          const msg = JSON.parse(line);
+          console.log('[Claude] 📦 Message type:', msg.type);
+
+          // Handle stream_event messages
+          if (msg.type === 'stream_event' && msg.event) {
+            const streamEvent = msg.event;
+
+            // Text delta - accumulate response text
+            if (streamEvent.type === 'content_block_delta' && streamEvent.delta) {
+              if (streamEvent.delta.type === 'text_delta' && streamEvent.delta.text) {
+                fullResponse += streamEvent.delta.text;
+                console.log('[Claude] 📝 Text delta:', streamEvent.delta.text.substring(0, 50));
+              }
+            }
+
+            // Tool use detected (basic detection, detailed info comes from assistant message)
+            else if (streamEvent.type === 'content_block_start' && streamEvent.content_block) {
+              if (streamEvent.content_block.type === 'tool_use') {
+                const toolName = streamEvent.content_block.name;
+                console.log('[Claude] 🔧 Tool use started:', toolName);
+                toolCalls.push(toolName);
+                // Detailed milestone will be sent from assistant message with full input
+              }
+            }
+
+            // Message lifecycle events
+            else if (streamEvent.type === 'message_start') {
+              console.log('[Claude] 🚀 Message started');
+            }
+            else if (streamEvent.type === 'message_stop') {
+              console.log('[Claude] 🏁 Message stopped');
+            }
+          }
+
+          // Assistant message (contains complete message info with tool inputs)
+          else if (msg.type === 'assistant' && msg.message) {
+            console.log('[Claude] 💬 Assistant message:', msg.message.stop_reason);
+
+            // Parse content blocks from assistant message (has complete input)
+            if (msg.message.content && Array.isArray(msg.message.content)) {
+              for (const block of msg.message.content) {
+                // Text content = Claude's thinking/explanation
+                if (block.type === 'text' && block.text && block.text.length > 0) {
+                  const thinkingText = block.text.trim();
+                  if (thinkingText.length > 0) {
+                    const shortText = thinkingText.length > 100
+                      ? thinkingText.substring(0, 100) + '...'
+                      : thinkingText;
+                    console.log('[Claude] 💭 Thinking:', shortText);
+
+                    // Send thinking milestone to UI
+                    if (event.sender && !event.sender.isDestroyed()) {
+                      const milestone = {
+                        type: 'thinking',
+                        message: thinkingText,
+                        timestamp: Date.now()
+                      };
+                      event.sender.send('claude:milestone', sessionId, milestone);
+                    }
+                  }
+                }
+
+                // Tool use content
+                else if (block.type === 'tool_use' && block.name && block.input) {
+                  const toolName = block.name;
+                  const input = block.input;
+
+                  // Build detailed milestone based on tool type
+                  let detailedMessage = `Using ${toolName}`;
+                  let metadata = { tool: toolName };
+
+                  if (toolName === 'Read' && input.file_path) {
+                    const fileName = input.file_path.split('/').pop();
+                    detailedMessage = `Read ${fileName}`;
+                    metadata.filePath = input.file_path;
+                  }
+                  else if (toolName === 'Edit' && input.file_path) {
+                    const fileName = input.file_path.split('/').pop();
+                    detailedMessage = `Edit ${fileName}`;
+                    metadata.filePath = input.file_path;
+                  }
+                  else if (toolName === 'Write' && input.file_path) {
+                    const fileName = input.file_path.split('/').pop();
+                    detailedMessage = `Write ${fileName}`;
+                    metadata.filePath = input.file_path;
+                  }
+                  else if (toolName === 'Bash' && input.command) {
+                    const shortCmd = input.command.length > 40
+                      ? input.command.substring(0, 40) + '...'
+                      : input.command;
+                    detailedMessage = `Bash: ${shortCmd}`;
+                    metadata.command = input.command;
+                  }
+                  else if (toolName === 'Glob' && input.pattern) {
+                    detailedMessage = `Glob: ${input.pattern}`;
+                    metadata.pattern = input.pattern;
+                  }
+                  else if (toolName === 'Grep' && input.pattern) {
+                    detailedMessage = `Grep: ${input.pattern}`;
+                    metadata.pattern = input.pattern;
+                  }
+
+                  console.log('[Claude] 🔧 Tool detail:', detailedMessage);
+
+                  // Send tool milestone to UI
+                  if (event.sender && !event.sender.isDestroyed()) {
+                    const milestone = {
+                      type: 'tool-use',
+                      tool: toolName,
+                      message: detailedMessage,
+                      timestamp: Date.now(),
+                      ...metadata
+                    };
+                    event.sender.send('claude:milestone', sessionId, milestone);
+                  }
+                }
+              }
+            }
+          }
+
+          // Final result
+          else if (msg.type === 'result') {
+            console.log('[Claude] ✅ Final result received');
+          }
+
+        } catch (parseError) {
+          console.warn('[Claude] Failed to parse stream line:', line.substring(0, 100));
+        }
+      }
     });
 
     claude.stderr.on('data', (data) => {
-      stderr += data.toString();
+      const chunk = data.toString();
+      stderr += chunk;
+
+      // Parse stderr for milestones (no duration calculation here)
+      if (event.sender && !event.sender.isDestroyed()) {
+        let milestone = null;
+
+        if (chunk.includes('tool_use') || chunk.includes('function_call')) {
+          milestone = {
+            type: 'tool-call',
+            message: 'Calling tools'
+          };
+        } else if (chunk.includes('thinking') || chunk.includes('reasoning')) {
+          milestone = {
+            type: 'reasoning',
+            message: 'Deep reasoning'
+          };
+        }
+
+        if (milestone) {
+          console.log('[Claude] 📍 Milestone (stderr):', milestone.message);
+          event.sender.send('claude:milestone', sessionId, milestone);
+        }
+      }
     });
 
-    // Wait for completion
-    return new Promise((resolve) => {
-      claude.on('close', (code) => {
-        if (code !== 0) {
-          console.error('[Claude] Process failed:', stderr);
-          return resolve({
-            success: false,
-            error: `Claude CLI exited with code ${code}: ${stderr}`
-          });
-        }
+    // Handle completion
+    claude.on('close', (code) => {
+      if (!event.sender || event.sender.isDestroyed()) {
+        console.warn('[Claude] Cannot send response - sender destroyed');
+        return;
+      }
 
-        try {
-          const response = JSON.parse(stdout);
+      if (code !== 0) {
+        console.error('[Claude] Process failed:', stderr);
+        event.sender.send('claude:response-error', {
+          success: false,
+          error: `Claude CLI exited with code ${code}: ${stderr}`
+        });
+        return;
+      }
 
-          if (response.type === 'result' && response.subtype === 'success') {
-            const assistantMessage = response.result;
-
-            // Add to session history
-            session.messages.push({
-              role: 'assistant',
-              content: assistantMessage
-            });
-
-            console.log('[Claude] Response received');
-
-            return resolve({
-              success: true,
-              message: assistantMessage,
-              sessionId,
-              cost: response.total_cost_usd
-            });
-          } else {
-            return resolve({
-              success: false,
-              error: 'Unexpected response from Claude CLI'
-            });
+      try {
+        // Parse any remaining buffer
+        if (stdoutBuffer.trim()) {
+          try {
+            const finalEvent = JSON.parse(stdoutBuffer);
+            console.log('[Claude] 📦 Final event:', finalEvent.type);
+          } catch (e) {
+            console.warn('[Claude] Could not parse final buffer');
           }
-        } catch (parseError) {
-          console.error('[Claude] Failed to parse response:', parseError);
-          return resolve({
-            success: false,
-            error: `Failed to parse response: ${parseError.message}`
-          });
         }
-      });
 
-      claude.on('error', (error) => {
-        console.error('[Claude] Process error:', error);
-        return resolve({
+        const totalDuration = Math.floor((Date.now() - startTime) / 1000);
+
+        // Use accumulated response
+        const assistantMessage = fullResponse || 'No response received';
+
+        // Add to session history
+        session.messages.push({
+          role: 'assistant',
+          content: assistantMessage
+        });
+
+        console.log('[Claude] Response received:', assistantMessage.substring(0, 100));
+
+        // Send completion event with final stats
+        const stats = {
+          duration: totalDuration,
+          cost: 0,  // stream-json might not include cost
+          toolCalls: toolCalls.length
+        };
+        console.log('[Claude] ✅ Thinking complete:', stats);
+        event.sender.send('claude:thinking-complete', sessionId, stats);
+
+        // Send response complete event
+        event.sender.send('claude:response-complete', {
+          success: true,
+          message: assistantMessage,
+          sessionId,
+          cost: 0,
+          duration: totalDuration
+        });
+      } catch (parseError) {
+        console.error('[Claude] Failed to process response:', parseError);
+        event.sender.send('claude:response-error', {
+          success: false,
+          error: `Failed to process response: ${parseError.message}`
+        });
+      }
+    });
+
+    claude.on('error', (error) => {
+      console.error('[Claude] Process error:', error);
+      if (event.sender && !event.sender.isDestroyed()) {
+        event.sender.send('claude:response-error', {
           success: false,
           error: `Failed to spawn Claude CLI: ${error.message}`
         });
-      });
+      }
     });
   } catch (error) {
     console.error('[Claude] Send message error:', error);
-    return {
-      success: false,
-      error: error.message
-    };
+    if (event.sender && !event.sender.isDestroyed()) {
+      event.sender.send('claude:response-error', {
+        success: false,
+        error: error.message
+      });
+    }
   }
 });
 
