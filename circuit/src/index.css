@@ -28,14 +28,6 @@
     background-color: transparent;
   }
 
-  /* Force transparency for peek panel (Electron specific) */
-  html.peek-panel,
-  html.peek-panel body,
-  html.peek-panel #root {
-    background-color: transparent !important;
-    background: transparent !important;
-  }
-
   /* Border color utility */
   * {
     @apply border-border;

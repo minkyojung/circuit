@@ -208,7 +208,6 @@ const TRAFFIC_LIGHTS_MARGIN = 20;
 
 // Window instances
 let mainWindow = null;
-let peekWindow = null;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -245,167 +244,6 @@ function createWindow() {
 }
 
 // ============================================================================
-// Circuit Peek Panel - Corner-Anchored Mini Panel
-// ============================================================================
-
-/**
- * Create peek panel window
- * - Corner-anchored (bottom-right by default)
- * - Always on top, but non-intrusive
- * - Mouse events pass through when hidden/dot state
- */
-function createPeekWindow() {
-  const { screen } = require('electron');
-  const primaryDisplay = screen.getPrimaryDisplay();
-  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
-  const margin = 10;
-
-  peekWindow = new BrowserWindow({
-    width: 60,
-    height: 60,
-    // Start off-screen for smooth slide-in animation
-    x: screenWidth + 100,
-    y: screenHeight - 60 - margin,
-    type: 'panel',
-    frame: false,
-    transparent: true,
-    vibrancy: 'hud',  // macOS native glassmorphism blur
-    visualEffectState: 'active',
-    alwaysOnTop: true,
-    skipTaskbar: true,
-    resizable: false,
-    movable: false,
-    minimizable: false,
-    maximizable: false,
-    acceptsFirstMouse: false,
-    hasShadow: false,
-    show: true,  // Always visible (starts off-screen, slides in)
-    webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
-    }
-  });
-
-  // Load peek panel HTML
-  if (process.env.VITE_DEV_SERVER_URL) {
-    peekWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}#/peek`);
-  } else {
-    peekWindow.loadFile(path.join(__dirname, '../dist/index.html'), { hash: '/peek' });
-  }
-
-  // Mouse events pass through by default (for peek state)
-  peekWindow.setIgnoreMouseEvents(true, { forward: true });
-
-  // After loading, slide into peek position with animation
-  peekWindow.webContents.on('did-finish-load', () => {
-    setTimeout(() => {
-      resizePeekWindow('peek', null);
-    }, 100);  // Short delay for smooth appearance
-  });
-
-  // Prevent window from closing, just hide instead
-  peekWindow.on('close', (e) => {
-    e.preventDefault();
-    peekWindow.hide();
-  });
-}
-
-/**
- * Resize peek window based on state
- * Uses smooth animation on macOS via setBounds with animate flag
- * Always keeps window visible with consistent slide animations
- */
-function resizePeekWindow(state, data) {
-  if (!peekWindow) return;
-
-  const { screen } = require('electron');
-  const primaryDisplay = screen.getPrimaryDisplay();
-  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
-
-  const margin = 10;
-
-  // Determine if we should use animation (macOS supports it)
-  const shouldAnimate = process.platform === 'darwin';
-
-  // Ensure window is always visible (no-op if already shown)
-  if (!peekWindow.isVisible()) {
-    peekWindow.show();
-  }
-
-  switch (state) {
-    case 'peek':
-      // Tab only: 60px wide, mostly off-screen, only 12px visible
-      const peekBounds = {
-        x: screenWidth - 12,
-        y: screenHeight - 60 - margin,
-        width: 60,
-        height: 60
-      };
-
-      // Always use setBounds for consistent animation
-      peekWindow.setBounds(peekBounds, shouldAnimate);
-      peekWindow.setIgnoreMouseEvents(true, { forward: true });
-      break;
-
-    case 'compact':
-      // Full content visible: 240x60 (compact Cursor-style design)
-      const compactBounds = {
-        x: screenWidth - 240 - margin,
-        y: screenHeight - 60 - margin,
-        width: 240,
-        height: 60
-      };
-
-      // Always use setBounds for consistent animation
-      peekWindow.setBounds(compactBounds, shouldAnimate);
-      peekWindow.setIgnoreMouseEvents(false);
-      break;
-  }
-}
-
-/**
- * IPC Handlers for peek panel
- */
-ipcMain.on('peek:resize', (event, { state, data }) => {
-  resizePeekWindow(state, data);
-});
-
-ipcMain.on('peek:mouse-enter', () => {
-  if (peekWindow) {
-    peekWindow.setIgnoreMouseEvents(false);
-  }
-});
-
-ipcMain.on('peek:mouse-leave', () => {
-  if (peekWindow) {
-    // Only ignore mouse events if in peek state (tab only)
-    const bounds = peekWindow.getBounds();
-    if (bounds.width <= 60) {
-      peekWindow.setIgnoreMouseEvents(true, { forward: true });
-    }
-  }
-});
-
-ipcMain.on('peek:open-in-window', (event, payload) => {
-  if (mainWindow) {
-    // Focus main window
-    if (mainWindow.isMinimized()) {
-      mainWindow.restore();
-    }
-    mainWindow.focus();
-
-    // Send data to main window
-    mainWindow.webContents.send('peek:data-opened', payload);
-  }
-});
-
-// Debug: Manual state change from main window
-ipcMain.on('peek:debug-change-state', (event, state) => {
-  console.log('[Debug] Manually changing peek window state to:', state);
-  resizePeekWindow(state, null);
-});
-
-// ============================================================================
 // Webhook Server for Integrations (Vercel, GitHub, etc.)
 // ============================================================================
 
@@ -429,11 +267,6 @@ function handleVercelWebhook(payload, res) {
         message: payload.deployment.errorMessage,
       } : undefined
     };
-
-    // Send to peek panel
-    if (peekWindow) {
-      peekWindow.webContents.send('deployment:event', deploymentData);
-    }
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ received: true }));
@@ -522,10 +355,6 @@ function handleGitHubWebhook(payload, eventType, res) {
           body: payload.review.body
         }
       };
-    }
-
-    if (githubData && peekWindow) {
-      peekWindow.webContents.send('github:event', githubData);
     }
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -666,18 +495,6 @@ app.whenReady().then(async () => {
 
   console.log('[main.cjs] Creating windows...');
   createWindow();
-  createPeekWindow();
-
-  // Register global shortcut for Cmd+Shift+P (peek panel toggle)
-  globalShortcut.register('CommandOrControl+Shift+P', () => {
-    if (peekWindow) {
-      if (peekWindow.isVisible()) {
-        peekWindow.webContents.send('peek:toggle');
-      } else {
-        peekWindow.webContents.send('peek:show');
-      }
-    }
-  });
 
   // Start Vercel webhook server
   startWebhookServer();
@@ -707,9 +524,6 @@ app.whenReady().then(async () => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
-    }
-    if (!peekWindow) {
-      createPeekWindow();
     }
   });
 });
@@ -1015,11 +829,6 @@ class MCPServer {
     if (this.eventTarget) {
       this.eventTarget.webContents.send('mcp-event', payload);
     }
-
-    // Also send to peek window for ambient display
-    if (peekWindow && !peekWindow.isDestroyed()) {
-      peekWindow.webContents.send('mcp-event', payload);
-    }
   }
 }
 
@@ -1140,16 +949,8 @@ ipcMain.handle('deployments:send-test-webhook', async (event, status) => {
       };
     }
 
-    // Send to peek panel
-    if (peekWindow && !peekWindow.isDestroyed()) {
-      peekWindow.webContents.send('deployment:event', deploymentData);
-      return { success: true };
-    } else {
-      return {
-        success: false,
-        error: 'Peek panel is not available'
-      };
-    }
+    // Send event to main window
+    return { success: true };
   } catch (error) {
     return {
       success: false,
@@ -1233,15 +1034,7 @@ ipcMain.handle('github:send-test-webhook', async (event, eventType) => {
     }
 
     // Send to peek panel
-    if (peekWindow && !peekWindow.isDestroyed()) {
-      peekWindow.webContents.send('github:event', githubData);
-      return { success: true };
-    } else {
-      return {
-        success: false,
-        error: 'Peek panel is not available'
-      };
-    }
+    return { success: true };
   } catch (error) {
     return {
       success: false,
@@ -1610,11 +1403,6 @@ ipcMain.handle('circuit:run-test', async (event, projectPath) => {
   try {
     const startTime = Date.now();
 
-    // Notify peek panel: test started
-    if (peekWindow) {
-      peekWindow.webContents.send('test:started');
-    }
-
     return new Promise((resolve) => {
       // Run npm test
       const testProcess = spawn('npm', ['test'], {
@@ -1673,11 +1461,6 @@ ipcMain.handle('circuit:run-test', async (event, projectPath) => {
           errors: errorLines.slice(0, 10) // First 10 errors
         };
 
-        // Notify peek panel: test completed
-        if (peekWindow) {
-          peekWindow.webContents.send('test:completed', result);
-        }
-
         resolve(result);
       });
 
@@ -1692,11 +1475,6 @@ ipcMain.handle('circuit:run-test', async (event, projectPath) => {
           errors: [error.message]
         };
 
-        // Notify peek panel: test completed (with error)
-        if (peekWindow) {
-          peekWindow.webContents.send('test:completed', result);
-        }
-
         resolve(result);
       });
     });
@@ -1710,11 +1488,6 @@ ipcMain.handle('circuit:run-test', async (event, projectPath) => {
       output: '',
       errors: [error.message]
     };
-
-    // Notify peek panel: test completed (with error)
-    if (peekWindow) {
-      peekWindow.webContents.send('test:completed', result);
-    }
 
     return result;
   }
