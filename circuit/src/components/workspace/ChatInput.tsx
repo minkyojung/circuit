@@ -239,7 +239,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                       return (
                         <div
                           key={file.id}
-                          className="group flex items-center gap-2 pl-2 pr-1.5 py-1.5 rounded-lg bg-card border border-border/50 hover:border-border transition-all shadow-sm hover:shadow-md"
+                          className="group flex items-center gap-2 pl-2 pr-1.5 py-2 rounded-xl bg-card border border-border/50 hover:border-border transition-all shadow-sm hover:shadow-md"
                         >
                           {/* Icon/Thumbnail */}
                           <div className="flex-shrink-0">
@@ -258,7 +258,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
                           {/* File info - Vertical layout */}
                           <div className="flex flex-col justify-center min-w-0">
-                            <span className="text-xs font-medium text-foreground max-w-[160px] truncate leading-tight">
+                            <span className="text-sm font-medium text-foreground max-w-[160px] truncate leading-tight">
                               {nameWithoutExt}
                             </span>
                             <span className="text-[10px] text-muted-foreground font-medium leading-tight">
@@ -272,7 +272,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                             className="ml-0.5 p-0.5 rounded-md hover:bg-destructive/10 hover:text-destructive transition-colors opacity-60 group-hover:opacity-100"
                             aria-label="Remove attachment"
                           >
-                            <X className="w-3 h-3" />
+                            <X className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       );
