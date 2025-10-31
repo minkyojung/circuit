@@ -226,46 +226,57 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
                 transition={{ duration: 0.2, ease: 'easeInOut' }}
-                className="overflow-hidden border-b border-border"
+                className="overflow-hidden"
               >
                 <div className="pt-3 pb-3 pl-4">
                   {/* Attachments Pills - Arc-inspired design */}
                   <div className="flex flex-wrap gap-2">
-                    {attachedFiles.map((file) => (
-                      <div
-                        key={file.id}
-                        className="group flex items-center gap-2.5 pl-2.5 pr-2 py-2 rounded-xl bg-muted border border-border/50 hover:border-border transition-all shadow-sm hover:shadow-md"
-                      >
-                        {/* Icon/Thumbnail */}
-                        <div className="flex-shrink-0">
-                          {file.type.startsWith('image/') ? (
-                            <img
-                              src={file.url}
-                              alt={file.name}
-                              className="w-7 h-7 rounded-md object-cover"
-                            />
-                          ) : (
-                            <div className="w-7 h-7 rounded-md bg-secondary/80 flex items-center justify-center">
-                              <Paperclip className="w-4 h-4 text-muted-foreground" />
-                            </div>
-                          )}
-                        </div>
+                    {attachedFiles.map((file) => {
+                      // Extract file extension
+                      const extension = file.name.split('.').pop()?.toUpperCase() || 'FILE';
+                      const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
 
-                        {/* File name */}
-                        <span className="text-sm font-medium text-foreground max-w-[200px] truncate">
-                          {file.name}
-                        </span>
-
-                        {/* Remove button */}
-                        <button
-                          onClick={() => handleRemoveFile(file.id)}
-                          className="ml-1 p-1 rounded-md hover:bg-destructive/10 hover:text-destructive transition-colors opacity-60 group-hover:opacity-100"
-                          aria-label="Remove attachment"
+                      return (
+                        <div
+                          key={file.id}
+                          className="group flex items-center gap-2.5 pl-2.5 pr-2 py-2 rounded-xl bg-card border border-border/50 hover:border-border transition-all shadow-sm hover:shadow-md"
                         >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
+                          {/* Icon/Thumbnail */}
+                          <div className="flex-shrink-0">
+                            {file.type.startsWith('image/') ? (
+                              <img
+                                src={file.url}
+                                alt={file.name}
+                                className="w-8 h-8 rounded-md object-cover"
+                              />
+                            ) : (
+                              <div className="w-8 h-8 rounded-md bg-secondary/80 flex items-center justify-center">
+                                <Paperclip className="w-4 h-4 text-muted-foreground" />
+                              </div>
+                            )}
+                          </div>
+
+                          {/* File info - Vertical layout */}
+                          <div className="flex flex-col justify-center min-w-0">
+                            <span className="text-sm font-medium text-foreground max-w-[160px] truncate leading-tight">
+                              {nameWithoutExt}
+                            </span>
+                            <span className="text-[11px] text-muted-foreground font-medium leading-tight">
+                              {extension}
+                            </span>
+                          </div>
+
+                          {/* Remove button */}
+                          <button
+                            onClick={() => handleRemoveFile(file.id)}
+                            className="ml-1 p-1 rounded-md hover:bg-destructive/10 hover:text-destructive transition-colors opacity-60 group-hover:opacity-100"
+                            aria-label="Remove attachment"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </motion.div>
