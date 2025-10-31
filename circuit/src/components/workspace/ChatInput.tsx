@@ -239,7 +239,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                       return (
                         <div
                           key={file.id}
-                          className="group flex items-center gap-2 pl-2 pr-1.5 py-2 rounded-xl bg-background border border-border/50 hover:border-border transition-all shadow-sm hover:shadow-md"
+                          className="group flex items-center gap-2 pl-2.5 pr-2 py-2 rounded-xl bg-accent border border-border/50 hover:border-border transition-all shadow-sm hover:shadow-md"
                         >
                           {/* Icon/Thumbnail */}
                           <div className="flex-shrink-0">
