@@ -218,7 +218,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     <div className={`${INPUT_STYLES.container.maxWidth} mx-auto`}>
       {/* Input Card - Floating */}
       <div className="relative w-full flex flex-col border-2 border-border rounded-3xl bg-muted shadow-lg">
-          {/* Context Container - Only appears when attachments exist */}
+          {/* Attachments - Only appears when files exist */}
           <AnimatePresence>
             {attachedFiles.length > 0 && (
               <motion.div
@@ -229,13 +229,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 className="overflow-hidden border-b border-border"
               >
                 <div className="px-4 pt-4 pb-3">
-                  {/* Header */}
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
-                    <span>@</span>
-                    <span>Add context</span>
-                  </div>
-
-                  {/* Attachments */}
+                  {/* Attachments Pills */}
                   <div className="flex flex-wrap gap-2">
                     {attachedFiles.map((file) => (
                       <div
