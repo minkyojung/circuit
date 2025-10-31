@@ -228,9 +228,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 transition={{ duration: 0.2, ease: 'easeInOut' }}
                 className="overflow-hidden"
               >
-                <div className="pt-3 pb-3 pl-4">
+                <div className="pt-3 pb-2">
                   {/* Attachments Pills - Arc-inspired design */}
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2 px-4">
                     {attachedFiles.map((file) => {
                       // Extract file extension
                       const extension = file.name.split('.').pop()?.toUpperCase() || 'FILE';
@@ -239,7 +239,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                       return (
                         <div
                           key={file.id}
-                          className="group flex items-center gap-2 pl-2.5 pr-2 py-2 rounded-xl bg-secondary/40 transition-all shadow-sm hover:shadow-md"
+                          className="group flex items-center gap-2 pl-2 pr-2 py-2 rounded-xl bg-card transition-all"
                         >
                           {/* Icon/Thumbnail - Vertical rectangle */}
                           <div className="flex-shrink-0">
@@ -247,17 +247,17 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                               <img
                                 src={file.url}
                                 alt={file.name}
-                                className="w-8 h-10 rounded-md object-cover"
+                                className="w-6 h-[30px] rounded-md object-cover"
                               />
                             ) : (
-                              <div className="w-8 h-10 rounded-md bg-black flex items-center justify-center">
-                                <Paperclip className="w-3.5 h-3.5 text-muted-foreground" />
+                              <div className="w-6 h-[30px] rounded-md bg-black flex items-center justify-center">
+                                <Paperclip className="w-3 h-3 text-muted-foreground" />
                               </div>
                             )}
                           </div>
 
                           {/* File info - Vertical layout with spacing */}
-                          <div className="flex flex-col justify-center min-w-0 gap-0.5">
+                          <div className="flex flex-col justify-center min-w-0 gap-1">
                             <span className="text-sm font-light text-foreground max-w-[160px] truncate leading-tight">
                               {nameWithoutExt}
                             </span>
