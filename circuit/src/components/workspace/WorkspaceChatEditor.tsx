@@ -858,16 +858,16 @@ The plan is ready. What would you like to do?`,
 
       const executionPrompt = modePrompts[data.mode]
 
-      // Send message directly via IPC
-      if (sessionId) {
-        ipcRenderer.send('claude:send-message', sessionId, executionPrompt, [], 'normal')
-      }
+      // Use handleSend to properly handle UI updates
+      // This ensures user message is added to UI and DB,
+      // and response is properly handled
+      await handleSend(executionPrompt, [], 'normal')
 
       console.log('[WorkspaceChat] Task execution started')
     } catch (error) {
       console.error('[WorkspaceChat] Error executing tasks:', error)
     }
-  }, [workspace, sessionId])
+  }, [workspace])
 
   // Listen for thinking steps from Electron (separate useEffect to avoid re-registering listeners)
   useEffect(() => {
