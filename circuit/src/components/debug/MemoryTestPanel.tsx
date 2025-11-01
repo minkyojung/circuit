@@ -50,15 +50,15 @@ export function MemoryTestPanel({ workspace, conversationId }: MemoryTestPanelPr
 
       if (result.success) {
         console.log('✅ Global memory created:', result.id)
-        alert('Global memory created! This will be shared across all conversations.')
+        alert('전역 메모리 생성 완료! 모든 대화에서 공유됩니다.')
         await loadMemories()
       } else {
         console.error('❌ Failed:', result.error)
-        alert(`Failed: ${result.error}`)
+        alert(`실패: ${result.error}`)
       }
     } catch (error) {
       console.error('Error:', error)
-      alert(`Error: ${error}`)
+      alert(`오류: ${error}`)
     } finally {
       setLoading(false)
     }
@@ -85,15 +85,15 @@ export function MemoryTestPanel({ workspace, conversationId }: MemoryTestPanelPr
 
       if (result.success) {
         console.log('✅ Conversation memory created:', result.id)
-        alert('Conversation memory created! This is only for this conversation.')
+        alert('대화 메모리 생성 완료! 이 대화에서만 사용됩니다.')
         await loadMemories()
       } else {
         console.error('❌ Failed:', result.error)
-        alert(`Failed: ${result.error}`)
+        alert(`실패: ${result.error}`)
       }
     } catch (error) {
       console.error('Error:', error)
-      alert(`Error: ${error}`)
+      alert(`오류: ${error}`)
     } finally {
       setLoading(false)
     }
@@ -139,7 +139,7 @@ export function MemoryTestPanel({ workspace, conversationId }: MemoryTestPanelPr
       const result = await ipcRenderer.invoke('circuit:memory-pool-clear')
       if (result.success) {
         console.log('✅ Cache cleared')
-        alert('Cache cleared!')
+        alert('캐시를 비웠습니다!')
         await loadMemories()
       }
     } catch (error) {
@@ -152,14 +152,14 @@ export function MemoryTestPanel({ workspace, conversationId }: MemoryTestPanelPr
   const clearProjectMemories = async () => {
     if (!workspace) return
 
-    if (!confirm('Delete all test memories for this workspace?')) return
+    if (!confirm('이 워크스페이스의 모든 테스트 메모리를 삭제할까요?')) return
 
     setLoading(true)
     try {
       const result = await ipcRenderer.invoke('circuit:memory-clear-project', workspace.path)
       if (result.success) {
         console.log('✅ Cleared', result.count, 'memories')
-        alert(`Deleted ${result.count} memories`)
+        alert(`${result.count}개 메모리 삭제 완료`)
         await loadMemories()
       }
     } catch (error) {
@@ -172,7 +172,7 @@ export function MemoryTestPanel({ workspace, conversationId }: MemoryTestPanelPr
   if (!workspace) {
     return (
       <div className="p-4 text-sm text-muted-foreground text-center">
-        Select a workspace to test memory
+        워크스페이스를 선택해주세요
       </div>
     )
   }
@@ -181,13 +181,13 @@ export function MemoryTestPanel({ workspace, conversationId }: MemoryTestPanelPr
     <div className="p-4 space-y-4 max-w-2xl">
       <div className="flex items-center gap-2 mb-4">
         <FlaskConical size={20} className="text-primary" />
-        <h2 className="text-lg font-semibold">Memory Test Panel</h2>
+        <h2 className="text-lg font-semibold">메모리 테스트 패널</h2>
       </div>
 
       {/* Input Controls */}
       <div className="space-y-3 p-3 bg-sidebar-accent/30 rounded-lg">
         <div>
-          <Label htmlFor="test-key" className="text-xs">Memory Key</Label>
+          <Label htmlFor="test-key" className="text-xs">메모리 키</Label>
           <Input
             id="test-key"
             value={testKey}
@@ -197,12 +197,12 @@ export function MemoryTestPanel({ workspace, conversationId }: MemoryTestPanelPr
           />
         </div>
         <div>
-          <Label htmlFor="test-value" className="text-xs">Memory Value</Label>
+          <Label htmlFor="test-value" className="text-xs">메모리 값</Label>
           <Input
             id="test-value"
             value={testValue}
             onChange={(e) => setTestValue(e.target.value)}
-            placeholder="Hello from Circuit!"
+            placeholder="안녕하세요!"
             className="h-8 text-sm"
           />
         </div>
@@ -218,7 +218,7 @@ export function MemoryTestPanel({ workspace, conversationId }: MemoryTestPanelPr
           className="w-full"
         >
           <Plus size={14} className="mr-1" />
-          Create Global Memory
+          전역 메모리 생성
         </Button>
         <Button
           onClick={createConversationMemory}
@@ -228,7 +228,7 @@ export function MemoryTestPanel({ workspace, conversationId }: MemoryTestPanelPr
           className="w-full"
         >
           <Plus size={14} className="mr-1" />
-          Create Conv Memory
+          대화 메모리 생성
         </Button>
         <Button
           onClick={loadMemories}
@@ -238,7 +238,7 @@ export function MemoryTestPanel({ workspace, conversationId }: MemoryTestPanelPr
           className="w-full"
         >
           <RefreshCw size={14} className="mr-1" />
-          Refresh
+          새로고침
         </Button>
         <Button
           onClick={clearCache}
@@ -248,24 +248,24 @@ export function MemoryTestPanel({ workspace, conversationId }: MemoryTestPanelPr
           className="w-full"
         >
           <Database size={14} className="mr-1" />
-          Clear Cache
+          캐시 비우기
         </Button>
       </div>
 
       {/* Cache Statistics */}
       {cacheStats && (
         <div className="p-3 bg-primary/10 rounded-lg space-y-2">
-          <div className="text-xs font-semibold text-primary">Cache Statistics</div>
+          <div className="text-xs font-semibold text-primary">캐시 통계</div>
           <div className="text-xs space-y-1">
-            <div>Cache Size: <span className="font-mono">{cacheStats.cacheSize}</span> projects</div>
+            <div>캐시 크기: <span className="font-mono">{cacheStats.cacheSize}</span> 프로젝트</div>
             {cacheStats.entries.length > 0 && (
               <div className="mt-2 space-y-1">
                 {cacheStats.entries.map((entry: any, i: number) => (
                   <div key={i} className="pl-2 border-l-2 border-primary/30">
                     <div className="font-mono text-[10px]">{entry.projectPath.split('/').pop()}</div>
                     <div className="text-[10px] text-muted-foreground">
-                      Global: {entry.globalMemoryCount} | Conv: {entry.conversationCount} |
-                      Age: {Math.floor(entry.age / 1000)}s
+                      전역: {entry.globalMemoryCount} | 대화: {entry.conversationCount} |
+                      경과: {Math.floor(entry.age / 1000)}초
                     </div>
                   </div>
                 ))}
@@ -281,12 +281,12 @@ export function MemoryTestPanel({ workspace, conversationId }: MemoryTestPanelPr
         <div className="p-3 bg-green-500/10 rounded-lg">
           <div className="flex items-center justify-between mb-2">
             <div className="text-xs font-semibold text-green-600">
-              Global Memories (Shared) - {globalMemories.length}
+              전역 메모리 (공유됨) - {globalMemories.length}개
             </div>
           </div>
           <div className="text-[10px] text-muted-foreground max-h-32 overflow-y-auto space-y-1">
             {globalMemories.length === 0 ? (
-              <div>No global memories yet</div>
+              <div>아직 전역 메모리가 없습니다</div>
             ) : (
               globalMemories.map((mem, i) => (
                 <div key={i} className="font-mono">
@@ -301,12 +301,12 @@ export function MemoryTestPanel({ workspace, conversationId }: MemoryTestPanelPr
         <div className="p-3 bg-blue-500/10 rounded-lg">
           <div className="flex items-center justify-between mb-2">
             <div className="text-xs font-semibold text-blue-600">
-              All Memories (Global + Conv) - {conversationMemories.length}
+              전체 메모리 (전역 + 대화) - {conversationMemories.length}개
             </div>
           </div>
           <div className="text-[10px] text-muted-foreground max-h-32 overflow-y-auto space-y-1">
             {conversationMemories.length === 0 ? (
-              <div>No memories for this conversation yet</div>
+              <div>아직 메모리가 없습니다</div>
             ) : (
               conversationMemories.map((mem, i) => (
                 <div key={i} className="font-mono">
@@ -328,17 +328,17 @@ export function MemoryTestPanel({ workspace, conversationId }: MemoryTestPanelPr
           className="w-full"
         >
           <Trash2 size={14} className="mr-1" />
-          Clear All Test Memories
+          테스트 메모리 전체 삭제
         </Button>
       </div>
 
       {/* Instructions */}
       <div className="text-[10px] text-muted-foreground space-y-1 p-3 bg-sidebar-accent/20 rounded">
-        <div className="font-semibold mb-1">📋 Test Instructions:</div>
-        <div>1. Create global memory → switch conversations → check it's shared</div>
-        <div>2. Create conv memory → switch conversations → check it's isolated</div>
-        <div>3. Watch cache stats update as you create memories</div>
-        <div>4. Switch workspaces → verify cache isolation</div>
+        <div className="font-semibold mb-1">📋 사용 방법:</div>
+        <div>1. 전역 메모리 생성 → 다른 대화로 전환 → 똑같이 보이는지 확인</div>
+        <div>2. 대화 메모리 생성 → 다른 대화로 전환 → 안 보이는지 확인</div>
+        <div>3. 메모리 생성할 때마다 캐시 통계 변화 확인</div>
+        <div>4. 워크스페이스 전환 → 캐시 분리 확인</div>
       </div>
     </div>
   )
