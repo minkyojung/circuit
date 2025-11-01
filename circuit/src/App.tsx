@@ -313,6 +313,7 @@ function App() {
                   selectedFile={selectedFile}
                   prefillMessage={chatPrefillMessage}
                   onPrefillCleared={() => setChatPrefillMessage(null)}
+                  conversationId={activeConversationId}
                   onConversationChange={setActiveConversationId}
                   onPlanAdded={() => setTodoPanelRefreshTrigger(prev => prev + 1)}
                 />
