@@ -38,6 +38,7 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   selectedFile: string | null
   onFileSelect: (filePath: string) => void
   onWorkspacesLoaded?: (workspaces: Workspace[]) => void
+  onRepositoryChange?: (repository: Repository | null) => void
 }
 
 const getStatusBadge = (status?: WorkspaceStatus) => {
@@ -85,7 +86,7 @@ const getStatusBadge = (status?: WorkspaceStatus) => {
   }
 }
 
-export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWorkspace, selectedFile, onFileSelect, onWorkspacesLoaded, ...props }: AppSidebarProps) {
+export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWorkspace, selectedFile, onFileSelect, onWorkspacesLoaded, onRepositoryChange, ...props }: AppSidebarProps) {
   const { projectPath } = useProjectPath()
   const { state } = useSidebar()
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
@@ -120,10 +121,17 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
     loadRepositories()
   }, [])
 
-  // Load workspaces on mount
+  // Load workspaces when repository changes
   useEffect(() => {
-    loadWorkspaces()
-  }, [])
+    if (currentRepository) {
+      loadWorkspaces()
+    }
+  }, [currentRepository?.id])
+
+  // Notify parent when repository changes
+  useEffect(() => {
+    onRepositoryChange?.(repository)
+  }, [repository?.id])
 
   // Auto-refresh workspaces and statuses every 5 seconds
   useEffect(() => {
@@ -227,7 +235,15 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
 
   const loadWorkspaces = async () => {
     try {
-      const result: WorkspaceListResult = await ipcRenderer.invoke('workspace:list')
+      // If no repository is selected, clear workspaces
+      if (!currentRepository) {
+        console.warn('[AppSidebar] No repository selected')
+        setWorkspaces([])
+        return
+      }
+
+      // Pass repository path to backend
+      const result: WorkspaceListResult = await ipcRenderer.invoke('workspace:list', currentRepository.path)
 
       if (result.success && result.workspaces) {
         setWorkspaces(result.workspaces)
@@ -242,9 +258,15 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
   }
 
   const createWorkspace = async () => {
+    // Check if repository is selected
+    if (!currentRepository) {
+      alert('Please select a repository first')
+      return
+    }
+
     setIsCreating(true)
     try {
-      const result: WorkspaceCreateResult = await ipcRenderer.invoke('workspace:create')
+      const result: WorkspaceCreateResult = await ipcRenderer.invoke('workspace:create', currentRepository.path)
 
       if (result.success && result.workspace) {
         setWorkspaces([...workspaces, result.workspace])
@@ -306,8 +328,10 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
   }
 
   const archiveWorkspace = async (workspaceId: string) => {
+    if (!currentRepository) return
+
     try {
-      const result = await ipcRenderer.invoke('workspace:archive', workspaceId)
+      const result = await ipcRenderer.invoke('workspace:archive', workspaceId, currentRepository.path)
 
       if (result.success) {
         // Reload workspaces to update the list
@@ -328,8 +352,10 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
   }
 
   const deleteWorkspace = async (workspaceId: string) => {
+    if (!currentRepository) return
+
     try {
-      const result = await ipcRenderer.invoke('workspace:delete', workspaceId)
+      const result = await ipcRenderer.invoke('workspace:delete', workspaceId, currentRepository.path)
 
       if (result.success) {
         // Reload workspaces to update the list

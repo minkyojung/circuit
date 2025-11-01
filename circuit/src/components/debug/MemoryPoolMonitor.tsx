@@ -3,11 +3,15 @@
  *
  * Compact monitor for SharedMemoryPool statistics
  * Designed to fit in TodoPanel sidebar
+ *
+ * IMPORTANT: Displays cache ONLY for the current workspace
+ * (Backend caches all projects globally, but UI filters to current workspace)
  */
 
 import { useState, useEffect } from 'react'
 import { Database, RefreshCw, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import type { Workspace } from '@/types/workspace'
 
 // @ts-ignore
 const { ipcRenderer } = window.require('electron')
@@ -24,7 +28,12 @@ interface PoolStats {
   entries: CacheEntry[]
 }
 
-export function MemoryPoolMonitor() {
+interface MemoryPoolMonitorProps {
+  /** Current workspace - only show cache for this workspace's project path */
+  workspace?: Workspace | null
+}
+
+export function MemoryPoolMonitor({ workspace }: MemoryPoolMonitorProps) {
   const [stats, setStats] = useState<PoolStats | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -93,6 +102,27 @@ export function MemoryPoolMonitor() {
     return `${Math.floor(ms / 60000)}m`
   }
 
+  // Filter cache entries to only show current workspace's project
+  const filteredEntries = stats?.entries.filter(entry => {
+    if (!workspace) return false
+    const match = entry.projectPath === workspace.path
+    console.log('[MemoryPoolMonitor] Filtering:', {
+      entryPath: entry.projectPath,
+      workspacePath: workspace.path,
+      match
+    })
+    return match
+  }) ?? []
+
+  const hasCache = filteredEntries.length > 0
+
+  console.log('[MemoryPoolMonitor] Filter result:', {
+    workspace: workspace?.path,
+    totalEntries: stats?.entries.length ?? 0,
+    filteredCount: filteredEntries.length,
+    hasCache
+  })
+
   return (
     <div className="space-y-2">
       {/* Header */}
@@ -102,9 +132,9 @@ export function MemoryPoolMonitor() {
           <span className="text-xs font-medium text-sidebar-foreground">
             Memory Pool
           </span>
-          {stats && stats.cacheSize > 0 && (
+          {hasCache && (
             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">
-              {stats.cacheSize}
+              {filteredEntries[0].globalMemoryCount + filteredEntries[0].conversationCount}
             </span>
           )}
         </div>
@@ -117,7 +147,7 @@ export function MemoryPoolMonitor() {
           >
             <RefreshCw size={12} className={cn(loading && 'animate-spin')} />
           </button>
-          {stats && stats.cacheSize > 0 && (
+          {hasCache && (
             <button
               onClick={clearCache}
               disabled={loading}
@@ -137,13 +167,20 @@ export function MemoryPoolMonitor() {
         </div>
       )}
 
+      {/* No workspace warning */}
+      {!workspace && (
+        <div className="text-[10px] text-sidebar-foreground-muted/60 text-center py-2">
+          No workspace selected
+        </div>
+      )}
+
       {/* Stats */}
-      {stats && (
+      {workspace && stats && (
         <div className="space-y-1">
           {/* Summary */}
           <div className="flex items-center justify-between text-[10px] text-sidebar-foreground-muted">
-            <span>Cache: {stats.cacheSize === 0 ? 'Empty' : 'Active'}</span>
-            {stats.cacheSize > 0 && (
+            <span>Cache: {hasCache ? 'Active' : 'Empty'}</span>
+            {hasCache && (
               <button
                 onClick={() => setIsExpanded(!isExpanded)}
                 className="hover:text-sidebar-foreground transition-colors"
@@ -154,9 +191,9 @@ export function MemoryPoolMonitor() {
           </div>
 
           {/* Expanded Details */}
-          {isExpanded && stats.entries.length > 0 && (
+          {isExpanded && hasCache && (
             <div className="space-y-1 pt-1">
-              {stats.entries.map((entry, index) => (
+              {filteredEntries.map((entry, index) => (
                 <div
                   key={index}
                   className="text-[10px] bg-sidebar-accent/30 rounded p-2 space-y-0.5"
@@ -179,9 +216,9 @@ export function MemoryPoolMonitor() {
           )}
 
           {/* Info when empty */}
-          {stats.cacheSize === 0 && (
+          {!hasCache && (
             <div className="text-[10px] text-sidebar-foreground-muted/60 text-center py-2">
-              Memories will be cached when loaded
+              No cache for this workspace
             </div>
           )}
         </div>

@@ -50,6 +50,77 @@ async function saveRepositories(repositories: Repository[]): Promise<void> {
 }
 
 /**
+ * Helper: Auto-register project path as repository if not already registered
+ */
+export async function autoRegisterProjectPath(projectPath: string): Promise<void> {
+  try {
+    console.log('[RepositoryHandlers] Auto-registering project path:', projectPath)
+
+    // Load existing repositories
+    const listResult = await loadRepositories()
+    const repositories = listResult.repositories || []
+
+    // Check if this path is already registered
+    const existing = repositories.find(r => r.path === projectPath)
+    if (existing) {
+      console.log('[RepositoryHandlers] Project path already registered:', existing.name)
+      return
+    }
+
+    // Get repository name from path
+    const repoName = path.basename(projectPath)
+
+    // Check if it's a valid git repository
+    const simpleGit = (await import('simple-git')).default
+    const git = simpleGit(projectPath)
+
+    let isRepo = false
+    try {
+      isRepo = await git.checkIsRepo()
+    } catch (e) {
+      console.warn('[RepositoryHandlers] Not a git repository:', projectPath)
+      // Still register it even if not a git repo (user can initialize git later)
+    }
+
+    // Get git info if it's a git repo
+    let remoteUrl: string | null = null
+    let defaultBranch = 'main'
+
+    if (isRepo) {
+      try {
+        const remotes = await git.getRemotes(true)
+        remoteUrl = remotes.length > 0 ? remotes[0].refs.fetch : null
+
+        const branches = await git.branch()
+        defaultBranch = branches.current || 'main'
+      } catch (e) {
+        console.warn('[RepositoryHandlers] Could not get git info:', e)
+      }
+    }
+
+    // Create repository object
+    const repository: Repository = {
+      id: uuidv4(),
+      name: repoName,
+      path: projectPath,
+      remoteUrl,
+      defaultBranch,
+      createdAt: new Date().toISOString()
+    }
+
+    // Add to repositories
+    repositories.push(repository)
+
+    // Save to config
+    await saveRepositories(repositories)
+
+    console.log('[RepositoryHandlers] Project path auto-registered:', repository.name)
+  } catch (error: any) {
+    console.error('[RepositoryHandlers] Error auto-registering project path:', error)
+  }
+}
+
+/**
  * Register all repository-related IPC handlers
  */
 export function registerRepositoryHandlers(): void {

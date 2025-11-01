@@ -301,7 +301,7 @@ export function TodoPanel({ conversationId, refreshTrigger, workspace, onCommit 
 
       {/* Memory Pool Monitor */}
       <div className="shrink-0 border-t border-sidebar-border p-2 max-h-[40vh] overflow-y-auto">
-        <MemoryPoolMonitor />
+        <MemoryPoolMonitor workspace={workspace} />
       </div>
     </div>
   )

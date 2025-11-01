@@ -199,6 +199,68 @@ Total: 160 objects
 Reduction: 55%
 ```
 
+## Architecture: Workspace Isolation
+
+### Backend vs Frontend Separation
+
+**CRITICAL DESIGN DECISION:**
+
+- **Backend (SharedMemoryPool)**: Caches memories for ALL projects globally
+  - This is intentional and correct for performance
+  - Reduces database queries across multiple workspaces
+  - Single shared cache instance for the entire Electron app
+
+- **Frontend (MemoryPoolMonitor)**: Displays cache ONLY for current workspace
+  - Receives `workspace` prop from TodoPanel
+  - Filters `stats.entries` to match `workspace.path`
+  - Users only see cache for their active project
+
+### Why This Design?
+
+**Problem**: User switched to workspace "my-bttrfly" but saw cache for "/Users/williamjung/conductor/circuit-1"
+
+**Root Cause**: MemoryPoolMonitor showed ALL cached projects (no filtering)
+
+**Solution**:
+```tsx
+// MemoryPoolMonitor.tsx
+const filteredEntries = stats?.entries.filter(entry => {
+  if (!workspace) return false
+  return entry.projectPath === workspace.path  // Only show current workspace
+}) ?? []
+```
+
+**Benefits**:
+- Backend caches all projects (performance)
+- Frontend shows only relevant cache (UX)
+- Clear separation of concerns
+
+### Testing Workspace Isolation
+
+1. **Open workspace A** (e.g., "my-bttrfly")
+2. **Store a memory** in workspace A
+3. **Switch to workspace B** (e.g., "circuit-1")
+4. **Verify**: MemoryPoolMonitor should show "No cache for this workspace"
+5. **Store a memory** in workspace B
+6. **Verify**: Now shows cache for workspace B only
+7. **Switch back to workspace A**
+8. **Verify**: Shows cache for workspace A (not workspace B)
+
+**Expected Console Logs**:
+```
+[MemoryPoolMonitor] Filtering: {
+  entryPath: "/Users/you/my-bttrfly",
+  workspacePath: "/Users/you/my-bttrfly",
+  match: true
+}
+[MemoryPoolMonitor] Filter result: {
+  workspace: "/Users/you/my-bttrfly",
+  totalEntries: 2,
+  filteredCount: 1,
+  hasCache: true
+}
+```
+
 ## Troubleshooting
 
 ### Issue: Cache not working
@@ -219,6 +281,26 @@ Reduction: 55%
    // GOOD - includes scope
    { projectPath: '...', type: 'note', key: '...', value: '...', scope: 'global' }
    ```
+
+### Issue: Showing cache for wrong workspace
+
+**This should not happen after the fix. If it does:**
+
+1. **Check workspace prop is passed**:
+   ```tsx
+   // TodoPanel.tsx (line 304)
+   <MemoryPoolMonitor workspace={workspace} />
+   ```
+
+2. **Check filtering logic**:
+   - Open browser DevTools console
+   - Look for `[MemoryPoolMonitor] Filtering:` logs
+   - Verify `workspacePath` matches current workspace
+   - Verify `match: true` only for current workspace
+
+3. **Verify workspace.path format**:
+   - Should be absolute path: `/Users/you/project-name`
+   - Should match `projectPath` used when storing memories
 
 ### Issue: TypeScript compilation errors
 

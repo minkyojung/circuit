@@ -77,6 +77,7 @@ function App() {
   })
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
   const [todoPanelRefreshTrigger, setTodoPanelRefreshTrigger] = useState<number>(0)
+  const [currentRepository, setCurrentRepository] = useState<any>(null)
 
   // Workspace navigation refs (for keyboard shortcuts)
   const workspacesRef = useRef<Workspace[]>([])
@@ -145,10 +146,13 @@ function App() {
     checkCircuitConfig()
   }, [projectPath])
 
-  // Extract repository name from project path
+  // Extract repository name from current repository or project path
   const repositoryName = useMemo(() => {
+    if (currentRepository?.name) {
+      return currentRepository.name
+    }
     return projectPath.split('/').filter(Boolean).pop() || 'Unknown Repository'
-  }, [projectPath])
+  }, [currentRepository, projectPath])
 
   // Handle file selection from sidebar
   const handleFileSelect = (filePath: string) => {
@@ -231,6 +235,7 @@ function App() {
           selectedFile={selectedFile}
           onFileSelect={handleFileSelect}
           onWorkspacesLoaded={setWorkspacesForShortcuts}
+          onRepositoryChange={setCurrentRepository}
         />
         <SidebarInset className={cn(
           "bg-card transition-[border-radius] duration-300",
