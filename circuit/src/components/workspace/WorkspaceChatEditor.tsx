@@ -858,16 +858,47 @@ The plan is ready. What would you like to do?`,
 
       const executionPrompt = modePrompts[data.mode]
 
-      // Use handleSend to properly handle UI updates
-      // This ensures user message is added to UI and DB,
-      // and response is properly handled
-      await handleSend(executionPrompt, [], 'normal')
+      // Create and send user message manually
+      // (Can't call handleSend due to function declaration order)
+      if (!sessionId || !conversationId) {
+        console.error('[WorkspaceChat] No session or conversation ID')
+        return
+      }
+
+      // Create user message
+      const userMessage: Message = {
+        id: `msg-${Date.now()}`,
+        conversationId: conversationId,
+        role: 'user',
+        content: executionPrompt,
+        timestamp: Date.now(),
+      }
+
+      // Add to UI
+      setMessages((prev) => [...prev, userMessage])
+
+      // Save to DB
+      const saveResult = await ipcRenderer.invoke('message:save', userMessage)
+      if (saveResult.success && saveResult.blocks) {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === userMessage.id ? { ...msg, blocks: saveResult.blocks } : msg
+          )
+        )
+      }
+
+      // Set pending ref for response handling
+      pendingUserMessageRef.current = userMessage
+      setIsSending(true)
+
+      // Send to Claude
+      ipcRenderer.send('claude:send-message', sessionId, executionPrompt, [], 'normal')
 
       console.log('[WorkspaceChat] Task execution started')
     } catch (error) {
       console.error('[WorkspaceChat] Error executing tasks:', error)
     }
-  }, [workspace])
+  }, [workspace, sessionId, conversationId, setMessages, setIsSending, pendingUserMessageRef])
 
   // Listen for thinking steps from Electron (separate useEffect to avoid re-registering listeners)
   useEffect(() => {
