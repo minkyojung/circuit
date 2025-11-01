@@ -79,13 +79,42 @@ export interface BlockExecution {
   durationMs?: number
 }
 
+export type TodoStatus = 'pending' | 'in_progress' | 'completed' | 'failed' | 'skipped'
+export type TodoPriority = 'low' | 'medium' | 'high' | 'critical'
+export type TodoComplexity = 'trivial' | 'simple' | 'medium' | 'complex' | 'very_complex'
+
+export interface Todo {
+  id: string
+  conversationId: string
+  messageId: string
+  parentId?: string
+  order: number
+  depth: number
+  content: string
+  description?: string
+  activeForm?: string
+  status: TodoStatus
+  progress?: number
+  priority?: TodoPriority
+  complexity?: TodoComplexity
+  thinkingStepIds: string[]
+  blockIds: string[]
+  estimatedDuration?: number
+  actualDuration?: number
+  startedAt?: number
+  completedAt?: number
+  createdAt: number
+  updatedAt: number
+  metadata?: string
+}
+
 /**
  * SQLite-based conversation storage
  */
 export class ConversationStorage {
   private db: Database.Database | null = null
   private dbPath: string
-  private schemaVersion = 2  // Updated to v2 for blocks support
+  private schemaVersion = 3  // Updated to v3 for todos support
 
   constructor() {
     const userData = app.getPath('userData')
@@ -281,6 +310,73 @@ export class ConversationStorage {
       `).run(2, 'block_system', Date.now())
 
       console.log('[ConversationStorage] Migration v2 complete')
+    }
+
+    // Migration v3: Todo system
+    if (currentVersion < 3) {
+      console.log('[ConversationStorage] Running migration v3: Todo system')
+
+      this.db.exec(`
+        -- Todos table: Task tracking and management
+        CREATE TABLE todos (
+          id TEXT PRIMARY KEY,
+          conversation_id TEXT NOT NULL,
+          message_id TEXT NOT NULL,
+
+          -- Hierarchy
+          parent_id TEXT,
+          order_index INTEGER NOT NULL,
+          depth INTEGER NOT NULL DEFAULT 0,
+
+          -- Content
+          content TEXT NOT NULL,
+          description TEXT,
+          active_form TEXT,
+
+          -- Status & Progress
+          status TEXT NOT NULL CHECK(status IN (
+            'pending', 'in_progress', 'completed', 'failed', 'skipped'
+          )),
+          progress INTEGER,  -- 0-100
+          priority TEXT CHECK(priority IN ('low', 'medium', 'high', 'critical')),
+          complexity TEXT CHECK(complexity IN (
+            'trivial', 'simple', 'medium', 'complex', 'very_complex'
+          )),
+
+          -- Connections (JSON arrays)
+          thinking_step_ids TEXT,  -- JSON array of thinking step indices
+          block_ids TEXT,          -- JSON array of block IDs
+
+          -- Timing
+          estimated_duration INTEGER,  -- seconds
+          actual_duration INTEGER,     -- seconds
+          started_at INTEGER,
+          completed_at INTEGER,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL,
+
+          -- Metadata (JSON object)
+          metadata TEXT,
+
+          FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+          FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
+          FOREIGN KEY (parent_id) REFERENCES todos(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX idx_todos_conversation ON todos(conversation_id, order_index);
+        CREATE INDEX idx_todos_message ON todos(message_id);
+        CREATE INDEX idx_todos_status ON todos(status);
+        CREATE INDEX idx_todos_parent ON todos(parent_id);
+        CREATE INDEX idx_todos_created ON todos(created_at DESC);
+      `)
+
+      // Record migration
+      this.db.prepare(`
+        INSERT INTO schema_version (version, name, applied_at)
+        VALUES (?, ?, ?)
+      `).run(3, 'todo_system', Date.now())
+
+      console.log('[ConversationStorage] Migration v3 complete')
     }
   }
 
@@ -857,6 +953,333 @@ export class ConversationStorage {
       totalConversations: conversationCount.count,
       totalMessages: messageCount.count,
       databaseSize: stats.size
+    }
+  }
+
+  // ============================================================================
+  // Todo Methods
+  // ============================================================================
+
+  /**
+   * Save a single todo
+   */
+  saveTodo(todo: Todo): void {
+    if (!this.db) throw new Error('Database not initialized')
+
+    this.db
+      .prepare(`
+        INSERT INTO todos (
+          id, conversation_id, message_id, parent_id, order_index, depth,
+          content, description, active_form, status, progress, priority, complexity,
+          thinking_step_ids, block_ids,
+          estimated_duration, actual_duration, started_at, completed_at,
+          created_at, updated_at, metadata
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+      .run(
+        todo.id,
+        todo.conversationId,
+        todo.messageId,
+        todo.parentId || null,
+        todo.order,
+        todo.depth,
+        todo.content,
+        todo.description || null,
+        todo.activeForm || null,
+        todo.status,
+        todo.progress ?? null,
+        todo.priority || null,
+        todo.complexity || null,
+        JSON.stringify(todo.thinkingStepIds),
+        JSON.stringify(todo.blockIds),
+        todo.estimatedDuration ?? null,
+        todo.actualDuration ?? null,
+        todo.startedAt ?? null,
+        todo.completedAt ?? null,
+        todo.createdAt,
+        todo.updatedAt,
+        todo.metadata || null
+      )
+  }
+
+  /**
+   * Save multiple todos (transaction)
+   */
+  saveTodos(todos: Todo[]): void {
+    if (!this.db) throw new Error('Database not initialized')
+    if (todos.length === 0) return
+
+    const transaction = this.db.transaction(() => {
+      const stmt = this.db!.prepare(`
+        INSERT INTO todos (
+          id, conversation_id, message_id, parent_id, order_index, depth,
+          content, description, active_form, status, progress, priority, complexity,
+          thinking_step_ids, block_ids,
+          estimated_duration, actual_duration, started_at, completed_at,
+          created_at, updated_at, metadata
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+
+      for (const todo of todos) {
+        stmt.run(
+          todo.id,
+          todo.conversationId,
+          todo.messageId,
+          todo.parentId || null,
+          todo.order,
+          todo.depth,
+          todo.content,
+          todo.description || null,
+          todo.activeForm || null,
+          todo.status,
+          todo.progress ?? null,
+          todo.priority || null,
+          todo.complexity || null,
+          JSON.stringify(todo.thinkingStepIds),
+          JSON.stringify(todo.blockIds),
+          todo.estimatedDuration ?? null,
+          todo.actualDuration ?? null,
+          todo.startedAt ?? null,
+          todo.completedAt ?? null,
+          todo.createdAt,
+          todo.updatedAt,
+          todo.metadata || null
+        )
+      }
+    })
+
+    transaction()
+  }
+
+  /**
+   * Update todo status and progress
+   */
+  updateTodoStatus(
+    todoId: string,
+    status: TodoStatus,
+    progress?: number,
+    completedAt?: number
+  ): void {
+    if (!this.db) throw new Error('Database not initialized')
+
+    this.db
+      .prepare(`
+        UPDATE todos
+        SET status = ?, progress = ?, completed_at = ?, updated_at = ?
+        WHERE id = ?
+      `)
+      .run(status, progress ?? null, completedAt ?? null, Date.now(), todoId)
+  }
+
+  /**
+   * Update todo timing information
+   */
+  updateTodoTiming(
+    todoId: string,
+    updates: {
+      startedAt?: number
+      completedAt?: number
+      actualDuration?: number
+    }
+  ): void {
+    if (!this.db) throw new Error('Database not initialized')
+
+    this.db
+      .prepare(`
+        UPDATE todos
+        SET started_at = COALESCE(?, started_at),
+            completed_at = COALESCE(?, completed_at),
+            actual_duration = COALESCE(?, actual_duration),
+            updated_at = ?
+        WHERE id = ?
+      `)
+      .run(
+        updates.startedAt ?? null,
+        updates.completedAt ?? null,
+        updates.actualDuration ?? null,
+        Date.now(),
+        todoId
+      )
+  }
+
+  /**
+   * Get all todos for a conversation
+   */
+  getTodos(conversationId: string): Todo[] {
+    if (!this.db) throw new Error('Database not initialized')
+
+    const todos = this.db
+      .prepare(`
+        SELECT
+          id,
+          conversation_id as conversationId,
+          message_id as messageId,
+          parent_id as parentId,
+          order_index as 'order',
+          depth,
+          content,
+          description,
+          active_form as activeForm,
+          status,
+          progress,
+          priority,
+          complexity,
+          thinking_step_ids as thinkingStepIds,
+          block_ids as blockIds,
+          estimated_duration as estimatedDuration,
+          actual_duration as actualDuration,
+          started_at as startedAt,
+          completed_at as completedAt,
+          created_at as createdAt,
+          updated_at as updatedAt,
+          metadata
+        FROM todos
+        WHERE conversation_id = ?
+        ORDER BY order_index ASC
+      `)
+      .all(conversationId) as any[]
+
+    return todos.map((todo) => ({
+      ...todo,
+      thinkingStepIds: JSON.parse(todo.thinkingStepIds || '[]'),
+      blockIds: JSON.parse(todo.blockIds || '[]')
+    }))
+  }
+
+  /**
+   * Get todos for a specific message
+   */
+  getTodosByMessage(messageId: string): Todo[] {
+    if (!this.db) throw new Error('Database not initialized')
+
+    const todos = this.db
+      .prepare(`
+        SELECT
+          id,
+          conversation_id as conversationId,
+          message_id as messageId,
+          parent_id as parentId,
+          order_index as 'order',
+          depth,
+          content,
+          description,
+          active_form as activeForm,
+          status,
+          progress,
+          priority,
+          complexity,
+          thinking_step_ids as thinkingStepIds,
+          block_ids as blockIds,
+          estimated_duration as estimatedDuration,
+          actual_duration as actualDuration,
+          started_at as startedAt,
+          completed_at as completedAt,
+          created_at as createdAt,
+          updated_at as updatedAt,
+          metadata
+        FROM todos
+        WHERE message_id = ?
+        ORDER BY order_index ASC
+      `)
+      .all(messageId) as any[]
+
+    return todos.map((todo) => ({
+      ...todo,
+      thinkingStepIds: JSON.parse(todo.thinkingStepIds || '[]'),
+      blockIds: JSON.parse(todo.blockIds || '[]')
+    }))
+  }
+
+  /**
+   * Get a single todo by ID
+   */
+  getTodo(todoId: string): Todo | null {
+    if (!this.db) throw new Error('Database not initialized')
+
+    const todo = this.db
+      .prepare(`
+        SELECT
+          id,
+          conversation_id as conversationId,
+          message_id as messageId,
+          parent_id as parentId,
+          order_index as 'order',
+          depth,
+          content,
+          description,
+          active_form as activeForm,
+          status,
+          progress,
+          priority,
+          complexity,
+          thinking_step_ids as thinkingStepIds,
+          block_ids as blockIds,
+          estimated_duration as estimatedDuration,
+          actual_duration as actualDuration,
+          started_at as startedAt,
+          completed_at as completedAt,
+          created_at as createdAt,
+          updated_at as updatedAt,
+          metadata
+        FROM todos
+        WHERE id = ?
+      `)
+      .get(todoId) as any
+
+    if (!todo) return null
+
+    return {
+      ...todo,
+      thinkingStepIds: JSON.parse(todo.thinkingStepIds || '[]'),
+      blockIds: JSON.parse(todo.blockIds || '[]')
+    }
+  }
+
+  /**
+   * Delete a todo
+   */
+  deleteTodo(todoId: string): void {
+    if (!this.db) throw new Error('Database not initialized')
+
+    this.db.prepare('DELETE FROM todos WHERE id = ?').run(todoId)
+  }
+
+  /**
+   * Get todo statistics for a conversation
+   */
+  getTodoStats(conversationId: string): {
+    total: number
+    pending: number
+    inProgress: number
+    completed: number
+    failed: number
+    skipped: number
+  } {
+    if (!this.db) throw new Error('Database not initialized')
+
+    const stats = this.db
+      .prepare(`
+        SELECT
+          COUNT(*) as total,
+          SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+          SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as inProgress,
+          SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+          SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
+          SUM(CASE WHEN status = 'skipped' THEN 1 ELSE 0 END) as skipped
+        FROM todos
+        WHERE conversation_id = ?
+      `)
+      .get(conversationId) as any
+
+    return {
+      total: stats.total || 0,
+      pending: stats.pending || 0,
+      inProgress: stats.inProgress || 0,
+      completed: stats.completed || 0,
+      failed: stats.failed || 0,
+      skipped: stats.skipped || 0
     }
   }
 }

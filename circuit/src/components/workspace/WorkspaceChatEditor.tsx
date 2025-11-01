@@ -17,6 +17,17 @@ import { ReasoningAccordion } from '@/components/reasoning/ReasoningAccordion';
 import type { ThinkingStep } from '@/types/thinking';
 import { summarizeToolUsage } from '@/lib/thinkingUtils';
 import { motion, AnimatePresence } from 'motion/react';
+import { TodoProvider } from '@/contexts/TodoContext';
+import { TodoConfirmationDialog, PlanReviewMessage } from '@/components/todo';
+import { analyzeTodoFromPrompt } from '@/lib/todoAnalyzer';
+import {
+  extractTodoWriteFromBlocks,
+  extractPlanFromText,
+  convertClaudeTodosToDrafts,
+  calculateOverallComplexity,
+  calculateTotalTime
+} from '@/lib/planModeUtils';
+import type { TodoGenerationResult, TodoDraft } from '@/types/todo';
 
 // Configure Monaco Editor to use local files instead of CDN
 loader.config({ monaco });
@@ -167,7 +178,7 @@ interface ChatPanelProps {
 
 // ChatInput component now handles all input styling and controls
 
-const ChatPanel: React.FC<ChatPanelProps> = ({
+const ChatPanelInner: React.FC<ChatPanelProps> = ({
   workspace,
   sessionId,
   onFileEdit,
@@ -182,6 +193,15 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const [isLoadingConversation, setIsLoadingConversation] = useState(true);
   const [thinkingSteps, setThinkingSteps] = useState<ThinkingStep[]>([]);
   const [messageThinkingSteps, setMessageThinkingSteps] = useState<Record<string, { steps: ThinkingStep[], duration: number }>>({});
+
+  // Todo-related state
+  const [todoResult, setTodoResult] = useState<TodoGenerationResult | null>(null);
+  const [showTodoDialog, setShowTodoDialog] = useState(false);
+  const [pendingPrompt, setPendingPrompt] = useState<{
+    text: string;
+    attachments: AttachedFile[];
+    thinkingMode: import('./ChatInput').ThinkingMode;
+  } | null>(null);
 
   // Use refs for timer to avoid closure issues
   const thinkingTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -559,6 +579,60 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
               msg.id === assistantMessageId ? { ...msg, blocks: saveResult.blocks } : msg
             )
           );
+
+          // Plan Mode: Check if Claude output a plan in JSON format
+          let todoWriteData = extractTodoWriteFromBlocks(saveResult.blocks);
+
+          // Fallback: Try parsing from message content if blocks parsing failed
+          if (!todoWriteData && result.message) {
+            console.log('[WorkspaceChat] 📋 Plan mode: Trying to extract plan from message content');
+            todoWriteData = extractPlanFromText(result.message);
+          }
+
+          if (todoWriteData && todoWriteData.todos.length > 0) {
+            console.log('[WorkspaceChat] 📋 Plan mode: Plan detected, adding to message metadata');
+
+            // Convert Claude's todos to Circuit format
+            const todoDrafts = convertClaudeTodosToDrafts(todoWriteData.todos);
+
+            // Create TodoGenerationResult
+            const todoResult: TodoGenerationResult = {
+              todos: todoDrafts,
+              complexity: calculateOverallComplexity(todoDrafts),
+              estimatedTotalTime: calculateTotalTime(todoDrafts),
+              confidence: 0.95, // High confidence - Claude analyzed the codebase
+              reasoning: 'Claude analyzed codebase and created detailed plan in Plan Mode'
+            };
+
+            // Add plan to assistant message metadata
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === assistantMessageId
+                  ? {
+                      ...msg,
+                      metadata: {
+                        ...msg.metadata,
+                        planResult: todoResult,
+                        hasPendingPlan: true
+                      }
+                    }
+                  : msg
+              )
+            );
+
+            // Update database with plan metadata
+            const updatedMessage = {
+              ...assistantMessage,
+              metadata: {
+                ...assistantMessage.metadata,
+                planResult: todoResult,
+                hasPendingPlan: true
+              }
+            };
+            await ipcRenderer.invoke('message:save', updatedMessage);
+
+            // Don't show modal - plan will be displayed inline in the message
+          }
         }
 
         console.log('[WorkspaceChat] ✅ Assistant message updated with content and blocks');
@@ -683,6 +757,32 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     if (!inputText.trim() && attachments.length === 0) return;
     if (isSending || !sessionId) return;
 
+    // Plan mode: Skip client-side todo analysis and let Claude generate detailed todos
+    if (thinkingMode === 'plan') {
+      console.log('[ChatPanel] Plan mode: Skipping client-side todo analysis, Claude will generate todos');
+      await executePrompt(inputText, attachments, thinkingMode);
+      return;
+    }
+
+    // Normal/Think modes: Analyze prompt for todos
+    const result = analyzeTodoFromPrompt(inputText);
+    console.log('[ChatPanel] Todo analysis:', result);
+
+    // If confidence is high enough and multiple todos detected, show confirmation
+    if (result.todos.length > 1 || (result.todos.length === 1 && result.complexity !== 'trivial')) {
+      setTodoResult(result);
+      setPendingPrompt({ text: inputText, attachments, thinkingMode });
+      setShowTodoDialog(true);
+      return; // Wait for user confirmation
+    }
+
+    // Otherwise, proceed directly
+    await executePrompt(inputText, attachments, thinkingMode);
+  };
+
+  const executePrompt = async (inputText: string, attachments: AttachedFile[], thinkingMode: import('./ChatInput').ThinkingMode) => {
+    if (isSending || !sessionId) return;
+
     // Ensure we have a conversationId
     let activeConversationId = conversationId;
 
@@ -749,6 +849,85 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
     // Send message (non-blocking) - response will arrive via event listeners
     ipcRenderer.send('claude:send-message', sessionId, currentInput, attachments, thinkingMode);
+  };
+
+  // Todo confirmation handlers
+  const handleTodoConfirm = async (todos: TodoDraft[]) => {
+    console.log('[ChatPanel] Todos confirmed:', todos);
+    setShowTodoDialog(false);
+
+    if (!conversationId || !pendingPrompt) {
+      console.error('[ChatPanel] Missing conversation ID or pending prompt');
+      return;
+    }
+
+    // Create user message for todo tracking
+    const userMessage: Message = {
+      id: `msg-${Date.now()}`,
+      conversationId,
+      role: 'user',
+      content: pendingPrompt.text,
+      timestamp: Date.now(),
+      metadata: {
+        attachments: pendingPrompt.attachments.map(f => ({
+          id: f.id,
+          name: f.name,
+          type: f.type,
+          size: f.size,
+        })),
+      },
+    };
+
+    // Save todos to database
+    try {
+      const result = await ipcRenderer.invoke('todos:save-multiple',
+        todos.map((draft, index) => ({
+          id: `todo-${userMessage.id}-${index}`,
+          conversationId,
+          messageId: userMessage.id,
+          parentId: draft.parentId,
+          order: draft.order,
+          depth: draft.depth,
+          content: draft.content,
+          description: draft.description,
+          activeForm: draft.activeForm,
+          status: 'pending' as const,
+          progress: 0,
+          priority: draft.priority,
+          complexity: draft.complexity,
+          thinkingStepIds: [],
+          blockIds: [],
+          estimatedDuration: draft.estimatedDuration,
+          actualDuration: undefined,
+          startedAt: undefined,
+          completedAt: undefined,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        }))
+      );
+
+      if (result.success) {
+        console.log('[ChatPanel] Todos saved successfully');
+      } else {
+        console.error('[ChatPanel] Failed to save todos:', result.error);
+      }
+    } catch (error) {
+      console.error('[ChatPanel] Error saving todos:', error);
+    }
+
+    // Execute the prompt
+    await executePrompt(pendingPrompt.text, pendingPrompt.attachments, pendingPrompt.thinkingMode);
+
+    // Clear pending state
+    setPendingPrompt(null);
+    setTodoResult(null);
+  };
+
+  const handleTodoCancel = () => {
+    console.log('[ChatPanel] Todos cancelled');
+    setShowTodoDialog(false);
+    setPendingPrompt(null);
+    setTodoResult(null);
   };
 
   return (
@@ -898,6 +1077,50 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                     );
                   })()}
 
+                  {/* Plan Review (inline) */}
+                  {msg.role === 'assistant' && msg.metadata?.hasPendingPlan && msg.metadata?.planResult && (
+                    <PlanReviewMessage
+                      result={msg.metadata.planResult}
+                      onConfirm={async (todos) => {
+                        // Mark plan as confirmed in message
+                        setMessages((prev) =>
+                          prev.map((m) =>
+                            m.id === msg.id
+                              ? {
+                                  ...m,
+                                  metadata: {
+                                    ...m.metadata,
+                                    hasPendingPlan: false,
+                                    planConfirmed: true
+                                  }
+                                }
+                              : m
+                          )
+                        );
+
+                        // Execute todos via handleTodoConfirm
+                        await handleTodoConfirm(todos);
+                      }}
+                      onCancel={() => {
+                        // Remove plan from message
+                        setMessages((prev) =>
+                          prev.map((m) =>
+                            m.id === msg.id
+                              ? {
+                                  ...m,
+                                  metadata: {
+                                    ...m.metadata,
+                                    hasPendingPlan: false,
+                                    planCancelled: true
+                                  }
+                                }
+                              : m
+                          )
+                        );
+                      }}
+                    />
+                  )}
+
                   {/* Block-based rendering with fallback */}
                   {msg.blocks && msg.blocks.length > 0 ? (
                     <BlockList
@@ -1030,7 +1253,24 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           />
         </div>
       </div>
+
+      {/* Todo Confirmation Dialog */}
+      <TodoConfirmationDialog
+        isOpen={showTodoDialog}
+        result={todoResult}
+        onConfirm={handleTodoConfirm}
+        onCancel={handleTodoCancel}
+      />
     </div>
+  );
+};
+
+// Wrapper component with TodoProvider
+const ChatPanel: React.FC<ChatPanelProps> = (props) => {
+  return (
+    <TodoProvider conversationId={undefined}>
+      <ChatPanelInner {...props} />
+    </TodoProvider>
   );
 };
 

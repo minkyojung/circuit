@@ -31,6 +31,10 @@ export interface Message {
       type: string
       size: number
     }>
+    planResult?: any  // TodoGenerationResult from Plan Mode
+    hasPendingPlan?: boolean
+    planConfirmed?: boolean
+    planCancelled?: boolean
   }
   blocks?: Block[]  // New: Block-based message structure
 }

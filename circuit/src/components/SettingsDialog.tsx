@@ -17,7 +17,7 @@ import {
 } from './settings/SettingPrimitives';
 import { useTheme } from '@/hooks/useTheme';
 import { cn } from '@/lib/utils';
-import type { ClaudeModel, CompletionSound, SendKeyCombo } from '@/types/settings';
+import type { ClaudeModel, CompletionSound, SendKeyCombo, ThemeMode } from '@/types/settings';
 
 interface SettingsDialogProps {
   isOpen: boolean;
@@ -143,8 +143,8 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
 // ============================================================================
 
 interface SettingsPanelProps {
-  theme?: 'light' | 'dark' | 'system';
-  setTheme?: (theme: 'light' | 'dark' | 'system') => void;
+  theme?: ThemeMode;
+  setTheme?: (theme: ThemeMode) => void;
   settings: any;
   updateSettings: any;
 }
@@ -159,9 +159,11 @@ const GeneralSettings: React.FC<SettingsPanelProps> = ({ theme, setTheme, settin
           options={[
             { value: 'light', label: 'Light' },
             { value: 'dark', label: 'Dark' },
+            { value: 'green-light', label: 'Sage' },
+            { value: 'green-dark', label: 'Forest' },
             { value: 'system', label: 'System' },
           ]}
-          onChange={(value) => setTheme!(value as 'light' | 'dark' | 'system')}
+          onChange={(value) => setTheme!(value as ThemeMode)}
         />
       </div>
     </SettingSection>

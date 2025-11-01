@@ -14,6 +14,13 @@ const execAsync = promisify(exec)
 let storage: ConversationStorage | null = null
 
 /**
+ * Get storage instance (for use by other handlers)
+ */
+export function getStorage(): ConversationStorage | null {
+  return storage
+}
+
+/**
  * Initialize conversation storage
  */
 export async function initializeConversationStorage(): Promise<void> {
@@ -729,6 +736,12 @@ export function registerConversationHandlers(): void {
   )
 
   console.log('[ConversationHandlers] All IPC handlers registered')
+
+  // Register todo handlers
+  if (storage) {
+    const { registerTodoHandlers } = require('./todoHandlers')
+    registerTodoHandlers(storage)
+  }
 }
 
 /**
