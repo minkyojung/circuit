@@ -71,7 +71,10 @@ function App() {
   const [showCommitDialog, setShowCommitDialog] = useState<boolean>(false)
   const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false)
   const [chatPrefillMessage, setChatPrefillMessage] = useState<string | null>(null)
-  const [isRightSidebarOpen, setIsRightSidebarOpen] = useState<boolean>(false)
+  const [isRightSidebarOpen, setIsRightSidebarOpen] = useState<boolean>(() => {
+    const saved = localStorage.getItem('circuit-right-sidebar-state')
+    return saved !== null ? JSON.parse(saved) : true // 기본값: 열림
+  })
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
   const [todoPanelRefreshTrigger, setTodoPanelRefreshTrigger] = useState<number>(0)
 
@@ -79,6 +82,15 @@ function App() {
   const workspacesRef = useRef<Workspace[]>([])
   const setWorkspacesForShortcuts = (workspaces: Workspace[]) => {
     workspacesRef.current = workspaces
+  }
+
+  // Toggle right sidebar with localStorage persistence
+  const toggleRightSidebar = () => {
+    setIsRightSidebarOpen(prev => {
+      const newState = !prev
+      localStorage.setItem('circuit-right-sidebar-state', JSON.stringify(newState))
+      return newState
+    })
   }
 
   // Create workspace handler for Command Palette
@@ -282,14 +294,14 @@ function App() {
             {/* Spacer */}
             <div className="flex-1" />
 
-            {/* Right side - Blocks and Commit buttons (when workspace selected) */}
+            {/* Right side - Toggle plans button (when workspace selected) */}
             {selectedWorkspace && (
               <div
                 className="flex items-center gap-2"
                 style={{ WebkitAppRegion: 'no-drag' } as any}
               >
                 <button
-                  onClick={() => setIsRightSidebarOpen(!isRightSidebarOpen)}
+                  onClick={toggleRightSidebar}
                   className={cn(
                     "flex h-7 w-7 items-center justify-center rounded-md transition-colors",
                     isRightSidebarOpen
@@ -299,12 +311,6 @@ function App() {
                   title="Toggle plans"
                 >
                   <PanelRight size={16} />
-                </button>
-                <button
-                  onClick={() => setShowCommitDialog(true)}
-                  className="px-4 py-[7px] bg-secondary hover:bg-secondary/80 text-secondary-foreground text-sm font-medium rounded-md transition-colors"
-                >
-                  Commit & PR
                 </button>
               </div>
             )}
@@ -367,6 +373,8 @@ function App() {
         <TodoPanel
           conversationId={activeConversationId}
           refreshTrigger={todoPanelRefreshTrigger}
+          workspace={selectedWorkspace}
+          onCommit={() => setShowCommitDialog(true)}
         />
       </div>
 

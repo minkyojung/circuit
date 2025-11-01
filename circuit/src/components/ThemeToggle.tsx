@@ -1,7 +1,6 @@
 import React from 'react';
 import { Sun, Moon, Monitor, Leaf } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
-import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 /**
@@ -13,15 +12,15 @@ export const ThemeToggle: React.FC<{ className?: string; style?: React.CSSProper
 
   const getIcon = () => {
     if (theme === 'system') {
-      return <Monitor className="h-4 w-4" />;
+      return <Monitor size={16} strokeWidth={1.5} />;
     }
     if (theme === 'green-light' || theme === 'green-dark') {
-      return <Leaf className="h-4 w-4" />;
+      return <Leaf size={16} strokeWidth={1.5} />;
     }
     return resolvedTheme === 'dark' ? (
-      <Moon className="h-4 w-4" />
+      <Moon size={16} strokeWidth={1.5} />
     ) : (
-      <Sun className="h-4 w-4" />
+      <Sun size={16} strokeWidth={1.5} />
     );
   };
 
@@ -33,17 +32,14 @@ export const ThemeToggle: React.FC<{ className?: string; style?: React.CSSProper
   };
 
   return (
-    <Button
-      variant="ghost"
-      size="sm"
+    <button
       onClick={toggleTheme}
-      className={cn('gap-2', className)}
+      className={cn('flex items-center justify-center p-2 rounded-md h-7 w-7 transition-colors', className)}
       style={style}
       title={`Current theme: ${getLabel()}. Click to cycle.`}
     >
       {getIcon()}
-      <span className="text-xs">{getLabel()}</span>
-    </Button>
+    </button>
   );
 };
 
@@ -75,14 +71,12 @@ export const ThemeToggleIcon: React.FC<{ className?: string }> = ({ className })
   };
 
   return (
-    <Button
-      variant="ghost"
-      size="icon"
+    <button
       onClick={toggleTheme}
-      className={cn('h-8 w-8', className)}
+      className={cn('flex items-center justify-center p-2 rounded-md h-8 w-8 transition-colors', className)}
       title={`${getLabel()}. Click to cycle.`}
     >
       {getIcon()}
-    </Button>
+    </button>
   );
 };
