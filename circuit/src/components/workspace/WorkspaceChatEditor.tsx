@@ -41,6 +41,7 @@ interface WorkspaceChatEditorProps {
   prefillMessage?: string | null;
   onPrefillCleared?: () => void;
   onConversationChange?: (conversationId: string | null) => void;
+  onPlanAdded?: () => void;
 }
 
 type ViewMode = 'chat' | 'editor' | 'split';
@@ -50,7 +51,8 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
   selectedFile,
   prefillMessage = null,
   onPrefillCleared,
-  onConversationChange
+  onConversationChange,
+  onPlanAdded
 }) => {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [openFiles, setOpenFiles] = useState<string[]>([]);
@@ -117,6 +119,7 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
             prefillMessage={prefillMessage}
             onPrefillCleared={onPrefillCleared}
             onConversationChange={onConversationChange}
+            onPlanAdded={onPlanAdded}
           />
         </div>
       )}
@@ -145,6 +148,7 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
               prefillMessage={prefillMessage}
               onPrefillCleared={onPrefillCleared}
               onConversationChange={onConversationChange}
+              onPlanAdded={onPlanAdded}
             />
           </ResizablePanel>
           <ResizableHandle />
@@ -174,6 +178,7 @@ interface ChatPanelProps {
   prefillMessage?: string | null;
   onPrefillCleared?: () => void;
   onConversationChange?: (conversationId: string | null) => void;
+  onPlanAdded?: () => void;
 }
 
 // ChatInput component now handles all input styling and controls
@@ -184,7 +189,8 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   onFileEdit,
   prefillMessage,
   onPrefillCleared,
-  onConversationChange
+  onConversationChange,
+  onPlanAdded
 }) => {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -633,7 +639,18 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
                 hasPendingPlan: true
               }
             };
-            await ipcRenderer.invoke('message:save', updatedMessage);
+
+            console.log('[WorkspaceChat] 💾 Saving updated message with planResult');
+            console.log('[WorkspaceChat] 💾 Message ID:', updatedMessage.id);
+            console.log('[WorkspaceChat] 💾 Metadata keys:', Object.keys(updatedMessage.metadata || {}));
+            console.log('[WorkspaceChat] 💾 Has planResult:', !!updatedMessage.metadata?.planResult);
+            console.log('[WorkspaceChat] 💾 planResult todos count:', updatedMessage.metadata?.planResult?.todos?.length || 0);
+
+            const saveResult2 = await ipcRenderer.invoke('message:save', updatedMessage);
+            console.log('[WorkspaceChat] 💾 Save result:', saveResult2);
+
+            // Notify parent that a plan was added (to refresh TodoPanel)
+            onPlanAdded?.();
 
             // Don't show modal - plan will be displayed inline in the message
           }

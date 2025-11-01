@@ -9,11 +9,12 @@ const { ipcRenderer } = window.require('electron')
 
 interface TodoPanelProps {
   conversationId: string | null
+  refreshTrigger?: number
 }
 
 type FilterType = 'active' | 'archived'
 
-export function TodoPanel({ conversationId }: TodoPanelProps) {
+export function TodoPanel({ conversationId, refreshTrigger }: TodoPanelProps) {
   const [sessions, setSessions] = useState<TodoSession[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [selectedFilter, setSelectedFilter] = useState<FilterType>('active')
@@ -25,7 +26,7 @@ export function TodoPanel({ conversationId }: TodoPanelProps) {
     } else {
       setSessions([])
     }
-  }, [conversationId])
+  }, [conversationId, refreshTrigger])
 
   const loadSessions = async () => {
     if (!conversationId) return
@@ -42,6 +43,15 @@ export function TodoPanel({ conversationId }: TodoPanelProps) {
 
         result.messages.forEach((message: Message) => {
           console.log('[TodoPanel] 📊 Message:', message.id, 'role:', message.role, 'has metadata:', !!message.metadata, 'has planResult:', !!message.metadata?.planResult);
+
+          if (message.metadata) {
+            console.log('[TodoPanel] 📊 Metadata type:', typeof message.metadata);
+            console.log('[TodoPanel] 📊 Metadata keys:', Object.keys(message.metadata));
+            if (message.metadata.planResult) {
+              console.log('[TodoPanel] 📊 planResult type:', typeof message.metadata.planResult);
+              console.log('[TodoPanel] 📊 planResult keys:', Object.keys(message.metadata.planResult));
+            }
+          }
 
           if (message.role === 'assistant' && message.metadata?.planResult) {
             console.log('[TodoPanel] ✅ Found plan in message:', message.id, 'with', message.metadata.planResult.todos.length, 'todos');

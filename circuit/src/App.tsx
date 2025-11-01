@@ -73,6 +73,7 @@ function App() {
   const [chatPrefillMessage, setChatPrefillMessage] = useState<string | null>(null)
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState<boolean>(false)
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
+  const [todoPanelRefreshTrigger, setTodoPanelRefreshTrigger] = useState<number>(0)
 
   // Workspace navigation refs (for keyboard shortcuts)
   const workspacesRef = useRef<Workspace[]>([])
@@ -319,6 +320,7 @@ function App() {
                   prefillMessage={chatPrefillMessage}
                   onPrefillCleared={() => setChatPrefillMessage(null)}
                   onConversationChange={setActiveConversationId}
+                  onPlanAdded={() => setTodoPanelRefreshTrigger(prev => prev + 1)}
                 />
 
                 {/* Commit Dialog */}
@@ -364,6 +366,7 @@ function App() {
       >
         <TodoPanel
           conversationId={activeConversationId}
+          refreshTrigger={todoPanelRefreshTrigger}
         />
       </div>
 

@@ -114,7 +114,7 @@ export interface Todo {
 export class ConversationStorage {
   private db: Database.Database | null = null
   private dbPath: string
-  private schemaVersion = 3  // Updated to v3 for todos support
+  private schemaVersion = 5  // Updated to v5 for FTS removal
 
   constructor() {
     const userData = app.getPath('userData')
@@ -378,6 +378,79 @@ export class ConversationStorage {
 
       console.log('[ConversationStorage] Migration v3 complete')
     }
+
+    // Migration v4: Fix FTS triggers (drop and recreate)
+    if (currentVersion < 4) {
+      console.log('[ConversationStorage] Running migration v4: Fix FTS triggers')
+
+      try {
+        // Drop all triggers on blocks table
+        this.db.exec(`
+          DROP TRIGGER IF EXISTS blocks_fts_insert;
+          DROP TRIGGER IF EXISTS blocks_fts_delete;
+          DROP TRIGGER IF EXISTS blocks_fts_update;
+        `)
+
+        // Recreate FTS triggers with correct schema
+        this.db.exec(`
+          CREATE TRIGGER blocks_fts_insert AFTER INSERT ON blocks BEGIN
+            INSERT INTO blocks_fts(rowid, content, block_id)
+            VALUES (new.rowid, new.content, new.id);
+          END;
+
+          CREATE TRIGGER blocks_fts_delete AFTER DELETE ON blocks BEGIN
+            DELETE FROM blocks_fts WHERE rowid = old.rowid;
+          END;
+
+          CREATE TRIGGER blocks_fts_update AFTER UPDATE ON blocks BEGIN
+            UPDATE blocks_fts
+            SET content = new.content
+            WHERE rowid = new.rowid;
+          END;
+        `)
+
+        // Record migration
+        this.db.prepare(`
+          INSERT INTO schema_version (version, name, applied_at)
+          VALUES (?, ?, ?)
+        `).run(4, 'fix_fts_triggers', Date.now())
+
+        console.log('[ConversationStorage] Migration v4 complete')
+      } catch (error) {
+        console.error('[ConversationStorage] Migration v4 error:', error)
+        // Continue - error might be due to missing tables in fresh DB
+      }
+    }
+
+    // Migration v5: Remove FTS completely (not used, causes issues)
+    if (currentVersion < 5) {
+      console.log('[ConversationStorage] Running migration v5: Remove FTS')
+
+      try {
+        // Drop all FTS triggers
+        this.db.exec(`
+          DROP TRIGGER IF EXISTS blocks_fts_insert;
+          DROP TRIGGER IF EXISTS blocks_fts_delete;
+          DROP TRIGGER IF EXISTS blocks_fts_update;
+        `)
+
+        // Drop FTS table
+        this.db.exec(`
+          DROP TABLE IF EXISTS blocks_fts;
+        `)
+
+        // Record migration
+        this.db.prepare(`
+          INSERT INTO schema_version (version, name, applied_at)
+          VALUES (?, ?, ?)
+        `).run(5, 'remove_fts', Date.now())
+
+        console.log('[ConversationStorage] Migration v5 complete')
+      } catch (error) {
+        console.error('[ConversationStorage] Migration v5 error:', error)
+        // Continue - error might be due to missing tables
+      }
+    }
   }
 
   /**
@@ -571,15 +644,23 @@ export class ConversationStorage {
   }
 
   /**
-   * Save a single message
+   * Save a single message (UPSERT: insert or update if exists)
    */
   saveMessage(message: Message): void {
     if (!this.db) throw new Error('Database not initialized')
 
-    this.db
+    console.log('[ConversationStorage] 💾 saveMessage:', message.id);
+    console.log('[ConversationStorage] 💾 Metadata type:', typeof message.metadata);
+    console.log('[ConversationStorage] 💾 Metadata length:', message.metadata?.length || 0);
+
+    const result = this.db
       .prepare(`
         INSERT INTO messages (id, conversation_id, role, content, timestamp, metadata)
         VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          content = excluded.content,
+          metadata = excluded.metadata,
+          timestamp = excluded.timestamp
       `)
       .run(
         message.id,
@@ -590,12 +671,14 @@ export class ConversationStorage {
         message.metadata || null
       )
 
+    console.log('[ConversationStorage] 💾 SQL result changes:', result.changes);
+
     // Update conversation timestamp
     this.touch(message.conversationId)
   }
 
   /**
-   * Save multiple messages (transaction)
+   * Save multiple messages (transaction, UPSERT)
    */
   saveMessages(messages: Message[]): void {
     if (!this.db) throw new Error('Database not initialized')
@@ -605,6 +688,10 @@ export class ConversationStorage {
       const stmt = this.db!.prepare(`
         INSERT INTO messages (id, conversation_id, role, content, timestamp, metadata)
         VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          content = excluded.content,
+          metadata = excluded.metadata,
+          timestamp = excluded.timestamp
       `)
 
       for (const message of messages) {
@@ -708,19 +795,23 @@ export class ConversationStorage {
   // ============================================================================
 
   /**
-   * Save message with blocks (atomic transaction)
+   * Save message with blocks (atomic transaction, UPSERT)
    *
    * This is the primary method for saving new messages with block structure.
    * It ensures both the message and its blocks are saved atomically.
+   * When updating an existing message, old blocks are deleted and replaced.
    */
   saveMessageWithBlocks(message: Message, blocks: Block[]): void {
     if (!this.db) throw new Error('Database not initialized')
 
     const transaction = this.db.transaction(() => {
-      // 1. Save message (for backward compatibility)
+      // 1. Save or update message (UPSERT)
       this.saveMessage(message)
 
-      // 2. Save blocks
+      // 2. Delete existing blocks for this message (if any)
+      this.db!.prepare(`DELETE FROM blocks WHERE message_id = ?`).run(message.id)
+
+      // 3. Save new blocks
       const stmt = this.db!.prepare(`
         INSERT INTO blocks (id, message_id, type, content, metadata, order_index, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?)
