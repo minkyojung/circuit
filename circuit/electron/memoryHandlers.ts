@@ -220,9 +220,15 @@ export function registerMemoryHandlers(): void {
   ipcMain.handle('circuit:memory-get-conversation', async (event, projectPath: string, conversationId: string) => {
     try {
       const pool = getSharedMemoryPool()
-      const memories = await pool.getConversationMemories(projectPath, conversationId)
 
-      return { success: true, memories }
+      // Get both global (shared) and conversation-specific memories
+      const globalMemories = await pool.getGlobalMemories(projectPath)
+      const conversationMemories = await pool.getConversationMemories(projectPath, conversationId)
+
+      // Merge them (conversation-specific memories take precedence if there are key conflicts)
+      const allMemories = [...globalMemories, ...conversationMemories]
+
+      return { success: true, memories: allMemories }
     } catch (error: any) {
       console.error('[MemoryHandlers] Error getting conversation memories:', error)
       return { success: false, error: error.message }
