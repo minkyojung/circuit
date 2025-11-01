@@ -190,10 +190,11 @@ export function calculateOverallComplexity(todos: TodoDraft[]): TodoComplexity {
   const weights = {
     trivial: 1,
     simple: 2,
+    moderate: 2.5,
     medium: 3,
     complex: 4,
     very_complex: 5,
-  }
+  } as Record<TodoComplexity, number>
 
   const totalWeight = todos.reduce((sum, todo) => {
     const complexity = todo.complexity || 'medium'

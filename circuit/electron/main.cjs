@@ -2486,26 +2486,8 @@ async function getFileTree(worktreePath) {
  */
 ipcMain.handle('workspace:create', async (event) => {
   try {
-    // Get project path
-    const projectPathResult = await new Promise((resolve) => {
-      ipcMain.handleOnce('circuit:get-project-path-internal', async () => {
-        const electronDir = __dirname;
-        const projectPath = path.resolve(electronDir, '../../../..');
-        return { success: true, projectPath };
-      });
-      // Trigger it
-      const result = {
-        success: true,
-        projectPath: path.resolve(__dirname, '../../../..')
-      };
-      resolve(result);
-    });
-
-    if (!projectPathResult.success) {
-      throw new Error('Failed to get project path');
-    }
-
-    const projectPath = projectPathResult.projectPath;
+    // Get project path directly
+    const projectPath = path.resolve(__dirname, '../../../..');
 
     // Generate unique branch name
     const branchName = await generateWorkspaceName(projectPath);
@@ -2689,12 +2671,14 @@ ipcMain.on('claude:send-message', async (event, sessionId, userMessage, attachme
 
     // Add thinking mode instruction prefix
     let thinkingInstruction = '';
+    const languageInstruction = 'IMPORTANT: Always think and analyze in ENGLISH internally, but respond in THE SAME LANGUAGE as the user\'s input (Korean→Korean, Japanese→Japanese, English→English).';
+
     if (thinkingMode === 'think') {
-      thinkingInstruction = '<thinking_instruction>Think carefully and systematically about this request before responding. Take your time to reason through the problem.</thinking_instruction>\n\n';
+      thinkingInstruction = `<thinking_instruction>Think carefully and systematically about this request before responding. Take your time to reason through the problem.\n\n${languageInstruction}</thinking_instruction>\n\n`;
     } else if (thinkingMode === 'megathink') {
-      thinkingInstruction = '<thinking_instruction>Think very deeply about this request. Consider multiple approaches, potential edge cases, and implications. Reason through each step carefully and thoroughly.</thinking_instruction>\n\n';
+      thinkingInstruction = `<thinking_instruction>Think very deeply about this request. Consider multiple approaches, potential edge cases, and implications. Reason through each step carefully and thoroughly.\n\n${languageInstruction}</thinking_instruction>\n\n`;
     } else if (thinkingMode === 'ultrathink') {
-      thinkingInstruction = '<thinking_instruction>Think comprehensively and exhaustively about this request. Explore all possible approaches, consider every edge case, analyze all implications, and reason through the problem with maximum depth and rigor. Take as much time as needed to fully understand and solve the problem.</thinking_instruction>\n\n';
+      thinkingInstruction = `<thinking_instruction>Think comprehensively and exhaustively about this request. Explore all possible approaches, consider every edge case, analyze all implications, and reason through the problem with maximum depth and rigor. Take as much time as needed to fully understand and solve the problem.\n\n${languageInstruction}</thinking_instruction>\n\n`;
     } else if (thinkingMode === 'plan') {
       thinkingInstruction = `<thinking_instruction>
 # Plan Mode - Mandatory Planning Workflow
@@ -2771,7 +2755,18 @@ Example plan output (wrap in triple-backticks with 'json' language marker):
 IMPORTANT: The JSON block MUST be wrapped in triple backticks (\`\`\`) with the "json" language identifier.
 
 ### 3. Present Plan to User
-After outputting the JSON plan, EXPLAIN the plan in natural language:
+After outputting the JSON plan, EXPLAIN the plan in natural language.
+
+IMPORTANT - Language Guidelines:
+- Always think and analyze in ENGLISH internally
+- Detect the user's input language from their prompt
+- Output your explanation in THE SAME LANGUAGE as the user's input
+- If user wrote in Korean, respond in Korean
+- If user wrote in Japanese, respond in Japanese
+- If user wrote in English, respond in English
+- The JSON plan structure always stays in English (field names, etc.)
+
+In your explanation, include:
 - Summary of what you analyzed
 - Total number of tasks
 - Estimated total time

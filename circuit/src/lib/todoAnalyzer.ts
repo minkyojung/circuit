@@ -272,10 +272,11 @@ function estimateDuration(complexity: TodoComplexity, text: string): number {
   const baseTime = {
     trivial: 60,        // 1 minute
     simple: 300,        // 5 minutes
+    moderate: 600,      // 10 minutes
     medium: 900,        // 15 minutes
     complex: 1800,      // 30 minutes
     very_complex: 3600, // 60 minutes
-  }
+  } as Record<TodoComplexity, number>
 
   let duration = baseTime[complexity]
 
@@ -298,10 +299,11 @@ function getOverallComplexity(complexities: TodoComplexity[]): TodoComplexity {
   const weights = {
     trivial: 1,
     simple: 2,
+    moderate: 2.5,
     medium: 3,
     complex: 4,
     very_complex: 5,
-  }
+  } as Record<TodoComplexity, number>
 
   const avgWeight = complexities.reduce((sum, c) => sum + weights[c], 0) / complexities.length
 

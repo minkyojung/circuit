@@ -23,7 +23,7 @@ export type TodoPriority = 'low' | 'medium' | 'high' | 'critical'
 /**
  * Complexity estimation for a todo
  */
-export type TodoComplexity = 'trivial' | 'simple' | 'medium' | 'complex' | 'very_complex'
+export type TodoComplexity = 'trivial' | 'simple' | 'moderate' | 'medium' | 'complex' | 'very_complex'
 
 /**
  * Todo represents a single actionable task
@@ -154,4 +154,42 @@ export type TodoSortOrder = 'asc' | 'desc'
 export interface TodoSortOptions {
   by: TodoSortBy
   order: TodoSortOrder
+}
+
+/**
+ * TodoSession represents a single plan execution cycle
+ */
+export interface TodoSession {
+  id: string
+  conversationId: string
+  messageId: string          // Message where plan was created
+  planResult: TodoGenerationResult
+  status: 'pending' | 'active' | 'completed' | 'archived'
+  createdAt: number
+  startedAt?: number
+  completedAt?: number
+  archivedAt?: number
+}
+
+/**
+ * TodoItem represents an active task in the system
+ */
+export interface TodoItem extends TodoDraft {
+  id: string
+  workspaceId: string
+  status: TodoStatus
+  createdAt: number
+  startedAt?: number
+  completedAt?: number
+}
+
+/**
+ * Progress tracking for individual todo items
+ */
+export interface TodoItemProgress {
+  todoId: string
+  status: TodoStatus
+  startedAt?: number
+  completedAt?: number
+  error?: string
 }

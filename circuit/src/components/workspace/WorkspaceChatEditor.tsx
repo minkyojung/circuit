@@ -18,7 +18,7 @@ import type { ThinkingStep } from '@/types/thinking';
 import { summarizeToolUsage } from '@/lib/thinkingUtils';
 import { motion, AnimatePresence } from 'motion/react';
 import { TodoProvider } from '@/contexts/TodoContext';
-import { TodoConfirmationDialog, PlanReviewMessage } from '@/components/todo';
+import { TodoConfirmationDialog } from '@/components/todo';
 import { analyzeTodoFromPrompt } from '@/lib/todoAnalyzer';
 import {
   extractTodoWriteFromBlocks,
@@ -581,12 +581,16 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
           );
 
           // Plan Mode: Check if Claude output a plan in JSON format
+          console.log('[WorkspaceChat] 📋 Checking for plan in blocks:', saveResult.blocks?.length || 0, 'blocks');
           let todoWriteData = extractTodoWriteFromBlocks(saveResult.blocks);
+          console.log('[WorkspaceChat] 📋 Plan from blocks:', todoWriteData ? `Found ${todoWriteData.todos.length} todos` : 'Not found');
 
           // Fallback: Try parsing from message content if blocks parsing failed
           if (!todoWriteData && result.message) {
             console.log('[WorkspaceChat] 📋 Plan mode: Trying to extract plan from message content');
+            console.log('[WorkspaceChat] 📋 Message content length:', result.message.length);
             todoWriteData = extractPlanFromText(result.message);
+            console.log('[WorkspaceChat] 📋 Plan from text:', todoWriteData ? `Found ${todoWriteData.todos.length} todos` : 'Not found');
           }
 
           if (todoWriteData && todoWriteData.todos.length > 0) {
@@ -1077,54 +1081,30 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
                     );
                   })()}
 
-                  {/* Plan Review (inline) */}
-                  {msg.role === 'assistant' && msg.metadata?.hasPendingPlan && msg.metadata?.planResult && (
-                    <PlanReviewMessage
-                      result={msg.metadata.planResult}
-                      onConfirm={async (todos) => {
-                        // Mark plan as confirmed in message
-                        setMessages((prev) =>
-                          prev.map((m) =>
-                            m.id === msg.id
-                              ? {
-                                  ...m,
-                                  metadata: {
-                                    ...m.metadata,
-                                    hasPendingPlan: false,
-                                    planConfirmed: true
-                                  }
-                                }
-                              : m
-                          )
-                        );
-
-                        // Execute todos via handleTodoConfirm
-                        await handleTodoConfirm(todos);
-                      }}
-                      onCancel={() => {
-                        // Remove plan from message
-                        setMessages((prev) =>
-                          prev.map((m) =>
-                            m.id === msg.id
-                              ? {
-                                  ...m,
-                                  metadata: {
-                                    ...m.metadata,
-                                    hasPendingPlan: false,
-                                    planCancelled: true
-                                  }
-                                }
-                              : m
-                          )
-                        );
-                      }}
-                    />
-                  )}
+                  {/* Plan Review moved to right sidebar TodoPanel */}
 
                   {/* Block-based rendering with fallback */}
                   {msg.blocks && msg.blocks.length > 0 ? (
                     <BlockList
-                      blocks={msg.blocks}
+                      blocks={
+                        // Filter out plan JSON blocks if this message has a planResult
+                        msg.metadata?.planResult
+                          ? msg.blocks.filter(block => {
+                              // Remove JSON code blocks that contain "todos" (plan blocks)
+                              if (block.type === 'code' && block.metadata?.language === 'json') {
+                                try {
+                                  const parsed = JSON.parse(block.content)
+                                  if (parsed.todos && Array.isArray(parsed.todos)) {
+                                    return false // Filter out plan JSON
+                                  }
+                                } catch (e) {
+                                  // Not valid JSON, keep it
+                                }
+                              }
+                              return true
+                            })
+                          : msg.blocks
+                      }
                       onCopy={(content) => navigator.clipboard.writeText(content)}
                       onExecute={async (command) => {
                       try {

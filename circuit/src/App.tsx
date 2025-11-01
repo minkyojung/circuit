@@ -3,7 +3,7 @@ import { WorkspaceChatEditor } from "@/components/workspace"
 import { CommitDialog } from "@/components/workspace/CommitDialog"
 import { CommandPalette } from "@/components/CommandPalette"
 import { AppSidebar } from "@/components/AppSidebar"
-import { BlockNavigator } from "@/components/BlockNavigator"
+import { TodoPanel } from "@/components/TodoPanel"
 import { StatusBar } from "@/components/statusbar/StatusBar"
 import {
   Breadcrumb,
@@ -295,7 +295,7 @@ function App() {
                       ? 'text-foreground hover:bg-sidebar-hover'
                       : 'text-muted-foreground hover:bg-sidebar-hover hover:text-foreground'
                   )}
-                  title="Toggle blocks"
+                  title="Toggle plans"
                 >
                   <PanelRight size={16} />
                 </button>
@@ -355,16 +355,14 @@ function App() {
         </SidebarInset>
       </SidebarProvider>
 
-      {/* Right Sidebar - Block Navigator */}
+      {/* Right Sidebar - Todo Panel */}
       <div
         className={cn(
           "h-full transition-all duration-300 ease-in-out overflow-hidden",
-          isRightSidebarOpen ? "w-[17rem]" : "w-0"
+          isRightSidebarOpen ? "w-[20rem]" : "w-0"
         )}
       >
-        <BlockNavigator
-          isOpen={isRightSidebarOpen}
-          onClose={() => setIsRightSidebarOpen(false)}
+        <TodoPanel
           conversationId={activeConversationId}
         />
       </div>
