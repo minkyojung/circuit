@@ -7,14 +7,14 @@
 
 import React, { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Play, ChevronDown, ChevronRight, Check } from 'lucide-react'
+import { Play, ChevronDown, ChevronRight, Check, Zap, MessageSquare } from 'lucide-react'
 import { cn } from '../../lib/utils'
-import type { TodoDraft, TodoGenerationResult } from '../../types/todo'
+import type { TodoDraft, TodoGenerationResult, ExecutionMode } from '../../types/todo'
 
 interface PlanReviewMessageProps {
   result: TodoGenerationResult
   isConfirmed?: boolean
-  onConfirm: (todos: TodoDraft[]) => void
+  onConfirm: (todos: TodoDraft[], mode: ExecutionMode) => void
   onCancel: () => void
 }
 
@@ -24,6 +24,10 @@ export const PlanReviewMessage: React.FC<PlanReviewMessageProps> = ({
   onConfirm,
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(isConfirmed)
+
+  // Smart default: auto for simple plans, manual for complex ones
+  const suggestedMode = result.todos.length <= 5 && result.complexity !== 'complex' && result.complexity !== 'very_complex' ? 'auto' : 'manual'
+  const [executionMode, setExecutionMode] = useState<ExecutionMode>(suggestedMode)
 
   // Confirmed plan - collapsible
   if (isConfirmed) {
@@ -104,10 +108,52 @@ export const PlanReviewMessage: React.FC<PlanReviewMessageProps> = ({
         ))}
       </div>
 
+      {/* Execution Mode Selection */}
+      <div className="flex items-center gap-2 pt-2">
+        <button
+          type="button"
+          onClick={() => setExecutionMode('auto')}
+          className={cn(
+            'flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md',
+            'border transition-all text-xs font-medium',
+            executionMode === 'auto'
+              ? 'border-primary bg-primary/10 text-primary'
+              : 'border-border hover:border-primary/50 text-muted-foreground hover:text-foreground'
+          )}
+        >
+          <Zap className="w-3.5 h-3.5" />
+          Auto
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setExecutionMode('manual')}
+          className={cn(
+            'flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md',
+            'border transition-all text-xs font-medium',
+            executionMode === 'manual'
+              ? 'border-primary bg-primary/10 text-primary'
+              : 'border-border hover:border-primary/50 text-muted-foreground hover:text-foreground'
+          )}
+        >
+          <MessageSquare className="w-3.5 h-3.5" />
+          Manual
+        </button>
+      </div>
+
+      {/* Mode Description */}
+      <div className="px-2 py-1.5 rounded-md bg-muted/30 text-[10.5px] text-muted-foreground/80 leading-relaxed">
+        {executionMode === 'auto' ? (
+          <>Execute all tasks automatically. Claude will run through each task in order.</>
+        ) : (
+          <>Control execution with chat commands like "next", "run all", or "execute task 3".</>
+        )}
+      </div>
+
       {/* Actions - only Start button */}
       <div className="flex items-center justify-end pt-1">
         <button
-          onClick={() => onConfirm(result.todos)}
+          onClick={() => onConfirm(result.todos, executionMode)}
           className={cn(
             'h-8 px-4 rounded-md text-xs font-medium',
             'bg-primary text-primary-foreground shadow-sm',
