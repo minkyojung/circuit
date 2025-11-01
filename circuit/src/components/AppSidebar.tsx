@@ -17,7 +17,6 @@ import {
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarHeader,
   SidebarMenu,
@@ -26,7 +25,6 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
-import { SidebarFooter as CustomSidebarFooter } from '@/components/SidebarFooter'
 import { motion, AnimatePresence } from 'framer-motion'
 import { listItemVariants } from '@/lib/motion-tokens'
 
@@ -586,10 +584,6 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
           />
         )}
       </SidebarContent>
-
-      <SidebarFooter>
-        <CustomSidebarFooter />
-      </SidebarFooter>
     </Sidebar>
 
     {/* Clone Repository Dialog */}

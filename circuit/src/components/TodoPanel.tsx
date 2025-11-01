@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react'
-import { ChevronDown, ChevronRight, Check, Circle, Clock, Zap, MessageSquare } from 'lucide-react'
+import { ChevronDown, ChevronRight, Check, Circle, Clock, Zap, MessageSquare, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Message } from '@/types/conversation'
 import type { TodoSession, TodoDraft, ExecutionMode } from '@/types/todo'
+import type { Workspace } from '@/types/workspace'
+import { ThemeToggle } from '@/components/ThemeToggle'
+import { SettingsDialog } from '@/components/SettingsDialog'
 
 // @ts-ignore - Electron IPC
 const { ipcRenderer } = window.require('electron')
@@ -10,14 +13,18 @@ const { ipcRenderer } = window.require('electron')
 interface TodoPanelProps {
   conversationId: string | null
   refreshTrigger?: number
+  workspace?: Workspace | null
+  onCommit?: () => void
 }
 
 type FilterType = 'active' | 'archived'
 
-export function TodoPanel({ conversationId, refreshTrigger }: TodoPanelProps) {
+export function TodoPanel({ conversationId, refreshTrigger, workspace, onCommit }: TodoPanelProps) {
   const [sessions, setSessions] = useState<TodoSession[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [selectedFilter, setSelectedFilter] = useState<FilterType>('active')
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false)
 
   // Load sessions from messages with planResult
   useEffect(() => {
@@ -125,8 +132,70 @@ export function TodoPanel({ conversationId, refreshTrigger }: TodoPanelProps) {
 
   return (
     <div className="h-full w-[20rem] flex flex-col flex-shrink-0">
-      {/* Top spacer to align with main header */}
-      <div className="h-[44px] shrink-0" style={{ WebkitAppRegion: 'drag' } as any} />
+      {/* Top bar with icons and Commit & PR button */}
+      <div className="h-[44px] shrink-0 flex items-center gap-1 px-2 pt-2" style={{ WebkitAppRegion: 'drag' } as any}>
+        {/* Settings Button */}
+        <button
+          onClick={() => setIsSettingsOpen(true)}
+          className="flex items-center justify-center p-2 rounded-md h-7 w-7 transition-colors hover:bg-sidebar-hover text-sidebar-foreground-muted hover:text-sidebar-foreground"
+          style={{ WebkitAppRegion: 'no-drag' } as any}
+          title="Settings"
+        >
+          <Settings size={16} strokeWidth={1.5} />
+        </button>
+
+        {/* Theme Toggle */}
+        <div style={{ WebkitAppRegion: 'no-drag' } as any}>
+          <ThemeToggle className="hover:bg-sidebar-hover text-sidebar-foreground-muted hover:text-sidebar-foreground" />
+        </div>
+
+        {/* Feedback Button */}
+        <button
+          onClick={() => setIsFeedbackOpen(true)}
+          className="flex items-center justify-center p-2 rounded-md h-7 w-7 transition-colors hover:bg-sidebar-hover text-sidebar-foreground-muted hover:text-sidebar-foreground"
+          style={{ WebkitAppRegion: 'no-drag' } as any}
+          title="Send Feedback"
+        >
+          <MessageSquare size={16} strokeWidth={1.5} />
+        </button>
+
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* Commit & PR button */}
+        {workspace && onCommit && (
+          <button
+            onClick={onCommit}
+            className="px-4 py-[7px] bg-secondary hover:bg-secondary/80 text-secondary-foreground text-sm font-medium rounded-md transition-colors"
+            style={{ WebkitAppRegion: 'no-drag' } as any}
+          >
+            Commit & PR
+          </button>
+        )}
+      </div>
+
+      {/* Settings Dialog */}
+      <SettingsDialog
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+      />
+
+      {/* Feedback Dialog - Placeholder for now */}
+      {isFeedbackOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setIsFeedbackOpen(false)}>
+          <div className="bg-card p-6 rounded-lg shadow-xl max-w-md" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold mb-2">Send Feedback</h3>
+            <p className="text-sm text-muted-foreground mb-4">Feedback functionality coming soon!</p>
+            <button
+              onClick={() => setIsFeedbackOpen(false)}
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
 
       {/* Header with filter buttons */}
       <div
