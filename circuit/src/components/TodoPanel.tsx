@@ -7,6 +7,7 @@ import type { Workspace } from '@/types/workspace'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { SettingsDialog } from '@/components/SettingsDialog'
 import { MemoryPoolMonitor } from '@/components/debug/MemoryPoolMonitor'
+import { MemoryTestPanel } from '@/components/debug/MemoryTestPanel'
 import { motion, AnimatePresence } from 'framer-motion'
 import { listItemVariants } from '@/lib/motion-tokens'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -35,6 +36,7 @@ export function TodoPanel({ conversationId, refreshTrigger, workspace, onCommit 
   const [selectedFilter, setSelectedFilter] = useState<FilterType>('active')
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false)
+  const [isMemoryTestOpen, setIsMemoryTestOpen] = useState(false)
 
   // Load sessions from messages with planResult
   useEffect(() => {
@@ -300,8 +302,26 @@ export function TodoPanel({ conversationId, refreshTrigger, workspace, onCommit 
       </div>
 
       {/* Memory Pool Monitor */}
-      <div className="shrink-0 border-t border-sidebar-border p-2 max-h-[40vh] overflow-y-auto">
+      <div className="shrink-0 border-t border-sidebar-border p-2">
         <MemoryPoolMonitor workspace={workspace} />
+      </div>
+
+      {/* Memory Test Panel (Collapsible) */}
+      <div className="shrink-0 border-t border-sidebar-border">
+        <Collapsible open={isMemoryTestOpen} onOpenChange={setIsMemoryTestOpen}>
+          <CollapsibleTrigger className="flex w-full items-center justify-between p-2 hover:bg-sidebar-hover transition-colors">
+            <div className="flex items-center gap-2 text-xs font-medium text-sidebar-foreground">
+              {isMemoryTestOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              <span>Memory Test Panel</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-500/10 text-orange-600">
+                DEBUG
+              </span>
+            </div>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="max-h-[60vh] overflow-y-auto">
+            <MemoryTestPanel workspace={workspace} conversationId={conversationId} />
+          </CollapsibleContent>
+        </Collapsible>
       </div>
     </div>
   )
