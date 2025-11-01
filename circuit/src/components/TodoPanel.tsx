@@ -312,9 +312,9 @@ export function TodoPanel({ conversationId, refreshTrigger, workspace, onCommit 
           <CollapsibleTrigger className="flex w-full items-center justify-between p-2 hover:bg-sidebar-hover transition-colors">
             <div className="flex items-center gap-2 text-xs font-medium text-sidebar-foreground">
               {isMemoryTestOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-              <span>Memory Test Panel</span>
+              <span>메모리 테스트 패널</span>
               <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-500/10 text-orange-600">
-                DEBUG
+                디버그
               </span>
             </div>
           </CollapsibleTrigger>
