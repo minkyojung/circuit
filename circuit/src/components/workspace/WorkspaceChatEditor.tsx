@@ -19,7 +19,6 @@ import { summarizeToolUsage } from '@/lib/thinkingUtils';
 import { motion, AnimatePresence } from 'motion/react';
 import { TodoProvider } from '@/contexts/TodoContext';
 import { TodoConfirmationDialog } from '@/components/todo';
-import { analyzeTodoFromPrompt } from '@/lib/todoAnalyzer';
 import {
   extractTodoWriteFromBlocks,
   extractPlanFromText,
@@ -27,7 +26,7 @@ import {
   calculateOverallComplexity,
   calculateTotalTime
 } from '@/lib/planModeUtils';
-import type { TodoGenerationResult, TodoDraft } from '@/types/todo';
+import type { TodoGenerationResult, TodoDraft, ExecutionMode } from '@/types/todo';
 
 // Configure Monaco Editor to use local files instead of CDN
 loader.config({ monaco });
@@ -653,6 +652,61 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
             onPlanAdded?.();
 
             // Don't show modal - plan will be displayed inline in the message
+          } else if (todoWriteData && todoWriteData.todos.length > 0) {
+            // TodoWrite detected but not a new plan - this is a status update
+            console.log('[WorkspaceChat] 🔄 TodoWrite detected: Syncing status updates to database');
+
+            try {
+              // Read current todos.json file
+              const todosFileResult = await ipcRenderer.invoke('workspace:read-file',
+                workspace.path,
+                '.circuit/todos.json'
+              );
+
+              if (todosFileResult.success && todosFileResult.content) {
+                const todosData = JSON.parse(todosFileResult.content);
+
+                // Update each todo in database based on TodoWrite data
+                for (let i = 0; i < todoWriteData.todos.length && i < todosData.todos.length; i++) {
+                  const claudeTodo = todoWriteData.todos[i];
+                  const dbTodo = todosData.todos[i];
+
+                  // Update status if changed
+                  if (claudeTodo.status && claudeTodo.status !== dbTodo.status) {
+                    console.log(`[WorkspaceChat] 🔄 Updating todo ${dbTodo.id}: ${dbTodo.status} → ${claudeTodo.status}`);
+
+                    const updateData: any = {
+                      todoId: dbTodo.id,
+                      status: claudeTodo.status,
+                    };
+
+                    // Add timing data
+                    if (claudeTodo.status === 'completed') {
+                      updateData.completedAt = Date.now();
+                    }
+
+                    await ipcRenderer.invoke('todos:update-status', updateData);
+
+                    // Update local todos.json file
+                    todosData.todos[i].status = claudeTodo.status;
+                  }
+                }
+
+                // Write updated todos back to file
+                await ipcRenderer.invoke('workspace:write-file',
+                  workspace.path,
+                  '.circuit/todos.json',
+                  JSON.stringify(todosData, null, 2)
+                );
+
+                console.log('[WorkspaceChat] ✅ Todo status sync complete');
+
+                // Notify parent to refresh TodoPanel
+                onPlanAdded?.();
+              }
+            } catch (error) {
+              console.error('[WorkspaceChat] ❌ Error syncing todo status:', error);
+            }
           }
         }
 
@@ -750,6 +804,98 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
       setIsSending(false);
   }, []);
 
+  // Handler for task execution trigger from TodoPanel
+  const handleExecuteTasks = useCallback(async (_event: any, data: {
+    conversationId: string
+    messageId: string
+    mode: ExecutionMode
+    todos: TodoDraft[]
+  }) => {
+    try {
+      // Write todos to .circuit/todos.json file
+      const todosData = {
+        conversationId: data.conversationId,
+        messageId: data.messageId,
+        mode: data.mode,
+        todos: data.todos.map((draft: any, index: number) => ({
+          id: `todo-${data.messageId}-${index}`,
+          content: draft.content,
+          description: draft.description,
+          activeForm: draft.activeForm,
+          status: 'pending',
+          priority: draft.priority,
+          complexity: draft.complexity,
+          estimatedDuration: draft.estimatedDuration,
+          order: draft.order || index,
+          depth: draft.depth || 0,
+        })),
+      }
+
+      await ipcRenderer.invoke('workspace:write-file',
+        workspace.path,
+        '.circuit/todos.json',
+        JSON.stringify(todosData, null, 2)
+      )
+
+      // Prepare mode-specific prompt
+      const modePrompts = {
+        auto: `I've created a task plan in .circuit/todos.json with ${data.todos.length} task${data.todos.length === 1 ? '' : 's'}.
+
+Please execute ALL tasks in order automatically. Use the TodoWrite tool to update task status as you progress. Show progress for each task.`,
+
+        manual: `I've created a task plan in .circuit/todos.json with ${data.todos.length} task${data.todos.length === 1 ? '' : 's'}.
+
+I'll control execution manually. Respond to commands like:
+- "next" or "continue" - Execute next pending task
+- "run all" - Execute all remaining tasks
+- "execute task N" - Execute specific task by number
+- "skip task N" - Skip a task
+
+The plan is ready. What would you like to do?`,
+      }
+
+      const executionPrompt = modePrompts[data.mode]
+
+      // Create and send user message manually
+      // (Can't call handleSend due to function declaration order)
+      if (!sessionId || !conversationId) {
+        console.error('[WorkspaceChat] No session or conversation ID')
+        return
+      }
+
+      // Create user message
+      const userMessage: Message = {
+        id: `msg-${Date.now()}`,
+        conversationId: conversationId,
+        role: 'user',
+        content: executionPrompt,
+        timestamp: Date.now(),
+      }
+
+      // Add to UI
+      setMessages((prev) => [...prev, userMessage])
+
+      // Save to DB
+      const saveResult = await ipcRenderer.invoke('message:save', userMessage)
+      if (saveResult.success && saveResult.blocks) {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === userMessage.id ? { ...msg, blocks: saveResult.blocks } : msg
+          )
+        )
+      }
+
+      // Set pending ref for response handling
+      pendingUserMessageRef.current = userMessage
+      setIsSending(true)
+
+      // Send to Claude
+      ipcRenderer.send('claude:send-message', sessionId, executionPrompt, [], 'normal')
+    } catch (error) {
+      console.error('[WorkspaceChat] Error executing tasks:', error)
+    }
+  }, [workspace, sessionId, conversationId, setMessages, setIsSending])
+
   // Listen for thinking steps from Electron (separate useEffect to avoid re-registering listeners)
   useEffect(() => {
     ipcRenderer.on('claude:thinking-start', handleThinkingStart);
@@ -757,6 +903,7 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
     ipcRenderer.on('claude:thinking-complete', handleThinkingComplete);
     ipcRenderer.on('claude:response-complete', handleResponseComplete);
     ipcRenderer.on('claude:response-error', handleResponseError);
+    ipcRenderer.on('todos:execute-tasks', handleExecuteTasks);
 
     return () => {
       // Cleanup timer if component unmounts during thinking
@@ -771,33 +918,23 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
       ipcRenderer.removeListener('claude:thinking-complete', handleThinkingComplete);
       ipcRenderer.removeListener('claude:response-complete', handleResponseComplete);
       ipcRenderer.removeListener('claude:response-error', handleResponseError);
+      ipcRenderer.removeListener('todos:execute-tasks', handleExecuteTasks);
     };
-  }, [handleThinkingStart, handleMilestone, handleThinkingComplete, handleResponseComplete, handleResponseError]);
+  }, [handleThinkingStart, handleMilestone, handleThinkingComplete, handleResponseComplete, handleResponseError, handleExecuteTasks]);
 
   const handleSend = async (inputText: string, attachments: AttachedFile[], thinkingMode: import('./ChatInput').ThinkingMode) => {
     if (!inputText.trim() && attachments.length === 0) return;
     if (isSending || !sessionId) return;
 
-    // Plan mode: Skip client-side todo analysis and let Claude generate detailed todos
+    // Plan mode: Let Claude generate detailed todos
     if (thinkingMode === 'plan') {
-      console.log('[ChatPanel] Plan mode: Skipping client-side todo analysis, Claude will generate todos');
+      console.log('[ChatPanel] Plan mode: Claude will generate todos');
       await executePrompt(inputText, attachments, thinkingMode);
       return;
     }
 
-    // Normal/Think modes: Analyze prompt for todos
-    const result = analyzeTodoFromPrompt(inputText);
-    console.log('[ChatPanel] Todo analysis:', result);
-
-    // If confidence is high enough and multiple todos detected, show confirmation
-    if (result.todos.length > 1 || (result.todos.length === 1 && result.complexity !== 'trivial')) {
-      setTodoResult(result);
-      setPendingPrompt({ text: inputText, attachments, thinkingMode });
-      setShowTodoDialog(true);
-      return; // Wait for user confirmation
-    }
-
-    // Otherwise, proceed directly
+    // Normal/Think modes: Execute directly without todo analysis
+    // Todo analysis is ONLY for plan mode now
     await executePrompt(inputText, attachments, thinkingMode);
   };
 
@@ -873,8 +1010,8 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   };
 
   // Todo confirmation handlers
-  const handleTodoConfirm = async (todos: TodoDraft[]) => {
-    console.log('[ChatPanel] Todos confirmed:', todos);
+  const handleTodoConfirm = async (todos: TodoDraft[], mode: ExecutionMode) => {
+    console.log('[ChatPanel] Todos confirmed:', todos, 'Mode:', mode);
     setShowTodoDialog(false);
 
     if (!conversationId || !pendingPrompt) {
@@ -936,8 +1073,58 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
       console.error('[ChatPanel] Error saving todos:', error);
     }
 
-    // Execute the prompt
-    await executePrompt(pendingPrompt.text, pendingPrompt.attachments, pendingPrompt.thinkingMode);
+    // Write todos to .circuit/todos.json file for Claude to read
+    try {
+      const todosData = {
+        conversationId,
+        messageId: userMessage.id,
+        mode,
+        todos: todos.map((draft, index) => ({
+          id: `todo-${userMessage.id}-${index}`,
+          content: draft.content,
+          description: draft.description,
+          activeForm: draft.activeForm,
+          status: 'pending',
+          priority: draft.priority,
+          complexity: draft.complexity,
+          estimatedDuration: draft.estimatedDuration,
+          order: draft.order,
+          depth: draft.depth,
+        })),
+      };
+
+      await ipcRenderer.invoke('workspace:write-file',
+        workspace.path,
+        '.circuit/todos.json',
+        JSON.stringify(todosData, null, 2)
+      );
+
+      console.log('[ChatPanel] Wrote todos to .circuit/todos.json');
+    } catch (error) {
+      console.error('[ChatPanel] Error writing todos.json:', error);
+    }
+
+    // Prepare mode-specific prompt for Claude
+    const modePrompts = {
+      auto: `I've created a task plan in .circuit/todos.json with ${todos.length} task${todos.length === 1 ? '' : 's'}.
+
+Please execute ALL tasks in order automatically. Use the TodoWrite tool to update task status as you progress. Show progress for each task.`,
+
+      manual: `I've created a task plan in .circuit/todos.json with ${todos.length} task${todos.length === 1 ? '' : 's'}.
+
+I'll control execution manually. Respond to commands like:
+- "next" or "continue" - Execute next pending task
+- "run all" - Execute all remaining tasks
+- "execute task N" - Execute specific task by number
+- "skip task N" - Skip a task
+
+The plan is ready. What would you like to do?`,
+    };
+
+    const executionPrompt = modePrompts[mode];
+
+    // Execute with mode-specific prompt instead of original prompt
+    await executePrompt(executionPrompt, pendingPrompt.attachments, 'normal');
 
     // Clear pending state
     setPendingPrompt(null);

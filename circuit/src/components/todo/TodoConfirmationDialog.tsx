@@ -14,14 +14,16 @@ import {
   ChevronDown,
   ChevronRight,
   Trash2,
+  Zap,
+  MessageSquare,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
-import type { TodoDraft, TodoGenerationResult } from '../../types/todo'
+import type { TodoDraft, TodoGenerationResult, ExecutionMode } from '../../types/todo'
 
 interface TodoConfirmationDialogProps {
   isOpen: boolean
   result: TodoGenerationResult | null
-  onConfirm: (todos: TodoDraft[]) => void
+  onConfirm: (todos: TodoDraft[], mode: ExecutionMode) => void
   onCancel: () => void
 }
 
@@ -33,6 +35,7 @@ export const TodoConfirmationDialog: React.FC<TodoConfirmationDialogProps> = ({
 }) => {
   const [editableTodos, setEditableTodos] = useState<TodoDraft[]>(result?.todos || [])
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set())
+  const [executionMode, setExecutionMode] = useState<ExecutionMode>('auto')
 
   // Update when result changes
   React.useEffect(() => {
@@ -40,6 +43,9 @@ export const TodoConfirmationDialog: React.FC<TodoConfirmationDialogProps> = ({
       setEditableTodos(result.todos)
       // Auto-expand all by default
       setExpandedIds(new Set(result.todos.map((_, i) => i)))
+      // Smart default: auto for simple plans, manual for complex ones
+      const suggestedMode = result.todos.length <= 5 && result.complexity !== 'complex' && result.complexity !== 'very_complex' ? 'auto' : 'manual'
+      setExecutionMode(suggestedMode)
     }
   }, [result])
 
@@ -68,7 +74,7 @@ export const TodoConfirmationDialog: React.FC<TodoConfirmationDialogProps> = ({
   }
 
   const handleConfirm = () => {
-    onConfirm(editableTodos)
+    onConfirm(editableTodos, executionMode)
   }
 
   const totalTime = editableTodos.reduce((sum, t) => sum + (t.estimatedDuration || 0), 0)
@@ -144,6 +150,89 @@ export const TodoConfirmationDialog: React.FC<TodoConfirmationDialogProps> = ({
                   {result.reasoning}
                 </div>
               )}
+
+              {/* Execution Mode Selection */}
+              <div className="mt-4 space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  Execution Mode
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Auto Mode */}
+                  <button
+                    type="button"
+                    onClick={() => setExecutionMode('auto')}
+                    className={cn(
+                      'flex items-start gap-3 p-3 rounded-lg border-2 transition-all',
+                      'text-left',
+                      executionMode === 'auto'
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-primary/50 hover:bg-muted/30'
+                    )}
+                  >
+                    <div className={cn(
+                      'flex-shrink-0 mt-0.5',
+                      executionMode === 'auto' ? 'text-primary' : 'text-muted-foreground'
+                    )}>
+                      <Zap className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className={cn(
+                        'text-sm font-medium',
+                        executionMode === 'auto' ? 'text-primary' : 'text-foreground'
+                      )}>
+                        Auto
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        Execute all tasks automatically
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Manual Mode */}
+                  <button
+                    type="button"
+                    onClick={() => setExecutionMode('manual')}
+                    className={cn(
+                      'flex items-start gap-3 p-3 rounded-lg border-2 transition-all',
+                      'text-left',
+                      executionMode === 'manual'
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-primary/50 hover:bg-muted/30'
+                    )}
+                  >
+                    <div className={cn(
+                      'flex-shrink-0 mt-0.5',
+                      executionMode === 'manual' ? 'text-primary' : 'text-muted-foreground'
+                    )}>
+                      <MessageSquare className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className={cn(
+                        'text-sm font-medium',
+                        executionMode === 'manual' ? 'text-primary' : 'text-foreground'
+                      )}>
+                        Manual
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        Control via chat commands
+                      </div>
+                    </div>
+                  </button>
+                </div>
+
+                {/* Mode description */}
+                <div className="px-3 py-2 rounded-lg bg-muted/30 text-xs text-muted-foreground">
+                  {executionMode === 'auto' ? (
+                    <>
+                      <span className="font-medium">Auto mode:</span> Claude will execute all tasks in order without interruption. You can stop anytime by typing "stop" in chat.
+                    </>
+                  ) : (
+                    <>
+                      <span className="font-medium">Manual mode:</span> You control execution with commands like "next", "run all", or "execute task 3".
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Task List */}

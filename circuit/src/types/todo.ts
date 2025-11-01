@@ -16,6 +16,13 @@ export type TodoStatus =
   | 'skipped'       // Intentionally skipped
 
 /**
+ * Execution mode for task execution
+ */
+export type ExecutionMode =
+  | 'auto'    // Execute all tasks automatically
+  | 'manual'  // User controls execution via chat commands
+
+/**
  * Todo priority levels
  */
 export type TodoPriority = 'low' | 'medium' | 'high' | 'critical'
