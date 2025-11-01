@@ -288,8 +288,8 @@ function TodoSessionItem({ session, onNavigate, onStartTasks }: TodoSessionItemP
             />
           ))}
 
-          {/* Execution Mode Selection (only for pending plans) */}
-          {session.status === 'pending' && (
+          {/* Execution Mode Selection (show for pending and active plans) */}
+          {(session.status === 'pending' || session.status === 'active') && (
             <div className="pt-2 space-y-2">
               {/* Mode toggle buttons */}
               <div className="flex items-center gap-1.5">
