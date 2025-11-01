@@ -28,6 +28,18 @@ export function registerMemoryHandlers(): void {
       // Invalidate cache for this project
       if (memory.projectPath) {
         pool.invalidate(memory.projectPath)
+
+        // Pre-warm cache: Reload global memories if this is a global memory
+        if (memory.scope === 'global') {
+          console.log('[MemoryHandlers] Pre-warming cache with global memories')
+          await pool.getGlobalMemories(memory.projectPath)
+        }
+
+        // Pre-warm cache: Reload conversation memories if this is a conversation memory
+        if (memory.scope === 'conversation' && memory.conversationId) {
+          console.log('[MemoryHandlers] Pre-warming cache with conversation memories')
+          await pool.getConversationMemories(memory.projectPath, memory.conversationId)
+        }
       }
 
       return { success: true, id }

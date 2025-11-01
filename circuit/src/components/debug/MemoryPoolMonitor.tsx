@@ -1,16 +1,13 @@
 /**
  * Memory Pool Monitor Component
  *
- * Displays SharedMemoryPool statistics and allows testing
- * the multi-conversation memory optimization.
- *
- * Usage: Add to any component to monitor memory pool performance
+ * Compact monitor for SharedMemoryPool statistics
+ * Designed to fit in TodoPanel sidebar
  */
 
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
+import { Database, RefreshCw, X } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 // @ts-ignore
 const { ipcRenderer } = window.require('electron')
@@ -31,6 +28,7 @@ export function MemoryPoolMonitor() {
   const [stats, setStats] = useState<PoolStats | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isExpanded, setIsExpanded] = useState(false)
 
   const loadStats = async () => {
     try {
@@ -82,119 +80,102 @@ export function MemoryPoolMonitor() {
   const formatAge = (ms: number) => {
     if (ms < 1000) return `${ms}ms`
     if (ms < 60000) return `${Math.floor(ms / 1000)}s`
-    return `${Math.floor(ms / 60000)}m ${Math.floor((ms % 60000) / 1000)}s`
+    return `${Math.floor(ms / 60000)}m`
   }
 
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle>Memory Pool Monitor</CardTitle>
-            <CardDescription>
-              SharedMemoryPool cache statistics for multi-conversation optimization
-            </CardDescription>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={loadStats}
-              disabled={loading}
-            >
-              {loading ? 'Loading...' : 'Refresh'}
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={clearCache}
-              disabled={loading || !stats || stats.cacheSize === 0}
-            >
-              Clear Cache
-            </Button>
-          </div>
+    <div className="space-y-2">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Database size={14} className="text-sidebar-foreground-muted" />
+          <span className="text-xs font-medium text-sidebar-foreground">
+            Memory Pool
+          </span>
+          {stats && stats.cacheSize > 0 && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">
+              {stats.cacheSize}
+            </span>
+          )}
         </div>
-      </CardHeader>
-      <CardContent>
-        {error && (
-          <div className="text-sm text-destructive mb-4">
-            Error: {error}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={loadStats}
+            disabled={loading}
+            className="p-1 rounded hover:bg-sidebar-hover text-sidebar-foreground-muted hover:text-sidebar-foreground transition-colors disabled:opacity-50"
+            title="Refresh"
+          >
+            <RefreshCw size={12} className={cn(loading && 'animate-spin')} />
+          </button>
+          {stats && stats.cacheSize > 0 && (
+            <button
+              onClick={clearCache}
+              disabled={loading}
+              className="p-1 rounded hover:bg-sidebar-hover text-sidebar-foreground-muted hover:text-destructive transition-colors disabled:opacity-50"
+              title="Clear Cache"
+            >
+              <X size={12} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Error */}
+      {error && (
+        <div className="text-[10px] text-destructive bg-destructive/10 rounded px-2 py-1">
+          {error}
+        </div>
+      )}
+
+      {/* Stats */}
+      {stats && (
+        <div className="space-y-1">
+          {/* Summary */}
+          <div className="flex items-center justify-between text-[10px] text-sidebar-foreground-muted">
+            <span>Cache: {stats.cacheSize === 0 ? 'Empty' : 'Active'}</span>
+            {stats.cacheSize > 0 && (
+              <button
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="hover:text-sidebar-foreground transition-colors"
+              >
+                {isExpanded ? 'Hide' : 'Show'} details
+              </button>
+            )}
           </div>
-        )}
 
-        {stats && (
-          <div className="space-y-4">
-            {/* Summary */}
-            <div className="flex items-center gap-4">
-              <div>
-                <div className="text-sm text-muted-foreground">Cache Size</div>
-                <div className="text-2xl font-bold">{stats.cacheSize}</div>
-              </div>
-              <div>
-                <div className="text-sm text-muted-foreground">Status</div>
-                <Badge variant={stats.cacheSize > 0 ? 'default' : 'secondary'}>
-                  {stats.cacheSize > 0 ? 'Active' : 'Empty'}
-                </Badge>
-              </div>
-            </div>
-
-            {/* Cache Entries */}
-            {stats.entries.length > 0 && (
-              <div>
-                <div className="text-sm font-medium mb-2">Cache Entries</div>
-                <div className="space-y-2">
-                  {stats.entries.map((entry, index) => (
-                    <div
-                      key={index}
-                      className="border rounded-lg p-3 space-y-1"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm font-mono truncate flex-1">
-                          {entry.projectPath}
-                        </div>
-                        <Badge variant="outline" className="ml-2">
-                          {formatAge(entry.age)}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                        <span>
-                          Global: <span className="font-medium text-foreground">{entry.globalMemoryCount}</span>
-                        </span>
-                        <span>
-                          Conversations: <span className="font-medium text-foreground">{entry.conversationCount}</span>
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+          {/* Expanded Details */}
+          {isExpanded && stats.entries.length > 0 && (
+            <div className="space-y-1 pt-1">
+              {stats.entries.map((entry, index) => (
+                <div
+                  key={index}
+                  className="text-[10px] bg-sidebar-accent/30 rounded p-2 space-y-0.5"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-sidebar-foreground-muted truncate flex-1 mr-2">
+                      {entry.projectPath.split('/').pop()}
+                    </span>
+                    <span className="text-sidebar-foreground-muted/60">
+                      {formatAge(entry.age)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 text-sidebar-foreground-muted/70">
+                    <span>Global: {entry.globalMemoryCount}</span>
+                    <span>Conv: {entry.conversationCount}</span>
+                  </div>
                 </div>
-              </div>
-            )}
-
-            {stats.cacheSize === 0 && (
-              <div className="text-sm text-muted-foreground text-center py-8">
-                No cache entries. Memories will be cached as conversations are loaded.
-              </div>
-            )}
-
-            {/* Performance Info */}
-            <div className="mt-4 p-3 bg-muted rounded-lg text-xs space-y-1">
-              <div className="font-medium">How it works:</div>
-              <div className="text-muted-foreground">
-                • Global memories are shared across all conversations (cached once)
-              </div>
-              <div className="text-muted-foreground">
-                • Conversation memories are cached per conversation
-              </div>
-              <div className="text-muted-foreground">
-                • Cache TTL: 5 minutes (auto-refresh on access)
-              </div>
-              <div className="text-muted-foreground">
-                • Expected reduction: 50-90% depending on conversation count
-              </div>
+              ))}
             </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+          )}
+
+          {/* Info when empty */}
+          {stats.cacheSize === 0 && (
+            <div className="text-[10px] text-sidebar-foreground-muted/60 text-center py-2">
+              Memories will be cached when loaded
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
