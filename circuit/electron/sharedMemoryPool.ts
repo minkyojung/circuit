@@ -10,7 +10,6 @@
  */
 
 import { getMemoryStorage, ProjectMemory, MemoryQuery } from './memoryStorage'
-import { getConversationStorage } from './conversationStorage'
 
 export interface SharedMemory {
   globalMemories: ProjectMemory[]
@@ -126,14 +125,15 @@ export class SharedMemoryPool {
   /**
    * Build complete context for an agent working on a todo
    * This is the minimal context needed - significantly reduces memory usage
+   *
+   * Note: Requires ConversationStorage to be passed in (from conversationHandlers)
    */
   async buildAgentContext(
     projectPath: string,
     conversationId: string,
-    todoId: string
+    todoId: string,
+    convStorage: any // ConversationStorage instance from conversationHandlers
   ): Promise<AgentContext> {
-    const convStorage = await getConversationStorage()
-
     // Get global memories (shared, cached)
     const globalMemories = await this.getGlobalMemories(projectPath)
 
@@ -143,19 +143,33 @@ export class SharedMemoryPool {
       conversationId
     )
 
-    // Get the specific todo
-    const todos = await convStorage.getTodos(conversationId)
-    const todo = todos.find(t => t.id === todoId)
+    // Get the specific todo (if convStorage provided)
+    let todoContext = null
+    let conversationHistory: AgentContext['conversationHistory'] = []
 
-    // Get conversation metadata (NOT full messages - just metadata)
-    const messages = await convStorage.getMessages(conversationId)
-    const conversationHistory = messages.map(msg => ({
-      id: msg.id,
-      role: msg.role,
-      timestamp: msg.timestamp
-      // Note: We don't include content here to save memory
-      // Agent will load recent messages on-demand if needed
-    }))
+    if (convStorage) {
+      const todos = await convStorage.getTodos(conversationId)
+      const todo = todos.find((t: any) => t.id === todoId)
+
+      if (todo) {
+        todoContext = {
+          content: todo.content,
+          activeForm: todo.activeForm,
+          status: todo.status,
+          createdAt: todo.createdAt
+        }
+      }
+
+      // Get conversation metadata (NOT full messages - just metadata)
+      const messages = await convStorage.getMessages(conversationId)
+      conversationHistory = messages.map((msg: any) => ({
+        id: msg.id,
+        role: msg.role,
+        timestamp: msg.timestamp
+        // Note: We don't include content here to save memory
+        // Agent will load recent messages on-demand if needed
+      }))
+    }
 
     return {
       projectPath,
@@ -163,12 +177,7 @@ export class SharedMemoryPool {
       todoId,
       globalMemories,
       conversationMemories,
-      todoContext: todo ? {
-        content: todo.content,
-        activeForm: todo.activeForm,
-        status: todo.status,
-        createdAt: todo.createdAt
-      } : null,
+      todoContext,
       conversationHistory
     }
   }
@@ -176,9 +185,10 @@ export class SharedMemoryPool {
   /**
    * Get recent messages for agent (on-demand loading)
    * This is separate from buildAgentContext to allow lazy loading
+   *
+   * Note: Requires ConversationStorage to be passed in
    */
-  async getRecentMessages(conversationId: string, limit: number = 20) {
-    const convStorage = await getConversationStorage()
+  async getRecentMessages(conversationId: string, convStorage: any, limit: number = 20) {
     const messages = await convStorage.getMessages(conversationId)
 
     // Return only the most recent N messages

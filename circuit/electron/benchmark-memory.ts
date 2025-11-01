@@ -190,10 +190,12 @@ async function benchmarkAgentContext() {
   const projectPath = '/test/project'
 
   // Build agent context (minimal, optimized)
+  // Note: convStorage would be required in real usage, passing null for benchmark
   const context = await pool.buildAgentContext(
     projectPath,
     'conv-1',
-    'todo-123'
+    'todo-123',
+    null
   )
 
   const endMem = getMemoryUsage()
