@@ -135,12 +135,23 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
 
   // Auto-refresh workspaces and statuses every 5 seconds
   useEffect(() => {
+    // Only start auto-refresh if we have a current repository
+    if (!currentRepository) {
+      console.log('[AppSidebar] Skipping auto-refresh setup - no repository selected')
+      return
+    }
+
+    console.log('[AppSidebar] Setting up auto-refresh for repository:', currentRepository.name)
     const interval = setInterval(() => {
+      console.log('[AppSidebar] Auto-refresh triggered')
       loadWorkspaces()
     }, 5000)
 
-    return () => clearInterval(interval)
-  }, [])
+    return () => {
+      console.log('[AppSidebar] Cleaning up auto-refresh')
+      clearInterval(interval)
+    }
+  }, [currentRepository?.id])
 
   // Load statuses for all workspaces
   const loadStatuses = async (workspaceList: Workspace[]) => {
@@ -211,22 +222,33 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
 
   const loadRepositories = async () => {
     try {
+      console.log('[AppSidebar] Loading repositories...')
       const result = await ipcRenderer.invoke('repository:list')
+      console.log('[AppSidebar] Repository list result:', result)
 
       if (result.success && result.repositories) {
+        console.log('[AppSidebar] Setting repositories:', result.repositories.length)
         setRepositories(result.repositories)
+
         // Set first repository as current if none selected
+        console.log('[AppSidebar] Current repository check:', {
+          currentRepository,
+          hasRepos: result.repositories.length > 0,
+          willSet: !currentRepository && result.repositories.length > 0
+        })
+
         if (!currentRepository && result.repositories.length > 0) {
+          console.log('[AppSidebar] Setting current repository to:', result.repositories[0].name)
           setCurrentRepository(result.repositories[0])
         }
       } else {
-        console.error('Failed to load repositories:', result.error)
+        console.error('[AppSidebar] Failed to load repositories:', result.error)
         // Fallback to default repository
         setRepositories([defaultRepository])
         setCurrentRepository(defaultRepository)
       }
     } catch (error) {
-      console.error('Error loading repositories:', error)
+      console.error('[AppSidebar] Error loading repositories:', error)
       // Fallback to default repository
       setRepositories([defaultRepository])
       setCurrentRepository(defaultRepository)
@@ -242,18 +264,26 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
         return
       }
 
+      console.log('[AppSidebar] Loading workspaces for repository:', currentRepository.name, currentRepository.path)
+
       // Pass repository path to backend
       const result: WorkspaceListResult = await ipcRenderer.invoke('workspace:list', currentRepository.path)
+
+      console.log('[AppSidebar] Workspace list result:', {
+        success: result.success,
+        count: result.workspaces?.length,
+        workspaces: result.workspaces?.map(w => ({ id: w.id, name: w.name, path: w.path }))
+      })
 
       if (result.success && result.workspaces) {
         setWorkspaces(result.workspaces)
         // Notify parent for keyboard shortcuts
         onWorkspacesLoaded?.(result.workspaces)
       } else {
-        console.error('Failed to load workspaces:', result.error)
+        console.error('[AppSidebar] Failed to load workspaces:', result.error)
       }
     } catch (error) {
-      console.error('Error loading workspaces:', error)
+      console.error('[AppSidebar] Error loading workspaces:', error)
     }
   }
 
@@ -264,18 +294,24 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
       return
     }
 
+    console.log('[AppSidebar] Creating workspace for repository:', currentRepository.name, currentRepository.path)
     setIsCreating(true)
     try {
       const result: WorkspaceCreateResult = await ipcRenderer.invoke('workspace:create', currentRepository.path)
 
+      console.log('[AppSidebar] Workspace create result:', result)
+
       if (result.success && result.workspace) {
+        console.log('[AppSidebar] Workspace created:', result.workspace.name, result.workspace.id)
+        console.log('[AppSidebar] Adding to workspaces list. Current count:', workspaces.length)
         setWorkspaces([...workspaces, result.workspace])
+        console.log('[AppSidebar] New workspaces count should be:', workspaces.length + 1)
       } else {
-        console.error('Failed to create workspace:', result.error)
+        console.error('[AppSidebar] Failed to create workspace:', result.error)
         alert(`Failed to create workspace: ${result.error}`)
       }
     } catch (error) {
-      console.error('Error creating workspace:', error)
+      console.error('[AppSidebar] Error creating workspace:', error)
       alert(`Error creating workspace: ${error}`)
     } finally {
       setIsCreating(false)
