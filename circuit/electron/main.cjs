@@ -2096,8 +2096,22 @@ async function createWorktree(projectPath, branchName) {
       // Good - it doesn't exist
     }
 
-    // Create new worktree
-    await execAsync(`git worktree add -b ${branchName} "${worktreePath}"`, {
+    // Ensure main branch is up-to-date before creating new workspace
+    console.log('[Workspace] Updating main branch...');
+    try {
+      // Fetch latest changes
+      await execAsync('git fetch origin', { cwd: projectPath });
+
+      // Update main branch (without checking it out)
+      await execAsync('git fetch origin main:main', { cwd: projectPath });
+      console.log('[Workspace] ✓ Main branch updated');
+    } catch (error) {
+      console.warn('[Workspace] Warning: Could not update main branch:', error.message);
+      // Continue anyway - better to create workspace with potentially old main than fail
+    }
+
+    // Create new worktree from main branch
+    await execAsync(`git worktree add -b ${branchName} "${worktreePath}" main`, {
       cwd: projectPath
     });
 
@@ -2472,26 +2486,8 @@ async function getFileTree(worktreePath) {
  */
 ipcMain.handle('workspace:create', async (event) => {
   try {
-    // Get project path
-    const projectPathResult = await new Promise((resolve) => {
-      ipcMain.handleOnce('circuit:get-project-path-internal', async () => {
-        const electronDir = __dirname;
-        const projectPath = path.resolve(electronDir, '../../../..');
-        return { success: true, projectPath };
-      });
-      // Trigger it
-      const result = {
-        success: true,
-        projectPath: path.resolve(__dirname, '../../../..')
-      };
-      resolve(result);
-    });
-
-    if (!projectPathResult.success) {
-      throw new Error('Failed to get project path');
-    }
-
-    const projectPath = projectPathResult.projectPath;
+    // Get project path directly
+    const projectPath = path.resolve(__dirname, '../../../..');
 
     // Generate unique branch name
     const branchName = await generateWorkspaceName(projectPath);
@@ -2665,7 +2661,7 @@ ipcMain.on('claude:send-message', async (event, sessionId, userMessage, attachme
     }
 
     // Validate thinkingMode
-    const validModes = ['normal', 'think', 'megathink', 'ultrathink'];
+    const validModes = ['normal', 'think', 'megathink', 'ultrathink', 'plan'];
     if (!validModes.includes(thinkingMode)) {
       thinkingMode = 'normal';
     }
@@ -2675,12 +2671,170 @@ ipcMain.on('claude:send-message', async (event, sessionId, userMessage, attachme
 
     // Add thinking mode instruction prefix
     let thinkingInstruction = '';
+    const languageInstruction = 'IMPORTANT: Always think and analyze in ENGLISH internally, but respond in THE SAME LANGUAGE as the user\'s input (Korean→Korean, Japanese→Japanese, English→English).';
+
     if (thinkingMode === 'think') {
-      thinkingInstruction = '<thinking_instruction>Think carefully and systematically about this request before responding. Take your time to reason through the problem.</thinking_instruction>\n\n';
+      thinkingInstruction = `<thinking_instruction>Think carefully and systematically about this request before responding. Take your time to reason through the problem.\n\n${languageInstruction}</thinking_instruction>\n\n`;
     } else if (thinkingMode === 'megathink') {
-      thinkingInstruction = '<thinking_instruction>Think very deeply about this request. Consider multiple approaches, potential edge cases, and implications. Reason through each step carefully and thoroughly.</thinking_instruction>\n\n';
+      thinkingInstruction = `<thinking_instruction>Think very deeply about this request. Consider multiple approaches, potential edge cases, and implications. Reason through each step carefully and thoroughly.\n\n${languageInstruction}</thinking_instruction>\n\n`;
     } else if (thinkingMode === 'ultrathink') {
-      thinkingInstruction = '<thinking_instruction>Think comprehensively and exhaustively about this request. Explore all possible approaches, consider every edge case, analyze all implications, and reason through the problem with maximum depth and rigor. Take as much time as needed to fully understand and solve the problem.</thinking_instruction>\n\n';
+      thinkingInstruction = `<thinking_instruction>Think comprehensively and exhaustively about this request. Explore all possible approaches, consider every edge case, analyze all implications, and reason through the problem with maximum depth and rigor. Take as much time as needed to fully understand and solve the problem.\n\n${languageInstruction}</thinking_instruction>\n\n`;
+    } else if (thinkingMode === 'plan') {
+      thinkingInstruction = `<thinking_instruction>
+# Plan Mode - Mandatory Planning Workflow
+
+You are in PLAN MODE. This mode REQUIRES you to create a detailed plan BEFORE starting work.
+
+## Mandatory Steps:
+
+### 1. Comprehensive Analysis (Required)
+Read and analyze ALL relevant code:
+- Current implementation files
+- Type definitions and interfaces
+- Related components and dependencies
+- Potential impact areas
+
+Use Read, Glob, or Grep tools extensively to understand the full scope.
+
+### 2. Create Plan in JSON Format (REQUIRED)
+After analyzing the codebase, you MUST output your plan in the following JSON format within a code block.
+
+Plan structure:
+{
+  "todos": [
+    {
+      "content": "What to do (imperative form)",
+      "activeForm": "What you're doing (present continuous)",
+      "status": "pending",
+      "complexity": "trivial" | "simple" | "moderate" | "complex" | "very_complex",
+      "priority": "low" | "medium" | "high" | "critical",
+      "estimatedDuration": 30,  // minutes
+      "order": 0,
+      "depth": 0
+    }
+  ]
+}
+
+Example plan output (wrap in triple-backticks with 'json' language marker):
+
+{
+  "todos": [
+    {
+      "content": "Analyze current theme implementation in design-tokens.css",
+      "activeForm": "Analyzing current theme implementation",
+      "status": "pending",
+      "complexity": "simple",
+      "priority": "high",
+      "estimatedDuration": 900,
+      "order": 0,
+      "depth": 0
+    },
+    {
+      "content": "Add green-light color palette with OKLCH values",
+      "activeForm": "Adding green-light color palette",
+      "status": "pending",
+      "complexity": "moderate",
+      "priority": "high",
+      "estimatedDuration": 20,
+      "order": 1,
+      "depth": 0
+    },
+    {
+      "content": "Update TypeScript types for green theme variants",
+      "activeForm": "Updating TypeScript types",
+      "status": "pending",
+      "complexity": "trivial",
+      "priority": "medium",
+      "estimatedDuration": 5,
+      "order": 2,
+      "depth": 0
+    }
+  ]
+}
+
+IMPORTANT: The JSON block MUST be wrapped in triple backticks (\`\`\`) with the "json" language identifier.
+
+### 3. Present Plan to User
+After outputting the JSON plan, EXPLAIN the plan in natural language.
+
+IMPORTANT - Language Guidelines:
+- Always think and analyze in ENGLISH internally
+- Detect the user's input language from their prompt
+- Output your explanation in THE SAME LANGUAGE as the user's input
+- If user wrote in Korean, respond in Korean
+- If user wrote in Japanese, respond in Japanese
+- If user wrote in English, respond in English
+- The JSON plan structure always stays in English (field names, etc.)
+
+In your explanation, include:
+- Summary of what you analyzed
+- Total number of tasks
+- Estimated total time
+- Key steps and approach
+- Any potential risks or considerations
+
+The system will automatically detect the JSON plan and show it to the user for approval.
+
+Then STOP and WAIT for user approval. Do NOT proceed with implementation.
+
+The user will review the plan and either:
+- Approve it ("Start Tasks" button) → You'll receive confirmation to proceed
+- Edit it and then approve
+- Cancel and provide new instructions
+
+### 4. Execute Plan (After Approval)
+Once the user approves (you'll receive their approval message), work through todos sequentially:
+
+For each todo:
+1. Announce which task you're starting
+2. Perform the actual work (Read, Edit, Write, Bash, etc.)
+3. Confirm completion before moving to next task
+
+Example execution after approval:
+"Starting task 1: Analyzing current theme implementation..."
+
+<Read file_path="design-tokens.css" />
+... analyze the file ...
+
+"Task 1 complete. Starting task 2: Adding green-light color palette..."
+
+<Edit file_path="design-tokens.css" .../>
+... make changes ...
+
+### 5. Apply Development Principles
+Throughout execution, follow these core principles:
+
+1. **Define Goal and Approach First**
+   - Understand the "why" before the "how"
+   - Plan the technical approach before coding
+
+2. **Prioritize Readability and Simplicity**
+   - Write clean, understandable code
+   - Avoid over-engineering
+   - Use clear variable/function names
+
+3. **Commit with Clarity and Purpose**
+   - Make logical, atomic changes
+   - Explain what and why in each step
+
+4. **Build Confidence with Tests**
+   - Verify changes work as expected
+   - Consider edge cases
+   - Test before marking complete
+
+## Important Rules:
+
+- ❌ CANNOT skip the JSON plan output in Plan Mode - it is MANDATORY
+- ❌ CANNOT start implementation before user approval
+- ❌ CANNOT output the plan in any other format (no markdown tables, no plain text lists)
+- ✅ MUST analyze code comprehensively before planning
+- ✅ MUST output plan as JSON code block with \`\`\`json wrapper
+- ✅ MUST create specific, actionable todos with estimated durations in SECONDS
+- ✅ MUST wait for explicit user approval before starting work
+- ✅ MUST follow the core development principles
+
+Plan Mode ensures structured, thoughtful development. Take your time to plan well.
+</thinking_instruction>\n\n`;
     }
 
     // Add text message with thinking instruction prefix

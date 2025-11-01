@@ -5,8 +5,8 @@
  * with file attachment support and improved UX.
  */
 
-import React, { useState, useRef, useCallback } from 'react'
-import { ArrowUp, Paperclip, X, Globe, ChevronDown } from 'lucide-react'
+import React, { useState, useRef, useCallback, useEffect } from 'react'
+import { ArrowUp, Paperclip, X, ListChecks, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { useSettingsContext } from '@/contexts/SettingsContext'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -17,7 +17,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
-export type ThinkingMode = 'normal' | 'think' | 'megathink' | 'ultrathink'
+export type ThinkingMode = 'normal' | 'think' | 'megathink' | 'ultrathink' | 'plan'
 
 interface ChatInputProps {
   value: string
@@ -83,7 +83,29 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     think: 'Think',
     megathink: 'Megathink',
     ultrathink: 'Ultrathink',
+    plan: 'Plan',
   }
+
+  // Plan mode state (separate from thinking mode)
+  const [isPlanMode, setIsPlanMode] = useState(false)
+
+  // Plan mode toggle
+  const togglePlanMode = useCallback(() => {
+    setIsPlanMode(prev => !prev)
+  }, [])
+
+  // Keyboard shortcut: Cmd/Ctrl+Shift+P for Plan mode
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'P') {
+        e.preventDefault()
+        togglePlanMode()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [togglePlanMode])
 
   // File attachment handling
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -158,15 +180,16 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     if (disabled) return
 
     try {
-      await onSubmit(value, attachedFiles, thinkingMode)
+      // Use 'plan' mode if isPlanMode is true, otherwise use selected thinkingMode
+      const effectiveMode = isPlanMode ? 'plan' : thinkingMode
+      await onSubmit(value, attachedFiles, effectiveMode)
       setAttachedFiles([]) // Clear attachments after send
-      // Reset to normal after send
-      setThinkingMode('normal')
+      // Keep Plan Mode and Thinking Mode sticky - don't reset
     } catch (error) {
       console.error('[ChatInput] Submit error:', error)
       toast.error('Failed to send message')
     }
-  }, [value, attachedFiles, thinkingMode, disabled, onSubmit])
+  }, [value, attachedFiles, thinkingMode, isPlanMode, disabled, onSubmit])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -368,13 +391,17 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   </DropdownMenuContent>
                 </DropdownMenu>
 
-                {/* Sources Selector (placeholder) */}
+                {/* Plan Mode Toggle Button */}
                 <button
-                  className={`inline-flex items-center gap-1 ${INPUT_STYLES.controls.sourcesButton} text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors`}
-                  disabled
+                  onClick={togglePlanMode}
+                  className={`inline-flex items-center justify-center ${INPUT_STYLES.controls.sourcesButton} transition-colors ${
+                    isPlanMode
+                      ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+                  }`}
+                  title="Toggle Plan Mode (⌘⇧P)"
                 >
-                  <Globe size={INPUT_STYLES.controls.sourcesIconSize} strokeWidth={1.5} />
-                  <span>All Sources</span>
+                  <ListChecks size={INPUT_STYLES.controls.sourcesIconSize} strokeWidth={1.5} />
                 </button>
               </div>
             )}

@@ -1,11 +1,11 @@
 import React from 'react';
-import { Sun, Moon, Monitor } from 'lucide-react';
+import { Sun, Moon, Monitor, Leaf } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 /**
- * Theme toggle button with 3-state cycle: light → dark → system
+ * Theme toggle button with 5-state cycle: light → dark → green-light → green-dark → system
  * Visual feedback shows current theme with appropriate icon
  */
 export const ThemeToggle: React.FC<{ className?: string; style?: React.CSSProperties }> = ({ className, style }) => {
@@ -14,6 +14,9 @@ export const ThemeToggle: React.FC<{ className?: string; style?: React.CSSProper
   const getIcon = () => {
     if (theme === 'system') {
       return <Monitor className="h-4 w-4" />;
+    }
+    if (theme === 'green-light' || theme === 'green-dark') {
+      return <Leaf className="h-4 w-4" />;
     }
     return resolvedTheme === 'dark' ? (
       <Moon className="h-4 w-4" />
@@ -24,6 +27,8 @@ export const ThemeToggle: React.FC<{ className?: string; style?: React.CSSProper
 
   const getLabel = () => {
     if (theme === 'system') return 'System';
+    if (theme === 'green-light') return 'Sage';
+    if (theme === 'green-dark') return 'Forest';
     return theme === 'dark' ? 'Dark' : 'Light';
   };
 
@@ -52,6 +57,9 @@ export const ThemeToggleIcon: React.FC<{ className?: string }> = ({ className })
     if (theme === 'system') {
       return <Monitor className="h-[18px] w-[18px]" />;
     }
+    if (theme === 'green-light' || theme === 'green-dark') {
+      return <Leaf className="h-[18px] w-[18px]" />;
+    }
     return resolvedTheme === 'dark' ? (
       <Moon className="h-[18px] w-[18px]" />
     ) : (
@@ -61,6 +69,8 @@ export const ThemeToggleIcon: React.FC<{ className?: string }> = ({ className })
 
   const getLabel = () => {
     if (theme === 'system') return 'System theme';
+    if (theme === 'green-light') return 'Sage theme';
+    if (theme === 'green-dark') return 'Forest theme';
     return theme === 'dark' ? 'Dark mode' : 'Light mode';
   };
 

@@ -489,4 +489,374 @@
     --command-header: var(--fill-secondary);           /* 더 밝은 header */
     --command-accent: var(--label-tertiary);           /* Subtle text accent */
   }
+
+  /* ===== GREEN LIGHT MODE (SAGE) ===== */
+  .green-light {
+    /* Background Hierarchy - Green-tinted light backgrounds */
+    --background-primary: oklch(0.88 0.02 150);           /* Sage gray - Main window */
+    --background-secondary: oklch(0.98 0.01 150);         /* Very light sage - Cards */
+    --background-tertiary: oklch(0.945 0.015 150);        /* Light sage - Nested */
+
+    /* Label Hierarchy - Same as light mode */
+    --label-primary: rgba(0, 0, 0, 1.0);
+    --label-secondary: rgba(0, 0, 0, 0.95);
+    --label-tertiary: rgba(0, 0, 0, 0.60);
+    --label-quaternary: rgba(0, 0, 0, 0.25);
+
+    /* Fill Hierarchy - Green-tinted fills */
+    --fill-primary: rgba(100, 140, 115, 0.36);
+    --fill-secondary: rgba(100, 140, 115, 0.32);
+    --fill-tertiary: rgba(100, 140, 115, 0.24);
+    --fill-quaternary: rgba(100, 140, 115, 0.18);
+
+    /* Separators - Subtle green tint */
+    --separator-opaque: rgba(100, 140, 115, 0.15);
+    --separator-translucent: rgba(100, 140, 115, 0.08);
+
+    /* Materials - Glassmorphism with sage green tint */
+    --material-thin: rgba(238, 245, 240, 0.5);            /* Sage glass - subtle */
+    --material-regular: rgba(238, 245, 240, 0.7);         /* Sage glass - standard */
+    --material-thick: rgba(238, 245, 240, 0.85);          /* Sage glass - strong */
+    --material-ultra-thick: rgba(238, 245, 240, 0.95);    /* Sage glass - maximum */
+
+    /* Legacy tokens */
+    --background: var(--background-primary);
+    --foreground: var(--label-primary);
+    --foreground-muted: var(--label-secondary);
+
+    --card: var(--background-secondary);
+    --card-foreground: var(--label-primary);
+
+    --popover: var(--background-secondary);
+    --popover-foreground: var(--label-primary);
+
+    /* Brand colors - Green-themed */
+    --primary: oklch(0.55 0.12 150);                      /* Sage green */
+    --primary-foreground: oklch(1 0 0);
+
+    --secondary: oklch(0.92 0.015 150);                   /* Light sage */
+    --secondary-foreground: oklch(0.24 0 0);
+
+    /* Muted/subtle colors - sage tint */
+    --muted: oklch(0.84 0.02 150);                        /* Sage gray */
+    --muted-foreground: oklch(0.30 0 0);
+
+    --accent: oklch(0.92 0.02 150);                       /* Very light sage */
+    --accent-foreground: oklch(0.55 0.12 150);            /* Sage green */
+
+    /* Semantic colors - same as light mode */
+    --destructive: oklch(0.55 0.30 25);
+    --destructive-foreground: oklch(1 0 0);
+
+    --success: oklch(0.55 0.22 150);                      /* Green success */
+    --success-foreground: oklch(1 0 0);
+
+    --warning: oklch(0.65 0.22 80);
+    --warning-foreground: oklch(0.2 0 0);
+
+    --info: oklch(0.55 0.22 250);
+    --info-foreground: oklch(1 0 0);
+
+    /* UI elements */
+    --border: var(--separator-opaque);
+    --input: oklch(0.92 0.015 150);
+    --ring: oklch(0.55 0.12 150);                         /* Sage green focus */
+
+    /* Chart colors - green-themed */
+    --chart-1: oklch(0.837 0.10 150);
+    --chart-2: oklch(0.705 0.15 140);
+    --chart-3: oklch(0.646 0.18 145);
+    --chart-4: oklch(0.553 0.15 150);
+    --chart-5: oklch(0.47 0.12 155);
+
+    /* Window glassmorphism */
+    --window-glass: var(--material-regular);
+
+    /* Sidebar colors - sage theme */
+    --sidebar: oklch(0.915 0.015 150);                    /* Sage sidebar */
+    --sidebar-glass: var(--material-regular);
+    --sidebar-foreground: rgba(0, 0, 0, 0.95);
+    --sidebar-foreground-muted: rgba(0, 0, 0, 0.65);
+    --sidebar-primary: oklch(0.55 0.12 150);              /* Sage green */
+    --sidebar-primary-foreground: oklch(1 0 0);
+    --sidebar-accent: rgba(100, 140, 115, 0.08);          /* Green-tinted accent */
+    --sidebar-accent-foreground: rgba(0, 0, 0, 0.95);
+    --sidebar-hover: rgba(100, 140, 115, 0.06);           /* Green-tinted hover */
+    --sidebar-border: var(--separator-opaque);
+    --sidebar-ring: oklch(0.55 0.12 150);
+
+    /* Chat UI colors - sage theme */
+    --chat-input-outer: oklch(0.945 0.015 150);
+    --chat-input-border: var(--separator-opaque);
+    --chat-input-inner: oklch(0.985 0.01 150);
+    --chat-button-selected: oklch(0.88 0.02 150);
+    --chat-button-default: oklch(0.96 0.01 150);
+
+    /* shadcn sidebar compat (HSL) */
+    --sidebar-background: 150 15% 91%;
+
+    /* Status Bar colors - sage theme */
+    --statusbar-bg: oklch(0.97 0.01 150);
+    --statusbar-border: var(--separator-opaque);
+    --statusbar-label: rgba(0, 0, 0, 0.5);
+    --statusbar-value: rgba(0, 0, 0, 0.4);
+    --statusbar-progress-bg: rgba(100, 140, 115, 0.08);
+
+    /* StatusBar progress colors */
+    --statusbar-progress-green: var(--success);
+    --statusbar-progress-yellow: var(--warning);
+    --statusbar-progress-orange: var(--warning);
+    --statusbar-progress-red: var(--destructive);
+
+    /* Git status colors - same as light mode */
+    --status-merged: oklch(0.55 0.25 290);
+    --status-working: oklch(0.62 0.18 60);
+    --status-ahead: oklch(0.55 0.22 250);
+    --status-behind: oklch(0.55 0.28 25);
+    --status-diverged: oklch(0.58 0.18 40);
+    --status-synced: oklch(0.55 0.22 150);
+    --status-local: oklch(0.55 0.12 250);
+
+    /* Glass/Overlay effects */
+    --glass-bg: var(--material-regular);
+    --glass-border: var(--separator-opaque);
+    --glass-hover: rgba(100, 140, 115, 0.06);
+
+    /* Additional semantic names */
+    --text-muted: var(--label-tertiary);
+    --bg-card: var(--background-secondary);
+    --bg-card-elevated: var(--background-tertiary);
+    --bg-section: var(--background-primary);
+
+    /* Overlay system - green-tinted */
+    --overlay-thin: rgba(100, 140, 115, 0.03);
+    --overlay-light: rgba(100, 140, 115, 0.06);
+    --overlay-medium: rgba(100, 140, 115, 0.10);
+    --overlay-strong: rgba(100, 140, 115, 0.15);
+
+    /* Modal/Dialog backdrop overlays */
+    --overlay-backdrop: rgba(0, 0, 0, 0.5);
+    --overlay-backdrop-light: rgba(0, 0, 0, 0.3);
+    --overlay-backdrop-strong: rgba(0, 0, 0, 0.7);
+
+    /* Interactive state tokens */
+    --state-hover: var(--overlay-light);
+    --state-active: var(--overlay-medium);
+    --state-focus-ring: var(--ring);
+    --state-disabled-opacity: 0.5;
+
+    /* Border overlays - green-tinted */
+    --border-thin: rgba(100, 140, 115, 0.08);
+    --border-light: rgba(100, 140, 115, 0.12);
+    --border-medium: rgba(100, 140, 115, 0.18);
+
+    /* Circuit brand color */
+    --circuit-orange: oklch(0.65 0.15 40);
+    --circuit-error: var(--destructive);
+
+    /* Code block surfaces */
+    --code-bg: var(--background-secondary);
+    --code-border: var(--separator-opaque);
+    --code-header: var(--fill-quaternary);
+
+    --command-bg: var(--background-tertiary);
+    --command-border: var(--separator-opaque);
+    --command-header: var(--fill-tertiary);
+    --command-accent: var(--label-tertiary);
+
+    --diff-bg: var(--code-bg);
+    --diff-border: var(--code-border);
+    --diff-header: var(--code-header);
+    --diff-addition: var(--success);
+    --diff-deletion: var(--destructive);
+  }
+
+  /* ===== GREEN DARK MODE (FOREST) ===== */
+  .green-dark {
+    /* Background Hierarchy - Forest green dark backgrounds */
+    --background-base-primary: oklch(0.15 0.03 150);      /* Deep forest */
+    --background-base-secondary: oklch(0.18 0.025 150);   /* Forest layer 2 */
+    --background-base-tertiary: oklch(0.20 0.02 150);     /* Forest layer 3 */
+
+    --background-elevated-primary: oklch(0.22 0.025 150); /* Elevated forest 1 */
+    --background-elevated-secondary: oklch(0.25 0.02 150); /* Elevated forest 2 */
+    --background-elevated-tertiary: oklch(0.28 0.018 150); /* Elevated forest 3 */
+
+    --background-primary: var(--background-base-secondary);
+    --background-secondary: var(--background-elevated-primary);
+    --background-tertiary: var(--background-elevated-secondary);
+
+    /* Label Hierarchy - Same as dark mode */
+    --label-primary: rgba(255, 255, 255, 1.0);
+    --label-secondary: rgba(255, 255, 255, 0.9);
+    --label-tertiary: rgba(255, 255, 255, 0.40);
+    --label-quaternary: rgba(255, 255, 255, 0.18);
+
+    /* Fill Hierarchy - Green-tinted fills */
+    --fill-primary: rgba(120, 160, 135, 0.36);
+    --fill-secondary: rgba(120, 160, 135, 0.32);
+    --fill-tertiary: rgba(120, 160, 135, 0.24);
+    --fill-quaternary: rgba(120, 160, 135, 0.18);
+
+    /* Separators - Green-tinted */
+    --separator-opaque: rgba(120, 180, 140, 0.15);
+    --separator-translucent: rgba(120, 180, 140, 0.08);
+
+    /* Materials - Glassmorphism with forest green tint */
+    --material-thin: rgba(28, 38, 30, 0.7);               /* Forest glass - subtle */
+    --material-regular: rgba(28, 38, 30, 0.85);           /* Forest glass - standard */
+    --material-thick: rgba(28, 38, 30, 0.92);             /* Forest glass - strong */
+    --material-ultra-thick: rgba(28, 38, 30, 0.97);       /* Forest glass - maximum */
+
+    /* Legacy tokens */
+    --background: var(--background-primary);
+    --foreground: var(--label-primary);
+    --foreground-muted: var(--label-secondary);
+
+    --card: var(--background-secondary);
+    --card-foreground: var(--label-primary);
+
+    --popover: var(--background-elevated-primary);
+    --popover-foreground: var(--label-primary);
+
+    /* Brand colors - Green-themed (brightened for dark) */
+    --primary: oklch(0.62 0.15 150);                      /* Bright sage green */
+    --primary-foreground: oklch(0.12 0.02 150);           /* Dark forest text */
+
+    --secondary: var(--background-elevated-tertiary);
+    --secondary-foreground: var(--label-primary);
+
+    /* Muted/subtle colors - forest tint */
+    --muted: var(--background-elevated-secondary);
+    --muted-foreground: rgba(255, 255, 255, 0.5);
+
+    --accent: oklch(0.30 0.04 150);                       /* Dark forest tint */
+    --accent-foreground: oklch(0.65 0.15 150);            /* Bright sage */
+
+    /* Semantic colors - brightened for dark mode */
+    --destructive: oklch(0.60 0.33 25);
+    --destructive-foreground: oklch(0.98 0 0);
+
+    --success: oklch(0.62 0.25 150);                      /* Bright green success */
+    --success-foreground: oklch(0.98 0 0);
+
+    --warning: oklch(0.70 0.25 80);
+    --warning-foreground: oklch(0.15 0 0);
+
+    --info: oklch(0.60 0.25 250);
+    --info-foreground: oklch(0.98 0 0);
+
+    /* UI elements */
+    --border: var(--separator-opaque);
+    --input: var(--background-elevated-secondary);
+    --ring: oklch(0.62 0.15 150);                         /* Bright sage focus */
+
+    /* Chart colors - green-themed (brightened) */
+    --chart-1: oklch(0.737 0.15 150);
+    --chart-2: oklch(0.605 0.20 140);
+    --chart-3: oklch(0.546 0.22 145);
+    --chart-4: oklch(0.453 0.18 150);
+    --chart-5: oklch(0.37 0.15 155);
+
+    /* Window glassmorphism */
+    --window-glass: var(--material-regular);
+
+    /* Sidebar colors - forest theme */
+    --sidebar: var(--background-base-tertiary);
+    --sidebar-glass: var(--material-regular);
+    --sidebar-foreground: rgba(255, 255, 255, 0.85);
+    --sidebar-foreground-muted: rgba(255, 255, 255, 0.55);
+    --sidebar-primary: oklch(0.62 0.15 150);              /* Bright sage */
+    --sidebar-primary-foreground: oklch(0.12 0.02 150);
+    --sidebar-accent: rgba(120, 180, 140, 0.10);          /* Green-tinted accent */
+    --sidebar-accent-foreground: rgba(255, 255, 255, 0.95);
+    --sidebar-hover: rgba(120, 180, 140, 0.08);           /* Green-tinted hover */
+    --sidebar-border: var(--separator-opaque);
+    --sidebar-ring: oklch(0.62 0.15 150);
+
+    /* Chat UI colors - forest theme */
+    --chat-input-outer: oklch(0.23 0.025 150);
+    --chat-input-border: var(--separator-opaque);
+    --chat-input-inner: oklch(0.29 0.02 150);
+    --chat-button-selected: oklch(0.33 0.02 150);
+    --chat-button-default: oklch(0.27 0.02 150);
+
+    /* shadcn sidebar compat (HSL) */
+    --sidebar-background: 150 10% 12%;
+
+    /* Status Bar colors - forest theme */
+    --statusbar-bg: oklch(0.18 0.025 150);
+    --statusbar-border: var(--separator-opaque);
+    --statusbar-label: rgba(255, 255, 255, 0.4);
+    --statusbar-value: rgba(255, 255, 255, 0.3);
+    --statusbar-progress-bg: rgba(120, 180, 140, 0.08);
+
+    /* StatusBar progress colors */
+    --statusbar-progress-green: var(--success);
+    --statusbar-progress-yellow: var(--warning);
+    --statusbar-progress-orange: var(--warning);
+    --statusbar-progress-red: var(--destructive);
+
+    /* Git status colors - brightened for dark mode */
+    --status-merged: oklch(0.65 0.28 290);
+    --status-working: oklch(0.72 0.20 60);
+    --status-ahead: oklch(0.65 0.25 250);
+    --status-behind: oklch(0.65 0.30 25);
+    --status-diverged: oklch(0.68 0.20 40);
+    --status-synced: oklch(0.65 0.25 150);
+    --status-local: oklch(0.65 0.15 250);
+
+    /* Glass/Overlay effects */
+    --glass-bg: var(--material-regular);
+    --glass-border: var(--separator-opaque);
+    --glass-hover: rgba(120, 180, 140, 0.08);
+
+    /* Additional semantic names */
+    --text-muted: var(--label-tertiary);
+    --bg-card: var(--background-secondary);
+    --bg-card-elevated: var(--background-tertiary);
+    --bg-section: var(--background-primary);
+
+    /* Overlay system - green-tinted */
+    --overlay-thin: rgba(120, 180, 140, 0.04);
+    --overlay-light: rgba(120, 180, 140, 0.06);
+    --overlay-medium: rgba(120, 180, 140, 0.10);
+    --overlay-strong: rgba(120, 180, 140, 0.15);
+
+    /* Modal/Dialog backdrop overlays */
+    --overlay-backdrop: rgba(0, 0, 0, 0.6);
+    --overlay-backdrop-light: rgba(0, 0, 0, 0.4);
+    --overlay-backdrop-strong: rgba(0, 0, 0, 0.75);
+
+    /* Interactive state tokens */
+    --state-hover: var(--overlay-light);
+    --state-active: var(--overlay-medium);
+    --state-focus-ring: var(--ring);
+    --state-disabled-opacity: 0.5;
+
+    /* Border overlays - green-tinted */
+    --border-thin: rgba(120, 180, 140, 0.08);
+    --border-light: rgba(120, 180, 140, 0.12);
+    --border-medium: rgba(120, 180, 140, 0.18);
+
+    /* Circuit brand color - brightened */
+    --circuit-orange: oklch(0.70 0.18 40);
+    --circuit-error: var(--destructive);
+
+    /* Code block surfaces */
+    --code-bg: var(--background-secondary);
+    --code-border: var(--separator-opaque);
+    --code-header: var(--fill-quaternary);
+
+    --command-bg: var(--background-elevated-tertiary);
+    --command-border: var(--separator-opaque);
+    --command-header: var(--fill-secondary);
+    --command-accent: var(--label-tertiary);
+
+    --diff-bg: var(--code-bg);
+    --diff-border: var(--code-border);
+    --diff-header: var(--code-header);
+    --diff-addition: var(--success);
+    --diff-deletion: var(--destructive);
+  }
 }

@@ -4,14 +4,14 @@ import type { ThemeMode } from '@/types/settings';
 
 /**
  * Custom hook for managing theme state integrated with settings system
- * Supports light, dark, and system preference modes
+ * Supports light, dark, system, green-light, and green-dark modes
  * Now uses the unified settings context instead of direct localStorage
  */
 export function useTheme() {
   const { settings, updateSetting } = useSettingsContext();
   const theme = settings.theme.mode;
 
-  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('light');
+  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark' | 'green-light' | 'green-dark'>('light');
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -19,10 +19,16 @@ export function useTheme() {
       ? 'dark'
       : 'light';
 
-    const effectiveTheme = theme === 'system' ? systemTheme : theme;
+    let effectiveTheme: 'light' | 'dark' | 'green-light' | 'green-dark';
 
-    // Update DOM
-    root.classList.remove('light', 'dark');
+    if (theme === 'system') {
+      effectiveTheme = systemTheme;
+    } else {
+      effectiveTheme = theme;
+    }
+
+    // Update DOM - remove all theme classes first
+    root.classList.remove('light', 'dark', 'green-light', 'green-dark');
     root.classList.add(effectiveTheme);
 
     // Update resolved theme state
@@ -37,7 +43,7 @@ export function useTheme() {
     const handleChange = () => {
       const systemTheme = mediaQuery.matches ? 'dark' : 'light';
       const root = window.document.documentElement;
-      root.classList.remove('light', 'dark');
+      root.classList.remove('light', 'dark', 'green-light', 'green-dark');
       root.classList.add(systemTheme);
       setResolvedTheme(systemTheme);
     };
@@ -58,7 +64,9 @@ export function useTheme() {
       const current = theme;
       let next: ThemeMode;
       if (current === 'light') next = 'dark';
-      else if (current === 'dark') next = 'system';
+      else if (current === 'dark') next = 'green-light';
+      else if (current === 'green-light') next = 'green-dark';
+      else if (current === 'green-dark') next = 'system';
       else next = 'light';
       setTheme(next);
     },

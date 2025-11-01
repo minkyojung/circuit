@@ -3,7 +3,7 @@ import { WorkspaceChatEditor } from "@/components/workspace"
 import { CommitDialog } from "@/components/workspace/CommitDialog"
 import { CommandPalette } from "@/components/CommandPalette"
 import { AppSidebar } from "@/components/AppSidebar"
-import { BlockNavigator } from "@/components/BlockNavigator"
+import { TodoPanel } from "@/components/TodoPanel"
 import { StatusBar } from "@/components/statusbar/StatusBar"
 import {
   Breadcrumb,
@@ -73,6 +73,7 @@ function App() {
   const [chatPrefillMessage, setChatPrefillMessage] = useState<string | null>(null)
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState<boolean>(false)
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
+  const [todoPanelRefreshTrigger, setTodoPanelRefreshTrigger] = useState<number>(0)
 
   // Workspace navigation refs (for keyboard shortcuts)
   const workspacesRef = useRef<Workspace[]>([])
@@ -295,7 +296,7 @@ function App() {
                       ? 'text-foreground hover:bg-sidebar-hover'
                       : 'text-muted-foreground hover:bg-sidebar-hover hover:text-foreground'
                   )}
-                  title="Toggle blocks"
+                  title="Toggle plans"
                 >
                   <PanelRight size={16} />
                 </button>
@@ -319,6 +320,7 @@ function App() {
                   prefillMessage={chatPrefillMessage}
                   onPrefillCleared={() => setChatPrefillMessage(null)}
                   onConversationChange={setActiveConversationId}
+                  onPlanAdded={() => setTodoPanelRefreshTrigger(prev => prev + 1)}
                 />
 
                 {/* Commit Dialog */}
@@ -355,17 +357,16 @@ function App() {
         </SidebarInset>
       </SidebarProvider>
 
-      {/* Right Sidebar - Block Navigator */}
+      {/* Right Sidebar - Todo Panel */}
       <div
         className={cn(
           "h-full transition-all duration-300 ease-in-out overflow-hidden",
-          isRightSidebarOpen ? "w-[17rem]" : "w-0"
+          isRightSidebarOpen ? "w-[20rem]" : "w-0"
         )}
       >
-        <BlockNavigator
-          isOpen={isRightSidebarOpen}
-          onClose={() => setIsRightSidebarOpen(false)}
+        <TodoPanel
           conversationId={activeConversationId}
+          refreshTrigger={todoPanelRefreshTrigger}
         />
       </div>
 
