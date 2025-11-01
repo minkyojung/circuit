@@ -811,8 +811,6 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
     mode: ExecutionMode
     todos: TodoDraft[]
   }) => {
-    console.log('[WorkspaceChat] Execute tasks triggered:', data.mode, data.todos.length, 'tasks')
-
     try {
       // Write todos to .circuit/todos.json file
       const todosData = {
@@ -893,12 +891,10 @@ The plan is ready. What would you like to do?`,
 
       // Send to Claude
       ipcRenderer.send('claude:send-message', sessionId, executionPrompt, [], 'normal')
-
-      console.log('[WorkspaceChat] Task execution started')
     } catch (error) {
       console.error('[WorkspaceChat] Error executing tasks:', error)
     }
-  }, [workspace, sessionId, conversationId, setMessages, setIsSending, pendingUserMessageRef])
+  }, [workspace, sessionId, conversationId, setMessages, setIsSending])
 
   // Listen for thinking steps from Electron (separate useEffect to avoid re-registering listeners)
   useEffect(() => {

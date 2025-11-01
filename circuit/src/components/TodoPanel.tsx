@@ -36,26 +36,11 @@ export function TodoPanel({ conversationId, refreshTrigger }: TodoPanelProps) {
       const result = await ipcRenderer.invoke('message:load', conversationId)
 
       if (result.success && result.messages) {
-        console.log('[TodoPanel] 📊 Loaded', result.messages.length, 'messages for conversation:', conversationId);
-
         // Extract sessions from messages with planResult
         const extractedSessions: TodoSession[] = []
 
         result.messages.forEach((message: Message) => {
-          console.log('[TodoPanel] 📊 Message:', message.id, 'role:', message.role, 'has metadata:', !!message.metadata, 'has planResult:', !!message.metadata?.planResult);
-
-          if (message.metadata) {
-            console.log('[TodoPanel] 📊 Metadata type:', typeof message.metadata);
-            console.log('[TodoPanel] 📊 Metadata keys:', Object.keys(message.metadata));
-            if (message.metadata.planResult) {
-              console.log('[TodoPanel] 📊 planResult type:', typeof message.metadata.planResult);
-              console.log('[TodoPanel] 📊 planResult keys:', Object.keys(message.metadata.planResult));
-            }
-          }
-
           if (message.role === 'assistant' && message.metadata?.planResult) {
-            console.log('[TodoPanel] ✅ Found plan in message:', message.id, 'with', message.metadata.planResult.todos.length, 'todos');
-
             // Determine session status based on planConfirmed flag
             // Don't mark as 'completed' - that's for individual todos
             const session: TodoSession = {
@@ -69,8 +54,6 @@ export function TodoPanel({ conversationId, refreshTrigger }: TodoPanelProps) {
             extractedSessions.push(session)
           }
         })
-
-        console.log('[TodoPanel] 📊 Extracted', extractedSessions.length, 'sessions');
 
         // Sort by creation time (newest first)
         extractedSessions.sort((a, b) => b.createdAt - a.createdAt)
