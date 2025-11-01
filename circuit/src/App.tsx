@@ -265,10 +265,6 @@ function App() {
                   workspaceName={selectedWorkspace.name}
                   activeConversationId={activeConversationId}
                   onConversationChange={setActiveConversationId}
-                  onNewConversation={() => {
-                    // TODO: Implement new conversation dialog
-                    console.log('[App] New conversation requested')
-                  }}
                 />
               ) : (
                 <Breadcrumb>

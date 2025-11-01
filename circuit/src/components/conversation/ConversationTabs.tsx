@@ -26,15 +26,13 @@ interface ConversationTabsProps {
   workspaceName?: string
   activeConversationId: string | null
   onConversationChange: (conversationId: string) => void
-  onNewConversation: () => void
 }
 
 export function ConversationTabs({
   workspaceId,
   workspaceName,
   activeConversationId,
-  onConversationChange,
-  onNewConversation
+  onConversationChange
 }: ConversationTabsProps) {
   const [conversations, setConversations] = useState<Conversation[]>([])
 
@@ -82,7 +80,32 @@ export function ConversationTabs({
     }
   }
 
-  if (!workspaceId || conversations.length === 0) {
+  const handleCreateConversation = async () => {
+    if (!workspaceId || !workspaceName) return
+
+    try {
+      // Create conversation with auto-generated name
+      const result = await ipcRenderer.invoke('conversation:create', workspaceId)
+
+      if (result.success && result.conversation) {
+        console.log('[ConversationTabs] Created conversation:', result.conversation.id)
+
+        // Reload conversations
+        await loadConversations()
+
+        // Switch to the newly created conversation
+        onConversationChange(result.conversation.id)
+      } else {
+        console.error('[ConversationTabs] Failed to create:', result.error)
+        alert(`Failed to create conversation: ${result.error || 'Unknown error'}`)
+      }
+    } catch (error) {
+      console.error('[ConversationTabs] Error creating conversation:', error)
+      alert(`Error creating conversation: ${error}`)
+    }
+  }
+
+  if (!workspaceId) {
     return null
   }
 
@@ -138,7 +161,7 @@ export function ConversationTabs({
 
       {/* New conversation button */}
       <button
-        onClick={onNewConversation}
+        onClick={handleCreateConversation}
         className={cn(
           'flex items-center justify-center px-3 py-[7px] transition-colors rounded-md',
           'text-muted-foreground hover:bg-secondary/50 hover:text-secondary-foreground'
