@@ -35,14 +35,19 @@ export function MemoryPoolMonitor() {
       setLoading(true)
       setError(null)
 
+      console.log('[MemoryPoolMonitor] Loading stats...')
       const result = await ipcRenderer.invoke('circuit:memory-pool-stats')
+      console.log('[MemoryPoolMonitor] Result:', result)
 
       if (result.success) {
         setStats(result.stats)
+        console.log('[MemoryPoolMonitor] Stats updated:', result.stats)
       } else {
+        console.error('[MemoryPoolMonitor] Error:', result.error)
         setError(result.error)
       }
     } catch (err: any) {
+      console.error('[MemoryPoolMonitor] Exception:', err)
       setError(err.message)
     } finally {
       setLoading(false)
@@ -54,14 +59,19 @@ export function MemoryPoolMonitor() {
       setLoading(true)
       setError(null)
 
+      console.log('[MemoryPoolMonitor] Clearing cache...')
       const result = await ipcRenderer.invoke('circuit:memory-pool-clear')
+      console.log('[MemoryPoolMonitor] Clear result:', result)
 
       if (result.success) {
+        console.log('[MemoryPoolMonitor] Cache cleared, reloading stats...')
         await loadStats()
       } else {
+        console.error('[MemoryPoolMonitor] Clear error:', result.error)
         setError(result.error)
       }
     } catch (err: any) {
+      console.error('[MemoryPoolMonitor] Clear exception:', err)
       setError(err.message)
     } finally {
       setLoading(false)

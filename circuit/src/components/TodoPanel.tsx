@@ -427,7 +427,7 @@ function TodoSessionItem({ session, index, onNavigate, onStartTasks }: TodoSessi
                   <button
                     onClick={() => onStartTasks(session, executionMode)}
                     className={cn(
-                      'flex-1 h-8 px-3 rounded-l-md text-xs font-medium',
+                      'flex-1 py-2 px-3 rounded-l-md text-xs font-medium',
                       'bg-secondary text-secondary-foreground',
                       'hover:bg-secondary/80 transition-colors',
                       'flex items-center justify-center'
@@ -440,7 +440,7 @@ function TodoSessionItem({ session, index, onNavigate, onStartTasks }: TodoSessi
                   <DropdownMenuTrigger asChild>
                     <button
                       className={cn(
-                        'w-8 h-8 rounded-r-md text-xs font-medium',
+                        'py-2 px-2 rounded-r-md text-xs font-medium',
                         'bg-secondary text-secondary-foreground',
                         'hover:bg-secondary/80 transition-colors',
                         'border-l border-secondary-foreground/10',

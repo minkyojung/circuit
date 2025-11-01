@@ -21,30 +21,46 @@ export function registerMemoryHandlers(): void {
    */
   ipcMain.handle('circuit:memory-store', async (event, memory) => {
     try {
+      console.log('[MemoryHandlers] 📝 Storing memory:', {
+        key: memory.key,
+        scope: memory.scope,
+        projectPath: memory.projectPath?.substring(0, 50) + '...'
+      })
+
       const storage = await getMemoryStorage()
       const pool = getSharedMemoryPool()
       const id = await storage.storeMemory(memory)
 
+      console.log('[MemoryHandlers] ✅ Memory stored with ID:', id)
+
       // Invalidate cache for this project
       if (memory.projectPath) {
+        console.log('[MemoryHandlers] 🗑️  Invalidating cache for project')
         pool.invalidate(memory.projectPath)
 
         // Pre-warm cache: Reload global memories if this is a global memory
         if (memory.scope === 'global') {
-          console.log('[MemoryHandlers] Pre-warming cache with global memories')
-          await pool.getGlobalMemories(memory.projectPath)
+          console.log('[MemoryHandlers] 🔥 Pre-warming GLOBAL cache...')
+          const globals = await pool.getGlobalMemories(memory.projectPath)
+          console.log('[MemoryHandlers] ✅ Pre-warmed', globals.length, 'global memories')
+
+          // Verify cache was populated
+          const stats = pool.getCacheStats()
+          console.log('[MemoryHandlers] 📊 Cache size after pre-warm:', stats.cacheSize)
+          console.log('[MemoryHandlers] 📊 Cache entries:', stats.entries.length)
         }
 
         // Pre-warm cache: Reload conversation memories if this is a conversation memory
         if (memory.scope === 'conversation' && memory.conversationId) {
-          console.log('[MemoryHandlers] Pre-warming cache with conversation memories')
-          await pool.getConversationMemories(memory.projectPath, memory.conversationId)
+          console.log('[MemoryHandlers] 🔥 Pre-warming CONVERSATION cache...')
+          const convMemories = await pool.getConversationMemories(memory.projectPath, memory.conversationId)
+          console.log('[MemoryHandlers] ✅ Pre-warmed', convMemories.length, 'conversation memories')
         }
       }
 
       return { success: true, id }
     } catch (error: any) {
-      console.error('[MemoryHandlers] Error storing memory:', error)
+      console.error('[MemoryHandlers] ❌ Error storing memory:', error)
       return { success: false, error: error.message }
     }
   })
@@ -238,12 +254,23 @@ export function registerMemoryHandlers(): void {
    */
   ipcMain.handle('circuit:memory-pool-stats', async (event) => {
     try {
+      console.log('[MemoryHandlers] 📊 Getting pool stats...')
       const pool = getSharedMemoryPool()
       const stats = pool.getCacheStats()
+      console.log('[MemoryHandlers] 📊 Stats:', {
+        cacheSize: stats.cacheSize,
+        entriesCount: stats.entries.length,
+        entries: stats.entries.map(e => ({
+          project: e.projectPath.split('/').pop(),
+          globalCount: e.globalMemoryCount,
+          convCount: e.conversationCount,
+          age: Math.floor(e.age / 1000) + 's'
+        }))
+      })
 
       return { success: true, stats }
     } catch (error: any) {
-      console.error('[MemoryHandlers] Error getting pool stats:', error)
+      console.error('[MemoryHandlers] ❌ Error getting pool stats:', error)
       return { success: false, error: error.message }
     }
   })
