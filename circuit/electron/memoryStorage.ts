@@ -11,6 +11,8 @@ import * as path from 'path'
 import * as fs from 'fs'
 
 // Type definitions
+export type MemoryScope = 'global' | 'conversation' | 'temporary'
+
 export interface ProjectMemory {
   id: string
   timestamp: number
@@ -21,6 +23,8 @@ export interface ProjectMemory {
   metadata?: string // JSON string for extra data
   usageCount: number
   priority: 'high' | 'medium' | 'low'
+  scope: MemoryScope        // NEW: Memory scope
+  conversationId?: string   // NEW: For conversation-scoped memories
   createdAt: number
   updatedAt: number
 }
@@ -32,6 +36,8 @@ export interface MemoryQuery {
   key?: string
   searchQuery?: string
   limit?: number
+  scope?: MemoryScope       // NEW: Filter by scope
+  conversationId?: string   // NEW: Filter by conversation
 }
 
 export interface MemoryStats {
@@ -148,6 +154,32 @@ export class MemoryStorage {
 
       console.log('[MemoryStorage] Migration v1 complete')
     }
+
+    // Migration v2: Add scope and conversation_id for multi-conversation support
+    if (currentVersion < 2) {
+      console.log('[MemoryStorage] Running migration v2: Add scope and conversation_id')
+
+      this.db.exec(`
+        -- Add scope column (global, conversation, temporary)
+        ALTER TABLE project_memories ADD COLUMN scope TEXT DEFAULT 'global';
+
+        -- Add conversation_id for conversation-scoped memories
+        ALTER TABLE project_memories ADD COLUMN conversation_id TEXT;
+
+        -- Create indexes for new columns
+        CREATE INDEX idx_scope ON project_memories(scope);
+        CREATE INDEX idx_conversation_id ON project_memories(conversation_id);
+        CREATE INDEX idx_project_conversation ON project_memories(project_path, conversation_id);
+      `)
+
+      // Record migration
+      this.db.prepare(`
+        INSERT INTO schema_version (version, name, applied_at)
+        VALUES (?, ?, ?)
+      `).run(2, 'add_scope_and_conversation', Date.now())
+
+      console.log('[MemoryStorage] Migration v2 complete')
+    }
   }
 
   /**
@@ -188,13 +220,15 @@ export class MemoryStorage {
         // Update existing memory
         this.db.prepare(`
           UPDATE project_memories
-          SET value = ?, metadata = ?, type = ?, priority = ?, updated_at = ?
+          SET value = ?, metadata = ?, type = ?, priority = ?, scope = ?, conversation_id = ?, updated_at = ?
           WHERE id = ?
         `).run(
           memory.value,
           memory.metadata || null,
           memory.type,
           memory.priority,
+          memory.scope || 'global',
+          memory.conversationId || null,
           now,
           existing.id
         )
@@ -206,8 +240,8 @@ export class MemoryStorage {
         this.db.prepare(`
           INSERT INTO project_memories (
             id, timestamp, project_path, type, key, value, metadata,
-            usage_count, priority, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            usage_count, priority, scope, conversation_id, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
           id,
           now,
@@ -218,6 +252,8 @@ export class MemoryStorage {
           memory.metadata || null,
           0,
           memory.priority,
+          memory.scope || 'global',
+          memory.conversationId || null,
           now,
           now
         )
@@ -243,6 +279,8 @@ export class MemoryStorage {
       priority,
       key,
       searchQuery,
+      scope,
+      conversationId,
       limit = 100,
     } = query
 
@@ -268,6 +306,16 @@ export class MemoryStorage {
     if (key) {
       sql += ' AND key = ?'
       params.push(key)
+    }
+
+    if (scope) {
+      sql += ' AND scope = ?'
+      params.push(scope)
+    }
+
+    if (conversationId) {
+      sql += ' AND conversation_id = ?'
+      params.push(conversationId)
     }
 
     if (searchQuery) {
@@ -491,6 +539,8 @@ export class MemoryStorage {
       metadata: row.metadata || undefined,
       usageCount: row.usage_count,
       priority: row.priority,
+      scope: row.scope || 'global',
+      conversationId: row.conversation_id || undefined,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }
