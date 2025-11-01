@@ -55,12 +55,15 @@ export function TodoPanel({ conversationId, refreshTrigger }: TodoPanelProps) {
 
           if (message.role === 'assistant' && message.metadata?.planResult) {
             console.log('[TodoPanel] ✅ Found plan in message:', message.id, 'with', message.metadata.planResult.todos.length, 'todos');
+
+            // Determine session status based on planConfirmed flag
+            // Don't mark as 'completed' - that's for individual todos
             const session: TodoSession = {
               id: `session-${message.id}`,
               conversationId,
               messageId: message.id,
               planResult: message.metadata.planResult,
-              status: message.metadata.planConfirmed ? 'completed' : 'pending',
+              status: message.metadata.planConfirmed ? 'active' : 'pending',
               createdAt: message.timestamp,
             }
             extractedSessions.push(session)
@@ -227,6 +230,8 @@ function TodoSessionItem({ session, onNavigate, onStartTasks }: TodoSessionItemP
   const [executionMode, setExecutionMode] = useState<ExecutionMode>(suggestedMode)
 
   const totalTasks = session.planResult.todos.length
+  // For now, show 0 completed for pending/active sessions
+  // TODO: Load actual todo status from DB for real-time progress
   const completedTasks = session.status === 'completed' ? totalTasks : 0
 
   const formatTime = (timestamp: number): string => {
@@ -278,7 +283,7 @@ function TodoSessionItem({ session, onNavigate, onStartTasks }: TodoSessionItemP
             <TodoItemRow
               key={index}
               todo={todo}
-              isCompleted={session.status === 'completed'}
+              isCompleted={false}  // TODO: Load actual status from DB
               depth={0}
             />
           ))}
