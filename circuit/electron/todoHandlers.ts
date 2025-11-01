@@ -4,7 +4,7 @@
  * Handles todo-related operations between renderer and main process
  */
 
-import { ipcMain, IpcMainInvokeEvent } from 'electron'
+import { ipcMain, IpcMainInvokeEvent, BrowserWindow } from 'electron'
 import type { ConversationStorage, Todo, TodoStatus } from './conversationStorage'
 
 export function registerTodoHandlers(storage: ConversationStorage) {
@@ -217,6 +217,50 @@ export function registerTodoHandlers(storage: ConversationStorage) {
       }
     }
   })
+
+  /**
+   * Trigger task execution
+   * Sends event to renderer process to handle execution
+   */
+  ipcMain.handle(
+    'todos:trigger-execution',
+    async (
+      event: IpcMainInvokeEvent,
+      data: {
+        conversationId: string
+        messageId: string
+        mode: 'auto' | 'manual'
+        todos: any[]
+      }
+    ) => {
+      try {
+        console.log('[TodoHandlers] Triggering task execution:', data.mode, data.todos.length, 'tasks')
+
+        // Get the sender window
+        const senderWindow = BrowserWindow.fromWebContents(event.sender)
+
+        if (senderWindow) {
+          // Send event back to renderer to handle execution
+          senderWindow.webContents.send('todos:execute-tasks', {
+            conversationId: data.conversationId,
+            messageId: data.messageId,
+            mode: data.mode,
+            todos: data.todos,
+          })
+        }
+
+        return {
+          success: true,
+        }
+      } catch (error) {
+        console.error('[TodoHandlers] Failed to trigger execution:', error)
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      }
+    }
+  )
 
   console.log('[TodoHandlers] Todo IPC handlers registered')
 }

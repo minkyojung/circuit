@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import { ChevronDown, ChevronRight, Check, Circle, Clock } from 'lucide-react'
+import { ChevronDown, ChevronRight, Check, Circle, Clock, Zap, MessageSquare } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Message } from '@/types/conversation'
-import type { TodoSession, TodoDraft } from '@/types/todo'
+import type { TodoSession, TodoDraft, ExecutionMode } from '@/types/todo'
 
 // @ts-ignore - Electron IPC
 const { ipcRenderer } = window.require('electron')
@@ -36,38 +36,24 @@ export function TodoPanel({ conversationId, refreshTrigger }: TodoPanelProps) {
       const result = await ipcRenderer.invoke('message:load', conversationId)
 
       if (result.success && result.messages) {
-        console.log('[TodoPanel] 📊 Loaded', result.messages.length, 'messages for conversation:', conversationId);
-
         // Extract sessions from messages with planResult
         const extractedSessions: TodoSession[] = []
 
         result.messages.forEach((message: Message) => {
-          console.log('[TodoPanel] 📊 Message:', message.id, 'role:', message.role, 'has metadata:', !!message.metadata, 'has planResult:', !!message.metadata?.planResult);
-
-          if (message.metadata) {
-            console.log('[TodoPanel] 📊 Metadata type:', typeof message.metadata);
-            console.log('[TodoPanel] 📊 Metadata keys:', Object.keys(message.metadata));
-            if (message.metadata.planResult) {
-              console.log('[TodoPanel] 📊 planResult type:', typeof message.metadata.planResult);
-              console.log('[TodoPanel] 📊 planResult keys:', Object.keys(message.metadata.planResult));
-            }
-          }
-
           if (message.role === 'assistant' && message.metadata?.planResult) {
-            console.log('[TodoPanel] ✅ Found plan in message:', message.id, 'with', message.metadata.planResult.todos.length, 'todos');
+            // Determine session status based on planConfirmed flag
+            // Don't mark as 'completed' - that's for individual todos
             const session: TodoSession = {
               id: `session-${message.id}`,
               conversationId,
               messageId: message.id,
               planResult: message.metadata.planResult,
-              status: message.metadata.planConfirmed ? 'completed' : 'pending',
+              status: message.metadata.planConfirmed ? 'active' : 'pending',
               createdAt: message.timestamp,
             }
             extractedSessions.push(session)
           }
         })
-
-        console.log('[TodoPanel] 📊 Extracted', extractedSessions.length, 'sessions');
 
         // Sort by creation time (newest first)
         extractedSessions.sort((a, b) => b.createdAt - a.createdAt)
@@ -99,25 +85,34 @@ export function TodoPanel({ conversationId, refreshTrigger }: TodoPanelProps) {
     }
   }
 
-  const handleStartTasks = async (session: TodoSession) => {
+  const handleStartTasks = async (session: TodoSession, mode: ExecutionMode) => {
     try {
-      // Mark plan as confirmed by updating message
+      // Mark plan as confirmed and save execution mode
       const result = await ipcRenderer.invoke('message:load', session.conversationId)
       if (result.success && result.messages) {
         const message = result.messages.find((m: Message) => m.id === session.messageId)
         if (message) {
-          // Update message with planConfirmed
+          // Update message with planConfirmed and executionMode
           const updatedMessage = {
             ...message,
             metadata: {
               ...message.metadata,
               planConfirmed: true,
               hasPendingPlan: false,
+              executionMode: mode, // Store mode for later use
             }
           }
 
           // Save updated message
           await ipcRenderer.invoke('message:save', updatedMessage)
+
+          // Trigger execution via IPC
+          await ipcRenderer.invoke('todos:trigger-execution', {
+            conversationId: session.conversationId,
+            messageId: session.messageId,
+            mode,
+            todos: session.planResult.todos
+          })
 
           // Reload sessions to reflect changes
           loadSessions()
@@ -205,13 +200,21 @@ export function TodoPanel({ conversationId, refreshTrigger }: TodoPanelProps) {
 interface TodoSessionItemProps {
   session: TodoSession
   onNavigate: (messageId: string) => void
-  onStartTasks: (session: TodoSession) => void
+  onStartTasks: (session: TodoSession, mode: ExecutionMode) => void
 }
 
 function TodoSessionItem({ session, onNavigate, onStartTasks }: TodoSessionItemProps) {
   const [isExpanded, setIsExpanded] = useState(session.status !== 'archived')
 
+  // Smart default: auto for simple plans, manual for complex ones
+  const suggestedMode = session.planResult.todos.length <= 5 &&
+    session.planResult.complexity !== 'complex' &&
+    session.planResult.complexity !== 'very_complex' ? 'auto' : 'manual'
+  const [executionMode, setExecutionMode] = useState<ExecutionMode>(suggestedMode)
+
   const totalTasks = session.planResult.todos.length
+  // For now, show 0 completed for pending/active sessions
+  // TODO: Load actual todo status from DB for real-time progress
   const completedTasks = session.status === 'completed' ? totalTasks : 0
 
   const formatTime = (timestamp: number): string => {
@@ -263,16 +266,50 @@ function TodoSessionItem({ session, onNavigate, onStartTasks }: TodoSessionItemP
             <TodoItemRow
               key={index}
               todo={todo}
-              isCompleted={session.status === 'completed'}
+              isCompleted={false}  // TODO: Load actual status from DB
               depth={0}
             />
           ))}
 
-          {/* Start Tasks button (only for pending plans) */}
-          {session.status === 'pending' && (
-            <div className="pt-1">
+          {/* Execution Mode Selection (show for pending and active plans) */}
+          {(session.status === 'pending' || session.status === 'active') && (
+            <div className="pt-2 space-y-2">
+              {/* Mode toggle buttons */}
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setExecutionMode('auto')}
+                  className={cn(
+                    'flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md',
+                    'border transition-all text-[10px] font-medium',
+                    executionMode === 'auto'
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-sidebar-border hover:border-primary/50 text-sidebar-foreground-muted hover:text-sidebar-foreground'
+                  )}
+                >
+                  <Zap className="w-3 h-3" />
+                  Auto
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setExecutionMode('manual')}
+                  className={cn(
+                    'flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md',
+                    'border transition-all text-[10px] font-medium',
+                    executionMode === 'manual'
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-sidebar-border hover:border-primary/50 text-sidebar-foreground-muted hover:text-sidebar-foreground'
+                  )}
+                >
+                  <MessageSquare className="w-3 h-3" />
+                  Manual
+                </button>
+              </div>
+
+              {/* Start Tasks button */}
               <button
-                onClick={() => onStartTasks(session)}
+                onClick={() => onStartTasks(session, executionMode)}
                 className={cn(
                   'w-full h-7 px-3 rounded-md text-xs font-medium',
                   'bg-primary text-primary-foreground shadow-sm',

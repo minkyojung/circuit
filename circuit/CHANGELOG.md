@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Task Execution System with Auto/Manual Modes** - Execute task plans through Claude Code integration
+  - Auto mode: Claude automatically executes all tasks in sequence
+  - Manual mode: User controls execution via chat commands ("next", "run all", "execute task N")
+  - Mode selection UI in TodoPanel with smart defaults (auto for simple plans, manual for complex)
+  - `.circuit/todos.json` file generation for Claude Code to read task plans
+  - TodoWrite block detection and real-time database synchronization
+  - IPC handler `todos:trigger-execution` for background task execution
+  - Mode-specific prompts sent to Claude with execution instructions
 - **Workspace Archive System** - Archive/unarchive workspaces with metadata persistence
   - Archive tab in Settings dialog with search and management interface
   - Context menu option to archive workspaces from sidebar
@@ -32,6 +40,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Larger text in status bar (10px) without expanding UI height
 
 ### Fixed
+- **TodoPanel UI bug** - Tasks incorrectly showing as completed before execution started (session status now properly set to 'active' instead of 'completed')
+- **Task execution UI not updating** - User and assistant messages now properly appear in chat when "Start Tasks" is clicked
+- **Auto/Manual mode buttons disappearing** - Buttons now visible for both 'pending' and 'active' session statuses
+- **Function declaration order issue** - handleExecuteTasks now manually creates messages instead of calling handleSend to avoid closure problems
+- **Excessive debug logging** - Removed verbose console.log statements from TodoPanel (8 debug logs removed)
+- **React hook dependencies** - Removed refs from useCallback dependencies array (pendingUserMessageRef)
 - **Critical: EventEmitter memory leak** - Event listeners were accumulating on every workspace selection
 - **Critical: Stream resource leak** - Readline interfaces not properly closed after use
 - **Session file detection failure** - Large files (>500KB) failed to parse due to truncated JSON
@@ -41,6 +55,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dropdown hover state now uses lighter color (50% opacity)
 
 ### Changed
+- **Task execution now disabled in Normal mode** - TodoConfirmationDialog only appears in Plan mode; Normal/Think modes execute directly without todo analysis
+- **ExecutionMode type added** - New type for 'auto' | 'manual' execution modes in todo system
+- **TodoPanel mode selection UI** - Replaced simple "Start Tasks" button with mode selector and improved UX
 - **Removed obsolete tabs** - Deleted DeploymentsTab, GitHubTab, MemoryTab, TestFixTab components
 - **WorkspaceChatEditor Input Refactor** - Replaced 80-line manual textarea implementation with reusable `ChatInput` component (91% code reduction)
 - **Message metadata extended** - Added `files` array to track attached file names
