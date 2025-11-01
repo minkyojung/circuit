@@ -13,6 +13,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
+import { ConversationTabs } from "@/components/conversation/ConversationTabs"
 import { Separator } from "@/components/ui/separator"
 import {
   SidebarInset,
@@ -259,30 +260,16 @@ function App() {
               <LeftSidebarToggle />
               <Separator orientation="vertical" className="mr-2 h-4" />
               {selectedWorkspace ? (
-                <Breadcrumb>
-                  <BreadcrumbList>
-                    <BreadcrumbItem>
-                      <BreadcrumbLink
-                        onClick={() => setSelectedWorkspace(null)}
-                        className="cursor-pointer text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        {repositoryName}
-                      </BreadcrumbLink>
-                    </BreadcrumbItem>
-                    <BreadcrumbSeparator />
-                    <BreadcrumbItem>
-                      <BreadcrumbPage className="font-medium text-muted-foreground">
-                        {selectedWorkspace.name}
-                      </BreadcrumbPage>
-                    </BreadcrumbItem>
-                    <BreadcrumbSeparator />
-                    <BreadcrumbItem>
-                      <BreadcrumbPage className="text-muted-foreground">
-                        {selectedWorkspace.branch}
-                      </BreadcrumbPage>
-                    </BreadcrumbItem>
-                  </BreadcrumbList>
-                </Breadcrumb>
+                <ConversationTabs
+                  workspaceId={selectedWorkspace.id}
+                  workspaceName={selectedWorkspace.name}
+                  activeConversationId={activeConversationId}
+                  onConversationChange={setActiveConversationId}
+                  onNewConversation={() => {
+                    // TODO: Implement new conversation dialog
+                    console.log('[App] New conversation requested')
+                  }}
+                />
               ) : (
                 <Breadcrumb>
                   <BreadcrumbList>
