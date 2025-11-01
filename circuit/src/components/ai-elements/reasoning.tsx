@@ -132,18 +132,18 @@ const getThinkingMessage = (isStreaming: boolean, duration?: number, summary?: s
   // Completed - show summary
   if (summary) {
     return (
-      <span className="text-sm">
+      <span className="text-sm font-light">
         {summary}
-        {duration && duration > 0 && <span className="text-muted-foreground/50 ml-1.5">• {duration}s</span>}
+        {duration && duration > 0 && <span className="ml-1.5 font-light opacity-60">• {duration}s</span>}
       </span>
     );
   }
 
   // Fallback
   if (duration === undefined || duration === 0) {
-    return <p>Thought for a few seconds</p>;
+    return <p className="font-light">Thought for a few seconds</p>;
   }
-  return <p>Thought for {duration} seconds</p>;
+  return <p className="font-light">Thought for {duration} seconds</p>;
 };
 
 export const ReasoningTrigger = memo(
@@ -154,7 +154,7 @@ export const ReasoningTrigger = memo(
     return (
       <CollapsibleTrigger
         className={cn(
-          "flex w-full items-center gap-2 text-muted-foreground text-sm transition-colors hover:text-foreground",
+          "flex w-full items-center gap-2 text-sm transition-colors opacity-50 dark:opacity-35 hover:opacity-70 dark:hover:opacity-50",
           className
         )}
         {...props}
@@ -184,8 +184,8 @@ export type ReasoningContentProps = ComponentProps<
 export const ReasoningContent = ({ className, children, ...props }: ReasoningContentProps) => (
   <CollapsibleContent
     className={cn(
-      "mt-4 text-sm",
-      "data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 text-muted-foreground outline-none data-[state=closed]:animate-out data-[state=open]:animate-in",
+      "mt-4 text-sm font-light opacity-50 dark:opacity-35",
+      "data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 outline-none data-[state=closed]:animate-out data-[state=open]:animate-in",
       className
     )}
     {...props}

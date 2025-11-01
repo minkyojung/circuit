@@ -77,22 +77,46 @@ function getLabelForTool(step: ThinkingStep): string {
   }
 }
 
-function getSummary(group: ToolGroup): string {
-  const count = group.steps.length;
+type PreviewData = {
+  type: 'text' | 'pill';
+  content: string;
+  title?: string;
+} | null;
 
+function getPreviewData(group: ToolGroup): PreviewData {
+  const firstStep = group.steps[0];
+  if (!firstStep) return null;
+
+  // Glob/Grep: show pattern as pill
   if (group.tool === 'Glob' || group.tool === 'Grep') {
-    return count === 1 ? '1 pattern' : `${count} patterns`;
+    return {
+      type: 'pill',
+      content: firstStep.pattern || 'pattern',
+    };
   }
 
+  // Read/Write/Edit: show filename as pill
   if (group.tool === 'Read' || group.tool === 'Write' || group.tool === 'Edit') {
-    return count === 1 ? '1 file' : `${count} files`;
+    const fileName = firstStep.filePath?.split('/').pop() || 'file';
+    return {
+      type: 'pill',
+      content: fileName,
+      title: firstStep.filePath,
+    };
   }
 
-  if (group.tool === 'Bash') {
-    return count === 1 ? '1 command' : `${count} commands`;
+  // Thinking/Bash: show message as text
+  if (group.tool === 'thinking' || group.tool === 'Bash') {
+    const content = firstStep.message || firstStep.command;
+    if (content) {
+      return {
+        type: 'text',
+        content,
+      };
+    }
   }
 
-  return count === 1 ? '' : `${count} steps`;
+  return null;
 }
 
 function renderGroupDetails(group: ToolGroup) {
@@ -103,7 +127,7 @@ function renderGroupDetails(group: ToolGroup) {
         {group.steps.map((step, idx) => (
           <div
             key={idx}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-secondary/40 text-sm text-muted-foreground/80"
+            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-secondary text-sm font-light opacity-50 dark:opacity-35"
           >
             <span>{step.pattern || 'pattern'}</span>
           </div>
@@ -123,7 +147,7 @@ function renderGroupDetails(group: ToolGroup) {
           return (
             <div
               key={idx}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-secondary/40 text-sm text-muted-foreground/80 hover:bg-secondary/50 transition-colors cursor-default"
+              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-secondary text-sm hover:bg-secondary/80 transition-colors cursor-default font-light opacity-50 dark:opacity-35"
               title={fullPath}
             >
               <span>{fileName}</span>
@@ -144,7 +168,7 @@ function renderGroupDetails(group: ToolGroup) {
           return (
             <div
               key={idx}
-              className="text-sm text-muted-foreground/80 leading-relaxed"
+              className="text-sm leading-relaxed font-light opacity-50 dark:opacity-35"
             >
               {detail}
             </div>
@@ -156,7 +180,7 @@ function renderGroupDetails(group: ToolGroup) {
 
   // Default fallback
   return (
-    <div className="text-sm text-muted-foreground">
+    <div className="text-sm font-light opacity-50 dark:opacity-35">
       {group.steps.length} step{group.steps.length !== 1 ? 's' : ''}
     </div>
   );
@@ -168,7 +192,7 @@ export const ReasoningAccordion: React.FC<ReasoningAccordionProps> = ({
 }) => {
   if (steps.length === 0) {
     return (
-      <div className="text-sm text-muted-foreground py-2">
+      <div className="text-sm py-2 font-light opacity-50 dark:opacity-35">
         No reasoning steps recorded.
       </div>
     );
@@ -180,7 +204,7 @@ export const ReasoningAccordion: React.FC<ReasoningAccordionProps> = ({
     <Accordion type="multiple" className={cn("space-y-1", className)}>
       {toolGroups.map((group, idx) => {
         const Icon = group.icon;
-        const summary = getSummary(group);
+        const previewData = getPreviewData(group);
 
         return (
           <AccordionItem
@@ -189,15 +213,23 @@ export const ReasoningAccordion: React.FC<ReasoningAccordionProps> = ({
             className="border-b-0"
           >
             <AccordionTrigger className="py-2 hover:no-underline text-sm [&[data-state=open]>svg]:rotate-180">
-              <div className="flex items-center gap-2 flex-1">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
                 {/* Icon + Label */}
-                <Icon className="w-3.5 h-3.5 flex-shrink-0 opacity-70" strokeWidth={1.5} />
-                <span className="text-muted-foreground/90">{group.label}</span>
+                <Icon className="w-3 h-3 flex-shrink-0 opacity-50 dark:opacity-35" strokeWidth={1.5} />
+                <span className="flex-shrink-0 font-light opacity-50 dark:opacity-35">{group.label}</span>
 
-                {/* Summary */}
-                {summary && (
-                  <span className="ml-auto text-xs text-muted-foreground/60 mr-2">
-                    {summary}
+                {/* Preview content */}
+                {previewData && previewData.type === 'pill' && (
+                  <div
+                    className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-secondary text-sm ml-2 max-w-[200px] truncate font-light opacity-50 dark:opacity-35"
+                    title={previewData.title}
+                  >
+                    <span className="truncate">{previewData.content}</span>
+                  </div>
+                )}
+                {previewData && previewData.type === 'text' && (
+                  <span className="text-sm truncate ml-2 max-w-[300px] font-light opacity-50 dark:opacity-35">
+                    {previewData.content}
                   </span>
                 )}
               </div>
