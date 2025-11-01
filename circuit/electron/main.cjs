@@ -1932,12 +1932,17 @@ ipcMain.handle('circuit:reload-claude-code', async (event, openVSCode = true) =>
 // Repository Management
 // ============================================================================
 
-// Register repository IPC handlers
+// Register repository IPC handlers and auto-register project path
 (async () => {
   try {
-    const { registerRepositoryHandlers } = await import('../dist-electron/repositoryHandlers.js');
+    const { registerRepositoryHandlers, autoRegisterProjectPath } = await import('../dist-electron/repositoryHandlers.js');
     registerRepositoryHandlers();
     console.log('[main.cjs] Repository handlers registered');
+
+    // Auto-register the project path as a repository
+    const projectPath = path.resolve(__dirname, '../../../..');
+    await autoRegisterProjectPath(projectPath);
+    console.log('[main.cjs] Project path auto-registered');
   } catch (error) {
     console.error('[main.cjs] Failed to register repository handlers:', error);
   }
@@ -2484,10 +2489,10 @@ async function getFileTree(worktreePath) {
 /**
  * Create a new workspace with auto-generated animal name
  */
-ipcMain.handle('workspace:create', async (event) => {
+ipcMain.handle('workspace:create', async (event, repositoryPath) => {
   try {
-    // Get project path directly
-    const projectPath = path.resolve(__dirname, '../../../..');
+    // Use provided repository path, fallback to default for backward compatibility
+    const projectPath = repositoryPath || path.resolve(__dirname, '../../../..');
 
     // Generate unique branch name
     const branchName = await generateWorkspaceName(projectPath);
@@ -2505,9 +2510,10 @@ ipcMain.handle('workspace:create', async (event) => {
 /**
  * List all workspaces
  */
-ipcMain.handle('workspace:list', async (event) => {
+ipcMain.handle('workspace:list', async (event, repositoryPath) => {
   try {
-    const projectPath = path.resolve(__dirname, '../../../..');
+    // Use provided repository path, fallback to default for backward compatibility
+    const projectPath = repositoryPath || path.resolve(__dirname, '../../../..');
     const workspaces = await listWorktrees(projectPath);
 
     return { success: true, workspaces };
@@ -2520,9 +2526,10 @@ ipcMain.handle('workspace:list', async (event) => {
 /**
  * Delete a workspace
  */
-ipcMain.handle('workspace:delete', async (event, workspaceId) => {
+ipcMain.handle('workspace:delete', async (event, workspaceId, repositoryPath) => {
   try {
-    const projectPath = path.resolve(__dirname, '../../../..');
+    // Use provided repository path, fallback to default for backward compatibility
+    const projectPath = repositoryPath || path.resolve(__dirname, '../../../..');
     await deleteWorktree(projectPath, workspaceId);
 
     return { success: true };
@@ -2535,14 +2542,15 @@ ipcMain.handle('workspace:delete', async (event, workspaceId) => {
 /**
  * Archive a workspace
  */
-ipcMain.handle('workspace:archive', async (event, workspaceId) => {
+ipcMain.handle('workspace:archive', async (event, workspaceId, repositoryPath) => {
   try {
     // Validate workspaceId to prevent path traversal
     if (!workspaceId || typeof workspaceId !== 'string' || workspaceId.includes('..') || workspaceId.includes('/') || workspaceId.includes('\\')) {
       return { success: false, error: 'Invalid workspace ID' };
     }
 
-    const projectPath = path.resolve(__dirname, '../../../..');
+    // Use provided repository path, fallback to default for backward compatibility
+    const projectPath = repositoryPath || path.resolve(__dirname, '../../../..');
     await archiveWorkspace(projectPath, workspaceId);
 
     return { success: true };

@@ -6,6 +6,17 @@ import type { TodoSession, TodoDraft, ExecutionMode } from '@/types/todo'
 import type { Workspace } from '@/types/workspace'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { SettingsDialog } from '@/components/SettingsDialog'
+import { MemoryPoolMonitor } from '@/components/debug/MemoryPoolMonitor'
+import { MemoryTestPanel } from '@/components/debug/MemoryTestPanel'
+import { motion, AnimatePresence } from 'framer-motion'
+import { listItemVariants } from '@/lib/motion-tokens'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 // @ts-ignore - Electron IPC
 const { ipcRenderer } = window.require('electron')
@@ -25,6 +36,7 @@ export function TodoPanel({ conversationId, refreshTrigger, workspace, onCommit 
   const [selectedFilter, setSelectedFilter] = useState<FilterType>('active')
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false)
+  const [isMemoryTestOpen, setIsMemoryTestOpen] = useState(false)
 
   // Load sessions from messages with planResult
   useEffect(() => {
@@ -72,6 +84,9 @@ export function TodoPanel({ conversationId, refreshTrigger, workspace, onCommit 
       setIsLoading(false)
     }
   }
+
+  const activeCount = sessions.filter(s => ['pending', 'active', 'completed'].includes(s.status)).length
+  const archivedCount = sessions.filter(s => s.status === 'archived').length
 
   const filteredSessions = sessions.filter(s =>
     selectedFilter === 'active'
@@ -209,24 +224,44 @@ export function TodoPanel({ conversationId, refreshTrigger, workspace, onCommit 
           <button
             onClick={() => setSelectedFilter('active')}
             className={cn(
-              "px-2 py-1 text-xs rounded transition-colors",
+              "px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-1.5",
               selectedFilter === 'active'
-                ? "bg-secondary text-secondary-foreground"
-                : "text-sidebar-foreground-muted hover:bg-sidebar-accent"
+                ? "bg-primary/10 text-primary shadow-sm"
+                : "text-sidebar-foreground-muted hover:bg-sidebar-hover hover:text-sidebar-foreground"
             )}
           >
             Active
+            {activeCount > 0 && (
+              <span className={cn(
+                "px-1 py-0.5 rounded text-[10px] font-semibold",
+                selectedFilter === 'active'
+                  ? "bg-primary/20"
+                  : "bg-sidebar-accent"
+              )}>
+                {activeCount}
+              </span>
+            )}
           </button>
           <button
             onClick={() => setSelectedFilter('archived')}
             className={cn(
-              "px-2 py-1 text-xs rounded transition-colors",
+              "px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-1.5",
               selectedFilter === 'archived'
-                ? "bg-secondary text-secondary-foreground"
-                : "text-sidebar-foreground-muted hover:bg-sidebar-accent"
+                ? "bg-primary/10 text-primary shadow-sm"
+                : "text-sidebar-foreground-muted hover:bg-sidebar-hover hover:text-sidebar-foreground"
             )}
           >
             Archived
+            {archivedCount > 0 && (
+              <span className={cn(
+                "px-1 py-0.5 rounded text-[10px] font-semibold",
+                selectedFilter === 'archived'
+                  ? "bg-primary/20"
+                  : "bg-sidebar-accent"
+              )}>
+                {archivedCount}
+              </span>
+            )}
           </button>
         </div>
       </div>
@@ -251,16 +286,42 @@ export function TodoPanel({ conversationId, refreshTrigger, workspace, onCommit 
           </div>
         ) : (
           <div className="flex flex-col gap-2">
-            {filteredSessions.map((session) => (
-              <TodoSessionItem
-                key={session.id}
-                session={session}
-                onNavigate={handleScrollToMessage}
-                onStartTasks={handleStartTasks}
-              />
-            ))}
+            <AnimatePresence mode="popLayout">
+              {filteredSessions.map((session, index) => (
+                <TodoSessionItem
+                  key={session.id}
+                  session={session}
+                  index={index}
+                  onNavigate={handleScrollToMessage}
+                  onStartTasks={handleStartTasks}
+                />
+              ))}
+            </AnimatePresence>
           </div>
         )}
+      </div>
+
+      {/* Memory Pool Monitor */}
+      <div className="shrink-0 border-t border-sidebar-border p-2">
+        <MemoryPoolMonitor workspace={workspace} />
+      </div>
+
+      {/* Memory Test Panel (Collapsible) */}
+      <div className="shrink-0 border-t border-sidebar-border">
+        <Collapsible open={isMemoryTestOpen} onOpenChange={setIsMemoryTestOpen}>
+          <CollapsibleTrigger className="flex w-full items-center justify-between p-2 hover:bg-sidebar-hover transition-colors">
+            <div className="flex items-center gap-2 text-xs font-medium text-sidebar-foreground">
+              {isMemoryTestOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              <span>메모리 테스트 패널</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-500/10 text-orange-600">
+                디버그
+              </span>
+            </div>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="max-h-[60vh] overflow-y-auto">
+            <MemoryTestPanel workspace={workspace} conversationId={conversationId} />
+          </CollapsibleContent>
+        </Collapsible>
       </div>
     </div>
   )
@@ -268,11 +329,12 @@ export function TodoPanel({ conversationId, refreshTrigger, workspace, onCommit 
 
 interface TodoSessionItemProps {
   session: TodoSession
+  index: number
   onNavigate: (messageId: string) => void
   onStartTasks: (session: TodoSession, mode: ExecutionMode) => void
 }
 
-function TodoSessionItem({ session, onNavigate, onStartTasks }: TodoSessionItemProps) {
+function TodoSessionItem({ session, index, onNavigate, onStartTasks }: TodoSessionItemProps) {
   const [isExpanded, setIsExpanded] = useState(session.status !== 'archived')
 
   // Smart default: auto for simple plans, manual for complex ones
@@ -298,39 +360,75 @@ function TodoSessionItem({ session, onNavigate, onStartTasks }: TodoSessionItemP
     return date.toLocaleDateString()
   }
 
+  const progressPercentage = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0
+
   return (
-    <div className={cn(
-      "border border-sidebar-border/50 rounded-md overflow-hidden",
-      "bg-sidebar-accent/30"
-    )}>
-      {/* Header */}
-      <div className="flex items-center justify-between p-2 gap-2">
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center gap-1.5 flex-1 min-w-0 text-left hover:text-sidebar-foreground transition-colors"
-        >
-          {isExpanded ? (
-            <ChevronDown size={14} className="flex-shrink-0 text-sidebar-foreground-muted" />
-          ) : (
-            <ChevronRight size={14} className="flex-shrink-0 text-sidebar-foreground-muted" />
-          )}
-          <span className="text-xs font-medium text-sidebar-foreground truncate">
-            Plan ({completedTasks}/{totalTasks})
-          </span>
-        </button>
+    <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
+      <motion.div
+        custom={index}
+        variants={listItemVariants}
+        initial="hidden"
+        animate="visible"
+        exit="exit"
+        layout
+        className={cn(
+          "rounded-lg overflow-hidden transition-all duration-200",
+          session.status === 'active' && "bg-primary/5 shadow-sm",
+          session.status === 'pending' && "bg-sidebar-accent/30",
+          session.status === 'completed' && "bg-green-500/5 opacity-90"
+        )}
+      >
+        {/* Header */}
+        <div className="flex flex-col">
+          <div className="flex items-center justify-between p-2 gap-2">
+            <CollapsibleTrigger asChild>
+              <button
+                className="flex items-center gap-2 flex-1 min-w-0 text-left hover:text-sidebar-foreground transition-colors"
+              >
+                <ChevronRight
+                  size={12}
+                  className={cn(
+                    "flex-shrink-0 text-sidebar-foreground-muted transition-transform duration-150",
+                    isExpanded && "rotate-90"
+                  )}
+                />
+                <div className="flex items-baseline gap-2">
+                  <span className="text-xs font-medium text-sidebar-foreground truncate">
+                    Plan
+                  </span>
+                  <span className="text-[10px] text-sidebar-foreground-muted">
+                    {completedTasks}/{totalTasks}
+                  </span>
+                </div>
+              </button>
+            </CollapsibleTrigger>
 
-        <button
-          onClick={() => onNavigate(session.messageId)}
-          className="flex-shrink-0 text-[10px] text-sidebar-foreground-muted hover:text-sidebar-foreground transition-colors"
-          title="Go to message"
-        >
-          {formatTime(session.createdAt)}
-        </button>
-      </div>
+            <button
+              onClick={() => onNavigate(session.messageId)}
+              className="flex-shrink-0 text-[10px] text-sidebar-foreground-muted hover:text-sidebar-foreground transition-colors"
+              title="Go to message"
+            >
+              {formatTime(session.createdAt)}
+            </button>
+          </div>
 
-      {/* Todo list */}
-      {isExpanded && (
-        <div className="px-2 pb-2 space-y-1">
+          {/* Progress bar */}
+          <div className="h-1 bg-sidebar-border/30">
+            <motion.div
+              className={cn(
+                "h-full",
+                session.status === 'completed' ? "bg-green-500" : "bg-primary"
+              )}
+              initial={{ width: 0 }}
+              animate={{ width: `${progressPercentage}%` }}
+              transition={{ duration: 0.5, ease: 'easeOut' }}
+            />
+          </div>
+        </div>
+
+        {/* Todo list */}
+        <CollapsibleContent className="overflow-hidden transition-all duration-150 ease-out">
+          <div className="px-2 pb-2 space-y-1">
           {session.planResult.todos.map((todo, index) => (
             <TodoItemRow
               key={index}
@@ -340,62 +438,66 @@ function TodoSessionItem({ session, onNavigate, onStartTasks }: TodoSessionItemP
             />
           ))}
 
-          {/* Execution Mode Selection (show for pending and active plans) */}
+          {/* Start Tasks Split Button (show for pending and active plans) */}
           {(session.status === 'pending' || session.status === 'active') && (
-            <div className="pt-2 space-y-2">
-              {/* Mode toggle buttons */}
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setExecutionMode('auto')}
-                  className={cn(
-                    'flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md',
-                    'border transition-all text-[10px] font-medium',
-                    executionMode === 'auto'
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-sidebar-border hover:border-primary/50 text-sidebar-foreground-muted hover:text-sidebar-foreground'
-                  )}
-                >
-                  <Zap className="w-3 h-3" />
-                  Auto
-                </button>
+            <div className="pt-2">
+              <DropdownMenu>
+                <div className="flex items-stretch">
+                  {/* Main action button */}
+                  <button
+                    onClick={() => onStartTasks(session, executionMode)}
+                    className={cn(
+                      'flex-1 py-2 px-3 rounded-l-md text-xs font-medium',
+                      'bg-secondary text-secondary-foreground',
+                      'hover:bg-secondary/80 transition-colors',
+                      'flex items-center justify-center'
+                    )}
+                  >
+                    {executionMode === 'auto' ? 'Start Tasks' : 'Start Tasks Manually'}
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => setExecutionMode('manual')}
-                  className={cn(
-                    'flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md',
-                    'border transition-all text-[10px] font-medium',
-                    executionMode === 'manual'
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-sidebar-border hover:border-primary/50 text-sidebar-foreground-muted hover:text-sidebar-foreground'
-                  )}
-                >
-                  <MessageSquare className="w-3 h-3" />
-                  Manual
-                </button>
-              </div>
+                  {/* Dropdown trigger */}
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className={cn(
+                        'py-2 px-2 rounded-r-md text-xs font-medium',
+                        'bg-secondary text-secondary-foreground',
+                        'hover:bg-secondary/80 transition-colors',
+                        'border-l border-secondary-foreground/10',
+                        'flex items-center justify-center'
+                      )}
+                    >
+                      <ChevronDown size={12} />
+                    </button>
+                  </DropdownMenuTrigger>
+                </div>
 
-              {/* Start Tasks button */}
-              <button
-                onClick={() => onStartTasks(session, executionMode)}
-                className={cn(
-                  'w-full h-7 px-3 rounded-md text-xs font-medium',
-                  'bg-primary text-primary-foreground shadow-sm',
-                  'hover:bg-primary/90 transition-colors',
-                  'flex items-center justify-center gap-1.5'
-                )}
-              >
-                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 16 16">
-                  <path d="M4 2v12l8-6z" />
-                </svg>
-                Start Tasks
-              </button>
+                {/* Dropdown menu */}
+                <DropdownMenuContent align="end" className="w-40">
+                  <DropdownMenuItem
+                    onClick={() => setExecutionMode('auto')}
+                    className="flex items-center gap-2 cursor-pointer"
+                  >
+                    <Zap size={14} />
+                    <span className="flex-1">Auto</span>
+                    {executionMode === 'auto' && <Check size={14} className="text-primary" />}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setExecutionMode('manual')}
+                    className="flex items-center gap-2 cursor-pointer"
+                  >
+                    <MessageSquare size={14} />
+                    <span className="flex-1">Manual</span>
+                    {executionMode === 'manual' && <Check size={14} className="text-primary" />}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           )}
-        </div>
-      )}
-    </div>
+          </div>
+        </CollapsibleContent>
+      </motion.div>
+    </Collapsible>
   )
 }
 
@@ -410,24 +512,28 @@ function TodoItemRow({ todo, isCompleted, depth }: TodoItemRowProps) {
 
   return (
     <div className={cn(depth > 0 && 'ml-4')}>
-      <div className="flex items-start gap-2 py-0.5">
+      <div className={cn(
+        "flex items-center gap-2 py-1 px-2 -mx-2 rounded-md",
+        "hover:bg-sidebar-hover/50 transition-colors duration-200",
+        "cursor-pointer group"
+      )}>
         {/* Checkbox */}
-        <div className="flex-shrink-0 mt-0.5">
+        <div className="flex-shrink-0">
           {isCompleted ? (
             <div className="w-3 h-3 rounded-sm border border-primary/70 bg-primary/70 flex items-center justify-center">
               <Check className="w-2 h-2 text-primary-foreground" strokeWidth={3} />
             </div>
           ) : (
-            <Circle size={12} className="text-sidebar-foreground-muted/40" />
+            <Circle size={12} className="text-sidebar-foreground-muted/40 group-hover:text-sidebar-foreground-muted/60 transition-colors duration-200" />
           )}
         </div>
 
         {/* Content */}
         <p className={cn(
-          "flex-1 text-[11px] leading-relaxed",
+          "flex-1 text-[11px] leading-snug",
           isCompleted
             ? "line-through text-sidebar-foreground-muted/60"
-            : "text-sidebar-foreground-muted/90"
+            : "text-sidebar-foreground-muted/90 group-hover:text-sidebar-foreground transition-colors duration-200"
         )}>
           {todo.content}
         </p>

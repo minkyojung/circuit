@@ -13,6 +13,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
+import { ConversationTabs } from "@/components/conversation/ConversationTabs"
 import { Separator } from "@/components/ui/separator"
 import {
   SidebarInset,
@@ -77,6 +78,7 @@ function App() {
   })
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
   const [todoPanelRefreshTrigger, setTodoPanelRefreshTrigger] = useState<number>(0)
+  const [currentRepository, setCurrentRepository] = useState<any>(null)
 
   // Workspace navigation refs (for keyboard shortcuts)
   const workspacesRef = useRef<Workspace[]>([])
@@ -145,10 +147,13 @@ function App() {
     checkCircuitConfig()
   }, [projectPath])
 
-  // Extract repository name from project path
+  // Extract repository name from current repository or project path
   const repositoryName = useMemo(() => {
+    if (currentRepository?.name) {
+      return currentRepository.name
+    }
     return projectPath.split('/').filter(Boolean).pop() || 'Unknown Repository'
-  }, [projectPath])
+  }, [currentRepository, projectPath])
 
   // Handle file selection from sidebar
   const handleFileSelect = (filePath: string) => {
@@ -231,6 +236,7 @@ function App() {
           selectedFile={selectedFile}
           onFileSelect={handleFileSelect}
           onWorkspacesLoaded={setWorkspacesForShortcuts}
+          onRepositoryChange={setCurrentRepository}
         />
         <SidebarInset className={cn(
           "bg-card transition-[border-radius] duration-300",
@@ -254,30 +260,12 @@ function App() {
               <LeftSidebarToggle />
               <Separator orientation="vertical" className="mr-2 h-4" />
               {selectedWorkspace ? (
-                <Breadcrumb>
-                  <BreadcrumbList>
-                    <BreadcrumbItem>
-                      <BreadcrumbLink
-                        onClick={() => setSelectedWorkspace(null)}
-                        className="cursor-pointer text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        {repositoryName}
-                      </BreadcrumbLink>
-                    </BreadcrumbItem>
-                    <BreadcrumbSeparator />
-                    <BreadcrumbItem>
-                      <BreadcrumbPage className="font-medium text-muted-foreground">
-                        {selectedWorkspace.name}
-                      </BreadcrumbPage>
-                    </BreadcrumbItem>
-                    <BreadcrumbSeparator />
-                    <BreadcrumbItem>
-                      <BreadcrumbPage className="text-muted-foreground">
-                        {selectedWorkspace.branch}
-                      </BreadcrumbPage>
-                    </BreadcrumbItem>
-                  </BreadcrumbList>
-                </Breadcrumb>
+                <ConversationTabs
+                  workspaceId={selectedWorkspace.id}
+                  workspaceName={selectedWorkspace.name}
+                  activeConversationId={activeConversationId}
+                  onConversationChange={setActiveConversationId}
+                />
               ) : (
                 <Breadcrumb>
                   <BreadcrumbList>
@@ -325,6 +313,7 @@ function App() {
                   selectedFile={selectedFile}
                   prefillMessage={chatPrefillMessage}
                   onPrefillCleared={() => setChatPrefillMessage(null)}
+                  conversationId={activeConversationId}
                   onConversationChange={setActiveConversationId}
                   onPlanAdded={() => setTodoPanelRefreshTrigger(prev => prev + 1)}
                 />

@@ -39,7 +39,7 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ block, onCopy }) => {
   const [bookmarked, setBookmarked] = useState(false)
   const [lightHtml, setLightHtml] = useState<string>('')
   const [darkHtml, setDarkHtml] = useState<string>('')
-  const [isExpanded, setIsExpanded] = useState(false)
+  const [isExpanded, setIsExpanded] = useState(true)
   const [isHighlighting, setIsHighlighting] = useState(true)
 
   const language = block.metadata.language || 'plaintext'
@@ -112,7 +112,7 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ block, onCopy }) => {
   }
 
   return (
-    <div className="group relative overflow-hidden rounded-lg border border-[var(--code-border)] bg-[var(--code-bg)]">
+    <div className="group relative overflow-hidden rounded-lg border border-[var(--code-border)] bg-[var(--code-header)]">
       {/* Header with file info and actions */}
       <div className="group/header relative">
         <div

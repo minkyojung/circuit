@@ -38,6 +38,7 @@ interface WorkspaceChatEditorProps {
   workspace: Workspace;
   selectedFile: string | null;
   prefillMessage?: string | null;
+  conversationId?: string | null;
   onPrefillCleared?: () => void;
   onConversationChange?: (conversationId: string | null) => void;
   onPlanAdded?: () => void;
@@ -49,6 +50,7 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
   workspace,
   selectedFile,
   prefillMessage = null,
+  conversationId: externalConversationId = null,
   onPrefillCleared,
   onConversationChange,
   onPlanAdded
@@ -116,6 +118,7 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
             sessionId={sessionId}
             onFileEdit={handleFileEdit}
             prefillMessage={prefillMessage}
+            externalConversationId={externalConversationId}
             onPrefillCleared={onPrefillCleared}
             onConversationChange={onConversationChange}
             onPlanAdded={onPlanAdded}
@@ -145,6 +148,7 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
               sessionId={sessionId}
               onFileEdit={handleFileEdit}
               prefillMessage={prefillMessage}
+              externalConversationId={externalConversationId}
               onPrefillCleared={onPrefillCleared}
               onConversationChange={onConversationChange}
               onPlanAdded={onPlanAdded}
@@ -175,6 +179,7 @@ interface ChatPanelProps {
   sessionId: string | null;
   onFileEdit: (filePath: string) => void;
   prefillMessage?: string | null;
+  externalConversationId?: string | null;
   onPrefillCleared?: () => void;
   onConversationChange?: (conversationId: string | null) => void;
   onPlanAdded?: () => void;
@@ -187,6 +192,7 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   sessionId,
   onFileEdit,
   prefillMessage,
+  externalConversationId,
   onPrefillCleared,
   onConversationChange,
   onPlanAdded
@@ -234,37 +240,50 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   // Real-time duration for in-progress message
   const [currentDuration, setCurrentDuration] = useState<number>(0);
 
-  // Load conversation when workspace changes
+  // Load conversation when workspace or externalConversationId changes
   useEffect(() => {
     const loadConversation = async () => {
       setIsLoadingConversation(true);
 
       try {
         console.log('[ChatPanel] Loading conversation for workspace:', workspace.id);
+        console.log('[ChatPanel] External conversation ID:', externalConversationId);
 
-        // 1. Get active conversation for this workspace
-        const activeResult = await ipcRenderer.invoke('conversation:get-active', workspace.id);
+        let conversation;
 
-        let conversation = activeResult.conversation;
+        // 1. If externalConversationId is provided, use it directly
+        if (externalConversationId) {
+          console.log('[ChatPanel] Using external conversation ID:', externalConversationId);
+          conversation = { id: externalConversationId };
+        } else {
+          // 2. Otherwise, get active conversation for this workspace
+          const activeResult = await ipcRenderer.invoke('conversation:get-active', workspace.id);
+          conversation = activeResult.conversation;
 
-        // 2. If no active conversation, create a new one
-        if (!conversation) {
-          console.log('[ChatPanel] No active conversation found, creating new one');
-          const createResult = await ipcRenderer.invoke('conversation:create', workspace.id);
-          conversation = createResult.conversation;
+          // 3. If no active conversation, create a new one
+          if (!conversation) {
+            console.log('[ChatPanel] No active conversation found, creating new one');
+            const createResult = await ipcRenderer.invoke('conversation:create', workspace.id);
+            conversation = createResult.conversation;
+          }
         }
 
         console.log('[ChatPanel] Loaded conversation:', conversation.id);
         setConversationId(conversation.id);
 
-        // 3. Load messages for this conversation
+        // Notify parent about conversation change
+        if (onConversationChange && conversation.id !== externalConversationId) {
+          onConversationChange(conversation.id);
+        }
+
+        // 4. Load messages for this conversation
         const messagesResult = await ipcRenderer.invoke('message:load', conversation.id);
         const loadedMessages = messagesResult.messages || [];
 
         console.log('[ChatPanel] Loaded', loadedMessages.length, 'messages');
         setMessages(loadedMessages);
 
-        // 4. Restore thinking steps from message metadata
+        // 5. Restore thinking steps from message metadata
         const restoredSteps: Record<string, { steps: ThinkingStep[], duration: number }> = {};
         loadedMessages.forEach((msg: Message) => {
           if (msg.role === 'assistant' && msg.metadata) {
@@ -293,7 +312,7 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
     };
 
     loadConversation();
-  }, [workspace.id]);
+  }, [workspace.id, externalConversationId]);
 
   // Sync refs with latest state (to avoid stale closures)
   useEffect(() => {

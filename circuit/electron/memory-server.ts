@@ -485,6 +485,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           value,
           priority,
           metadata,
+          scope: 'global', // Default to global for MCP server
         })
 
         return {
