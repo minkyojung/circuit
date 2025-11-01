@@ -41,9 +41,11 @@ export function MemoryTestPanel({ workspace, conversationId }: MemoryTestPanelPr
       const result = await ipcRenderer.invoke('circuit:memory-store', {
         projectPath: workspace.path,
         key: `${testKey}-global-${Date.now()}`,
-        value: { message: testValue, type: 'global', timestamp: Date.now() },
+        value: JSON.stringify({ message: testValue, type: 'global', timestamp: Date.now() }),
+        type: 'note',
+        priority: 'medium',
         scope: 'global',
-        tags: ['test', 'global']
+        metadata: JSON.stringify({ tags: ['test', 'global'] })
       })
 
       if (result.success) {
@@ -73,10 +75,12 @@ export function MemoryTestPanel({ workspace, conversationId }: MemoryTestPanelPr
       const result = await ipcRenderer.invoke('circuit:memory-store', {
         projectPath: workspace.path,
         key: `${testKey}-conv-${Date.now()}`,
-        value: { message: testValue, type: 'conversation', timestamp: Date.now() },
+        value: JSON.stringify({ message: testValue, type: 'conversation', timestamp: Date.now() }),
+        type: 'note',
+        priority: 'medium',
         scope: 'conversation',
         conversationId,
-        tags: ['test', 'conversation']
+        metadata: JSON.stringify({ tags: ['test', 'conversation'] })
       })
 
       if (result.success) {
