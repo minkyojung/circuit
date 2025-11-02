@@ -1,5 +1,4 @@
 import { useEffect, useRef } from 'react'
-import '@xterm/xterm/css/xterm.css'
 import { useTerminal } from '@/contexts/TerminalContext'
 import type { Workspace } from '@/types/workspace'
 

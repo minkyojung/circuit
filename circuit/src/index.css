@@ -202,8 +202,24 @@
     --xterm-padding: 0;
   }
 
-  /* Override xterm.css default background - ALL layers must be transparent */
-  .xterm,
+  /* Base xterm styles (essential from xterm.css) */
+  .xterm {
+    cursor: text;
+    position: relative;
+    user-select: none;
+    -ms-user-select: none;
+    -webkit-user-select: none;
+    padding: var(--xterm-padding);
+    font-weight: var(--xterm-font-weight) !important;
+    background: var(--xterm-background) !important;
+  }
+
+  .xterm.focus,
+  .xterm:focus {
+    outline: none;
+  }
+
+  /* Override xterm internal layers - ALL must be transparent */
   .xterm .xterm-viewport,
   .xterm .xterm-screen,
   .xterm .xterm-rows,
@@ -212,11 +228,6 @@
   .xterm .xterm-decoration-container {
     background-color: var(--xterm-background) !important;
     background: var(--xterm-background) !important;
-  }
-
-  .xterm {
-    padding: var(--xterm-padding);
-    font-weight: var(--xterm-font-weight) !important;
   }
 
   /* Force WebGL canvas transparency */
