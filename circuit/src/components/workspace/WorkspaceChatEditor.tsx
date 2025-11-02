@@ -3,7 +3,7 @@ import type { Workspace } from '@/types/workspace';
 import type { Message } from '@/types/conversation';
 import Editor, { loader } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
-import { Columns2, Maximize2, ChevronDown, Copy, Check, Paperclip } from 'lucide-react';
+import { ChevronDown, Copy, Check, Paperclip } from 'lucide-react';
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -140,8 +140,6 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
             workspace={workspace}
             openFiles={openFiles}
             selectedFile={selectedFile}
-            onToggleSplit={() => onViewModeChange?.('split')}
-            isSplitMode={false}
             onCloseFile={handleCloseFile}
             onUnsavedChange={onUnsavedChange}
           />
@@ -169,8 +167,6 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
               workspace={workspace}
               openFiles={openFiles}
               selectedFile={selectedFile}
-              onToggleSplit={() => onViewModeChange?.('editor')}
-              isSplitMode={true}
               onCloseFile={handleCloseFile}
               onUnsavedChange={onUnsavedChange}
             />
@@ -1496,8 +1492,6 @@ interface EditorPanelProps {
   workspace: Workspace;
   openFiles: string[];
   selectedFile: string | null;
-  onToggleSplit?: () => void;
-  isSplitMode?: boolean;
   onCloseFile?: (filePath: string) => void;
   onUnsavedChange?: (filePath: string, hasChanges: boolean) => void;
 }
@@ -1506,8 +1500,6 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
   workspace,
   openFiles,
   selectedFile,
-  onToggleSplit,
-  isSplitMode = false,
   onCloseFile,
   onUnsavedChange,
 }) => {
@@ -1625,26 +1617,6 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
 
   return (
     <div className="h-full flex flex-col">
-      {/* Editor Toolbar */}
-      <div className="h-[40px] border-b border-border flex items-center justify-end px-4 bg-card">
-        <div className="flex items-center gap-2">
-          {/* Split View Toggle Button */}
-          {onToggleSplit && (
-            <button
-              onClick={onToggleSplit}
-              className="flex items-center justify-center p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary rounded transition-colors"
-              title={isSplitMode ? "Editor Only" : "Show Chat"}
-            >
-              {isSplitMode ? (
-                <Maximize2 size={16} />
-              ) : (
-                <Columns2 size={16} />
-              )}
-            </button>
-          )}
-        </div>
-      </div>
-
       {/* Editor Content */}
       <div className="flex-1 flex items-center justify-center text-muted-foreground">
         {!activeFile ? (
