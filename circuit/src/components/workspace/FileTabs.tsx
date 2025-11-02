@@ -111,14 +111,14 @@ export function FileTabs({
               className={cn(
                 'ml-1 p-0.5 rounded transition-all',
                 file.unsavedChanges
-                  ? 'text-warning hover:bg-warning/20'
+                  ? 'text-foreground hover:bg-secondary'
                   : 'hover:bg-destructive/20 hover:text-destructive',
                 isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
               )}
               title={file.unsavedChanges ? 'Unsaved changes - Click to close' : 'Close file'}
             >
               {file.unsavedChanges ? (
-                <Circle size={14} fill="currentColor" />
+                <Circle size={8} fill="currentColor" />
               ) : (
                 <X size={14} />
               )}
