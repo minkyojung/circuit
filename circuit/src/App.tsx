@@ -388,10 +388,21 @@ function App() {
         </SidebarInset>
       </SidebarProvider>
 
+      {/* Resize Handle - Between main area and TodoPanel */}
+      {isRightSidebarOpen && (
+        <div
+          onMouseDown={handleResizeStart}
+          className={cn(
+            "h-full w-1 cursor-col-resize hover:bg-accent transition-colors z-50 flex-shrink-0",
+            isResizing && "bg-accent"
+          )}
+        />
+      )}
+
       {/* Right Sidebar - Todo Panel */}
       <div
         className={cn(
-          "h-full overflow-hidden relative",
+          "h-full overflow-hidden",
           isRightSidebarOpen ? "" : "w-0"
         )}
         style={{
@@ -399,17 +410,6 @@ function App() {
           transition: isResizing ? 'none' : 'width 0.3s ease-in-out'
         }}
       >
-        {/* Resize Handle */}
-        {isRightSidebarOpen && (
-          <div
-            onMouseDown={handleResizeStart}
-            className={cn(
-              "absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-accent transition-colors z-50",
-              isResizing && "bg-accent"
-            )}
-          />
-        )}
-
         <TodoPanel
           conversationId={activeConversationId}
           refreshTrigger={todoPanelRefreshTrigger}
