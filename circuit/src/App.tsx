@@ -388,12 +388,12 @@ function App() {
         </SidebarInset>
       </SidebarProvider>
 
-      {/* Resize Handle - Between main area and TodoPanel */}
+      {/* Resize Handle - Overlapping main area border */}
       {isRightSidebarOpen && (
         <div
           onMouseDown={handleResizeStart}
           className={cn(
-            "h-full w-1 cursor-col-resize hover:bg-accent transition-colors z-50 flex-shrink-0",
+            "h-full w-1 -ml-1 cursor-col-resize hover:bg-accent transition-colors z-50 flex-shrink-0",
             isResizing && "bg-accent"
           )}
         />
