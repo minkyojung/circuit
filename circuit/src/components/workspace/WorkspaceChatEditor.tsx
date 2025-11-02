@@ -1195,7 +1195,7 @@ The plan is ready. What would you like to do?`,
                 <div
                   className={`max-w-[75%] ${
                     msg.role === 'user'
-                      ? 'bg-secondary p-4 rounded-xl border border-border'
+                      ? 'bg-secondary px-3 py-2 rounded-xl border border-border'
                       : ''
                   }`}
                 >
