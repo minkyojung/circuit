@@ -90,18 +90,10 @@ export function Terminal({ workspace }: TerminalProps) {
           console.error('[Terminal] Failed to fit terminal:', error)
         }
 
-        // Send initial prompt trigger to ensure content is visible
-        // PTY may output prompt before terminal is ready to display
-        if (!terminalData.hasInitialized && isMounted) {
-          terminalData.hasInitialized = true
-          console.log('[Terminal] Sending initial prompt trigger')
-          // Small delay to ensure terminal is fully initialized
-          setTimeout(() => {
-            if (isMounted) {
-              ipcRenderer.invoke('terminal:write', workspace.id, '\r')
-            }
-          }, 100)
-        }
+        // Mark as initialized
+        // Canvas addon loaded before open() ensures PTY output renders correctly
+        terminalData.hasInitialized = true
+        console.log('[Terminal] Terminal initialized and ready')
       } else if (terminal.element && terminalRef.current && isMounted) {
         // Terminal was previously attached, re-attach it
         console.log('[Terminal] Re-attaching terminal element for workspace:', workspace.id)
