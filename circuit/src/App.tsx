@@ -21,7 +21,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import type { Workspace } from "@/types/workspace"
-import { PanelLeft, PanelRight, FolderGit2 } from 'lucide-react'
+import { PanelLeft, PanelRight, FolderGit2, Columns2, Maximize2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
@@ -44,26 +44,6 @@ const ProjectPathContext = createContext<ProjectPathContextValue>({
 })
 
 export const useProjectPath = () => useContext(ProjectPathContext)
-
-// Custom sidebar toggle button component
-function LeftSidebarToggle() {
-  const { state, toggleSidebar } = useSidebar()
-
-  return (
-    <button
-      onClick={toggleSidebar}
-      className={cn(
-        "flex h-7 w-7 items-center justify-center rounded-md transition-colors",
-        state === "expanded"
-          ? "text-foreground hover:bg-sidebar-hover"
-          : "text-muted-foreground hover:bg-sidebar-hover hover:text-foreground"
-      )}
-      title={state === "expanded" ? "Collapse sidebar" : "Expand sidebar"}
-    >
-      <PanelLeft size={16} />
-    </button>
-  )
-}
 
 function App() {
   const [projectPath, setProjectPath] = useState<string>('')
@@ -359,8 +339,36 @@ function App() {
               className="flex items-center gap-2"
               style={{ WebkitAppRegion: 'no-drag' } as any}
             >
-              <LeftSidebarToggle />
-              <Separator orientation="vertical" className="mr-2 h-4" />
+              {/* View mode toggle button - shows based on current mode */}
+              {selectedWorkspace && openFiles.length > 0 && (
+                <>
+                  {viewMode === 'editor' && (
+                    <button
+                      onClick={() => setViewMode('split')}
+                      className={cn(
+                        "flex h-7 w-7 items-center justify-center rounded-md transition-colors",
+                        "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+                      )}
+                      title="Show Chat"
+                    >
+                      <Columns2 size={16} />
+                    </button>
+                  )}
+                  {viewMode === 'split' && (
+                    <button
+                      onClick={() => setViewMode('editor')}
+                      className={cn(
+                        "flex h-7 w-7 items-center justify-center rounded-md transition-colors",
+                        "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+                      )}
+                      title="Editor Only"
+                    >
+                      <Maximize2 size={16} />
+                    </button>
+                  )}
+                  <Separator orientation="vertical" className="mr-2 h-4" />
+                </>
+              )}
               {selectedWorkspace ? (
                 <UnifiedTabs
                   workspaceId={selectedWorkspace.id}
@@ -374,8 +382,6 @@ function App() {
                   activeFilePath={activeFilePath}
                   onFileChange={setActiveFilePath}
                   onCloseFile={handleCloseFile}
-                  viewMode={viewMode}
-                  onViewModeChange={setViewMode}
                 />
               ) : (
                 <Breadcrumb>
