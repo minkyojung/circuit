@@ -66,10 +66,21 @@ export function Terminal({ workspace }: TerminalProps) {
         terminalData.isAttached = true
 
         // Load WebGL renderer for better performance (3-5x faster than canvas)
+        // Note: WebGL renderer with transparency requires careful setup
         try {
           const { WebglAddon } = await import('@xterm/addon-webgl')
-          terminal.loadAddon(new WebglAddon())
-          console.log('[Terminal] WebGL renderer loaded')
+          const webglAddon = new WebglAddon()
+          terminal.loadAddon(webglAddon)
+
+          // Force transparency by setting CSS after WebGL loads
+          setTimeout(() => {
+            const canvases = terminalRef.current?.querySelectorAll('canvas')
+            canvases?.forEach(canvas => {
+              canvas.style.backgroundColor = 'transparent'
+            })
+          }, 100)
+
+          console.log('[Terminal] WebGL renderer loaded with transparency')
         } catch (e) {
           console.warn('[Terminal] WebGL not supported, using canvas renderer:', e)
         }

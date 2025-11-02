@@ -151,18 +151,29 @@ export function TerminalProvider({ children }: TerminalProviderProps) {
     console.log(`[TerminalContext] Creating new terminal for workspace: ${workspaceId}`)
 
     try {
+      // Get CSS variables for theme colors
+      const rootStyles = getComputedStyle(document.documentElement)
+      const getCSSVar = (varName: string) => {
+        const value = rootStyles.getPropertyValue(varName).trim()
+        // If it's HSL values without hsl(), wrap it
+        if (value && !value.startsWith('#') && !value.startsWith('rgb') && !value.startsWith('hsl')) {
+          return `hsl(${value})`
+        }
+        return value
+      }
+
       // Create xterm.js instance (will be attached to DOM later)
       const terminal = new XTermTerminal({
         cursorBlink: true,
         fontSize: 13,
         fontFamily: '"JetBrains Mono", Menlo, Monaco, "Courier New", monospace',
         theme: {
-          background: 'transparent',
-          foreground: 'hsl(var(--sidebar-foreground))',
-          cursor: 'hsl(var(--primary))',
-          cursorAccent: 'hsl(var(--sidebar-background))',
-          selectionBackground: 'hsl(var(--accent) / 0.3)',
-          selectionForeground: 'hsl(var(--sidebar-foreground))',
+          // Don't set background - let CSS handle transparency with allowTransparency
+          foreground: getCSSVar('--sidebar-foreground'),
+          cursor: getCSSVar('--primary'),
+          cursorAccent: getCSSVar('--sidebar-background'),
+          selectionBackground: getCSSVar('--accent').replace(')', ' / 0.3)'), // Add 30% opacity
+          selectionForeground: getCSSVar('--sidebar-foreground'),
           black: '#2e3436',
           red: '#cc0000',
           green: '#4e9a06',
