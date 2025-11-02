@@ -90,6 +90,8 @@ export interface BlockMetadata {
   // Error blocks
   errorType?: string
   stack?: string
+  suggestedFix?: string
+  errorCode?: string | number
 
   // Diagram blocks
   diagramType?: 'mermaid' | 'graphviz'
@@ -110,6 +112,8 @@ export interface BlockMetadata {
   args?: Record<string, unknown>
   result?: unknown
   error?: unknown
+  duration?: number  // Execution duration in milliseconds
+  status?: 'pending' | 'running' | 'success' | 'error'
 }
 
 /**
