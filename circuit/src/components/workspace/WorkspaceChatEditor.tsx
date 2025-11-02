@@ -1679,19 +1679,13 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
           {onToggleSplit && (
             <button
               onClick={onToggleSplit}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-secondary rounded transition-colors"
-              title={isSplitMode ? "Hide chat" : "Show chat"}
+              className="flex items-center justify-center p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary rounded transition-colors"
+              title={isSplitMode ? "Editor Only" : "Show Chat"}
             >
               {isSplitMode ? (
-                <>
-                  <Maximize2 size={14} />
-                  <span>Editor Only</span>
-                </>
+                <Maximize2 size={16} />
               ) : (
-                <>
-                  <Columns2 size={14} />
-                  <span>Show Chat</span>
-                </>
+                <Columns2 size={16} />
               )}
             </button>
           )}
