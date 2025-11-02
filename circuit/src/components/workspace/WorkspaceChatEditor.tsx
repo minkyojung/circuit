@@ -27,7 +27,6 @@ import {
   calculateTotalTime
 } from '@/lib/planModeUtils';
 import type { TodoGenerationResult, TodoDraft, ExecutionMode } from '@/types/todo';
-import { FileTabs, type OpenFile } from './FileTabs';
 import { getLanguageFromFilePath } from '@/lib/fileUtils';
 
 // Configure Monaco Editor to use local files instead of CDN
@@ -1656,22 +1655,8 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activeFile, hasUnsavedChanges, fileContent]);
 
-  // Build OpenFile array for FileTabs
-  const openFilesWithState: OpenFile[] = openFiles.map(filePath => ({
-    path: filePath,
-    unsavedChanges: unsavedChanges.get(filePath) || false
-  }));
-
   return (
     <div className="h-full flex flex-col">
-      {/* File Tabs */}
-      <FileTabs
-        openFiles={openFilesWithState}
-        activeFilePath={activeFile}
-        onFileChange={handleFileChange}
-        onCloseFile={handleCloseFile}
-      />
-
       {/* Editor Toolbar */}
       <div className="h-[40px] border-b border-border flex items-center justify-end px-4 bg-card">
         <div className="flex items-center gap-2">

@@ -13,7 +13,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
-import { ConversationTabs } from "@/components/conversation/ConversationTabs"
+import { UnifiedTabs, type OpenFile } from "@/components/workspace/UnifiedTabs"
 import { Separator } from "@/components/ui/separator"
 import {
   SidebarInset,
@@ -85,6 +85,10 @@ function App() {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
   const [todoPanelRefreshTrigger, setTodoPanelRefreshTrigger] = useState<number>(0)
   const [currentRepository, setCurrentRepository] = useState<any>(null)
+
+  // File tabs state (lifted from WorkspaceChatEditor)
+  const [openFiles, setOpenFiles] = useState<string[]>([])
+  const [activeFilePath, setActiveFilePath] = useState<string | null>(null)
 
   // Workspace navigation refs (for keyboard shortcuts)
   const workspacesRef = useRef<Workspace[]>([])
@@ -194,12 +198,37 @@ function App() {
   const handleFileSelect = (filePath: string) => {
     console.log('[App] File selected:', filePath)
     setSelectedFile(filePath)
+    setActiveFilePath(filePath)
+
+    // Add to openFiles if not already there
+    if (!openFiles.includes(filePath)) {
+      setOpenFiles([...openFiles, filePath])
+    }
   }
 
-  // Reset selected file and conversation when workspace changes
+  // Handle file close from unified tabs
+  const handleCloseFile = (filePath: string) => {
+    setOpenFiles(openFiles.filter(f => f !== filePath))
+
+    // If closing active file, switch to another file
+    if (filePath === activeFilePath) {
+      const remainingFiles = openFiles.filter(f => f !== filePath)
+      if (remainingFiles.length > 0) {
+        setActiveFilePath(remainingFiles[0])
+        setSelectedFile(remainingFiles[0])
+      } else {
+        setActiveFilePath(null)
+        setSelectedFile(null)
+      }
+    }
+  }
+
+  // Reset selected file, conversation, and file tabs when workspace changes
   useEffect(() => {
     setSelectedFile(null)
     setActiveConversationId(null)
+    setOpenFiles([])
+    setActiveFilePath(null)
   }, [selectedWorkspace?.id])
 
   // Keyboard shortcuts
@@ -297,11 +326,15 @@ function App() {
               <LeftSidebarToggle />
               <Separator orientation="vertical" className="mr-2 h-4" />
               {selectedWorkspace ? (
-                <ConversationTabs
+                <UnifiedTabs
                   workspaceId={selectedWorkspace.id}
                   workspaceName={selectedWorkspace.name}
                   activeConversationId={activeConversationId}
                   onConversationChange={setActiveConversationId}
+                  openFiles={openFiles.map(path => ({ path, unsavedChanges: false }))}
+                  activeFilePath={activeFilePath}
+                  onFileChange={setActiveFilePath}
+                  onCloseFile={handleCloseFile}
                 />
               ) : (
                 <Breadcrumb>
