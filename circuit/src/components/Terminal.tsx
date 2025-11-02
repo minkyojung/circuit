@@ -21,6 +21,7 @@ export function Terminal({ workspace }: TerminalProps) {
 
     let isMounted = true
     let resizeObserver: ResizeObserver | null = null
+    let initPromptTimer: NodeJS.Timeout | null = null
 
     const initTerminal = async () => {
       console.log('[Terminal] Initializing terminal for workspace:', workspace.id, workspace.path)
@@ -90,10 +91,17 @@ export function Terminal({ workspace }: TerminalProps) {
           console.error('[Terminal] Failed to fit terminal:', error)
         }
 
-        // Mark as initialized
-        // Canvas addon loaded before open() ensures PTY output renders correctly
-        terminalData.hasInitialized = true
-        console.log('[Terminal] Terminal initialized and ready')
+        // Send initial prompt trigger to display shell prompt
+        // PTY outputs prompt immediately but xterm may not be ready to render
+        if (!terminalData.hasInitialized && isMounted) {
+          terminalData.hasInitialized = true
+          console.log('[Terminal] Sending initial prompt trigger')
+          initPromptTimer = setTimeout(() => {
+            if (isMounted) {
+              ipcRenderer.invoke('terminal:write', workspace.id, '\r')
+            }
+          }, 150)
+        }
       } else if (terminal.element && terminalRef.current && isMounted) {
         // Terminal was previously attached, re-attach it
         console.log('[Terminal] Re-attaching terminal element for workspace:', workspace.id)
@@ -154,6 +162,9 @@ export function Terminal({ workspace }: TerminalProps) {
     // Cleanup function to prevent memory leaks and duplicate operations
     return () => {
       isMounted = false
+      if (initPromptTimer) {
+        clearTimeout(initPromptTimer)
+      }
       if (resizeObserver) {
         resizeObserver.disconnect()
       }
