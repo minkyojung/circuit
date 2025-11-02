@@ -170,6 +170,8 @@ export function TerminalProvider({ children }: TerminalProviderProps) {
         cursorBlink: true,
         fontSize: 13,
         fontFamily: '"JetBrains Mono", Menlo, Monaco, "Courier New", monospace',
+        fontWeight: '300',
+        fontWeightBold: '600',
         theme: {
           // Don't set background - let CSS handle transparency with allowTransparency
           foreground: getCSSVar('--sidebar-foreground'),
