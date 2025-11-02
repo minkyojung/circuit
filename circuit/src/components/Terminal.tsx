@@ -95,15 +95,20 @@ export function Terminal({ workspace }: TerminalProps) {
         console.log('[Terminal] Terminal initialized, waiting for shell prompt')
       } else if (terminal.element && terminalRef.current && isMounted) {
         // Terminal was previously attached, re-attach it
-        console.log('[Terminal] Re-attaching terminal element')
+        console.log('[Terminal] Re-attaching terminal element for workspace:', workspace.id)
+        console.log('[Terminal] Terminal instance ID:', terminal === terminalData.terminal ? 'same' : 'different')
+        console.log('[Terminal] Has terminal element:', !!terminal.element)
+        console.log('[Terminal] Current container children:', terminalRef.current.children.length)
 
         // Clear previous terminal content from container
         while (terminalRef.current.firstChild) {
           terminalRef.current.removeChild(terminalRef.current.firstChild)
         }
+        console.log('[Terminal] Cleared container, now has:', terminalRef.current.children.length, 'children')
 
         // Append the terminal element for this workspace
         terminalRef.current.appendChild(terminal.element)
+        console.log('[Terminal] Appended terminal element, now has:', terminalRef.current.children.length, 'children')
 
         // Re-fit
         try {

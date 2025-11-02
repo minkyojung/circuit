@@ -312,7 +312,7 @@ export function TodoPanel({ conversationId, refreshTrigger, workspace, onCommit 
 
           {/* Terminal Content */}
           <div className="h-[450px] overflow-hidden bg-transparent">
-            <Terminal workspace={workspace} />
+            <Terminal key={workspace.id} workspace={workspace} />
           </div>
         </div>
       )}
