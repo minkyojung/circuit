@@ -171,7 +171,7 @@ export function TerminalProvider({ children }: TerminalProviderProps) {
       // Create xterm.js instance (will be attached to DOM later)
       const terminal = new XTermTerminal({
         cursorBlink: true,
-        fontSize: 13,
+        fontSize: 12,
         fontFamily: '"SF Mono", SFMono-Regular, ui-monospace, "Cascadia Code", Menlo, Monaco, "Courier New", monospace',
         fontWeight: '300',
         fontWeightBold: '600',

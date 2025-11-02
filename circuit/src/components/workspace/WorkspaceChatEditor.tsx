@@ -1717,8 +1717,9 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
                 options={{
                   readOnly: false,
                   minimap: { enabled: false },
-                  fontSize: 13,
+                  fontSize: 12,
                   fontFamily: '"SF Mono", SFMono-Regular, ui-monospace, "Cascadia Code", Menlo, Monaco, "Courier New", monospace',
+                  fontWeight: '300',
                   lineNumbers: 'on',
                   scrollBeyondLastLine: false,
                   automaticLayout: true,
