@@ -109,7 +109,7 @@ export function FileTabs({
                 onCloseFile(file.path)
               }}
               className={cn(
-                'ml-1 p-0.5 rounded transition-all',
+                'ml-1 w-5 h-5 flex items-center justify-center rounded transition-all flex-shrink-0',
                 file.unsavedChanges
                   ? 'text-foreground hover:bg-secondary'
                   : 'hover:bg-destructive/20 hover:text-destructive',
