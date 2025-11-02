@@ -37,6 +37,7 @@
     "@react-symbols/icons": "^1.2.10",
     "@tanstack/react-virtual": "^3.13.12",
     "@types/prismjs": "^1.26.5",
+    "@xterm/addon-canvas": "^0.7.0",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/addon-web-links": "^0.11.0",
     "@xterm/addon-webgl": "^0.18.0",
