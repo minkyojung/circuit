@@ -89,9 +89,13 @@ export function Terminal({ workspace }: TerminalProps) {
           console.error('[Terminal] Failed to fit terminal:', error)
         }
 
-        // Mark as initialized (shell automatically shows prompt)
+        // Send initial enter to trigger prompt display (only once per terminal session)
         if (!terminalData.hasInitialized) {
           terminalData.hasInitialized = true
+          console.log('[Terminal] Sending initial enter to trigger prompt')
+          setTimeout(() => {
+            ipcRenderer.invoke('terminal:write', workspace.id, '\r')
+          }, 300)
         }
       } else if (terminal.element && terminalRef.current) {
         // Terminal was previously attached, re-attach it
