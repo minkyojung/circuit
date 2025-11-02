@@ -3,7 +3,7 @@ import type { Workspace } from '@/types/workspace';
 import type { Message } from '@/types/conversation';
 import Editor, { loader } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
-import { Columns2, Maximize2, Save, ChevronDown, Copy, Check, Paperclip } from 'lucide-react';
+import { Columns2, Maximize2, ChevronDown, Copy, Check, Paperclip } from 'lucide-react';
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -27,6 +27,8 @@ import {
   calculateTotalTime
 } from '@/lib/planModeUtils';
 import type { TodoGenerationResult, TodoDraft, ExecutionMode } from '@/types/todo';
+import { FileTabs, type OpenFile } from './FileTabs';
+import { getLanguageFromFilePath } from '@/lib/fileUtils';
 
 // Configure Monaco Editor to use local files instead of CDN
 loader.config({ monaco });
@@ -101,6 +103,11 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
     }
   };
 
+  // Handle file close
+  const handleCloseFile = (filePath: string) => {
+    setOpenFiles(openFiles.filter(f => f !== filePath));
+  };
+
   // Add selected file to open files when it changes
   useEffect(() => {
     if (selectedFile && !openFiles.includes(selectedFile)) {
@@ -135,6 +142,7 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
             selectedFile={selectedFile}
             onToggleSplit={() => setViewMode('split')}
             isSplitMode={false}
+            onCloseFile={handleCloseFile}
           />
         </div>
       )}
@@ -162,6 +170,7 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
               selectedFile={selectedFile}
               onToggleSplit={() => setViewMode('editor')}
               isSplitMode={true}
+              onCloseFile={handleCloseFile}
             />
           </ResizablePanel>
         </ResizablePanelGroup>
@@ -1487,46 +1496,66 @@ interface EditorPanelProps {
   selectedFile: string | null;
   onToggleSplit?: () => void;
   isSplitMode?: boolean;
+  onCloseFile?: (filePath: string) => void;
 }
 
 const EditorPanel: React.FC<EditorPanelProps> = ({
   workspace,
-  openFiles: _openFiles,
+  openFiles,
   selectedFile,
   onToggleSplit,
   isSplitMode = false,
+  onCloseFile,
 }) => {
-  const [fileContent, setFileContent] = useState<string>('');
+  const [activeFile, setActiveFile] = useState<string | null>(null);
+  const [fileContents, setFileContents] = useState<Map<string, string>>(new Map());
   const [isLoadingFile, setIsLoadingFile] = useState(false);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [unsavedChanges, setUnsavedChanges] = useState<Map<string, boolean>>(new Map());
   const [isSaving, setIsSaving] = useState(false);
 
-  const activeFile = selectedFile;
+  // Set active file when selectedFile changes (from sidebar)
+  useEffect(() => {
+    if (selectedFile && selectedFile !== activeFile) {
+      setActiveFile(selectedFile);
+    }
+  }, [selectedFile]);
+
+  // Set initial active file when openFiles changes
+  useEffect(() => {
+    if (!activeFile && openFiles.length > 0) {
+      setActiveFile(openFiles[0]);
+    }
+  }, [openFiles.length]);
+
+  const fileContent = activeFile ? fileContents.get(activeFile) || '' : '';
+  const hasUnsavedChanges = activeFile ? unsavedChanges.get(activeFile) || false : false;
 
   // Load file contents when active file changes
   useEffect(() => {
     if (!activeFile) {
-      setFileContent('');
-      setHasUnsavedChanges(false);
+      return;
+    }
+
+    // If file content already loaded, skip
+    if (fileContents.has(activeFile)) {
       return;
     }
 
     const loadFileContent = async () => {
       setIsLoadingFile(true);
-      setHasUnsavedChanges(false);
       try {
         console.log('[EditorPanel] Loading file:', activeFile);
         const result = await ipcRenderer.invoke('workspace:read-file', workspace.path, activeFile);
 
         if (result.success) {
-          setFileContent(result.content);
+          setFileContents(prev => new Map(prev).set(activeFile, result.content));
         } else {
           console.error('[EditorPanel] Failed to load file:', result.error);
-          setFileContent(`// Error loading file: ${result.error}`);
+          setFileContents(prev => new Map(prev).set(activeFile, `// Error loading file: ${result.error}`));
         }
       } catch (error) {
         console.error('[EditorPanel] Error loading file:', error);
-        setFileContent(`// Error: ${error}`);
+        setFileContents(prev => new Map(prev).set(activeFile, `// Error: ${error}`));
       } finally {
         setIsLoadingFile(false);
       }
@@ -1542,11 +1571,12 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
     setIsSaving(true);
     try {
       console.log('[EditorPanel] Saving file:', activeFile);
-      const result = await ipcRenderer.invoke('workspace:write-file', workspace.path, activeFile, fileContent);
+      const content = fileContents.get(activeFile) || '';
+      const result = await ipcRenderer.invoke('workspace:write-file', workspace.path, activeFile, content);
 
       if (result.success) {
         console.log('[EditorPanel] File saved successfully');
-        setHasUnsavedChanges(false);
+        setUnsavedChanges(prev => new Map(prev).set(activeFile, false));
       } else {
         console.error('[EditorPanel] Failed to save file:', result.error);
         alert(`Failed to save file: ${result.error}`);
@@ -1556,6 +1586,52 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
       alert(`Error saving file: ${error}`);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // Handle file change
+  const handleFileChange = (filePath: string) => {
+    setActiveFile(filePath);
+  };
+
+  // Handle close file
+  const handleCloseFile = (filePath: string) => {
+    // Check for unsaved changes
+    if (unsavedChanges.get(filePath)) {
+      const confirm = window.confirm(`File "${filePath}" has unsaved changes. Close anyway?`);
+      if (!confirm) return;
+    }
+
+    // Remove from state
+    setFileContents(prev => {
+      const next = new Map(prev);
+      next.delete(filePath);
+      return next;
+    });
+    setUnsavedChanges(prev => {
+      const next = new Map(prev);
+      next.delete(filePath);
+      return next;
+    });
+
+    // If closing active file, switch to another file
+    if (filePath === activeFile) {
+      const remainingFiles = openFiles.filter(f => f !== filePath);
+      setActiveFile(remainingFiles.length > 0 ? remainingFiles[0] : null);
+    }
+
+    // Notify parent
+    onCloseFile?.(filePath);
+  };
+
+  // Handle content change
+  const handleContentChange = (value: string | undefined) => {
+    if (!activeFile || value === undefined) return;
+
+    const currentContent = fileContents.get(activeFile) || '';
+    if (value !== currentContent) {
+      setFileContents(prev => new Map(prev).set(activeFile, value));
+      setUnsavedChanges(prev => new Map(prev).set(activeFile, true));
     }
   };
 
@@ -1572,38 +1648,25 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activeFile, hasUnsavedChanges, fileContent]);
 
+  // Build OpenFile array for FileTabs
+  const openFilesWithState: OpenFile[] = openFiles.map(filePath => ({
+    path: filePath,
+    unsavedChanges: unsavedChanges.get(filePath) || false
+  }));
+
   return (
     <div className="h-full flex flex-col">
-      {/* Editor Header */}
-      <div className="h-[50px] border-b border-border flex items-center justify-between px-4">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">Editor</span>
-          {activeFile && (
-            <>
-              <span className="text-xs text-muted-foreground">
-                {activeFile}
-              </span>
-              {hasUnsavedChanges && (
-                <span className="text-xs text-warning">• (unsaved)</span>
-              )}
-            </>
-          )}
-        </div>
+      {/* File Tabs */}
+      <FileTabs
+        openFiles={openFilesWithState}
+        activeFilePath={activeFile}
+        onFileChange={handleFileChange}
+        onCloseFile={handleCloseFile}
+      />
 
+      {/* Editor Toolbar */}
+      <div className="h-[40px] border-b border-border flex items-center justify-end px-4 bg-card">
         <div className="flex items-center gap-2">
-          {/* Save Button */}
-          {hasUnsavedChanges && (
-            <button
-              onClick={handleSaveFile}
-              disabled={isSaving}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-success hover:bg-success/90 disabled:bg-secondary disabled:cursor-not-allowed text-white rounded transition-colors"
-              title="Save file (Cmd+S)"
-            >
-              <Save size={14} />
-              <span>{isSaving ? 'Saving...' : 'Save'}</span>
-            </button>
-          )}
-
           {/* Split View Toggle Button */}
           {onToggleSplit && (
             <button
@@ -1643,15 +1706,11 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
             ) : (
               <Editor
                 height="100%"
+                key={activeFile} // Force remount on file change
                 defaultLanguage={getLanguageFromFilePath(activeFile || '')}
                 language={getLanguageFromFilePath(activeFile || '')}
                 value={fileContent}
-                onChange={(value) => {
-                  if (value !== undefined && value !== fileContent) {
-                    setFileContent(value);
-                    setHasUnsavedChanges(true);
-                  }
-                }}
+                onChange={handleContentChange}
                 theme="vs-dark"
                 options={{
                   readOnly: false,
@@ -1672,36 +1731,3 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
   );
 };
 
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-function getLanguageFromFilePath(filePath: string): string {
-  const ext = filePath.split('.').pop()?.toLowerCase();
-
-  const languageMap: Record<string, string> = {
-    'js': 'javascript',
-    'jsx': 'javascript',
-    'ts': 'typescript',
-    'tsx': 'typescript',
-    'py': 'python',
-    'json': 'json',
-    'md': 'markdown',
-    'html': 'html',
-    'css': 'css',
-    'scss': 'scss',
-    'yaml': 'yaml',
-    'yml': 'yaml',
-    'sh': 'shell',
-    'bash': 'shell',
-    'go': 'go',
-    'rs': 'rust',
-    'java': 'java',
-    'c': 'c',
-    'cpp': 'cpp',
-    'h': 'c',
-    'hpp': 'cpp',
-  };
-
-  return languageMap[ext || ''] || 'plaintext';
-}
