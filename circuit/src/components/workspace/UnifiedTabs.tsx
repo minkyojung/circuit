@@ -243,9 +243,9 @@ export function UnifiedTabs({
 
   return (
     <>
-      <div className="flex items-center gap-2 w-full">
-        {/* Left: Tabs area */}
-        <div className="flex items-center gap-2 flex-1 overflow-x-auto scrollbar-thin">
+      <div className="inline-flex items-center gap-2">
+        {/* Tabs area */}
+        <div className="flex items-center gap-2">
           {/* Conversation Tabs */}
           <div className="flex items-center gap-1">
         {conversations.map((conversation) => {

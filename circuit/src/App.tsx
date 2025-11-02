@@ -336,12 +336,15 @@ function App() {
             style={{ WebkitAppRegion: 'drag' } as any}
           >
             <div
-              className="flex items-center gap-2"
-              style={{ WebkitAppRegion: 'no-drag' } as any}
+              className="grid items-center gap-2 min-w-0"
+              style={{
+                WebkitAppRegion: 'no-drag',
+                gridTemplateColumns: selectedWorkspace && openFiles.length > 0 ? 'auto 1fr' : '1fr'
+              } as any}
             >
-              {/* View mode toggle button - shows based on current mode */}
+              {/* Column 1: View mode toggle button (auto width) */}
               {selectedWorkspace && openFiles.length > 0 && (
-                <>
+                <div className="flex items-center gap-2 shrink-0">
                   {viewMode === 'editor' && (
                     <button
                       onClick={() => setViewMode('split')}
@@ -367,33 +370,37 @@ function App() {
                     </button>
                   )}
                   <Separator orientation="vertical" className="mr-2 h-4" />
-                </>
+                </div>
               )}
-              {selectedWorkspace ? (
-                <UnifiedTabs
-                  workspaceId={selectedWorkspace.id}
-                  workspaceName={selectedWorkspace.name}
-                  activeConversationId={activeConversationId}
-                  onConversationChange={setActiveConversationId}
-                  openFiles={openFiles.map(path => ({
-                    path,
-                    unsavedChanges: unsavedFiles.has(path)
-                  }))}
-                  activeFilePath={activeFilePath}
-                  onFileChange={setActiveFilePath}
-                  onCloseFile={handleCloseFile}
-                />
-              ) : (
-                <Breadcrumb>
-                  <BreadcrumbList>
-                    <BreadcrumbItem>
-                      <BreadcrumbPage className="font-medium text-muted-foreground">
-                        {repositoryName}
-                      </BreadcrumbPage>
-                    </BreadcrumbItem>
-                  </BreadcrumbList>
-                </Breadcrumb>
-              )}
+
+              {/* Column 2: Tabs container (flexible with overflow) */}
+              <div className="min-w-0 overflow-x-auto">
+                {selectedWorkspace ? (
+                  <UnifiedTabs
+                    workspaceId={selectedWorkspace.id}
+                    workspaceName={selectedWorkspace.name}
+                    activeConversationId={activeConversationId}
+                    onConversationChange={setActiveConversationId}
+                    openFiles={openFiles.map(path => ({
+                      path,
+                      unsavedChanges: unsavedFiles.has(path)
+                    }))}
+                    activeFilePath={activeFilePath}
+                    onFileChange={setActiveFilePath}
+                    onCloseFile={handleCloseFile}
+                  />
+                ) : (
+                  <Breadcrumb>
+                    <BreadcrumbList>
+                      <BreadcrumbItem>
+                        <BreadcrumbPage className="font-medium text-muted-foreground">
+                          {repositoryName}
+                        </BreadcrumbPage>
+                      </BreadcrumbItem>
+                    </BreadcrumbList>
+                  </Breadcrumb>
+                )}
+              </div>
             </div>
 
             {/* Spacer */}
