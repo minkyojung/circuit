@@ -2680,7 +2680,9 @@ ipcMain.handle('claude:start-session', async (event, workspacePath) => {
     activeSessions.set(sessionId, {
       workspacePath,
       messages: [],
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      claudeProcess: null,  // Will be set when sending messages
+      isRunning: false      // Track if Claude is currently processing
     });
 
     return {
@@ -2979,6 +2981,10 @@ Plan Mode ensures structured, thoughtful development. Take your time to plan wel
       stdio: ['pipe', 'pipe', 'pipe']
     });
 
+    // Store process reference and set running state
+    session.claudeProcess = claude;
+    session.isRunning = true;
+
     // Send message with multimodal content
     const input = JSON.stringify({
       role: 'user',
@@ -3234,12 +3240,20 @@ Plan Mode ensures structured, thoughtful development. Take your time to plan wel
           cost: 0,
           duration: totalDuration
         });
+
+        // Cleanup session state
+        session.isRunning = false;
+        session.claudeProcess = null;
       } catch (parseError) {
         console.error('[Claude] Failed to process response:', parseError);
         event.sender.send('claude:response-error', {
           success: false,
           error: `Failed to process response: ${parseError.message}`
         });
+
+        // Cleanup session state on error
+        session.isRunning = false;
+        session.claudeProcess = null;
       }
     });
 
@@ -3251,6 +3265,10 @@ Plan Mode ensures structured, thoughtful development. Take your time to plan wel
           error: `Failed to spawn Claude CLI: ${error.message}`
         });
       }
+
+      // Cleanup session state on error
+      session.isRunning = false;
+      session.claudeProcess = null;
     });
   } catch (error) {
     console.error('[Claude] Send message error:', error);
@@ -3260,6 +3278,60 @@ Plan Mode ensures structured, thoughtful development. Take your time to plan wel
         error: error.message
       });
     }
+  }
+});
+
+/**
+ * Cancel an ongoing Claude message
+ */
+ipcMain.on('claude:cancel-message', (event, sessionId) => {
+  try {
+    const session = activeSessions.get(sessionId);
+
+    if (!session) {
+      console.warn('[Claude] Cancel requested but session not found:', sessionId);
+      return;
+    }
+
+    if (!session.isRunning || !session.claudeProcess) {
+      console.warn('[Claude] Cancel requested but no process running:', sessionId);
+      return;
+    }
+
+    console.log('[Claude] 🛑 Cancelling message for session:', sessionId);
+
+    // Kill the Claude process
+    try {
+      // Try graceful termination first
+      session.claudeProcess.kill('SIGTERM');
+
+      // Force kill after 3 seconds if still running
+      const killTimeout = setTimeout(() => {
+        if (session.claudeProcess && !session.claudeProcess.killed) {
+          console.log('[Claude] Force killing process (SIGKILL)');
+          session.claudeProcess.kill('SIGKILL');
+        }
+      }, 3000);
+
+      // Clear timeout if process exits gracefully
+      session.claudeProcess.once('exit', () => {
+        clearTimeout(killTimeout);
+      });
+
+    } catch (killError) {
+      console.error('[Claude] Error killing process:', killError);
+    }
+
+    // Update session state
+    session.isRunning = false;
+
+    // Notify frontend
+    if (event.sender && !event.sender.isDestroyed()) {
+      event.sender.send('claude:message-cancelled', sessionId);
+    }
+
+  } catch (error) {
+    console.error('[Claude] Cancel message error:', error);
   }
 });
 

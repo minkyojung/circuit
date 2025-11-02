@@ -26,6 +26,8 @@ interface ChatInputProps {
   disabled?: boolean
   placeholder?: string
   showControls?: boolean
+  isCancelling?: boolean
+  onCancel?: () => void
 }
 
 export interface AttachedFile {
@@ -71,6 +73,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   disabled = false,
   placeholder = 'Ask, search, or make anything...',
   showControls = true,
+  isCancelling = false,
+  onCancel,
 }) => {
   const { settings } = useSettingsContext()
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
@@ -406,19 +410,36 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               </div>
             )}
 
-            {/* Right: Send button */}
-            <button
-              onClick={handleSend}
-              disabled={(!value.trim() && attachedFiles.length === 0) || disabled}
-              className={`${INPUT_STYLES.sendButton.size} ${INPUT_STYLES.sendButton.borderRadius} flex items-center justify-center transition-all shrink-0 ${
-                (!value.trim() && attachedFiles.length === 0) || disabled
-                  ? 'bg-muted/50 text-muted-foreground/40 cursor-not-allowed'
-                  : 'bg-foreground text-background hover:bg-foreground/90'
-              }`}
-              title="Send message (Cmd/Ctrl+Enter)"
-            >
-              <ArrowUp size={INPUT_STYLES.sendButton.iconSize} strokeWidth={2} />
-            </button>
+            {/* Right: Send or Cancel button */}
+            {disabled && onCancel ? (
+              /* Cancel button when sending */
+              <button
+                onClick={onCancel}
+                disabled={isCancelling}
+                className={`${INPUT_STYLES.sendButton.size} ${INPUT_STYLES.sendButton.borderRadius} flex items-center justify-center transition-all shrink-0 ${
+                  isCancelling
+                    ? 'bg-muted/50 text-muted-foreground/40 cursor-not-allowed'
+                    : 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
+                }`}
+                title={isCancelling ? "Cancelling..." : "Cancel message"}
+              >
+                <X size={INPUT_STYLES.sendButton.iconSize} strokeWidth={2} />
+              </button>
+            ) : (
+              /* Send button */
+              <button
+                onClick={handleSend}
+                disabled={(!value.trim() && attachedFiles.length === 0) || disabled}
+                className={`${INPUT_STYLES.sendButton.size} ${INPUT_STYLES.sendButton.borderRadius} flex items-center justify-center transition-all shrink-0 ${
+                  (!value.trim() && attachedFiles.length === 0) || disabled
+                    ? 'bg-muted/50 text-muted-foreground/40 cursor-not-allowed'
+                    : 'bg-foreground text-background hover:bg-foreground/90'
+                }`}
+                title="Send message (Cmd/Ctrl+Enter)"
+              >
+                <ArrowUp size={INPUT_STYLES.sendButton.iconSize} strokeWidth={2} />
+              </button>
+            )}
           </div>
         </div>
 

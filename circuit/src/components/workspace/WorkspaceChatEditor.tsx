@@ -208,6 +208,7 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
   const [isLoadingConversation, setIsLoadingConversation] = useState(true);
   const [thinkingSteps, setThinkingSteps] = useState<ThinkingStep[]>([]);
   const [messageThinkingSteps, setMessageThinkingSteps] = useState<Record<string, { steps: ThinkingStep[], duration: number }>>({});
@@ -830,6 +831,38 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
       setIsSending(false);
   }, []);
 
+  const handleMessageCancelled = useCallback((_event: any, cancelledSessionId: string) => {
+    console.log('[WorkspaceChat] Message cancelled:', cancelledSessionId);
+
+    // Reset states
+    setIsSending(false);
+    setIsCancelling(false);
+    setThinkingSteps([]);
+
+    // Clear refs
+    pendingUserMessageRef.current = null;
+    pendingAssistantMessageIdRef.current = null;
+    thinkingStepsRef.current = [];
+
+    // Clear timer if running
+    if (thinkingTimerRef.current) {
+      clearInterval(thinkingTimerRef.current);
+      thinkingTimerRef.current = null;
+    }
+
+    // Optional: Add a system message indicating cancellation
+    const cancelMessage: Message = {
+      id: `msg-${Date.now()}`,
+      conversationId: conversationId!,
+      role: 'assistant',
+      content: '_Message cancelled by user_',
+      timestamp: Date.now(),
+      metadata: { cancelled: true }
+    };
+
+    setMessages((prev) => [...prev, cancelMessage]);
+  }, [conversationId]);
+
   // Handler for task execution trigger from TodoPanel
   const handleExecuteTasks = useCallback(async (_event: any, data: {
     conversationId: string
@@ -929,6 +962,7 @@ The plan is ready. What would you like to do?`,
     ipcRenderer.on('claude:thinking-complete', handleThinkingComplete);
     ipcRenderer.on('claude:response-complete', handleResponseComplete);
     ipcRenderer.on('claude:response-error', handleResponseError);
+    ipcRenderer.on('claude:message-cancelled', handleMessageCancelled);
     ipcRenderer.on('todos:execute-tasks', handleExecuteTasks);
 
     return () => {
@@ -944,9 +978,22 @@ The plan is ready. What would you like to do?`,
       ipcRenderer.removeListener('claude:thinking-complete', handleThinkingComplete);
       ipcRenderer.removeListener('claude:response-complete', handleResponseComplete);
       ipcRenderer.removeListener('claude:response-error', handleResponseError);
+      ipcRenderer.removeListener('claude:message-cancelled', handleMessageCancelled);
       ipcRenderer.removeListener('todos:execute-tasks', handleExecuteTasks);
     };
-  }, [handleThinkingStart, handleMilestone, handleThinkingComplete, handleResponseComplete, handleResponseError, handleExecuteTasks]);
+  }, [handleThinkingStart, handleMilestone, handleThinkingComplete, handleResponseComplete, handleResponseError, handleMessageCancelled, handleExecuteTasks]);
+
+  // Cancel current message
+  const handleCancel = () => {
+    if (!isSending || !sessionId) return;
+
+    console.log('[ChatPanel] Cancelling message');
+    setIsCancelling(true);
+
+    // Send cancel request to backend
+    // @ts-ignore
+    ipcRenderer.send('claude:cancel-message', sessionId);
+  };
 
   const handleSend = async (inputText: string, attachments: AttachedFile[], thinkingMode: import('./ChatInput').ThinkingMode) => {
     if (!inputText.trim() && attachments.length === 0) return;
@@ -1460,6 +1507,8 @@ The plan is ready. What would you like to do?`,
             disabled={isSending || !sessionId || isLoadingConversation}
             placeholder="Ask, search, or make anything..."
             showControls={true}
+            isCancelling={isCancelling}
+            onCancel={handleCancel}
           />
         </div>
       </div>
