@@ -43,6 +43,16 @@ interface WorkspaceChatEditorProps {
   onPrefillCleared?: () => void;
   onConversationChange?: (conversationId: string | null) => void;
   onPlanAdded?: () => void;
+
+  // View mode props (lifted to App.tsx)
+  viewMode?: ViewMode;
+  onViewModeChange?: (mode: ViewMode) => void;
+
+  // Open files props (lifted to App.tsx)
+  openFiles?: string[];
+
+  // Unsaved changes callback
+  onUnsavedChange?: (filePath: string, hasChanges: boolean) => void;
 }
 
 type ViewMode = 'chat' | 'editor' | 'split';
@@ -54,20 +64,29 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
   conversationId: externalConversationId = null,
   onPrefillCleared,
   onConversationChange,
-  onPlanAdded
+  onPlanAdded,
+  viewMode: externalViewMode,
+  onViewModeChange,
+  openFiles: externalOpenFiles = [],
+  onUnsavedChange
 }) => {
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [openFiles, setOpenFiles] = useState<string[]>([]);
-  const [viewMode, setViewMode] = useState<ViewMode>('chat');
 
-  // Auto-switch to editor mode when file is selected
-  useEffect(() => {
-    if (selectedFile && viewMode === 'chat') {
-      setViewMode('editor');
-    } else if (!selectedFile && viewMode !== 'chat') {
-      setViewMode('chat');
-    }
-  }, [selectedFile]);
+  // Use external viewMode if provided, otherwise use local state
+  const viewMode = externalViewMode || 'chat';
+  const openFiles = externalOpenFiles;
+
+  // File edit handler
+  const handleFileEdit = (filePath: string) => {
+    // This will be handled by parent (App.tsx) through file selection
+    console.log('[WorkspaceChatEditor] File edited:', filePath);
+  };
+
+  // File close handler - delegate to parent
+  const handleCloseFile = (filePath: string) => {
+    // Will be handled by parent via UnifiedTabs
+    console.log('[WorkspaceChatEditor] File closed:', filePath);
+  };
 
   // Start Claude session when workspace changes
   useEffect(() => {
@@ -95,32 +114,6 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
     };
   }, [workspace.path]);
 
-  const handleFileEdit = (filePath: string) => {
-    console.log('[WorkspaceChatEditor] File edited:', filePath);
-    if (!openFiles.includes(filePath)) {
-      setOpenFiles([...openFiles, filePath]);
-    }
-  };
-
-  // Handle file close
-  const handleCloseFile = (filePath: string) => {
-    setOpenFiles(openFiles.filter(f => f !== filePath));
-  };
-
-  // Add selected file to open files when it changes
-  useEffect(() => {
-    if (selectedFile && !openFiles.includes(selectedFile)) {
-      setOpenFiles([...openFiles, selectedFile]);
-    }
-  }, [selectedFile]);
-
-  // Auto-switch to chat mode when all files are closed
-  useEffect(() => {
-    if (openFiles.length === 0 && viewMode !== 'chat') {
-      console.log('[WorkspaceChatEditor] All files closed, switching to chat mode');
-      setViewMode('chat');
-    }
-  }, [openFiles.length, viewMode]);
 
   return (
     <div className="h-full">
@@ -147,9 +140,10 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
             workspace={workspace}
             openFiles={openFiles}
             selectedFile={selectedFile}
-            onToggleSplit={() => setViewMode('split')}
+            onToggleSplit={() => onViewModeChange?.('split')}
             isSplitMode={false}
             onCloseFile={handleCloseFile}
+            onUnsavedChange={onUnsavedChange}
           />
         </div>
       )}
@@ -175,9 +169,10 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
               workspace={workspace}
               openFiles={openFiles}
               selectedFile={selectedFile}
-              onToggleSplit={() => setViewMode('editor')}
+              onToggleSplit={() => onViewModeChange?.('editor')}
               isSplitMode={true}
               onCloseFile={handleCloseFile}
+              onUnsavedChange={onUnsavedChange}
             />
           </ResizablePanel>
         </ResizablePanelGroup>
@@ -1504,6 +1499,7 @@ interface EditorPanelProps {
   onToggleSplit?: () => void;
   isSplitMode?: boolean;
   onCloseFile?: (filePath: string) => void;
+  onUnsavedChange?: (filePath: string, hasChanges: boolean) => void;
 }
 
 const EditorPanel: React.FC<EditorPanelProps> = ({
@@ -1513,6 +1509,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
   onToggleSplit,
   isSplitMode = false,
   onCloseFile,
+  onUnsavedChange,
 }) => {
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [fileContents, setFileContents] = useState<Map<string, string>>(new Map());
@@ -1584,6 +1581,9 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
       if (result.success) {
         console.log('[EditorPanel] File saved successfully');
         setUnsavedChanges(prev => new Map(prev).set(activeFile, false));
+
+        // Notify parent that file is saved (no unsaved changes)
+        onUnsavedChange?.(activeFile, false);
       } else {
         console.error('[EditorPanel] Failed to save file:', result.error);
         alert(`Failed to save file: ${result.error}`);
@@ -1596,41 +1596,6 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
     }
   };
 
-  // Handle file change
-  const handleFileChange = (filePath: string) => {
-    setActiveFile(filePath);
-  };
-
-  // Handle close file
-  const handleCloseFile = (filePath: string) => {
-    // Check for unsaved changes
-    if (unsavedChanges.get(filePath)) {
-      const confirm = window.confirm(`File "${filePath}" has unsaved changes. Close anyway?`);
-      if (!confirm) return;
-    }
-
-    // Remove from state
-    setFileContents(prev => {
-      const next = new Map(prev);
-      next.delete(filePath);
-      return next;
-    });
-    setUnsavedChanges(prev => {
-      const next = new Map(prev);
-      next.delete(filePath);
-      return next;
-    });
-
-    // If closing active file, switch to another file
-    if (filePath === activeFile) {
-      const remainingFiles = openFiles.filter(f => f !== filePath);
-      setActiveFile(remainingFiles.length > 0 ? remainingFiles[0] : null);
-    }
-
-    // Notify parent
-    onCloseFile?.(filePath);
-  };
-
   // Handle content change
   const handleContentChange = (value: string | undefined) => {
     if (!activeFile || value === undefined) return;
@@ -1639,6 +1604,9 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
     if (value !== currentContent) {
       setFileContents(prev => new Map(prev).set(activeFile, value));
       setUnsavedChanges(prev => new Map(prev).set(activeFile, true));
+
+      // Notify parent about unsaved changes
+      onUnsavedChange?.(activeFile, true);
     }
   };
 

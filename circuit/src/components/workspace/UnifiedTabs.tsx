@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import { Plus, X, Circle, CircleCheck } from 'lucide-react'
+import { Plus, X, Circle, CircleCheck, Columns2, Maximize2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Separator } from '@/components/ui/separator'
 import {
@@ -80,6 +80,8 @@ export interface OpenFile {
   unsavedChanges?: boolean
 }
 
+type ViewMode = 'chat' | 'editor' | 'split'
+
 interface UnifiedTabsProps {
   // Conversation props
   workspaceId: string | null
@@ -92,6 +94,10 @@ interface UnifiedTabsProps {
   activeFilePath: string | null
   onFileChange: (filePath: string) => void
   onCloseFile: (filePath: string) => void
+
+  // View mode props
+  viewMode?: ViewMode
+  onViewModeChange?: (mode: ViewMode) => void
 }
 
 export function UnifiedTabs({
@@ -102,7 +108,9 @@ export function UnifiedTabs({
   openFiles,
   activeFilePath,
   onFileChange,
-  onCloseFile
+  onCloseFile,
+  viewMode = 'chat',
+  onViewModeChange
 }: UnifiedTabsProps) {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -242,9 +250,12 @@ export function UnifiedTabs({
   }
 
   return (
-    <div className="flex items-center gap-2 overflow-x-auto scrollbar-thin">
-      {/* Conversation Tabs */}
-      <div className="flex items-center gap-1">
+    <>
+      <div className="flex items-center gap-2 w-full">
+        {/* Left: Tabs area */}
+        <div className="flex items-center gap-2 flex-1 overflow-x-auto scrollbar-thin">
+          {/* Conversation Tabs */}
+          <div className="flex items-center gap-1">
         {conversations.map((conversation) => {
           const isActive = conversation.id === activeConversationId
           const isRead = isActive || (conversation.lastViewedAt && conversation.lastViewedAt >= conversation.updatedAt)
@@ -384,6 +395,41 @@ export function UnifiedTabs({
           })}
         </div>
       )}
+        </div>
+
+        {/* Right: View mode toggle buttons */}
+        {openFiles.length > 0 && onViewModeChange && (
+          <div className="flex items-center gap-1 shrink-0">
+            {/* Split View button */}
+            <button
+              onClick={() => onViewModeChange(viewMode === 'split' ? 'editor' : 'split')}
+              className={cn(
+                'p-1.5 rounded transition-colors',
+                viewMode === 'split'
+                  ? 'bg-secondary text-secondary-foreground'
+                  : 'text-muted-foreground hover:bg-secondary/50 hover:text-secondary-foreground'
+              )}
+              title="Toggle Split View"
+            >
+              <Columns2 size={16} />
+            </button>
+
+            {/* Editor Only button */}
+            <button
+              onClick={() => onViewModeChange('editor')}
+              className={cn(
+                'p-1.5 rounded transition-colors',
+                viewMode === 'editor'
+                  ? 'bg-secondary text-secondary-foreground'
+                  : 'text-muted-foreground hover:bg-secondary/50 hover:text-secondary-foreground'
+              )}
+              title="Editor Only"
+            >
+              <Maximize2 size={16} />
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Delete confirmation dialog */}
       <AlertDialog open={deletingId !== null} onOpenChange={(open) => !open && setDeletingId(null)}>
@@ -402,6 +448,6 @@ export function UnifiedTabs({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </>
   )
 }

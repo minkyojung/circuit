@@ -89,6 +89,11 @@ function App() {
   // File tabs state (lifted from WorkspaceChatEditor)
   const [openFiles, setOpenFiles] = useState<string[]>([])
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null)
+  const [unsavedFiles, setUnsavedFiles] = useState<Set<string>>(new Set())
+
+  // View mode state
+  type ViewMode = 'chat' | 'editor' | 'split'
+  const [viewMode, setViewMode] = useState<ViewMode>('chat')
 
   // Workspace navigation refs (for keyboard shortcuts)
   const workspacesRef = useRef<Workspace[]>([])
@@ -210,6 +215,13 @@ function App() {
   const handleCloseFile = (filePath: string) => {
     setOpenFiles(openFiles.filter(f => f !== filePath))
 
+    // Remove from unsaved files
+    setUnsavedFiles(prev => {
+      const next = new Set(prev)
+      next.delete(filePath)
+      return next
+    })
+
     // If closing active file, switch to another file
     if (filePath === activeFilePath) {
       const remainingFiles = openFiles.filter(f => f !== filePath)
@@ -223,12 +235,36 @@ function App() {
     }
   }
 
+  // Handle unsaved changes notification from editor
+  const handleUnsavedChange = (filePath: string, hasChanges: boolean) => {
+    setUnsavedFiles(prev => {
+      const next = new Set(prev)
+      if (hasChanges) {
+        next.add(filePath)
+      } else {
+        next.delete(filePath)
+      }
+      return next
+    })
+  }
+
+  // Auto-switch view mode based on open files
+  useEffect(() => {
+    if (openFiles.length > 0 && viewMode === 'chat') {
+      setViewMode('editor')
+    } else if (openFiles.length === 0 && viewMode !== 'chat') {
+      setViewMode('chat')
+    }
+  }, [openFiles.length])
+
   // Reset selected file, conversation, and file tabs when workspace changes
   useEffect(() => {
     setSelectedFile(null)
     setActiveConversationId(null)
     setOpenFiles([])
     setActiveFilePath(null)
+    setUnsavedFiles(new Set())
+    setViewMode('chat')
   }, [selectedWorkspace?.id])
 
   // Keyboard shortcuts
@@ -331,10 +367,15 @@ function App() {
                   workspaceName={selectedWorkspace.name}
                   activeConversationId={activeConversationId}
                   onConversationChange={setActiveConversationId}
-                  openFiles={openFiles.map(path => ({ path, unsavedChanges: false }))}
+                  openFiles={openFiles.map(path => ({
+                    path,
+                    unsavedChanges: unsavedFiles.has(path)
+                  }))}
                   activeFilePath={activeFilePath}
                   onFileChange={setActiveFilePath}
                   onCloseFile={handleCloseFile}
+                  viewMode={viewMode}
+                  onViewModeChange={setViewMode}
                 />
               ) : (
                 <Breadcrumb>
@@ -386,6 +427,10 @@ function App() {
                   conversationId={activeConversationId}
                   onConversationChange={setActiveConversationId}
                   onPlanAdded={() => setTodoPanelRefreshTrigger(prev => prev + 1)}
+                  viewMode={viewMode}
+                  onViewModeChange={setViewMode}
+                  openFiles={openFiles}
+                  onUnsavedChange={handleUnsavedChange}
                 />
 
                 {/* Commit Dialog */}
