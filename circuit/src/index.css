@@ -13,10 +13,15 @@
 
 /* ===== BASE STYLES ===== */
 @layer base {
-  /* Default typography */
+  /* Default typography - Sans-serif for UI */
   * {
-    font-family: 'SF Mono', SFMono-Regular, ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Monaco, 'Courier New', monospace;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     font-weight: var(--font-medium);
+  }
+
+  /* Monospace font utility class for code elements */
+  .font-mono {
+    font-family: 'SF Mono', SFMono-Regular, ui-monospace, 'Cascadia Code', Menlo, Monaco, 'Courier New', monospace;
   }
 
   /* Body defaults */
