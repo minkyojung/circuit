@@ -196,16 +196,28 @@
   /* ===== TERMINAL STYLES ===== */
   /* Override xterm.css default background */
   .xterm {
-    background-color: transparent;
+    background-color: transparent !important;
+    background: transparent !important;
     padding: 0;
   }
 
   .xterm .xterm-viewport {
-    background-color: transparent;
+    background-color: transparent !important;
+    background: transparent !important;
   }
 
   .xterm .xterm-screen {
-    background-color: transparent;
+    background-color: transparent !important;
+    background: transparent !important;
+  }
+
+  .xterm canvas {
+    background-color: transparent !important;
+    background: transparent !important;
+  }
+
+  .xterm .xterm-helpers {
+    background-color: transparent !important;
   }
 
   /* Custom scrollbar for terminal */
