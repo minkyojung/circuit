@@ -194,6 +194,14 @@
   }
 
   /* ===== TERMINAL STYLES ===== */
+  /* CSS variables for terminal styling */
+  :root {
+    --xterm-background: transparent;
+    --xterm-font-weight: 300;
+    --xterm-font-weight-bold: 600;
+    --xterm-padding: 0;
+  }
+
   /* Override xterm.css default background - ALL layers must be transparent */
   .xterm,
   .xterm .xterm-viewport,
@@ -202,20 +210,20 @@
   .xterm canvas,
   .xterm .xterm-helpers,
   .xterm .xterm-decoration-container {
-    background-color: transparent !important;
-    background: transparent !important;
+    background-color: var(--xterm-background) !important;
+    background: var(--xterm-background) !important;
   }
 
   .xterm {
-    padding: 0;
-    font-weight: 300 !important;
+    padding: var(--xterm-padding);
+    font-weight: var(--xterm-font-weight) !important;
   }
 
   /* Force WebGL canvas transparency */
   canvas.xterm-link-layer,
   canvas.xterm-cursor-layer,
   canvas.xterm-decoration-layer {
-    background: transparent !important;
+    background: var(--xterm-background) !important;
   }
 
   /* Custom scrollbar for terminal */
