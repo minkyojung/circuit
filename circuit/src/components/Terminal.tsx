@@ -19,25 +19,24 @@ export function Terminal({ workspace }: TerminalProps) {
   useEffect(() => {
     if (!workspace || !terminalRef.current) return
 
+    let isMounted = true
+    let resizeObserver: ResizeObserver | null = null
+    let initPromptTimer: NodeJS.Timeout | null = null
+
     const initTerminal = async () => {
       console.log('[Terminal] Initializing terminal for workspace:', workspace.id, workspace.path)
 
-      // Clear container
-      if (terminalRef.current) {
-        terminalRef.current.innerHTML = ''
-      }
-
-      // Get or create terminal data
+      // Get or create terminal data (use workspace.path from closure, not dependency)
       const terminalData = await getOrCreateTerminal(workspace.id, workspace.path)
-      if (!terminalData) {
-        console.error('[Terminal] Failed to get terminal data')
+      if (!terminalData || !isMounted) {
+        console.error('[Terminal] Failed to get terminal data or component unmounted')
         return
       }
 
       const { terminal, addons } = terminalData
 
       // Attach terminal to DOM if not already attached
-      if (!terminalData.isAttached && terminalRef.current) {
+      if (!terminalData.isAttached && terminalRef.current && isMounted) {
         console.log('[Terminal] Attaching terminal to DOM')
 
         // Load fonts before rendering terminal
@@ -53,7 +52,7 @@ export function Terminal({ workspace }: TerminalProps) {
 
           await Promise.race([
             Promise.all([regular.load(), bold.load()]),
-            new Promise(resolve => setTimeout(resolve, 2000)) // 2초 타임아웃
+            new Promise(resolve => setTimeout(resolve, 2000))
           ])
 
           console.log('[Terminal] Fonts loaded successfully')
@@ -61,28 +60,20 @@ export function Terminal({ workspace }: TerminalProps) {
           console.warn('[Terminal] Font loading failed or timed out, continuing anyway:', e)
         }
 
+        if (!isMounted || !terminalRef.current) return
+
         // Open terminal
         terminal.open(terminalRef.current)
         terminalData.isAttached = true
 
-        // Load WebGL renderer for better performance (3-5x faster than canvas)
-        // Note: WebGL renderer with transparency requires careful setup
+        // Load Canvas renderer for full transparency support
+        // Note: WebGL doesn't support transparency (xterm.js Issue #4212)
         try {
-          const { WebglAddon } = await import('@xterm/addon-webgl')
-          const webglAddon = new WebglAddon()
-          terminal.loadAddon(webglAddon)
-
-          // Force transparency by setting CSS after WebGL loads
-          setTimeout(() => {
-            const canvases = terminalRef.current?.querySelectorAll('canvas')
-            canvases?.forEach(canvas => {
-              canvas.style.backgroundColor = 'transparent'
-            })
-          }, 100)
-
-          console.log('[Terminal] WebGL renderer loaded with transparency')
+          const { CanvasAddon } = await import('@xterm/addon-canvas')
+          terminal.loadAddon(new CanvasAddon())
+          console.log('[Terminal] Canvas renderer loaded (full transparency support)')
         } catch (e) {
-          console.warn('[Terminal] WebGL not supported, using canvas renderer:', e)
+          console.warn('[Terminal] Canvas addon failed, using DOM renderer:', e)
         }
 
         // Set up data input handler (only once per terminal)
@@ -101,14 +92,16 @@ export function Terminal({ workspace }: TerminalProps) {
         }
 
         // Send initial enter to trigger prompt display (only once per terminal session)
-        if (!terminalData.hasInitialized) {
+        if (!terminalData.hasInitialized && isMounted) {
           terminalData.hasInitialized = true
           console.log('[Terminal] Sending initial enter to trigger prompt')
-          setTimeout(() => {
-            ipcRenderer.invoke('terminal:write', workspace.id, '\r')
+          initPromptTimer = setTimeout(() => {
+            if (isMounted) {
+              ipcRenderer.invoke('terminal:write', workspace.id, '\r')
+            }
           }, 300)
         }
-      } else if (terminal.element && terminalRef.current) {
+      } else if (terminal.element && terminalRef.current && isMounted) {
         // Terminal was previously attached, re-attach it
         console.log('[Terminal] Re-attaching terminal element')
         terminalRef.current.appendChild(terminal.element)
@@ -121,8 +114,11 @@ export function Terminal({ workspace }: TerminalProps) {
         }
       }
 
+      if (!isMounted || !terminalRef.current) return
+
       // Set up resize observer
-      const resizeObserver = new ResizeObserver(() => {
+      resizeObserver = new ResizeObserver(() => {
+        if (!isMounted) return
         try {
           addons.fitAddon.fit()
           const cols = terminal.cols
@@ -133,9 +129,7 @@ export function Terminal({ workspace }: TerminalProps) {
         }
       })
 
-      if (terminalRef.current) {
-        resizeObserver.observe(terminalRef.current)
-      }
+      resizeObserver.observe(terminalRef.current)
 
       // Initial resize
       try {
@@ -148,14 +142,21 @@ export function Terminal({ workspace }: TerminalProps) {
       }
 
       attachedWorkspaceRef.current = workspace.id
-
-      return () => {
-        resizeObserver.disconnect()
-      }
     }
 
     initTerminal()
-  }, [workspace.id, workspace.path, getOrCreateTerminal])
+
+    // Cleanup function to prevent memory leaks and duplicate operations
+    return () => {
+      isMounted = false
+      if (initPromptTimer) {
+        clearTimeout(initPromptTimer)
+      }
+      if (resizeObserver) {
+        resizeObserver.disconnect()
+      }
+    }
+  }, [workspace.id, getOrCreateTerminal])
 
   return (
     <div

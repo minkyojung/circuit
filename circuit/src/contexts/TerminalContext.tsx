@@ -93,7 +93,8 @@ interface TerminalProviderProps {
 }
 
 export function TerminalProvider({ children }: TerminalProviderProps) {
-  const [terminals] = useState<Map<string, TerminalData>>(new Map())
+  // Use useRef for Map to avoid React re-render issues with mutable data
+  const terminalsRef = useRef<Map<string, TerminalData>>(new Map())
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null)
 
   // Load persisted state
@@ -112,7 +113,7 @@ export function TerminalProvider({ children }: TerminalProviderProps) {
   // Set up IPC listeners for terminal data and exit events
   useEffect(() => {
     const handleTerminalData = (event: any, workspaceId: string, data: string) => {
-      const terminalData = terminals.get(workspaceId)
+      const terminalData = terminalsRef.current.get(workspaceId)
       if (terminalData) {
         terminalData.terminal.write(data)
       }
@@ -122,10 +123,10 @@ export function TerminalProvider({ children }: TerminalProviderProps) {
       console.log(`[TerminalContext] Terminal exited for workspace: ${workspaceId}, exitCode: ${exitCode}`)
 
       // Clean up terminal instance
-      const terminalData = terminals.get(workspaceId)
+      const terminalData = terminalsRef.current.get(workspaceId)
       if (terminalData) {
         terminalData.terminal.dispose()
-        terminals.delete(workspaceId)
+        terminalsRef.current.delete(workspaceId)
       }
 
       createdSessions.current.delete(workspaceId)
@@ -138,9 +139,11 @@ export function TerminalProvider({ children }: TerminalProviderProps) {
       ipcRenderer.removeListener('terminal:data', handleTerminalData)
       ipcRenderer.removeListener('terminal:exit', handleTerminalExit)
     }
-  }, [terminals])
+  }, [])
 
   const getOrCreateTerminal = useCallback(async (workspaceId: string, workspacePath: string): Promise<TerminalData | null> => {
+    const terminals = terminalsRef.current
+
     // Return existing terminal data
     if (terminals.has(workspaceId)) {
       console.log(`[TerminalContext] Reusing existing terminal for workspace: ${workspaceId}`)
@@ -237,7 +240,7 @@ export function TerminalProvider({ children }: TerminalProviderProps) {
       console.error('[TerminalContext] Failed to create terminal:', error)
       return null
     }
-  }, [terminals])
+  }, [])
 
   const switchWorkspace = (workspaceId: string | null) => {
     setActiveWorkspaceId(workspaceId)
@@ -247,10 +250,10 @@ export function TerminalProvider({ children }: TerminalProviderProps) {
     console.log(`[TerminalContext] Destroying terminal for workspace: ${workspaceId}`)
 
     // Dispose xterm.js instance
-    const terminalData = terminals.get(workspaceId)
+    const terminalData = terminalsRef.current.get(workspaceId)
     if (terminalData) {
       terminalData.terminal.dispose()
-      terminals.delete(workspaceId)
+      terminalsRef.current.delete(workspaceId)
     }
 
     // Destroy PTY session in main process
@@ -269,11 +272,11 @@ export function TerminalProvider({ children }: TerminalProviderProps) {
   }
 
   const hasTerminal = (workspaceId: string): boolean => {
-    return terminals.has(workspaceId)
+    return terminalsRef.current.has(workspaceId)
   }
 
   const contextValue: TerminalContextValue = {
-    terminals,
+    terminals: terminalsRef.current,
     activeWorkspaceId,
     isOpen,
     height,
