@@ -77,6 +77,11 @@ function App() {
     const saved = localStorage.getItem('circuit-right-sidebar-state')
     return saved !== null ? JSON.parse(saved) : true // 기본값: 열림
   })
+  const [rightSidebarWidth, setRightSidebarWidth] = useState<number>(() => {
+    const saved = localStorage.getItem('circuit-right-sidebar-width')
+    return saved ? parseInt(saved) : 320 // 기본값: 320px (20rem)
+  })
+  const [isResizing, setIsResizing] = useState<boolean>(false)
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
   const [todoPanelRefreshTrigger, setTodoPanelRefreshTrigger] = useState<number>(0)
   const [currentRepository, setCurrentRepository] = useState<any>(null)
@@ -95,6 +100,35 @@ function App() {
       return newState
     })
   }
+
+  // Handle right sidebar resize
+  const handleResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault()
+    setIsResizing(true)
+  }
+
+  useEffect(() => {
+    if (!isResizing) return
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const newWidth = window.innerWidth - e.clientX
+      const clampedWidth = Math.max(240, Math.min(600, newWidth)) // 15rem ~ 37.5rem
+      setRightSidebarWidth(clampedWidth)
+    }
+
+    const handleMouseUp = () => {
+      setIsResizing(false)
+      localStorage.setItem('circuit-right-sidebar-width', String(rightSidebarWidth))
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [isResizing, rightSidebarWidth])
 
   // Create workspace handler for Command Palette
   const handleCreateWorkspace = async () => {
@@ -357,10 +391,25 @@ function App() {
       {/* Right Sidebar - Todo Panel */}
       <div
         className={cn(
-          "h-full transition-all duration-300 ease-in-out overflow-hidden",
-          isRightSidebarOpen ? "w-[20rem]" : "w-0"
+          "h-full overflow-hidden relative",
+          isRightSidebarOpen ? "" : "w-0"
         )}
+        style={{
+          width: isRightSidebarOpen ? `${rightSidebarWidth}px` : 0,
+          transition: isResizing ? 'none' : 'width 0.3s ease-in-out'
+        }}
       >
+        {/* Resize Handle */}
+        {isRightSidebarOpen && (
+          <div
+            onMouseDown={handleResizeStart}
+            className={cn(
+              "absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-accent transition-colors z-50",
+              isResizing && "bg-accent"
+            )}
+          />
+        )}
+
         <TodoPanel
           conversationId={activeConversationId}
           refreshTrigger={todoPanelRefreshTrigger}
