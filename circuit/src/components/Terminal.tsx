@@ -76,6 +76,11 @@ export function Terminal({ workspace }: TerminalProps) {
         terminal.open(terminalRef.current)
         terminalData.isAttached = true
 
+        // Clear any buffered PTY output to prevent duplicates
+        // PTY may output prompt before terminal is ready
+        terminal.clear()
+        console.log('[Terminal] Cleared PTY buffer')
+
         // Set up data input handler (only once per terminal)
         if (!terminalData.onDataDisposable) {
           console.log('[Terminal] Registering onData handler')
@@ -92,7 +97,7 @@ export function Terminal({ workspace }: TerminalProps) {
         }
 
         // Send initial prompt trigger to display shell prompt
-        // PTY outputs prompt immediately but xterm may not be ready to render
+        // After clear(), PTY needs to output prompt again
         if (!terminalData.hasInitialized && isMounted) {
           terminalData.hasInitialized = true
           console.log('[Terminal] Sending initial prompt trigger')
@@ -100,7 +105,7 @@ export function Terminal({ workspace }: TerminalProps) {
             if (isMounted) {
               ipcRenderer.invoke('terminal:write', workspace.id, '\r')
             }
-          }, 150)
+          }, 200)
         }
       } else if (terminal.element && terminalRef.current && isMounted) {
         // Terminal was previously attached, re-attach it
