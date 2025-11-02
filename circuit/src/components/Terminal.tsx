@@ -22,6 +22,20 @@ export function Terminal({ workspace }: TerminalProps) {
     let isMounted = true
     let resizeObserver: ResizeObserver | null = null
     let initPromptTimer: NodeJS.Timeout | null = null
+    let prevCols = 0
+    let prevRows = 0
+
+    // Debounce helper to prevent excessive resize calls during animations
+    const debounce = <T extends (...args: any[]) => void>(
+      func: T,
+      wait: number
+    ): ((...args: Parameters<T>) => void) => {
+      let timeout: NodeJS.Timeout | null = null
+      return (...args: Parameters<T>) => {
+        if (timeout) clearTimeout(timeout)
+        timeout = setTimeout(() => func(...args), wait)
+      }
+    }
 
     const initTerminal = async () => {
       console.log('[Terminal] Initializing terminal for workspace:', workspace.id, workspace.path)
@@ -129,27 +143,45 @@ export function Terminal({ workspace }: TerminalProps) {
 
       if (!isMounted || !terminalRef.current) return
 
-      // Set up resize observer
-      resizeObserver = new ResizeObserver(() => {
+      // Set up resize observer with intelligent PTY resize logic
+      const handleResize = () => {
         if (!isMounted) return
         try {
           addons.fitAddon.fit()
           const cols = terminal.cols
           const rows = terminal.rows
-          ipcRenderer.invoke('terminal:resize', workspace.id, cols, rows)
+
+          // Only resize PTY if:
+          // 1. Terminal has valid dimensions (not hidden/collapsed)
+          // 2. Dimensions actually changed (prevents redundant calls)
+          if (cols > 10 && rows > 5 && (prevCols !== cols || prevRows !== rows)) {
+            console.log(`[Terminal] Resizing PTY: ${prevCols}x${prevRows} → ${cols}x${rows}`)
+            ipcRenderer.invoke('terminal:resize', workspace.id, cols, rows)
+            prevCols = cols
+            prevRows = rows
+          }
         } catch (error) {
           console.error('[Terminal] Resize error:', error)
         }
-      })
+      }
+
+      const debouncedResize = debounce(handleResize, 150)
+      resizeObserver = new ResizeObserver(debouncedResize)
 
       resizeObserver.observe(terminalRef.current)
 
-      // Initial resize
+      // Initial resize with same validation logic
       try {
         addons.fitAddon.fit()
         const cols = terminal.cols
         const rows = terminal.rows
-        ipcRenderer.invoke('terminal:resize', workspace.id, cols, rows)
+
+        if (cols > 10 && rows > 5) {
+          console.log(`[Terminal] Initial PTY size: ${cols}x${rows}`)
+          ipcRenderer.invoke('terminal:resize', workspace.id, cols, rows)
+          prevCols = cols
+          prevRows = rows
+        }
       } catch (error) {
         console.error('[Terminal] Initial resize error:', error)
       }

@@ -40,7 +40,7 @@ export interface AttachedFile {
 
 const INPUT_STYLES = {
   container: {
-    maxWidth: 'max-w-4xl',
+    maxWidth: 'max-w-none',
   },
   addContext: {
     button: 'h-6 px-3 py-1 text-sm scale-[0.8] origin-left',
@@ -259,7 +259,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   )
 
   return (
-    <div className={`${INPUT_STYLES.container.maxWidth} mx-auto`}>
+    <div className={INPUT_STYLES.container.maxWidth}>
       {/* Input Card - Floating */}
       <div className="relative w-full flex flex-col border border-border rounded-3xl bg-muted shadow-lg">
           {/* Attachments - Only appears when files exist */}

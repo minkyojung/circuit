@@ -11,6 +11,11 @@ import { TextBlock } from './TextBlock'
 import { CodeBlock } from './CodeBlock'
 import { CommandBlock } from './CommandBlock'
 import { DiffBlock } from './DiffBlock'
+import { DiagramBlock } from './DiagramBlock'
+import { ChecklistBlock } from './ChecklistBlock'
+import { TableBlock } from './TableBlock'
+import { LinkBlock } from './LinkBlock'
+import { QuoteBlock } from './QuoteBlock'
 import { Tool, ToolHeader, ToolContent, ToolInput, ToolOutput } from '@/components/ai-elements/tool'
 import {
   Accordion,
@@ -307,12 +312,23 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
       )
     }
 
-    // Fallback for unsupported types
     case 'diagram':
-    case 'link':
-    case 'quote':
-    case 'list':
+      return renderWithBlockId(<DiagramBlock {...commonProps} />)
+
+    case 'checklist':
+      return renderWithBlockId(<ChecklistBlock {...commonProps} />)
+
     case 'table':
+      return renderWithBlockId(<TableBlock {...commonProps} />)
+
+    case 'link':
+      return renderWithBlockId(<LinkBlock {...commonProps} />)
+
+    case 'quote':
+      return renderWithBlockId(<QuoteBlock {...commonProps} />)
+
+    // Fallback for unsupported types
+    case 'list':
     default:
       return renderWithBlockId(
         <div className="rounded border border-border bg-sidebar/50 p-3">
