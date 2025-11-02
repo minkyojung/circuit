@@ -12,7 +12,7 @@ interface TerminalProps {
 
 export function Terminal({ workspace }: TerminalProps) {
   const terminalRef = useRef<HTMLDivElement>(null)
-  const { getOrCreateTerminal } = useTerminal()
+  const { getOrCreateTerminal, createPtySession } = useTerminal()
   const attachedWorkspaceRef = useRef<string | null>(null)
 
   // Initialize and attach terminal when workspace changes
@@ -38,6 +38,7 @@ export function Terminal({ workspace }: TerminalProps) {
       // Attach terminal to DOM if not already attached
       if (!terminalData.isAttached && terminalRef.current && isMounted) {
         console.log('[Terminal] Attaching terminal to DOM')
+        console.log('[Terminal] hasInitialized:', terminalData.hasInitialized)
 
         // Load fonts before rendering terminal
         try {
@@ -76,11 +77,6 @@ export function Terminal({ workspace }: TerminalProps) {
         terminal.open(terminalRef.current)
         terminalData.isAttached = true
 
-        // Clear any buffered PTY output to prevent duplicates
-        // PTY may output prompt before terminal is ready
-        terminal.clear()
-        console.log('[Terminal] Cleared PTY buffer')
-
         // Set up data input handler (only once per terminal)
         if (!terminalData.onDataDisposable) {
           console.log('[Terminal] Registering onData handler')
@@ -96,16 +92,15 @@ export function Terminal({ workspace }: TerminalProps) {
           console.error('[Terminal] Failed to fit terminal:', error)
         }
 
-        // Send initial prompt trigger to display shell prompt
-        // After clear(), PTY needs to output prompt again
+        // Create PTY session AFTER terminal is opened and ready
+        // This prevents PTY output from being buffered before terminal can display it
         if (!terminalData.hasInitialized && isMounted) {
           terminalData.hasInitialized = true
-          console.log('[Terminal] Sending initial prompt trigger')
-          initPromptTimer = setTimeout(() => {
-            if (isMounted) {
-              ipcRenderer.invoke('terminal:write', workspace.id, '\r')
-            }
-          }, 200)
+          console.log('[Terminal] Creating PTY session now that terminal is ready')
+          const success = await createPtySession(workspace.id, workspace.path)
+          if (!success) {
+            console.error('[Terminal] Failed to create PTY session')
+          }
         }
       } else if (terminal.element && terminalRef.current && isMounted) {
         // Terminal was previously attached, re-attach it
@@ -174,7 +169,7 @@ export function Terminal({ workspace }: TerminalProps) {
         resizeObserver.disconnect()
       }
     }
-  }, [workspace.id, getOrCreateTerminal])
+  }, [workspace.id, getOrCreateTerminal, createPtySession, workspace.path])
 
   return (
     <div

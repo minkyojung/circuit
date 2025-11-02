@@ -39,6 +39,9 @@ interface TerminalContextValue extends TerminalState {
   // Get or create terminal data for workspace
   getOrCreateTerminal: (workspaceId: string, workspacePath: string) => Promise<TerminalData | null>
 
+  // Create PTY session for workspace
+  createPtySession: (workspaceId: string, workspacePath: string) => Promise<boolean>
+
   // Switch active workspace
   switchWorkspace: (workspaceId: string | null) => void
 
@@ -222,26 +225,34 @@ export function TerminalProvider({ children }: TerminalProviderProps) {
       // Store terminal data
       terminals.set(workspaceId, terminalData)
 
-      // Create PTY session in main process (only if not already created)
-      if (!createdSessions.current.has(workspaceId)) {
-        const result = await ipcRenderer.invoke('terminal:create-session', workspaceId, workspacePath)
-
-        if (!result.success) {
-          console.error(`[TerminalContext] Failed to create terminal session:`, result.error)
-          terminal.dispose()
-          terminals.delete(workspaceId)
-          return null
-        }
-
-        createdSessions.current.add(workspaceId)
-        console.log(`[TerminalContext] Terminal session created successfully for workspace: ${workspaceId}`)
-      }
+      // DO NOT create PTY session here - let Terminal.tsx create it after terminal is opened
+      // This prevents PTY output from being buffered before terminal is ready
 
       return terminalData
     } catch (error) {
       console.error('[TerminalContext] Failed to create terminal:', error)
       return null
     }
+  }, [])
+
+  const createPtySession = useCallback(async (workspaceId: string, workspacePath: string): Promise<boolean> => {
+    // Create PTY session in main process (only if not already created)
+    if (!createdSessions.current.has(workspaceId)) {
+      console.log(`[TerminalContext] Creating PTY session for workspace: ${workspaceId}`)
+      const result = await ipcRenderer.invoke('terminal:create-session', workspaceId, workspacePath)
+
+      if (!result.success) {
+        console.error(`[TerminalContext] Failed to create PTY session:`, result.error)
+        return false
+      }
+
+      createdSessions.current.add(workspaceId)
+      console.log(`[TerminalContext] PTY session created successfully for workspace: ${workspaceId}`)
+      return true
+    }
+
+    console.log(`[TerminalContext] PTY session already exists for workspace: ${workspaceId}`)
+    return true
   }, [])
 
   const switchWorkspace = (workspaceId: string | null) => {
@@ -283,6 +294,7 @@ export function TerminalProvider({ children }: TerminalProviderProps) {
     isOpen,
     height,
     getOrCreateTerminal,
+    createPtySession,
     switchWorkspace,
     destroyTerminal,
     toggleTerminal,
