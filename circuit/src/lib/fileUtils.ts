@@ -3,7 +3,7 @@
  * Icons, extensions, file name parsing, etc.
  */
 
-import { LucideIcon } from 'lucide-react'
+import type { FC } from 'react'
 import {
   FileJson,
   FileCode,
@@ -17,10 +17,13 @@ import {
   File,
 } from 'lucide-react'
 
+// Type for lucide-react icon components
+type IconComponent = FC<{ size?: number; className?: string }>
+
 /**
  * Get file icon based on extension
  */
-export function getFileIcon(filePath: string): LucideIcon {
+export function getFileIcon(filePath: string): IconComponent {
   const ext = filePath.split('.').pop()?.toLowerCase()
 
   // Code files
