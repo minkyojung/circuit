@@ -115,6 +115,14 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
     }
   }, [selectedFile]);
 
+  // Auto-switch to chat mode when all files are closed
+  useEffect(() => {
+    if (openFiles.length === 0 && viewMode !== 'chat') {
+      console.log('[WorkspaceChatEditor] All files closed, switching to chat mode');
+      setViewMode('chat');
+    }
+  }, [openFiles.length, viewMode]);
+
   return (
     <div className="h-full">
       {viewMode === 'chat' && (
