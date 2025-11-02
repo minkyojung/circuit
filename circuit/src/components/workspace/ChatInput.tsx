@@ -9,6 +9,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { ArrowUp, Paperclip, X, ListChecks, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { useSettingsContext } from '@/contexts/SettingsContext'
+import { useClaudeMetrics } from '@/hooks/useClaudeMetrics'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   DropdownMenu,
@@ -16,6 +17,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { ContextGauge } from './ContextGauge'
+
+// @ts-ignore - Electron IPC
+const ipcRenderer = typeof window !== 'undefined' && (window as any).require ? (window as any).require('electron').ipcRenderer : null
 
 export type ThinkingMode = 'normal' | 'think' | 'megathink' | 'ultrathink' | 'plan'
 
@@ -46,7 +51,7 @@ const INPUT_STYLES = {
     button: 'h-6 px-3 py-1 text-sm scale-[0.8] origin-left',
   },
   textarea: {
-    padding: 'px-4 py-3',
+    padding: 'px-4 pt-3 pb-0',
     minHeight: 'min-h-[80px]',
     fontSize: 'text-base font-light',
   },
@@ -77,6 +82,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   onCancel,
 }) => {
   const { settings } = useSettingsContext()
+  const { metrics } = useClaudeMetrics()
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
   const [thinkingMode, setThinkingMode] = useState<ThinkingMode>('normal')
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -258,6 +264,42 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     [onChange]
   )
 
+  // Handle compact action (copy command + open Claude Code)
+  const handleCompact = useCallback(() => {
+    // Step 1: Copy "/compact" to clipboard
+    navigator.clipboard.writeText('/compact').then(
+      () => {
+        console.log('[ChatInput] /compact command copied to clipboard')
+
+        // Step 2: Open Claude Code (if IPC available)
+        if (ipcRenderer) {
+          try {
+            ipcRenderer.send('open-claude-code', {})
+            console.log('[ChatInput] Requested to open Claude Code')
+          } catch (err) {
+            console.error('[ChatInput] Failed to open Claude Code:', err)
+          }
+        }
+
+        // Step 3: User feedback
+        toast.info('📋 /compact copied. Run it in Claude Code!', {
+          duration: 4000,
+          action: {
+            label: 'Copy again',
+            onClick: () => {
+              navigator.clipboard.writeText('/compact')
+              toast.success('Copied again!')
+            }
+          }
+        })
+      },
+      (err) => {
+        console.error('[ChatInput] Failed to copy command:', err)
+        toast.error('Failed to copy command')
+      }
+    )
+  }, [])
+
   return (
     <div className={INPUT_STYLES.container.maxWidth}>
       {/* Input Card - Floating */}
@@ -342,7 +384,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           />
 
           {/* Control Bar */}
-          <div className="flex items-center justify-between px-4 pb-4">
+          <div className="flex items-center justify-between px-4 pb-3">
             {/* Left: Control buttons */}
             {showControls && (
               <div className={`flex ${INPUT_STYLES.controls.gap} items-center`}>
@@ -407,6 +449,15 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 >
                   <ListChecks size={INPUT_STYLES.controls.sourcesIconSize} strokeWidth={1.5} />
                 </button>
+
+                {/* Context Gauge */}
+                <ContextGauge
+                  percentage={metrics?.context.percentage ?? 0}
+                  current={metrics?.context.current}
+                  limit={metrics?.context.limit}
+                  onCompact={handleCompact}
+                  disabled={disabled}
+                />
               </div>
             )}
 

@@ -144,7 +144,7 @@ export const ReasoningAccordion: React.FC<ReasoningAccordionProps> = ({
               key={idx}
               className="border-b-0"
             >
-              <AccordionTrigger className="py-2 hover:no-underline text-sm [&[data-state=open]>svg]:rotate-180">
+              <AccordionTrigger className="py-2 hover:no-underline text-sm [&>svg]:hidden">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                   {/* Icon */}
                   <Icon className="w-3 h-3 flex-shrink-0 opacity-50 dark:opacity-35" strokeWidth={1.5} />

@@ -10,6 +10,7 @@ import {
   ResizableHandle,
 } from '@/components/ui/resizable';
 import { BlockList } from '@/components/blocks';
+import { InlineTodoProgress } from '@/components/blocks/InlineTodoProgress';
 import { ChatInput, type AttachedFile } from './ChatInput';
 import { ChatMessageSkeleton } from '@/components/ui/skeleton';
 import { Shimmer } from '@/components/ai-elements/shimmer';
@@ -228,6 +229,7 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   const currentStepMessageRef = useRef<string>('Starting analysis');
   const pendingUserMessageRef = useRef<Message | null>(null);
   const pendingAssistantMessageIdRef = useRef<string | null>(null);
+  const currentThinkingModeRef = useRef<import('./ChatInput').ThinkingMode>('normal');
 
   // Refs to hold latest state values (to avoid stale closures in IPC handlers)
   const conversationIdRef = useRef<string | null>(conversationId);
@@ -626,7 +628,8 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
           }
 
           if (todoWriteData && todoWriteData.todos.length > 0) {
-            console.log('[WorkspaceChat] 📋 Plan mode: Plan detected, adding to message metadata');
+            console.log('[WorkspaceChat] 📋 TodoWrite detected, checking thinking mode');
+            console.log('[WorkspaceChat] 📋 Current thinking mode:', currentThinkingModeRef.current);
 
             // Convert Claude's todos to Circuit format
             const todoDrafts = convertClaudeTodosToDrafts(todoWriteData.todos);
@@ -636,49 +639,77 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
               todos: todoDrafts,
               complexity: calculateOverallComplexity(todoDrafts),
               estimatedTotalTime: calculateTotalTime(todoDrafts),
-              confidence: 0.95, // High confidence - Claude analyzed the codebase
-              reasoning: 'Claude analyzed codebase and created detailed plan in Plan Mode'
+              confidence: 0.95,
+              reasoning: currentThinkingModeRef.current === 'plan'
+                ? 'Claude analyzed codebase and created detailed plan in Plan Mode'
+                : 'Claude automatically created task breakdown while working'
             };
 
-            // Add plan to assistant message metadata
-            setMessages((prev) =>
-              prev.map((msg) =>
-                msg.id === assistantMessageId
-                  ? {
-                      ...msg,
-                      metadata: {
-                        ...msg.metadata,
-                        planResult: todoResult,
-                        hasPendingPlan: true
+            // Determine where to display based on thinking mode
+            const isPlanMode = currentThinkingModeRef.current === 'plan';
+
+            if (isPlanMode) {
+              // Plan Mode: Display in right sidebar (persistent)
+              console.log('[WorkspaceChat] 📋 Plan Mode: Adding to sidebar');
+
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === assistantMessageId
+                    ? {
+                        ...msg,
+                        metadata: {
+                          ...msg.metadata,
+                          planResult: todoResult,
+                          hasPendingPlan: true
+                        }
                       }
-                    }
-                  : msg
-              )
-            );
+                    : msg
+                )
+              );
 
-            // Update database with plan metadata
-            const updatedMessage = {
-              ...assistantMessage,
-              metadata: {
-                ...assistantMessage.metadata,
-                planResult: todoResult,
-                hasPendingPlan: true
-              }
-            };
+              const updatedMessage = {
+                ...assistantMessage,
+                metadata: {
+                  ...assistantMessage.metadata,
+                  planResult: todoResult,
+                  hasPendingPlan: true
+                }
+              };
 
-            console.log('[WorkspaceChat] 💾 Saving updated message with planResult');
-            console.log('[WorkspaceChat] 💾 Message ID:', updatedMessage.id);
-            console.log('[WorkspaceChat] 💾 Metadata keys:', Object.keys(updatedMessage.metadata || {}));
-            console.log('[WorkspaceChat] 💾 Has planResult:', !!updatedMessage.metadata?.planResult);
-            console.log('[WorkspaceChat] 💾 planResult todos count:', updatedMessage.metadata?.planResult?.todos?.length || 0);
+              console.log('[WorkspaceChat] 💾 Saving plan to sidebar');
+              await ipcRenderer.invoke('message:save', updatedMessage);
 
-            const saveResult2 = await ipcRenderer.invoke('message:save', updatedMessage);
-            console.log('[WorkspaceChat] 💾 Save result:', saveResult2);
+              // Notify parent that a plan was added (to refresh TodoPanel)
+              onPlanAdded?.();
+            } else {
+              // Normal/Think Mode: Display inline in chat (temporary)
+              console.log('[WorkspaceChat] 📋 TodoWrite Mode: Adding inline to chat');
 
-            // Notify parent that a plan was added (to refresh TodoPanel)
-            onPlanAdded?.();
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === assistantMessageId
+                    ? {
+                        ...msg,
+                        metadata: {
+                          ...msg.metadata,
+                          todoWriteResult: todoResult
+                        }
+                      }
+                    : msg
+                )
+              );
 
-            // Don't show modal - plan will be displayed inline in the message
+              const updatedMessage = {
+                ...assistantMessage,
+                metadata: {
+                  ...assistantMessage.metadata,
+                  todoWriteResult: todoResult
+                }
+              };
+
+              console.log('[WorkspaceChat] 💾 Saving TodoWrite inline');
+              await ipcRenderer.invoke('message:save', updatedMessage);
+            }
           } else if (todoWriteData && todoWriteData.todos.length > 0) {
             // TodoWrite detected but not a new plan - this is a status update
             console.log('[WorkspaceChat] 🔄 TodoWrite detected: Syncing status updates to database');
@@ -896,6 +927,39 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
         JSON.stringify(todosData, null, 2)
       )
 
+      // Save todos to database for real-time progress tracking
+      const now = Date.now()
+      const todosForDB = data.todos.map((draft: any, index: number) => ({
+        id: `todo-${data.messageId}-${index}`,
+        conversationId: data.conversationId,
+        messageId: data.messageId,
+        parentId: draft.parentId,
+        order: draft.order ?? index,
+        depth: draft.depth ?? 0,
+        content: draft.content,
+        description: draft.description,
+        activeForm: draft.activeForm,
+        status: 'pending' as const,
+        progress: 0,
+        priority: draft.priority,
+        complexity: draft.complexity,
+        thinkingStepIds: [],
+        blockIds: [],
+        estimatedDuration: draft.estimatedDuration,
+        actualDuration: undefined,
+        startedAt: undefined,
+        completedAt: undefined,
+        createdAt: now,
+        updatedAt: now,
+      }))
+
+      const dbSaveResult = await ipcRenderer.invoke('todos:save-multiple', todosForDB)
+      if (!dbSaveResult.success) {
+        console.error('[handleExecuteTasks] Failed to save todos to DB:', dbSaveResult.error)
+      } else {
+        console.log('[handleExecuteTasks] Successfully saved', todosForDB.length, 'todos to DB')
+      }
+
       // Prepare mode-specific prompt
       const modePrompts = {
         auto: `I've created a task plan in .circuit/todos.json with ${data.todos.length} task${data.todos.length === 1 ? '' : 's'}.
@@ -1013,6 +1077,9 @@ The plan is ready. What would you like to do?`,
 
   const executePrompt = async (inputText: string, attachments: AttachedFile[], thinkingMode: import('./ChatInput').ThinkingMode) => {
     if (isSending || !sessionId) return;
+
+    // Track current thinking mode for plan detection
+    currentThinkingModeRef.current = thinkingMode;
 
     // Ensure we have a conversationId
     let activeConversationId = conversationId;
@@ -1294,39 +1361,20 @@ The plan is ready. What would you like to do?`,
                     </div>
                   )}
 
-                  {/* Action bar (Copy + Reasoning) - Always show for assistant */}
-                  {msg.role === 'assistant' && (
-                    <div className="mb-3 flex items-center justify-between gap-2">
-                      {/* Reasoning button (left) - Show for in-progress or completed messages */}
-                      {(messageThinkingSteps[msg.id]?.steps?.length > 0 || (isSending && msg.id === pendingAssistantMessageIdRef.current)) && (
-                        <button
-                          onClick={() => setOpenReasoningId(openReasoningId === msg.id ? null : msg.id)}
-                          className="flex items-center gap-1 text-base text-muted-foreground/60 hover:text-foreground transition-all"
-                        >
-                          <span className="opacity-80 hover:opacity-100">
-                            {isSending && msg.id === pendingAssistantMessageIdRef.current
-                              ? `${currentDuration}s • ${summarizeToolUsage(messageThinkingSteps[msg.id]?.steps || [])}`
-                              : `${messageThinkingSteps[msg.id].duration}s • ${summarizeToolUsage(messageThinkingSteps[msg.id].steps)}`
-                            }
-                          </span>
-                          <ChevronDown className={`w-4 h-4 opacity-80 transition-transform ${openReasoningId === msg.id ? 'rotate-180' : ''}`} strokeWidth={1.5} />
-                        </button>
-                      )}
-
-                      {/* Spacer */}
-                      <div className="flex-1" />
-
-                      {/* Copy button (right) */}
+                  {/* Reasoning button - Show for assistant messages with reasoning steps */}
+                  {msg.role === 'assistant' && (messageThinkingSteps[msg.id]?.steps?.length > 0 || (isSending && msg.id === pendingAssistantMessageIdRef.current)) && (
+                    <div className="mb-3 flex items-center gap-2">
                       <button
-                        onClick={() => handleCopyMessage(msg.id, msg.content)}
-                        className="p-1 text-muted-foreground/60 hover:text-foreground rounded-md hover:bg-secondary/50 transition-all"
-                        title="Copy message"
+                        onClick={() => setOpenReasoningId(openReasoningId === msg.id ? null : msg.id)}
+                        className="flex items-center gap-1 text-base text-muted-foreground/60 hover:text-foreground transition-all"
                       >
-                        {copiedMessageId === msg.id ? (
-                          <Check className="w-3 h-3 text-green-500" strokeWidth={1.5} />
-                        ) : (
-                          <Copy className="w-3 h-3 opacity-60 hover:opacity-100 transition-opacity" strokeWidth={1.5} />
-                        )}
+                        <span className="opacity-80 hover:opacity-100">
+                          {isSending && msg.id === pendingAssistantMessageIdRef.current
+                            ? `${currentDuration}s • ${summarizeToolUsage(messageThinkingSteps[msg.id]?.steps || [])}`
+                            : `${messageThinkingSteps[msg.id].duration}s • ${summarizeToolUsage(messageThinkingSteps[msg.id].steps)}`
+                          }
+                        </span>
+                        <ChevronDown className={`w-4 h-4 opacity-80 transition-transform ${openReasoningId === msg.id ? 'rotate-180' : ''}`} strokeWidth={1.5} />
                       </button>
                     </div>
                   )}
@@ -1360,19 +1408,40 @@ The plan is ready. What would you like to do?`,
 
                   {/* Plan Review moved to right sidebar TodoPanel */}
 
+                  {/* TodoWrite inline display (for Normal/Think modes) */}
+                  {msg.metadata?.todoWriteResult && (
+                    <InlineTodoProgress
+                      todos={msg.metadata.todoWriteResult.todos.map((todo: any) => ({
+                        content: todo.title || todo.content,
+                        activeForm: todo.activeForm || `${todo.title || todo.content}...`,
+                        status: todo.status,
+                        complexity: todo.complexity,
+                        priority: todo.priority,
+                        estimatedDuration: todo.estimatedTime,
+                        description: todo.description,
+                      }))}
+                      defaultExpanded={true}
+                      showProgressBar={true}
+                      autoCollapseOnComplete={true}
+                      onToggle={(expanded) => {
+                        console.log('[InlineTodo] Toggled:', expanded);
+                      }}
+                    />
+                  )}
+
                   {/* Block-based rendering with fallback */}
                   {msg.blocks && msg.blocks.length > 0 ? (
                     <BlockList
                       blocks={
-                        // Filter out plan JSON blocks if this message has a planResult
-                        msg.metadata?.planResult
+                        // Filter out plan/todoWrite JSON blocks if this message has planResult or todoWriteResult
+                        msg.metadata?.planResult || msg.metadata?.todoWriteResult
                           ? msg.blocks.filter(block => {
                               // Remove JSON code blocks that contain "todos" (plan blocks)
                               if (block.type === 'code' && block.metadata?.language === 'json') {
                                 try {
                                   const parsed = JSON.parse(block.content)
                                   if (parsed.todos && Array.isArray(parsed.todos)) {
-                                    return false // Filter out plan JSON
+                                    return false // Filter out plan/todoWrite JSON
                                   }
                                 } catch (e) {
                                   // Not valid JSON, keep it
@@ -1456,6 +1525,23 @@ The plan is ready. What would you like to do?`,
                   ) : (
                     <div className="text-base font-normal text-foreground whitespace-pre-wrap leading-relaxed">
                       {msg.content}
+                    </div>
+                  )}
+
+                  {/* Copy button - Show below message content for assistant messages */}
+                  {msg.role === 'assistant' && (
+                    <div className="mt-3 flex justify-end">
+                      <button
+                        onClick={() => handleCopyMessage(msg.id, msg.content)}
+                        className="p-1 text-muted-foreground/60 hover:text-foreground rounded-md hover:bg-secondary/50 transition-all"
+                        title="Copy message"
+                      >
+                        {copiedMessageId === msg.id ? (
+                          <Check className="w-3 h-3 text-green-500" strokeWidth={1.5} />
+                        ) : (
+                          <Copy className="w-3 h-3 opacity-60 hover:opacity-100 transition-opacity" strokeWidth={1.5} />
+                        )}
+                      </button>
                     </div>
                   )}
                 </div>

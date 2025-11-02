@@ -15,6 +15,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 
 // @ts-ignore - Electron IPC
 const { ipcRenderer } = window.require('electron')
@@ -28,8 +29,13 @@ interface TodoPanelProps {
 
 type FilterType = 'active' | 'archived'
 
+// Extended TodoSession with actual todos from DB
+interface TodoSessionWithActualTodos extends TodoSession {
+  actualTodos?: any[]  // Actual Todo[] loaded from DB (status, progress, etc.)
+}
+
 export function TodoPanel({ conversationId, refreshTrigger, workspace, onCommit }: TodoPanelProps) {
-  const [sessions, setSessions] = useState<TodoSession[]>([])
+  const [sessions, setSessions] = useState<TodoSessionWithActualTodos[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [selectedFilter, setSelectedFilter] = useState<FilterType>('active')
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
@@ -44,6 +50,27 @@ export function TodoPanel({ conversationId, refreshTrigger, workspace, onCommit 
     }
   }, [conversationId, refreshTrigger])
 
+  // Auto-refresh for active sessions (real-time progress tracking)
+  useEffect(() => {
+    if (!conversationId) return
+
+    // Check if there are any active sessions with todos
+    const hasActiveSessions = sessions.some(s => s.status === 'active' && s.actualTodos)
+
+    if (!hasActiveSessions) return
+
+    // Poll every 2 seconds for real-time checkbox updates
+    console.log('[TodoPanel] Starting auto-refresh for active sessions')
+    const interval = setInterval(() => {
+      loadSessions()
+    }, 2000)
+
+    return () => {
+      console.log('[TodoPanel] Stopping auto-refresh')
+      clearInterval(interval)
+    }
+  }, [conversationId, sessions])
+
   const loadSessions = async () => {
     if (!conversationId) return
 
@@ -53,13 +80,12 @@ export function TodoPanel({ conversationId, refreshTrigger, workspace, onCommit 
 
       if (result.success && result.messages) {
         // Extract sessions from messages with planResult
-        const extractedSessions: TodoSession[] = []
+        const extractedSessions: TodoSessionWithActualTodos[] = []
 
-        result.messages.forEach((message: Message) => {
+        for (const message of result.messages) {
           if (message.role === 'assistant' && message.metadata?.planResult) {
             // Determine session status based on planConfirmed flag
-            // Don't mark as 'completed' - that's for individual todos
-            const session: TodoSession = {
+            const session: TodoSessionWithActualTodos = {
               id: `session-${message.id}`,
               conversationId,
               messageId: message.id,
@@ -67,9 +93,23 @@ export function TodoPanel({ conversationId, refreshTrigger, workspace, onCommit 
               status: message.metadata.planConfirmed ? 'active' : 'pending',
               createdAt: message.timestamp,
             }
+
+            // Load actual todos from DB if plan is confirmed
+            if (message.metadata.planConfirmed) {
+              try {
+                const todosResult = await ipcRenderer.invoke('todos:load-by-message', message.id)
+                if (todosResult.success && todosResult.todos) {
+                  session.actualTodos = todosResult.todos
+                  console.log(`[TodoPanel] Loaded ${todosResult.todos.length} actual todos for session ${session.id}`)
+                }
+              } catch (error) {
+                console.error('[TodoPanel] Failed to load actual todos:', error)
+              }
+            }
+
             extractedSessions.push(session)
           }
-        })
+        }
 
         // Sort by creation time (newest first)
         extractedSessions.sort((a, b) => b.createdAt - a.createdAt)
@@ -321,10 +361,10 @@ export function TodoPanel({ conversationId, refreshTrigger, workspace, onCommit 
 }
 
 interface TodoSessionItemProps {
-  session: TodoSession
+  session: TodoSessionWithActualTodos
   index: number
   onNavigate: (messageId: string) => void
-  onStartTasks: (session: TodoSession, mode: ExecutionMode) => void
+  onStartTasks: (session: TodoSessionWithActualTodos, mode: ExecutionMode) => void
 }
 
 function TodoSessionItem({ session, index, onNavigate, onStartTasks }: TodoSessionItemProps) {
@@ -337,9 +377,10 @@ function TodoSessionItem({ session, index, onNavigate, onStartTasks }: TodoSessi
   const [executionMode, setExecutionMode] = useState<ExecutionMode>(suggestedMode)
 
   const totalTasks = session.planResult.todos.length
-  // For now, show 0 completed for pending/active sessions
-  // TODO: Load actual todo status from DB for real-time progress
-  const completedTasks = session.status === 'completed' ? totalTasks : 0
+  // Calculate completed tasks from actual todos in DB
+  const completedTasks = session.actualTodos
+    ? session.actualTodos.filter((t: any) => t.status === 'completed').length
+    : 0
 
   const formatTime = (timestamp: number): string => {
     const now = Date.now()
@@ -422,14 +463,19 @@ function TodoSessionItem({ session, index, onNavigate, onStartTasks }: TodoSessi
         {/* Todo list */}
         <CollapsibleContent className="overflow-hidden transition-all duration-150 ease-out">
           <div className="px-2 pb-2 space-y-1">
-          {session.planResult.todos.map((todo, index) => (
-            <TodoItemRow
-              key={index}
-              todo={todo}
-              isCompleted={false}  // TODO: Load actual status from DB
-              depth={0}
-            />
-          ))}
+          {session.planResult.todos.map((todo, index) => {
+            // Find actual todo by order to get real-time status from DB
+            const actualTodo = session.actualTodos?.find((t: any) => t.order === index)
+
+            return (
+              <TodoItemRow
+                key={index}
+                todo={todo}
+                isCompleted={actualTodo?.status === 'completed'}
+                depth={0}
+              />
+            )
+          })}
 
           {/* Start Tasks Split Button (show for pending and active plans) */}
           {(session.status === 'pending' || session.status === 'active') && (
