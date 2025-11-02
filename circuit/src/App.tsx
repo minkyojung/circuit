@@ -196,9 +196,10 @@ function App() {
     setSelectedFile(filePath)
   }
 
-  // Reset selected file when workspace changes
+  // Reset selected file and conversation when workspace changes
   useEffect(() => {
     setSelectedFile(null)
+    setActiveConversationId(null)
   }, [selectedWorkspace?.id])
 
   // Keyboard shortcuts

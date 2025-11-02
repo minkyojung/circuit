@@ -65,6 +65,17 @@ export function ConversationTabs({
       const result = await ipcRenderer.invoke('conversation:list', workspaceId)
       if (result.success && result.conversations) {
         setConversations(result.conversations)
+
+        // Auto-select oldest conversation if none is active
+        if (!activeConversationId && result.conversations.length > 0) {
+          // Sort by createdAt (ascending) to get the oldest conversation
+          const sortedConversations = [...result.conversations].sort(
+            (a, b) => a.createdAt - b.createdAt
+          )
+          const oldestConversation = sortedConversations[0]
+          console.log('[ConversationTabs] Auto-selecting oldest conversation:', oldestConversation.id)
+          onConversationChange(oldestConversation.id)
+        }
       }
     } catch (error) {
       console.error('[ConversationTabs] Error loading conversations:', error)
