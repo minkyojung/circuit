@@ -21,7 +21,6 @@ export function Terminal({ workspace }: TerminalProps) {
 
     let isMounted = true
     let resizeObserver: ResizeObserver | null = null
-    let initPromptTimer: NodeJS.Timeout | null = null
 
     const initTerminal = async () => {
       console.log('[Terminal] Initializing terminal for workspace:', workspace.id, workspace.path)
@@ -66,11 +65,6 @@ export function Terminal({ workspace }: TerminalProps) {
         terminal.open(terminalRef.current)
         terminalData.isAttached = true
 
-        // Clear any buffered output from PTY initialization
-        // This prevents duplicate prompts from React Strict Mode double-mount
-        terminal.clear()
-        console.log('[Terminal] Cleared buffered PTY output')
-
         // Load Canvas renderer for full transparency support
         // Note: WebGL doesn't support transparency (xterm.js Issue #4212)
         try {
@@ -96,16 +90,9 @@ export function Terminal({ workspace }: TerminalProps) {
           console.error('[Terminal] Failed to fit terminal:', error)
         }
 
-        // Send initial enter to trigger prompt display (only once per terminal session)
-        if (!terminalData.hasInitialized && isMounted) {
-          terminalData.hasInitialized = true
-          console.log('[Terminal] Sending initial enter to trigger prompt')
-          initPromptTimer = setTimeout(() => {
-            if (isMounted) {
-              ipcRenderer.invoke('terminal:write', workspace.id, '\r')
-            }
-          }, 300)
-        }
+        // Mark as initialized (PTY shell automatically shows prompt)
+        terminalData.hasInitialized = true
+        console.log('[Terminal] Terminal initialized, waiting for shell prompt')
       } else if (terminal.element && terminalRef.current && isMounted) {
         // Terminal was previously attached, re-attach it
         console.log('[Terminal] Re-attaching terminal element')
@@ -161,9 +148,6 @@ export function Terminal({ workspace }: TerminalProps) {
     // Cleanup function to prevent memory leaks and duplicate operations
     return () => {
       isMounted = false
-      if (initPromptTimer) {
-        clearTimeout(initPromptTimer)
-      }
       if (resizeObserver) {
         resizeObserver.disconnect()
       }
