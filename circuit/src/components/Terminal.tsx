@@ -150,9 +150,6 @@ export function Terminal({ workspace }: TerminalProps) {
     <div
       ref={terminalRef}
       className="w-full h-full overflow-hidden"
-      style={{
-        padding: '8px',
-      }}
     />
   )
 }

@@ -302,7 +302,7 @@ export function TodoPanel({ conversationId, refreshTrigger, workspace, onCommit 
       {workspace && (
         <div className="shrink-0 border-t border-sidebar-border">
           {/* Terminal Header */}
-          <div className="flex items-center gap-2 px-2 py-2 text-xs font-medium text-sidebar-foreground bg-sidebar-accent/30">
+          <div className="flex items-center gap-2 px-2 py-1.5 text-xs font-medium text-sidebar-foreground">
             <TerminalIcon size={14} />
             <span>Terminal</span>
             <span className="text-[10px] text-sidebar-foreground-muted">
@@ -311,7 +311,7 @@ export function TodoPanel({ conversationId, refreshTrigger, workspace, onCommit 
           </div>
 
           {/* Terminal Content */}
-          <div className="h-[300px] overflow-hidden">
+          <div className="h-[400px] overflow-hidden">
             <Terminal workspace={workspace} />
           </div>
         </div>
