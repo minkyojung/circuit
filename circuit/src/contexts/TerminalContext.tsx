@@ -17,6 +17,8 @@ interface TerminalData {
   terminal: XTermTerminal
   addons: TerminalAddons
   isAttached: boolean
+  onDataDisposable?: { dispose: () => void }
+  hasInitialized: boolean
 }
 
 interface TerminalState {
@@ -197,7 +199,8 @@ export function TerminalProvider({ children }: TerminalProviderProps) {
       const terminalData: TerminalData = {
         terminal,
         addons: { fitAddon, webLinksAddon },
-        isAttached: false
+        isAttached: false,
+        hasInitialized: false
       }
 
       // Store terminal data

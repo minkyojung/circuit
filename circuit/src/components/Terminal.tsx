@@ -75,15 +75,26 @@ export function Terminal({ workspace }: TerminalProps) {
         }
 
         // Set up data input handler (only once per terminal)
-        terminal.onData((data) => {
-          ipcRenderer.invoke('terminal:write', workspace.id, data)
-        })
+        if (!terminalData.onDataDisposable) {
+          console.log('[Terminal] Registering onData handler')
+          terminalData.onDataDisposable = terminal.onData((data) => {
+            ipcRenderer.invoke('terminal:write', workspace.id, data)
+          })
+        }
 
         // Fit terminal to container
         try {
           addons.fitAddon.fit()
         } catch (error) {
           console.error('[Terminal] Failed to fit terminal:', error)
+        }
+
+        // Send initial enter to trigger prompt display (only once)
+        if (!terminalData.hasInitialized) {
+          terminalData.hasInitialized = true
+          setTimeout(() => {
+            ipcRenderer.invoke('terminal:write', workspace.id, '\r')
+          }, 100)
         }
       } else if (terminal.element && terminalRef.current) {
         // Terminal was previously attached, re-attach it
