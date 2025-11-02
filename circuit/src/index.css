@@ -202,11 +202,21 @@
     --xterm-padding: 0;
   }
 
-  /* Override xterm.css defaults (xterm.css is imported, we override what we need) */
+  /* Base xterm styles (essential from xterm.css) */
   .xterm {
+    cursor: text;
+    position: relative;
+    user-select: none;
+    -ms-user-select: none;
+    -webkit-user-select: none;
     padding: var(--xterm-padding);
     font-weight: var(--xterm-font-weight) !important;
     background: var(--xterm-background) !important;
+  }
+
+  .xterm.focus,
+  .xterm:focus {
+    outline: none;
   }
 
   /* Override xterm internal layers - ALL must be transparent */
