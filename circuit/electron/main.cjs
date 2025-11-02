@@ -86,6 +86,43 @@ async function getWorkspaceContextTrackerInstance() {
   return tracker;
 }
 
+// Import Terminal Manager (ES Module)
+let terminalManagerPromise = null;
+
+async function getTerminalManagerInstance() {
+  console.log('[main.cjs] getTerminalManagerInstance called');
+  if (!terminalManagerPromise) {
+    console.log('[main.cjs] Creating new Terminal Manager instance...');
+    terminalManagerPromise = import('../dist-electron/terminalManager.js')
+      .then(module => {
+        console.log('[main.cjs] terminalManager.js imported successfully');
+        const manager = module.getTerminalManager();
+
+        // Set up event listeners for terminal data and exit
+        manager.on('data', (workspaceId, data) => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('terminal:data', workspaceId, data);
+          }
+        });
+
+        manager.on('exit', (workspaceId, exitCode) => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('terminal:exit', workspaceId, exitCode);
+          }
+        });
+
+        return manager;
+      })
+      .catch(error => {
+        console.error('[main.cjs] Failed to import terminalManager.js:', error);
+        throw error;
+      });
+  }
+  const manager = await terminalManagerPromise;
+  console.log('[main.cjs] Terminal Manager instance ready');
+  return manager;
+}
+
 /**
  * Install circuit-proxy to ~/.circuit/bin/
  * This proxy allows Claude Code to access all MCP servers via a single MCP interface
@@ -1959,6 +1996,13 @@ app.on('before-quit', async () => {
     // Cleanup MCP manager
     const manager = await getMCPManagerInstance();
     await manager.cleanup();
+
+    // Cleanup terminal sessions
+    if (terminalManagerPromise) {
+      const terminalManager = await getTerminalManagerInstance();
+      terminalManager.destroyAllSessions();
+      console.log('Terminal sessions destroyed');
+    }
   } catch (error) {
     console.error('Cleanup error:', error);
   }
@@ -3736,6 +3780,93 @@ ipcMain.handle('workspace:abort-merge', async (event, workspacePath) => {
     return { success: true };
   } catch (error) {
     console.error('[Workspace] Abort merge error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+/**
+ * Terminal: Create session for workspace
+ */
+ipcMain.handle('terminal:create-session', async (event, workspaceId, workspacePath) => {
+  try {
+    console.log('[Terminal] Creating session for workspace:', workspaceId, workspacePath);
+    const manager = await getTerminalManagerInstance();
+    await manager.createSession(workspaceId, workspacePath);
+    return { success: true };
+  } catch (error) {
+    console.error('[Terminal] Failed to create session:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+/**
+ * Terminal: Write data to session
+ */
+ipcMain.handle('terminal:write', async (event, workspaceId, data) => {
+  try {
+    const manager = await getTerminalManagerInstance();
+    manager.writeData(workspaceId, data);
+    return { success: true };
+  } catch (error) {
+    console.error('[Terminal] Failed to write data:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+/**
+ * Terminal: Resize terminal
+ */
+ipcMain.handle('terminal:resize', async (event, workspaceId, cols, rows) => {
+  try {
+    const manager = await getTerminalManagerInstance();
+    manager.resizeTerminal(workspaceId, cols, rows);
+    return { success: true };
+  } catch (error) {
+    console.error('[Terminal] Failed to resize:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+/**
+ * Terminal: Destroy session
+ */
+ipcMain.handle('terminal:destroy-session', async (event, workspaceId) => {
+  try {
+    console.log('[Terminal] Destroying session for workspace:', workspaceId);
+    const manager = await getTerminalManagerInstance();
+    manager.destroySession(workspaceId);
+    return { success: true };
+  } catch (error) {
+    console.error('[Terminal] Failed to destroy session:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+/**
+ * Terminal: Check if session exists
+ */
+ipcMain.handle('terminal:has-session', async (event, workspaceId) => {
+  try {
+    const manager = await getTerminalManagerInstance();
+    const exists = manager.hasSession(workspaceId);
+    return { success: true, exists };
+  } catch (error) {
+    console.error('[Terminal] Failed to check session:', error);
     return {
       success: false,
       error: error.message

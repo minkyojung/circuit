@@ -1,0 +1,287 @@
+import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react'
+import { Terminal as XTermTerminal } from '@xterm/xterm'
+import { FitAddon } from '@xterm/addon-fit'
+import { WebLinksAddon } from '@xterm/addon-web-links'
+import { WebglAddon } from '@xterm/addon-webgl'
+import FontFaceObserver from 'fontfaceobserver'
+
+// @ts-ignore - Electron IPC
+const { ipcRenderer } = window.require('electron')
+
+interface TerminalAddons {
+  fitAddon: FitAddon
+  webLinksAddon: WebLinksAddon
+}
+
+interface TerminalData {
+  terminal: XTermTerminal
+  addons: TerminalAddons
+  isAttached: boolean
+}
+
+interface TerminalState {
+  // Workspace ID → terminal data
+  terminals: Map<string, TerminalData>
+
+  // Currently active workspace ID
+  activeWorkspaceId: string | null
+
+  // Terminal panel open state
+  isOpen: boolean
+
+  // Terminal panel height (for resizable feature)
+  height: number
+}
+
+interface TerminalContextValue extends TerminalState {
+  // Get or create terminal data for workspace
+  getOrCreateTerminal: (workspaceId: string, workspacePath: string) => Promise<TerminalData | null>
+
+  // Switch active workspace
+  switchWorkspace: (workspaceId: string | null) => void
+
+  // Destroy terminal session
+  destroyTerminal: (workspaceId: string) => void
+
+  // UI state controls
+  toggleTerminal: () => void
+  setHeight: (height: number) => void
+
+  // Check if terminal exists
+  hasTerminal: (workspaceId: string) => boolean
+}
+
+const TerminalContext = createContext<TerminalContextValue | null>(null)
+
+// LocalStorage keys
+const TERMINAL_STATE_KEY = 'circuit-terminal-state'
+
+interface PersistedTerminalState {
+  isOpen: boolean
+  height: number
+}
+
+function loadPersistedState(): PersistedTerminalState {
+  try {
+    const stored = localStorage.getItem(TERMINAL_STATE_KEY)
+    if (stored) {
+      return JSON.parse(stored)
+    }
+  } catch (error) {
+    console.error('[TerminalContext] Failed to load persisted state:', error)
+  }
+
+  // Default values
+  return {
+    isOpen: false, // Start closed by default
+    height: 300
+  }
+}
+
+function savePersistedState(state: PersistedTerminalState) {
+  try {
+    localStorage.setItem(TERMINAL_STATE_KEY, JSON.stringify(state))
+  } catch (error) {
+    console.error('[TerminalContext] Failed to save persisted state:', error)
+  }
+}
+
+interface TerminalProviderProps {
+  children: ReactNode
+}
+
+export function TerminalProvider({ children }: TerminalProviderProps) {
+  const [terminals] = useState<Map<string, TerminalData>>(new Map())
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null)
+
+  // Load persisted state
+  const persistedState = loadPersistedState()
+  const [isOpen, setIsOpen] = useState(persistedState.isOpen)
+  const [height, setHeight] = useState(persistedState.height)
+
+  // Keep track of sessions we've created
+  const createdSessions = useRef<Set<string>>(new Set())
+
+  // Persist state changes
+  useEffect(() => {
+    savePersistedState({ isOpen, height })
+  }, [isOpen, height])
+
+  // Set up IPC listeners for terminal data and exit events
+  useEffect(() => {
+    const handleTerminalData = (event: any, workspaceId: string, data: string) => {
+      const terminalData = terminals.get(workspaceId)
+      if (terminalData) {
+        terminalData.terminal.write(data)
+      }
+    }
+
+    const handleTerminalExit = (event: any, workspaceId: string, exitCode: number) => {
+      console.log(`[TerminalContext] Terminal exited for workspace: ${workspaceId}, exitCode: ${exitCode}`)
+
+      // Clean up terminal instance
+      const terminalData = terminals.get(workspaceId)
+      if (terminalData) {
+        terminalData.terminal.dispose()
+        terminals.delete(workspaceId)
+      }
+
+      createdSessions.current.delete(workspaceId)
+    }
+
+    ipcRenderer.on('terminal:data', handleTerminalData)
+    ipcRenderer.on('terminal:exit', handleTerminalExit)
+
+    return () => {
+      ipcRenderer.removeListener('terminal:data', handleTerminalData)
+      ipcRenderer.removeListener('terminal:exit', handleTerminalExit)
+    }
+  }, [terminals])
+
+  const getOrCreateTerminal = async (workspaceId: string, workspacePath: string): Promise<TerminalData | null> => {
+    // Return existing terminal data
+    if (terminals.has(workspaceId)) {
+      console.log(`[TerminalContext] Reusing existing terminal for workspace: ${workspaceId}`)
+      return terminals.get(workspaceId)!
+    }
+
+    // Create new terminal instance
+    console.log(`[TerminalContext] Creating new terminal for workspace: ${workspaceId}`)
+
+    try {
+      // Create xterm.js instance (will be attached to DOM later)
+      const terminal = new XTermTerminal({
+        cursorBlink: true,
+        fontSize: 13,
+        fontFamily: '"JetBrains Mono", Menlo, Monaco, "Courier New", monospace',
+        theme: {
+          background: 'transparent',
+          foreground: 'hsl(var(--sidebar-foreground))',
+          cursor: 'hsl(var(--primary))',
+          cursorAccent: 'hsl(var(--sidebar-background))',
+          selectionBackground: 'hsl(var(--accent) / 0.3)',
+          selectionForeground: 'hsl(var(--sidebar-foreground))',
+          black: '#2e3436',
+          red: '#cc0000',
+          green: '#4e9a06',
+          yellow: '#c4a000',
+          blue: '#3465a4',
+          magenta: '#75507b',
+          cyan: '#06989a',
+          white: '#d3d7cf',
+          brightBlack: '#555753',
+          brightRed: '#ef2929',
+          brightGreen: '#8ae234',
+          brightYellow: '#fce94f',
+          brightBlue: '#729fcf',
+          brightMagenta: '#ad7fa8',
+          brightCyan: '#34e2e2',
+          brightWhite: '#eeeeec',
+        },
+        scrollback: 1000,
+        rows: 20,
+        cols: 80,
+        allowTransparency: true,
+        drawBoldTextInBrightColors: true,
+      })
+
+      // Create addons
+      const fitAddon = new FitAddon()
+      const webLinksAddon = new WebLinksAddon()
+
+      // Load addons into terminal
+      terminal.loadAddon(fitAddon)
+      terminal.loadAddon(webLinksAddon)
+
+      // Create terminal data
+      const terminalData: TerminalData = {
+        terminal,
+        addons: { fitAddon, webLinksAddon },
+        isAttached: false
+      }
+
+      // Store terminal data
+      terminals.set(workspaceId, terminalData)
+
+      // Create PTY session in main process (only if not already created)
+      if (!createdSessions.current.has(workspaceId)) {
+        const result = await ipcRenderer.invoke('terminal:create-session', workspaceId, workspacePath)
+
+        if (!result.success) {
+          console.error(`[TerminalContext] Failed to create terminal session:`, result.error)
+          terminal.dispose()
+          terminals.delete(workspaceId)
+          return null
+        }
+
+        createdSessions.current.add(workspaceId)
+        console.log(`[TerminalContext] Terminal session created successfully for workspace: ${workspaceId}`)
+      }
+
+      return terminalData
+    } catch (error) {
+      console.error('[TerminalContext] Failed to create terminal:', error)
+      return null
+    }
+  }
+
+  const switchWorkspace = (workspaceId: string | null) => {
+    setActiveWorkspaceId(workspaceId)
+  }
+
+  const destroyTerminal = (workspaceId: string) => {
+    console.log(`[TerminalContext] Destroying terminal for workspace: ${workspaceId}`)
+
+    // Dispose xterm.js instance
+    const terminalData = terminals.get(workspaceId)
+    if (terminalData) {
+      terminalData.terminal.dispose()
+      terminals.delete(workspaceId)
+    }
+
+    // Destroy PTY session in main process
+    ipcRenderer.invoke('terminal:destroy-session', workspaceId)
+      .then((result: any) => {
+        if (!result.success) {
+          console.error(`[TerminalContext] Failed to destroy terminal session:`, result.error)
+        }
+      })
+
+    createdSessions.current.delete(workspaceId)
+  }
+
+  const toggleTerminal = () => {
+    setIsOpen(prev => !prev)
+  }
+
+  const hasTerminal = (workspaceId: string): boolean => {
+    return terminals.has(workspaceId)
+  }
+
+  const contextValue: TerminalContextValue = {
+    terminals,
+    activeWorkspaceId,
+    isOpen,
+    height,
+    getOrCreateTerminal,
+    switchWorkspace,
+    destroyTerminal,
+    toggleTerminal,
+    setHeight,
+    hasTerminal,
+  }
+
+  return (
+    <TerminalContext.Provider value={contextValue}>
+      {children}
+    </TerminalContext.Provider>
+  )
+}
+
+export function useTerminal(): TerminalContextValue {
+  const context = useContext(TerminalContext)
+  if (!context) {
+    throw new Error('useTerminal must be used within a TerminalProvider')
+  }
+  return context
+}

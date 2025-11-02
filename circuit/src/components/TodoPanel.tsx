@@ -1,16 +1,16 @@
 import { useState, useEffect } from 'react'
-import { ChevronDown, ChevronRight, Check, Circle, Clock, Zap, MessageSquare, Settings } from 'lucide-react'
+import { ChevronDown, ChevronRight, Check, Circle, Clock, Zap, MessageSquare, Settings, Terminal as TerminalIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Message } from '@/types/conversation'
 import type { TodoSession, TodoDraft, ExecutionMode } from '@/types/todo'
 import type { Workspace } from '@/types/workspace'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { SettingsDialog } from '@/components/SettingsDialog'
-import { MemoryPoolMonitor } from '@/components/debug/MemoryPoolMonitor'
-import { MemoryTestPanel } from '@/components/debug/MemoryTestPanel'
+import { Terminal } from '@/components/Terminal'
 import { motion, AnimatePresence } from 'framer-motion'
 import { listItemVariants } from '@/lib/motion-tokens'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,7 +36,6 @@ export function TodoPanel({ conversationId, refreshTrigger, workspace, onCommit 
   const [selectedFilter, setSelectedFilter] = useState<FilterType>('active')
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false)
-  const [isMemoryTestOpen, setIsMemoryTestOpen] = useState(false)
 
   // Load sessions from messages with planResult
   useEffect(() => {
@@ -146,9 +145,13 @@ export function TodoPanel({ conversationId, refreshTrigger, workspace, onCommit 
   }
 
   return (
-    <div className="h-full w-[20rem] flex flex-col flex-shrink-0">
-      {/* Top bar with icons and Commit & PR button */}
-      <div className="h-[44px] shrink-0 flex items-center gap-1 px-2 pt-2" style={{ WebkitAppRegion: 'drag' } as any}>
+    <div className="h-full w-[20rem] flex-shrink-0">
+      <PanelGroup direction="vertical" autoSaveId="circuit-todo-panel-layout">
+        {/* Plans Panel */}
+        <Panel defaultSize={workspace ? 65 : 100} minSize={30} id="plans-panel">
+          <div className="flex flex-col h-full">
+            {/* Top bar with icons and Commit & PR button */}
+            <div className="h-[44px] shrink-0 flex items-center gap-1 px-2 pt-2" style={{ WebkitAppRegion: 'drag' } as any}>
         {/* Settings Button */}
         <button
           onClick={() => setIsSettingsOpen(true)}
@@ -266,63 +269,67 @@ export function TodoPanel({ conversationId, refreshTrigger, workspace, onCommit 
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-2">
-        {isLoading ? (
-          <div className="px-3 py-6 text-center">
-            <p className="text-sm text-sidebar-foreground-muted">Loading plans...</p>
-          </div>
-        ) : filteredSessions.length === 0 ? (
-          <div className="px-3 py-6 text-center">
-            <Clock className="h-12 w-12 mx-auto mb-3 text-sidebar-foreground-muted opacity-20" />
-            <p className="text-sm text-sidebar-foreground-muted mb-1">
-              {selectedFilter === 'active' ? 'No active plans' : 'No archived plans'}
-            </p>
-            <p className="text-xs text-sidebar-foreground-muted opacity-70">
-              {selectedFilter === 'active'
-                ? 'Use Plan Mode to create detailed task plans'
-                : 'Completed plans will appear here'}
-            </p>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-2">
-            <AnimatePresence mode="popLayout">
-              {filteredSessions.map((session, index) => (
-                <TodoSessionItem
-                  key={session.id}
-                  session={session}
-                  index={index}
-                  onNavigate={handleScrollToMessage}
-                  onStartTasks={handleStartTasks}
-                />
-              ))}
-            </AnimatePresence>
-          </div>
-        )}
-      </div>
-
-      {/* Memory Pool Monitor */}
-      <div className="shrink-0 border-t border-sidebar-border p-2">
-        <MemoryPoolMonitor workspace={workspace} />
-      </div>
-
-      {/* Memory Test Panel (Collapsible) */}
-      <div className="shrink-0 border-t border-sidebar-border">
-        <Collapsible open={isMemoryTestOpen} onOpenChange={setIsMemoryTestOpen}>
-          <CollapsibleTrigger className="flex w-full items-center justify-between p-2 hover:bg-sidebar-hover transition-colors">
-            <div className="flex items-center gap-2 text-xs font-medium text-sidebar-foreground">
-              {isMemoryTestOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-              <span>메모리 테스트 패널</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-500/10 text-orange-600">
-                디버그
-              </span>
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-2">
+              {isLoading ? (
+                <div className="px-3 py-6 text-center">
+                  <p className="text-sm text-sidebar-foreground-muted">Loading plans...</p>
+                </div>
+              ) : filteredSessions.length === 0 ? (
+                <div className="px-3 py-6 text-center">
+                  <Clock className="h-12 w-12 mx-auto mb-3 text-sidebar-foreground-muted opacity-20" />
+                  <p className="text-sm text-sidebar-foreground-muted mb-1">
+                    {selectedFilter === 'active' ? 'No active plans' : 'No archived plans'}
+                  </p>
+                  <p className="text-xs text-sidebar-foreground-muted opacity-70">
+                    {selectedFilter === 'active'
+                      ? 'Use Plan Mode to create detailed task plans'
+                      : 'Completed plans will appear here'}
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  <AnimatePresence mode="popLayout">
+                    {filteredSessions.map((session, index) => (
+                      <TodoSessionItem
+                        key={session.id}
+                        session={session}
+                        index={index}
+                        onNavigate={handleScrollToMessage}
+                        onStartTasks={handleStartTasks}
+                      />
+                    ))}
+                  </AnimatePresence>
+                </div>
+              )}
             </div>
-          </CollapsibleTrigger>
-          <CollapsibleContent className="max-h-[60vh] overflow-y-auto">
-            <MemoryTestPanel workspace={workspace} conversationId={conversationId} />
-          </CollapsibleContent>
-        </Collapsible>
-      </div>
+          </div>
+        </Panel>
+
+        {/* Terminal Panel */}
+        {workspace && (
+          <>
+            <PanelResizeHandle className="h-1 bg-sidebar-border hover:bg-accent transition-colors" />
+            <Panel defaultSize={35} minSize={15} maxSize={70} id="terminal-panel">
+              <div className="flex flex-col h-full border-t border-sidebar-border">
+                {/* Terminal Header */}
+                <div className="flex items-center gap-2 px-2 py-2 text-xs font-medium text-sidebar-foreground bg-sidebar-accent/30">
+                  <TerminalIcon size={14} />
+                  <span>Terminal</span>
+                  <span className="text-[10px] text-sidebar-foreground-muted">
+                    {workspace.displayName}
+                  </span>
+                </div>
+
+                {/* Terminal Content */}
+                <div className="flex-1 overflow-hidden">
+                  <Terminal workspace={workspace} />
+                </div>
+              </div>
+            </Panel>
+          </>
+        )}
+      </PanelGroup>
     </div>
   )
 }
