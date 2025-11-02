@@ -66,6 +66,11 @@ export function Terminal({ workspace }: TerminalProps) {
         terminal.open(terminalRef.current)
         terminalData.isAttached = true
 
+        // Clear any buffered output from PTY initialization
+        // This prevents duplicate prompts from React Strict Mode double-mount
+        terminal.clear()
+        console.log('[Terminal] Cleared buffered PTY output')
+
         // Load Canvas renderer for full transparency support
         // Note: WebGL doesn't support transparency (xterm.js Issue #4212)
         try {
@@ -104,6 +109,13 @@ export function Terminal({ workspace }: TerminalProps) {
       } else if (terminal.element && terminalRef.current && isMounted) {
         // Terminal was previously attached, re-attach it
         console.log('[Terminal] Re-attaching terminal element')
+
+        // Clear previous terminal content from container
+        while (terminalRef.current.firstChild) {
+          terminalRef.current.removeChild(terminalRef.current.firstChild)
+        }
+
+        // Append the terminal element for this workspace
         terminalRef.current.appendChild(terminal.element)
 
         // Re-fit
