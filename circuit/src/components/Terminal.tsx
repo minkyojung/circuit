@@ -61,11 +61,7 @@ export function Terminal({ workspace }: TerminalProps) {
 
         if (!isMounted || !terminalRef.current) return
 
-        // Open terminal
-        terminal.open(terminalRef.current)
-        terminalData.isAttached = true
-
-        // Load Canvas renderer for full transparency support
+        // Load Canvas renderer BEFORE opening terminal for full transparency support
         // Note: WebGL doesn't support transparency (xterm.js Issue #4212)
         try {
           const { CanvasAddon } = await import('@xterm/addon-canvas')
@@ -74,6 +70,10 @@ export function Terminal({ workspace }: TerminalProps) {
         } catch (e) {
           console.warn('[Terminal] Canvas addon failed, using DOM renderer:', e)
         }
+
+        // Open terminal after canvas addon is loaded
+        terminal.open(terminalRef.current)
+        terminalData.isAttached = true
 
         // Set up data input handler (only once per terminal)
         if (!terminalData.onDataDisposable) {
@@ -90,9 +90,18 @@ export function Terminal({ workspace }: TerminalProps) {
           console.error('[Terminal] Failed to fit terminal:', error)
         }
 
-        // Mark as initialized (PTY shell automatically shows prompt)
-        terminalData.hasInitialized = true
-        console.log('[Terminal] Terminal initialized, waiting for shell prompt')
+        // Send initial prompt trigger to ensure content is visible
+        // PTY may output prompt before terminal is ready to display
+        if (!terminalData.hasInitialized && isMounted) {
+          terminalData.hasInitialized = true
+          console.log('[Terminal] Sending initial prompt trigger')
+          // Small delay to ensure terminal is fully initialized
+          setTimeout(() => {
+            if (isMounted) {
+              ipcRenderer.invoke('terminal:write', workspace.id, '\r')
+            }
+          }, 100)
+        }
       } else if (terminal.element && terminalRef.current && isMounted) {
         // Terminal was previously attached, re-attach it
         console.log('[Terminal] Re-attaching terminal element for workspace:', workspace.id)
