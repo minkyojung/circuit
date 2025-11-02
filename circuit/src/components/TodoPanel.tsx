@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { ChevronDown, ChevronRight, Check, Circle, Clock, Zap, MessageSquare, Settings, Terminal as TerminalIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Message } from '@/types/conversation'
@@ -40,6 +40,7 @@ export function TodoPanel({ conversationId, refreshTrigger, workspace, onCommit 
   const [selectedFilter, setSelectedFilter] = useState<FilterType>('active')
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false)
+  const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
   // Load sessions from messages with planResult
   useEffect(() => {
@@ -52,24 +53,40 @@ export function TodoPanel({ conversationId, refreshTrigger, workspace, onCommit 
 
   // Auto-refresh for active sessions (real-time progress tracking)
   useEffect(() => {
-    if (!conversationId) return
+    if (!conversationId) {
+      // Clear interval if conversation changes
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+        console.log('[TodoPanel] Stopped auto-refresh (no conversation)')
+      }
+      return
+    }
 
     // Check if there are any active sessions with todos
     const hasActiveSessions = sessions.some(s => s.status === 'active' && s.actualTodos)
 
-    if (!hasActiveSessions) return
-
-    // Poll every 2 seconds for real-time checkbox updates
-    console.log('[TodoPanel] Starting auto-refresh for active sessions')
-    const interval = setInterval(() => {
-      loadSessions()
-    }, 2000)
-
-    return () => {
-      console.log('[TodoPanel] Stopping auto-refresh')
-      clearInterval(interval)
+    if (hasActiveSessions && !intervalRef.current) {
+      // Start polling
+      console.log('[TodoPanel] Starting auto-refresh for active sessions')
+      intervalRef.current = setInterval(() => {
+        loadSessions()
+      }, 2000)
+    } else if (!hasActiveSessions && intervalRef.current) {
+      // Stop polling
+      console.log('[TodoPanel] Stopping auto-refresh (no active sessions)')
+      clearInterval(intervalRef.current)
+      intervalRef.current = null
     }
-  }, [conversationId, sessions])
+
+    // Cleanup on unmount
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
+    }
+  }, [conversationId, sessions])  // ✅ Check sessions to start/stop polling, but use ref to prevent recreation
 
   const loadSessions = async () => {
     if (!conversationId) return

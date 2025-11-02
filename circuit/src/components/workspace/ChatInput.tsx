@@ -51,21 +51,21 @@ const INPUT_STYLES = {
     button: 'h-6 px-3 py-1 text-sm scale-[0.8] origin-left',
   },
   textarea: {
-    padding: 'px-4 pt-3 pb-0',
-    minHeight: 'min-h-[80px]',
+    padding: 'px-4 pt-4 pb-0',
+    minHeight: 'min-h-[108px]',
     fontSize: 'text-base font-light',
   },
   controls: {
     gap: 'gap-1',
-    attachButton: 'h-[36px] px-2 py-2 rounded-md',
+    attachButton: 'h-[32px] px-2 py-1.5 rounded-md',
     attachIconSize: 16,
-    modelButton: 'h-[36px] px-2 py-2 text-sm rounded-md',
+    modelButton: 'h-[32px] px-2 py-1.5 text-sm rounded-md',
     modelIconSize: 14,
-    sourcesButton: 'h-[36px] px-2 py-2 text-sm rounded-md',
+    sourcesButton: 'h-[32px] px-2 py-1.5 text-sm rounded-md',
     sourcesIconSize: 14,
   },
   sendButton: {
-    size: 'w-[36px] h-[36px]',
+    size: 'w-[32px] h-[32px]',
     borderRadius: 'rounded-full',
     iconSize: 16,
   },
@@ -303,7 +303,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   return (
     <div className={INPUT_STYLES.container.maxWidth}>
       {/* Input Card - Floating */}
-      <div className="relative w-full flex flex-col border border-border rounded-3xl bg-muted shadow-lg">
+      <div className="relative w-full flex flex-col border-[0.5px] border-border rounded-2xl bg-muted shadow-lg">
           {/* Attachments - Only appears when files exist */}
           <AnimatePresence>
             {attachedFiles.length > 0 && (
