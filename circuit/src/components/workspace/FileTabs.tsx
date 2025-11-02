@@ -42,7 +42,7 @@ export function FileTabs({
           <div
             key={file.path}
             className={cn(
-              'group relative flex items-center gap-2 px-2.5 py-1.5 transition-colors',
+              'group relative flex items-center gap-2 px-3 py-2 transition-colors',
               'text-sm font-medium whitespace-nowrap cursor-pointer',
               'border-r border-border',
               isActive
@@ -52,10 +52,10 @@ export function FileTabs({
             onClick={() => onFileChange(file.path)}
           >
             {/* File Icon */}
-            <FileIcon size={15} className="shrink-0 opacity-70" />
+            <FileIcon size={16} className="shrink-0 opacity-70" />
 
             {/* File Name */}
-            <span className="max-w-[140px] truncate">
+            <span className="max-w-[150px] truncate">
               {fileName}
             </span>
 
@@ -71,12 +71,12 @@ export function FileTabs({
                 onCloseFile(file.path)
               }}
               className={cn(
-                'ml-0.5 p-0.5 rounded hover:bg-destructive/20 hover:text-destructive transition-all',
+                'ml-1 p-0.5 rounded hover:bg-destructive/20 hover:text-destructive transition-all',
                 isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
               )}
               title="Close file"
             >
-              <X size={13} />
+              <X size={14} />
             </button>
           </div>
         )
