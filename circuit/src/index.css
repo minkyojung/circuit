@@ -15,7 +15,7 @@
 @layer base {
   /* Default typography */
   * {
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-family: 'SF Mono', SFMono-Regular, ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Monaco, 'Courier New', monospace;
     font-weight: var(--font-medium);
   }
 

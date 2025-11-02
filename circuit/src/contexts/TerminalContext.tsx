@@ -172,7 +172,7 @@ export function TerminalProvider({ children }: TerminalProviderProps) {
       const terminal = new XTermTerminal({
         cursorBlink: true,
         fontSize: 13,
-        fontFamily: '"JetBrains Mono", Menlo, Monaco, "Courier New", monospace',
+        fontFamily: '"SF Mono", SFMono-Regular, ui-monospace, "Cascadia Code", Menlo, Monaco, "Courier New", monospace',
         fontWeight: '300',
         fontWeightBold: '600',
         theme: {
