@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from 'react'
 import { Terminal as XTermTerminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
@@ -140,7 +140,7 @@ export function TerminalProvider({ children }: TerminalProviderProps) {
     }
   }, [terminals])
 
-  const getOrCreateTerminal = async (workspaceId: string, workspacePath: string): Promise<TerminalData | null> => {
+  const getOrCreateTerminal = useCallback(async (workspaceId: string, workspacePath: string): Promise<TerminalData | null> => {
     // Return existing terminal data
     if (terminals.has(workspaceId)) {
       console.log(`[TerminalContext] Reusing existing terminal for workspace: ${workspaceId}`)
@@ -226,7 +226,7 @@ export function TerminalProvider({ children }: TerminalProviderProps) {
       console.error('[TerminalContext] Failed to create terminal:', error)
       return null
     }
-  }
+  }, [terminals])
 
   const switchWorkspace = (workspaceId: string | null) => {
     setActiveWorkspaceId(workspaceId)

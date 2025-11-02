@@ -149,7 +149,11 @@ export function Terminal({ workspace }: TerminalProps) {
   return (
     <div
       ref={terminalRef}
-      className="w-full h-full overflow-hidden"
+      className="w-full h-full overflow-hidden bg-transparent"
+      style={{
+        padding: '8px',
+        backgroundColor: 'transparent',
+      }}
     />
   )
 }
