@@ -62,7 +62,48 @@ export function TodoPanel({ conversationId, workspace, onCommit }: TodoPanelProp
     }
   }, [conversationId])  // ✅ Only conversationId - auto-refresh handles updates
 
+  // Event-driven updates: Listen for todos:changed events from Backend
+  useEffect(() => {
+    if (!conversationId) return
+
+    const handleTodosChanged = (
+      _event: any,
+      data: { conversationId: string; messageId: string; timestamp: number }
+    ) => {
+      console.log('[TodoPanel] 🔔 Event received: todos:changed', data)
+
+      // Only reload if the event is for the current conversation
+      if (data.conversationId === conversationIdRef.current) {
+        loadSessions()
+      }
+    }
+
+    const handleTodoDeleted = (
+      _event: any,
+      data: { todoId: string; conversationId: string; messageId: string; timestamp: number }
+    ) => {
+      console.log('[TodoPanel] 🔔 Event received: todos:deleted', data)
+
+      // Only reload if the event is for the current conversation
+      if (data.conversationId === conversationIdRef.current) {
+        loadSessions()
+      }
+    }
+
+    console.log('[TodoPanel] Setting up event listeners for conversation:', conversationId)
+    ipcRenderer.on('todos:changed', handleTodosChanged)
+    ipcRenderer.on('todos:deleted', handleTodoDeleted)
+
+    // Cleanup event listeners
+    return () => {
+      console.log('[TodoPanel] Cleaning up event listeners')
+      ipcRenderer.removeListener('todos:changed', handleTodosChanged)
+      ipcRenderer.removeListener('todos:deleted', handleTodoDeleted)
+    }
+  }, [conversationId])
+
   // Auto-refresh for active sessions (real-time progress tracking)
+  // TEMPORARY: Will be removed once event-driven updates are verified
   // Only depends on conversationId - never recreate interval when sessions change
   useEffect(() => {
     if (!conversationId) {
@@ -77,7 +118,7 @@ export function TodoPanel({ conversationId, workspace, onCommit }: TodoPanelProp
 
     // Start interval once when conversation is selected
     if (!intervalRef.current) {
-      console.log('[TodoPanel] Starting auto-refresh interval')
+      console.log('[TodoPanel] Starting auto-refresh interval (TEMPORARY - for testing)')
       intervalRef.current = setInterval(() => {
         // Check active sessions using ref (latest value)
         const hasActiveSessions = sessionsRef.current.some(
