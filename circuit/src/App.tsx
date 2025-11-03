@@ -62,7 +62,6 @@ function App() {
   })
   const [isResizing, setIsResizing] = useState<boolean>(false)
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
-  const [todoPanelRefreshTrigger, setTodoPanelRefreshTrigger] = useState<number>(0)
   const [currentRepository, setCurrentRepository] = useState<any>(null)
 
   // File tabs state (lifted from WorkspaceChatEditor)
@@ -438,7 +437,6 @@ function App() {
                   onPrefillCleared={() => setChatPrefillMessage(null)}
                   conversationId={activeConversationId}
                   onConversationChange={setActiveConversationId}
-                  onPlanAdded={() => setTodoPanelRefreshTrigger(prev => prev + 1)}
                   viewMode={viewMode}
                   onViewModeChange={setViewMode}
                   openFiles={openFiles}
@@ -500,7 +498,6 @@ function App() {
       >
         <TodoPanel
           conversationId={activeConversationId}
-          refreshTrigger={todoPanelRefreshTrigger}
           workspace={selectedWorkspace}
           onCommit={() => setShowCommitDialog(true)}
         />

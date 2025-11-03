@@ -43,7 +43,6 @@ interface WorkspaceChatEditorProps {
   conversationId?: string | null;
   onPrefillCleared?: () => void;
   onConversationChange?: (conversationId: string | null) => void;
-  onPlanAdded?: () => void;
 
   // View mode props (lifted to App.tsx)
   viewMode?: ViewMode;
@@ -65,7 +64,6 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
   conversationId: externalConversationId = null,
   onPrefillCleared,
   onConversationChange,
-  onPlanAdded,
   viewMode: externalViewMode,
   onViewModeChange,
   openFiles: externalOpenFiles = [],
@@ -129,7 +127,6 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
             externalConversationId={externalConversationId}
             onPrefillCleared={onPrefillCleared}
             onConversationChange={onConversationChange}
-            onPlanAdded={onPlanAdded}
           />
         </div>
       )}
@@ -159,7 +156,6 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
               externalConversationId={externalConversationId}
               onPrefillCleared={onPrefillCleared}
               onConversationChange={onConversationChange}
-              onPlanAdded={onPlanAdded}
             />
           </ResizablePanel>
           <ResizableHandle />
@@ -190,7 +186,6 @@ interface ChatPanelProps {
   externalConversationId?: string | null;
   onPrefillCleared?: () => void;
   onConversationChange?: (conversationId: string | null) => void;
-  onPlanAdded?: () => void;
 }
 
 // ChatInput component now handles all input styling and controls
@@ -202,8 +197,7 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   prefillMessage,
   externalConversationId,
   onPrefillCleared,
-  onConversationChange,
-  onPlanAdded
+  onConversationChange
 }) => {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -679,8 +673,7 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
               console.log('[WorkspaceChat] 💾 Saving plan to sidebar');
               await ipcRenderer.invoke('message:save', updatedMessage);
 
-              // Notify parent that a plan was added (to refresh TodoPanel)
-              onPlanAdded?.();
+              // Note: TodoPanel auto-refresh will detect the new plan via 2s polling
             } else {
               // Normal/Think Mode: Display inline in chat (temporary)
               console.log('[WorkspaceChat] 📋 TodoWrite Mode: Adding inline to chat');
@@ -1284,7 +1277,7 @@ The plan is ready. What would you like to do?`,
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="h-full overflow-auto p-6 pb-[400px]"
+        className="h-full overflow-auto p-6 pb-[240px]"
       >
         {isLoadingConversation ? (
           <div className="space-y-5 max-w-4xl mx-auto">
@@ -1568,7 +1561,7 @@ The plan is ready. What would you like to do?`,
       </div>
 
       {/* Gradient Fade to hide content behind floating input */}
-      <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-card via-card to-transparent pointer-events-none" />
+      <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-card from-20% via-card via-60% to-transparent pointer-events-none" />
 
       {/* Scroll to Bottom Button */}
       {!isAtBottom && messages.length > 0 && (

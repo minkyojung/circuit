@@ -22,7 +22,6 @@ const { ipcRenderer } = window.require('electron')
 
 interface TodoPanelProps {
   conversationId: string | null
-  refreshTrigger?: number
   workspace?: Workspace | null
   onCommit?: () => void
 }
@@ -34,7 +33,7 @@ interface TodoSessionWithActualTodos extends TodoSession {
   actualTodos?: any[]  // Actual Todo[] loaded from DB (status, progress, etc.)
 }
 
-export function TodoPanel({ conversationId, refreshTrigger, workspace, onCommit }: TodoPanelProps) {
+export function TodoPanel({ conversationId, workspace, onCommit }: TodoPanelProps) {
   const [sessions, setSessions] = useState<TodoSessionWithActualTodos[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [selectedFilter, setSelectedFilter] = useState<FilterType>('active')
@@ -53,14 +52,15 @@ export function TodoPanel({ conversationId, refreshTrigger, workspace, onCommit 
     conversationIdRef.current = conversationId
   }, [conversationId])
 
-  // Load sessions from messages with planResult
+  // Load sessions from messages with planResult (initial load only)
   useEffect(() => {
+    console.log('[TodoPanel] Initial load - conversationId:', conversationId)
     if (conversationId) {
       loadSessions()
     } else {
       setSessions([])
     }
-  }, [conversationId, refreshTrigger])
+  }, [conversationId])  // ✅ Only conversationId - auto-refresh handles updates
 
   // Auto-refresh for active sessions (real-time progress tracking)
   // Only depends on conversationId - never recreate interval when sessions change
