@@ -83,14 +83,16 @@ interface CommitNode {
 }
 
 /**
- * Lane assignment algorithm
+ * Lane assignment algorithm with Lane Reclamation & Compaction
  *
  * Strategy:
  * 1. Build parent-child relationships
  * 2. Process commits oldest->newest (reversed)
- * 3. First child continues parent's lane (newest commit in git log)
- * 4. Additional children (branches) get new lanes
- * 5. Merge commits use first parent's lane
+ * 3. Track active lanes and available lanes pool
+ * 4. First child continues parent's lane
+ * 5. Additional children (branches) get new lanes from available pool first
+ * 6. Merge commits free up merged branch lanes immediately
+ * 7. Compact lanes to remove gaps (final step)
  */
 function assignLanes(commits: GitCommit[]): CommitNode[] {
   if (commits.length === 0) return [];
@@ -106,63 +108,109 @@ function assignLanes(commits: GitCommit[]): CommitNode[] {
     });
   });
 
-  // Step 2: Process in reverse order (oldest first)
+  // Step 2: Process in reverse order (oldest first) with lane reclamation
   const reversed = [...commits].reverse();
   const hashToLane = new Map<string, number>();
-  let nextLane = 0;
+  const activeLanes = new Set<number>();
+  const availableLanes: number[] = [];
 
   reversed.forEach((commit) => {
     let lane: number;
 
     if (commit.parents.length === 0) {
-      // Root commit
+      // Root commit - always lane 0
       lane = 0;
-      nextLane = 1;
+      activeLanes.add(0);
     } else {
-      // Get first parent's lane
+      // Get first parent's lane (main branch continuation)
       const firstParentLane = hashToLane.get(commit.parents[0]);
 
       if (firstParentLane !== undefined) {
-        // Check if this is the main child or a branch
         const siblings = hashToChildren.get(commit.parents[0]) || [];
 
-        // The first sibling (newest in git log) continues parent's lane
-        // Other siblings are branches that get new lanes
+        // First sibling (newest in git log) continues parent's lane
         if (siblings.length > 0 && siblings[0] === commit.hash) {
           lane = firstParentLane;
+          activeLanes.add(lane);
         } else {
-          lane = nextLane++;
+          // This is a branch - allocate new lane
+          // First try to reuse available lanes
+          if (availableLanes.length > 0) {
+            lane = availableLanes.shift()!;
+          } else {
+            // No available lanes - allocate new one
+            lane = activeLanes.size > 0 ? Math.max(...activeLanes) + 1 : 0;
+          }
+          activeLanes.add(lane);
         }
       } else {
-        // Parent not seen yet - new lane
-        lane = nextLane++;
+        // Parent not seen yet - allocate new lane
+        if (availableLanes.length > 0) {
+          lane = availableLanes.shift()!;
+        } else {
+          lane = activeLanes.size > 0 ? Math.max(...activeLanes) + 1 : 0;
+        }
+        activeLanes.add(lane);
       }
 
-      // For merge commits, we're already using first parent's lane
+      // Handle merge commits - free up merged branch lanes
+      if (commit.parents.length > 1) {
+        // All parents except the first are merged branches
+        commit.parents.slice(1).forEach(mergedParentHash => {
+          const mergedLane = hashToLane.get(mergedParentHash);
+          if (mergedLane !== undefined && mergedLane !== lane) {
+            // Free this lane for reuse
+            activeLanes.delete(mergedLane);
+            availableLanes.push(mergedLane);
+            // Keep availableLanes sorted (smallest first for compact layout)
+            availableLanes.sort((a, b) => a - b);
+          }
+        });
+      }
     }
 
     hashToLane.set(commit.hash, lane);
 
-    // Pre-assign lanes for non-main children (branches)
+    // Pre-assign lanes for branch splits
     const children = hashToChildren.get(commit.hash) || [];
     if (children.length > 1) {
       // children[0] will continue this lane (handled above)
       // children[1...] get new lanes
       for (let i = 1; i < children.length; i++) {
         if (!hashToLane.has(children[i])) {
-          hashToLane.set(children[i], nextLane++);
+          let branchLane: number;
+          if (availableLanes.length > 0) {
+            branchLane = availableLanes.shift()!;
+          } else {
+            branchLane = activeLanes.size > 0 ? Math.max(...activeLanes) + 1 : 0;
+          }
+          hashToLane.set(children[i], branchLane);
+          activeLanes.add(branchLane);
         }
       }
     }
   });
 
-  // Step 3: Build final nodes with assigned lanes
+  // Step 3: Lane Compaction - remove gaps in lane numbers
+  const usedLanes = Array.from(new Set(hashToLane.values())).sort((a, b) => a - b);
+  const laneMapping = new Map<number, number>();
+  usedLanes.forEach((oldLane, newIndex) => {
+    laneMapping.set(oldLane, newIndex);
+  });
+
+  // Remap all lanes to compacted values
+  const compactedHashToLane = new Map<string, number>();
+  hashToLane.forEach((lane, hash) => {
+    compactedHashToLane.set(hash, laneMapping.get(lane) ?? 0);
+  });
+
+  // Step 4: Build final nodes with compacted lanes
   const nodes: CommitNode[] = commits.map((commit, index) => {
-    const lane = hashToLane.get(commit.hash) ?? 0;
+    const lane = compactedHashToLane.get(commit.hash) ?? 0;
 
     const parentNodes = commit.parents.map(parentHash => ({
       hash: parentHash,
-      lane: hashToLane.get(parentHash) ?? lane,
+      lane: compactedHashToLane.get(parentHash) ?? lane,
     }));
 
     return {
@@ -174,13 +222,19 @@ function assignLanes(commits: GitCommit[]): CommitNode[] {
     };
   });
 
-  console.log('[GitGraphV2] Assigned lanes:', {
+  const maxLane = Math.max(...nodes.map(n => n.lane), 0);
+  const laneDistribution = nodes.reduce((acc, n) => {
+    acc[n.lane] = (acc[n.lane] || 0) + 1;
+    return acc;
+  }, {} as Record<number, number>);
+
+  console.log('[GitGraphV2] Lane assignment with reclamation:', {
     commits: nodes.length,
-    maxLane: Math.max(...nodes.map(n => n.lane), 0),
-    laneDistribution: nodes.reduce((acc, n) => {
-      acc[n.lane] = (acc[n.lane] || 0) + 1;
-      return acc;
-    }, {} as Record<number, number>),
+    maxLane,
+    lanesBeforeCompaction: usedLanes.length,
+    lanesAfterCompaction: maxLane + 1,
+    laneDistribution,
+    reclaimedLanes: usedLanes.length - (maxLane + 1),
   });
 
   return nodes;
