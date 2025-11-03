@@ -57,7 +57,7 @@ export const SidebarFooter: React.FC<SidebarFooterProps> = ({ className }) => {
         </motion.button>
 
         {/* Theme Toggle */}
-        <ThemeToggle />
+        <ThemeToggle className="p-2 h-9 w-9 hover:bg-sidebar-hover text-sidebar-foreground-muted hover:text-sidebar-foreground" />
 
         {/* Feedback Button */}
         <motion.button

@@ -39,7 +39,7 @@ export const ThemeToggle: React.FC<{ className?: string; style?: React.CSSProper
   return (
     <button
       onClick={toggleTheme}
-      className={cn('flex items-center justify-center p-2 rounded-md h-7 w-7 transition-colors', className)}
+      className={cn('flex items-center justify-center rounded-md h-7 w-7 transition-colors', className)}
       style={style}
       title={`Current theme: ${getLabel()}. Click to cycle.`}
     >
