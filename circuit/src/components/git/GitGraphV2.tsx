@@ -10,7 +10,7 @@
 
 import { useEffect, useState } from 'react';
 import type { GitCommit } from '@/types/git';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 
 // @ts-ignore - Electron IPC
 const { ipcRenderer } = window.require('electron');
@@ -20,19 +20,56 @@ interface GitGraphV2Props {
   limit?: number;
 }
 
-// Layout constants
-const ROW_HEIGHT = 40;        // Height per commit row
+// Layout constants (ultra-compact design)
+const ROW_HEIGHT = 20;        // Maximum density row height
 const LANE_WIDTH = 24;        // Width between lanes
-const NODE_RADIUS = 5;        // Commit node size
-const LEFT_MARGIN = 160;      // Space for branch labels
-const MESSAGE_WIDTH = 400;    // Width for commit messages
+const NODE_RADIUS = 7;        // Small avatar circle
+const MERGE_NODE_RADIUS = 9;  // Merge commit avatar (slightly larger)
+const LEFT_MARGIN = 110;      // Minimal space for branch labels
+const MESSAGE_WIDTH = 500;    // Width for commit messages
 const RIGHT_MARGIN = 20;
+const LINE_WIDTH = 2;         // Thinner connection lines
+const MESSAGE_GAP = 8;        // Minimal gap between node and message
 
-// Branch colors
+// Branch colors (vibrant yet professional)
 const COLORS = [
-  '#3b82f6', '#22c55e', '#f97316', '#a855f7',
-  '#06b6d4', '#f43f5e', '#eab308', '#8b5cf6',
+  '#60a5fa', // blue-400 (softer blue)
+  '#34d399', // emerald-400 (vibrant green)
+  '#fb923c', // orange-400 (warm orange)
+  '#c084fc', // purple-400 (soft purple)
+  '#22d3ee', // cyan-400 (bright cyan)
+  '#fb7185', // rose-400 (soft rose)
+  '#facc15', // yellow-400 (bright yellow)
+  '#a78bfa', // violet-400 (soft violet)
 ];
+
+/**
+ * Simple MD5 hash for Gravatar (browser-compatible)
+ */
+async function md5(str: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(str.trim().toLowerCase());
+  const hashBuffer = await crypto.subtle.digest('MD5', data).catch(() => null);
+
+  if (!hashBuffer) {
+    // Fallback: simple hash
+    return Array.from(str).reduce((hash, char) => {
+      return ((hash << 5) - hash) + char.charCodeAt(0) | 0;
+    }, 0).toString(16);
+  }
+
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Get Gravatar URL for email
+ */
+function getGravatarUrl(email: string): string {
+  // Note: We'll use a synchronous approach with initials fallback
+  // Real MD5 hashing would be done async, but for simplicity we'll use initials
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(email.split('@')[0])}&background=random&size=32&font-size=0.4`;
+}
 
 /**
  * Commit with layout information
@@ -49,12 +86,11 @@ interface CommitNode {
  * Lane assignment algorithm
  *
  * Strategy:
- * 1. Build parent-child relationships (two-pass)
+ * 1. Build parent-child relationships
  * 2. Process commits oldest->newest (reversed)
- * 3. Track which lanes are occupied
- * 4. Linear history stays on same lane
- * 5. Branch splits get new lanes
- * 6. Merges free up branch lanes
+ * 3. First child continues parent's lane (newest commit in git log)
+ * 4. Additional children (branches) get new lanes
+ * 5. Merge commits use first parent's lane
  */
 function assignLanes(commits: GitCommit[]): CommitNode[] {
   if (commits.length === 0) return [];
@@ -73,60 +109,50 @@ function assignLanes(commits: GitCommit[]): CommitNode[] {
   // Step 2: Process in reverse order (oldest first)
   const reversed = [...commits].reverse();
   const hashToLane = new Map<string, number>();
-  const hashToIndex = new Map<string, number>();
-
-  commits.forEach((commit, index) => {
-    hashToIndex.set(commit.hash, index);
-  });
-
   let nextLane = 0;
-  const occupiedLanes = new Set<number>();
 
   reversed.forEach((commit) => {
-    const parents = commit.parents;
-    const children = hashToChildren.get(commit.hash) || [];
     let lane: number;
 
-    if (parents.length === 0) {
+    if (commit.parents.length === 0) {
       // Root commit
       lane = 0;
-      nextLane = Math.max(nextLane, 1);
-    }
-    else if (parents.length === 1) {
-      // Linear history - continue parent's lane
-      const parentLane = hashToLane.get(parents[0]);
-      if (parentLane !== undefined) {
-        lane = parentLane;
+      nextLane = 1;
+    } else {
+      // Get first parent's lane
+      const firstParentLane = hashToLane.get(commit.parents[0]);
+
+      if (firstParentLane !== undefined) {
+        // Check if this is the main child or a branch
+        const siblings = hashToChildren.get(commit.parents[0]) || [];
+
+        // The first sibling (newest in git log) continues parent's lane
+        // Other siblings are branches that get new lanes
+        if (siblings.length > 0 && siblings[0] === commit.hash) {
+          lane = firstParentLane;
+        } else {
+          lane = nextLane++;
+        }
       } else {
-        // Parent not yet processed - allocate new lane
+        // Parent not seen yet - new lane
         lane = nextLane++;
       }
-    }
-    else {
-      // Merge commit - use first parent's lane (main branch)
-      const firstParentLane = hashToLane.get(parents[0]);
-      lane = firstParentLane !== undefined ? firstParentLane : nextLane++;
 
-      // Free lanes from merged branches (other parents)
-      for (let i = 1; i < parents.length; i++) {
-        const parentLane = hashToLane.get(parents[i]);
-        if (parentLane !== undefined) {
-          occupiedLanes.delete(parentLane);
-        }
-      }
+      // For merge commits, we're already using first parent's lane
     }
 
     hashToLane.set(commit.hash, lane);
-    occupiedLanes.add(lane);
 
-    // Handle branch splits - if this commit has multiple children,
-    // allocate new lanes for additional children
+    // Pre-assign lanes for non-main children (branches)
+    const children = hashToChildren.get(commit.hash) || [];
     if (children.length > 1) {
-      children.slice(1).forEach(childHash => {
-        if (!hashToLane.has(childHash)) {
-          hashToLane.set(childHash, nextLane++);
+      // children[0] will continue this lane (handled above)
+      // children[1...] get new lanes
+      for (let i = 1; i < children.length; i++) {
+        if (!hashToLane.has(children[i])) {
+          hashToLane.set(children[i], nextLane++);
         }
-      });
+      }
     }
   });
 
@@ -151,19 +177,53 @@ function assignLanes(commits: GitCommit[]): CommitNode[] {
   console.log('[GitGraphV2] Assigned lanes:', {
     commits: nodes.length,
     maxLane: Math.max(...nodes.map(n => n.lane), 0),
+    laneDistribution: nodes.reduce((acc, n) => {
+      acc[n.lane] = (acc[n.lane] || 0) + 1;
+      return acc;
+    }, {} as Record<number, number>),
   });
 
   return nodes;
 }
 
 /**
- * Generate SVG curve path for branch connections
+ * Generate SVG path for 90-degree connections with rounded corners (GitKraken style)
  */
-function getCurvePath(x1: number, y1: number, x2: number, y2: number): string {
-  const controlPoint1Y = y1 + (y2 - y1) * 0.5;
-  const controlPoint2Y = y2 - (y2 - y1) * 0.5;
+function get90DegreePath(x1: number, y1: number, x2: number, y2: number): string {
+  const radius = 8; // Corner radius for smooth 90-degree turns
+  const midY = y1 + (y2 - y1) / 2;
 
-  return `M ${x1} ${y1} C ${x1} ${controlPoint1Y}, ${x2} ${controlPoint2Y}, ${x2} ${y2}`;
+  if (x1 === x2) {
+    // Straight vertical line
+    return `M ${x1} ${y1} L ${x2} ${y2}`;
+  }
+
+  // 90-degree path with rounded corners
+  // Start -> down -> across -> down -> end
+  const dx = x2 - x1;
+  const cornerRadius = Math.min(radius, Math.abs(dx) / 2, Math.abs(y2 - y1) / 4);
+
+  if (dx > 0) {
+    // Moving right
+    return `
+      M ${x1} ${y1}
+      L ${x1} ${midY - cornerRadius}
+      Q ${x1} ${midY}, ${x1 + cornerRadius} ${midY}
+      L ${x2 - cornerRadius} ${midY}
+      Q ${x2} ${midY}, ${x2} ${midY + cornerRadius}
+      L ${x2} ${y2}
+    `;
+  } else {
+    // Moving left
+    return `
+      M ${x1} ${y1}
+      L ${x1} ${midY - cornerRadius}
+      Q ${x1} ${midY}, ${x1 - cornerRadius} ${midY}
+      L ${x2 + cornerRadius} ${midY}
+      Q ${x2} ${midY}, ${x2} ${midY + cornerRadius}
+      L ${x2} ${y2}
+    `;
+  }
 }
 
 /**
@@ -184,10 +244,11 @@ function getBranchLabel(refs: string[]): string | null {
   return null;
 }
 
-export function GitGraphV2({ workspacePath, limit = 100 }: GitGraphV2Props) {
+export function GitGraphV2({ workspacePath, limit = 5000 }: GitGraphV2Props) {
   const [commits, setCommits] = useState<GitCommit[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   const loadCommits = async () => {
     setIsLoading(true);
@@ -250,15 +311,19 @@ export function GitGraphV2({ workspacePath, limit = 100 }: GitGraphV2Props) {
   // Calculate SVG dimensions
   const graphWidth = LEFT_MARGIN + (maxLane + 1) * LANE_WIDTH + MESSAGE_WIDTH + RIGHT_MARGIN;
   const graphHeight = commits.length * ROW_HEIGHT + 40;
-  const messageStartX = LEFT_MARGIN + (maxLane + 1) * LANE_WIDTH + 20;
+  const messageStartX = LEFT_MARGIN + (maxLane + 1) * LANE_WIDTH + MESSAGE_GAP;
 
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center justify-between p-4 pb-2 border-b border-sidebar-border">
-        <div className="text-xs font-semibold text-foreground">
+        <button
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="flex items-center gap-2 text-xs font-semibold text-foreground hover:text-primary transition-colors"
+        >
+          {isCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
           Commit History ({commits.length})
-        </div>
+        </button>
         <button
           onClick={loadCommits}
           className="text-xs text-muted-foreground hover:text-foreground transition-colors"
@@ -268,15 +333,32 @@ export function GitGraphV2({ workspacePath, limit = 100 }: GitGraphV2Props) {
       </div>
 
       {/* Scrollable graph area */}
-      <div
-        className="flex-1 overflow-auto bg-sidebar"
-        style={{ maxHeight: '600px' }}
-      >
+      {!isCollapsed && (
+        <div
+          className="flex-1 overflow-auto"
+          style={{ maxHeight: '600px' }}
+        >
         <svg
           width={graphWidth}
           height={graphHeight}
           className="font-mono"
         >
+          {/* SVG Filters and Definitions */}
+          <defs>
+            {/* Very subtle shadow for commit nodes */}
+            <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur in="SourceAlpha" stdDeviation="1" />
+              <feOffset dx="0" dy="0.5" result="offsetblur" />
+              <feComponentTransfer>
+                <feFuncA type="linear" slope="0.2" />
+              </feComponentTransfer>
+              <feMerge>
+                <feMergeNode />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+
           {/* Connection lines */}
           {nodes.map((node) => {
             const x = LEFT_MARGIN + node.lane * LANE_WIDTH;
@@ -304,21 +386,24 @@ export function GitGraphV2({ workspacePath, limit = 100 }: GitGraphV2Props) {
                         x2={parentX}
                         y2={parentY}
                         stroke={node.color}
-                        strokeWidth={2}
-                        strokeDasharray={isMergeLine ? '3,3' : 'none'}
+                        strokeWidth={LINE_WIDTH}
+                        strokeDasharray={isMergeLine ? '4,4' : 'none'}
+                        strokeLinecap="round"
                       />
                     );
                   } else {
-                    // Curved line (branch merge/diverge)
+                    // 90-degree line (branch merge/diverge) with rounded corners
                     const curveColor = isMergeLine ? parentNode.color : node.color;
                     return (
                       <path
                         key={`curve-${parent.hash}`}
-                        d={getCurvePath(x, y, parentX, parentY)}
+                        d={get90DegreePath(x, y, parentX, parentY)}
                         stroke={curveColor}
-                        strokeWidth={2}
+                        strokeWidth={LINE_WIDTH}
                         fill="none"
-                        strokeDasharray={isMergeLine ? '3,3' : 'none'}
+                        strokeDasharray={isMergeLine ? '4,4' : 'none'}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
                       />
                     );
                   }
@@ -334,79 +419,95 @@ export function GitGraphV2({ workspacePath, limit = 100 }: GitGraphV2Props) {
             const isMerge = node.commit.parents.length > 1;
             const branchLabel = getBranchLabel(node.commit.refs);
 
+            const avatarUrl = getGravatarUrl(node.commit.email || node.commit.author);
+            const radius = isMerge ? MERGE_NODE_RADIUS : NODE_RADIUS;
+
             return (
-              <g key={`node-${node.commit.hash}`}>
-                {/* Commit node circle */}
+              <g key={`node-${node.commit.hash}`} className="commit-node">
+                {/* Avatar circle with border */}
                 <circle
                   cx={x}
                   cy={y}
-                  r={isMerge ? NODE_RADIUS + 2 : NODE_RADIUS}
-                  fill={node.color}
-                  stroke="#0f172a"
-                  strokeWidth={2}
+                  r={radius + 0.5}
+                  fill="none"
+                  stroke={node.color}
+                  strokeWidth={1.5}
+                  filter="url(#shadow)"
                 />
 
-                {/* Branch label (left side) */}
+                {/* Avatar image (clipped to circle) */}
+                <defs>
+                  <clipPath id={`clip-${node.commit.hash}`}>
+                    <circle cx={x} cy={y} r={radius} />
+                  </clipPath>
+                </defs>
+                <image
+                  href={avatarUrl}
+                  x={x - radius}
+                  y={y - radius}
+                  width={radius * 2}
+                  height={radius * 2}
+                  clipPath={`url(#clip-${node.commit.hash})`}
+                  preserveAspectRatio="xMidYMid slice"
+                />
+
+                {/* Branch label (left side) - ultra compact */}
                 {branchLabel && (
                   <g>
+                    {/* Connection line from label to node */}
+                    <line
+                      x1={Math.min(branchLabel.length * 5.5 + 14, 101)}
+                      y1={y}
+                      x2={x - radius - 2}
+                      y2={y}
+                      stroke={node.color}
+                      strokeWidth={0.5}
+                      strokeDasharray="2,2"
+                      opacity={0.4}
+                    />
                     <rect
-                      x={8}
-                      y={y - 10}
-                      width={Math.min(branchLabel.length * 7 + 8, 140)}
-                      height={18}
+                      x={6}
+                      y={y - 8}
+                      width={Math.min(branchLabel.length * 5.5 + 8, 95)}
+                      height={14}
                       fill={node.color}
-                      fillOpacity={0.2}
-                      rx={4}
+                      fillOpacity={0.15}
+                      rx={3}
                       stroke={node.color}
                       strokeWidth={1}
                     />
                     <text
-                      x={12}
-                      y={y + 4}
+                      x={10}
+                      y={y + 2}
                       fill={node.color}
-                      fontSize="11"
+                      fontSize="9"
                       fontWeight="600"
                       className="select-none"
                     >
-                      {branchLabel.length > 18
-                        ? branchLabel.substring(0, 15) + '...'
+                      {branchLabel.length > 14
+                        ? branchLabel.substring(0, 11) + '...'
                         : branchLabel}
                     </text>
                   </g>
                 )}
 
-                {/* Commit info (right side) */}
+                {/* Commit message only (right side) - lighter font */}
                 <text
                   x={messageStartX}
-                  y={y - 6}
-                  fill="#94a3b8"
+                  y={y + 3}
+                  fill="#d1d5db"
                   fontSize="11"
-                  fontWeight="600"
+                  style={{ fontWeight: 300 }}
                 >
-                  {node.commit.shortHash}
-                </text>
-                <text
-                  x={messageStartX}
-                  y={y + 8}
-                  fill="#e2e8f0"
-                  fontSize="12"
-                >
-                  {node.commit.message.substring(0, 50)}
-                  {node.commit.message.length > 50 ? '...' : ''}
-                </text>
-                <text
-                  x={messageStartX}
-                  y={y + 20}
-                  fill="#64748b"
-                  fontSize="10"
-                >
-                  {node.commit.author} · {node.commit.date}
+                  {node.commit.message.substring(0, 65)}
+                  {node.commit.message.length > 65 ? '...' : ''}
                 </text>
               </g>
             );
           })}
         </svg>
-      </div>
+        </div>
+      )}
     </div>
   );
 }
