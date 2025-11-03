@@ -452,8 +452,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     <ListChecks size={INPUT_STYLES.controls.sourcesIconSize} strokeWidth={1.5} />
                   </button>
                 )}
+              </div>
+            )}
 
-                {/* Context Gauge */}
+            {/* Right: Context Gauge and Send or Cancel button */}
+            <div className="flex items-center gap-2">
+              {showControls && (
+                /* Context Gauge */
                 <ContextGauge
                   percentage={metrics?.context.percentage ?? 0}
                   current={metrics?.context.current}
@@ -461,11 +466,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   onCompact={handleCompact}
                   disabled={disabled}
                 />
-              </div>
-            )}
-
-            {/* Right: Send or Cancel button */}
-            {disabled && onCancel ? (
+              )}
+              {disabled && onCancel ? (
               /* Cancel button when sending */
               <button
                 onClick={onCancel}
@@ -494,6 +496,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 <ArrowUp size={INPUT_STYLES.sendButton.iconSize} strokeWidth={2} />
               </button>
             )}
+            </div>
           </div>
         </div>
 
