@@ -133,25 +133,24 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
     onRepositoryChange?.(repository)
   }, [repository?.id])
 
-  // Auto-refresh workspaces and statuses every 5 seconds
+  // Auto-refresh statuses only (not workspaces) every 5 seconds
+  // Refreshing workspaces causes object references to change → component remounts
   useEffect(() => {
-    // Only start auto-refresh if we have a current repository
-    if (!currentRepository) {
-      console.log('[AppSidebar] Skipping auto-refresh setup - no repository selected')
+    if (!currentRepository || workspaces.length === 0) {
       return
     }
 
-    console.log('[AppSidebar] Setting up auto-refresh for repository:', currentRepository.name)
+    console.log('[AppSidebar] Setting up status auto-refresh for repository:', currentRepository.name)
     const interval = setInterval(() => {
-      console.log('[AppSidebar] Auto-refresh triggered')
-      loadWorkspaces()
+      console.log('[AppSidebar] Status auto-refresh triggered')
+      loadStatuses(workspaces)  // Only refresh statuses, not workspace objects
     }, 5000)
 
     return () => {
-      console.log('[AppSidebar] Cleaning up auto-refresh')
+      console.log('[AppSidebar] Cleaning up status auto-refresh')
       clearInterval(interval)
     }
-  }, [currentRepository?.id])
+  }, [currentRepository?.id, workspaces.length])  // Only restart if workspace count changes
 
   // Load statuses for all workspaces
   const loadStatuses = async (workspaceList: Workspace[]) => {
