@@ -759,8 +759,8 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
 
                 console.log('[WorkspaceChat] ✅ Todo status sync complete');
 
-                // Notify parent to refresh TodoPanel
-                onPlanAdded?.();
+                // Note: No need to call onPlanAdded here
+                // TodoPanel auto-refresh will detect DB changes automatically
               }
             } catch (error) {
               console.error('[WorkspaceChat] ❌ Error syncing todo status:', error);
