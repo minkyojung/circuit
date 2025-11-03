@@ -291,7 +291,7 @@ export function TodoPanel({ conversationId, workspace, onCommit }: TodoPanelProp
         {/* Settings Button */}
         <button
           onClick={() => setIsSettingsOpen(true)}
-          className="flex items-center justify-center p-2 rounded-md h-7 w-7 transition-colors hover:bg-sidebar-hover text-sidebar-foreground-muted hover:text-sidebar-foreground"
+          className="flex items-center justify-center rounded-md h-7 w-7 transition-colors hover:bg-sidebar-hover text-sidebar-foreground-muted hover:text-sidebar-foreground"
           style={{ WebkitAppRegion: 'no-drag' } as any}
           title="Settings"
         >
@@ -306,7 +306,7 @@ export function TodoPanel({ conversationId, workspace, onCommit }: TodoPanelProp
         {/* Feedback Button */}
         <button
           onClick={() => setIsFeedbackOpen(true)}
-          className="flex items-center justify-center p-2 rounded-md h-7 w-7 transition-colors hover:bg-sidebar-hover text-sidebar-foreground-muted hover:text-sidebar-foreground"
+          className="flex items-center justify-center rounded-md h-7 w-7 transition-colors hover:bg-sidebar-hover text-sidebar-foreground-muted hover:text-sidebar-foreground"
           style={{ WebkitAppRegion: 'no-drag' } as any}
           title="Send Feedback"
         >
