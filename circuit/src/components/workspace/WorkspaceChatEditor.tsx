@@ -673,7 +673,63 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
               console.log('[WorkspaceChat] 💾 Saving plan to sidebar');
               await ipcRenderer.invoke('message:save', updatedMessage);
 
-              // Note: TodoPanel auto-refresh will detect the new plan via 2s polling
+              // Sync TodoWrite status updates to database
+              console.log('[WorkspaceChat] 🔄 Syncing TodoWrite status to database');
+              try {
+                // Read current todos.json file to compare status
+                const todosFileResult = await ipcRenderer.invoke('workspace:read-file',
+                  workspace.path,
+                  '.circuit/todos.json'
+                );
+
+                if (todosFileResult.success && todosFileResult.content) {
+                  const todosData = JSON.parse(todosFileResult.content);
+
+                  // Update each todo in database based on TodoWrite data
+                  for (let i = 0; i < todoWriteData.todos.length && i < todosData.todos.length; i++) {
+                    const claudeTodo = todoWriteData.todos[i];
+                    const dbTodo = todosData.todos[i];
+
+                    // Update status if different
+                    if (claudeTodo.status && claudeTodo.status !== dbTodo.status) {
+                      console.log(`[WorkspaceChat] 🔄 Updating todo ${dbTodo.id}: ${dbTodo.status} → ${claudeTodo.status}`);
+
+                      const updateData: any = {
+                        todoId: dbTodo.id,
+                        status: claudeTodo.status,
+                      };
+
+                      // Add timing data
+                      if (claudeTodo.status === 'completed') {
+                        updateData.completedAt = Date.now();
+                      } else if (claudeTodo.status === 'in_progress' && !dbTodo.startedAt) {
+                        updateData.startedAt = Date.now();
+                      }
+
+                      await ipcRenderer.invoke('todos:update-status', updateData);
+
+                      // Update local todos.json file
+                      todosData.todos[i].status = claudeTodo.status;
+                      if (claudeTodo.status === 'completed' && !todosData.todos[i].completedAt) {
+                        todosData.todos[i].completedAt = Date.now();
+                      } else if (claudeTodo.status === 'in_progress' && !todosData.todos[i].startedAt) {
+                        todosData.todos[i].startedAt = Date.now();
+                      }
+                    }
+                  }
+
+                  // Write updated todos back to file
+                  await ipcRenderer.invoke('workspace:write-file',
+                    workspace.path,
+                    '.circuit/todos.json',
+                    JSON.stringify(todosData, null, 2)
+                  );
+
+                  console.log('[WorkspaceChat] ✅ Todo status sync complete');
+                }
+              } catch (error) {
+                console.error('[WorkspaceChat] ❌ Failed to sync todo status:', error);
+              }
             } else {
               // Normal/Think Mode: Display inline in chat (temporary)
               console.log('[WorkspaceChat] 📋 TodoWrite Mode: Adding inline to chat');
