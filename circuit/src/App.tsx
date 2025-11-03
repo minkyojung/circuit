@@ -4,6 +4,7 @@ import { CommitDialog } from "@/components/workspace/CommitDialog"
 import { CommandPalette } from "@/components/CommandPalette"
 import { AppSidebar } from "@/components/AppSidebar"
 import { TodoPanel } from "@/components/TodoPanel"
+import { GitTestPanel } from "@/components/git/GitTestPanel"
 import {
   Breadcrumb,
   BreadcrumbItem,

@@ -7,6 +7,7 @@ import type { Workspace } from '@/types/workspace'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { SettingsDialog } from '@/components/SettingsDialog'
 import { Terminal } from '@/components/Terminal'
+import { GitTestPanel } from '@/components/git/GitTestPanel'
 import { motion, AnimatePresence } from 'framer-motion'
 import { listItemVariants } from '@/lib/motion-tokens'
 import {
@@ -350,8 +351,8 @@ export function TodoPanel({ conversationId, workspace, onCommit }: TodoPanelProp
       )}
 
 
-      {/* Plans Section - Feature Flag Controlled */}
-      {FEATURES.PLAN_MODE && (
+      {/* Plans Section or Git Panel - Feature Flag Controlled */}
+      {FEATURES.PLAN_MODE ? (
         <>
           {/* Header with filter buttons */}
           <div
@@ -441,6 +442,11 @@ export function TodoPanel({ conversationId, workspace, onCommit }: TodoPanelProp
               </div>
             )}
           </div>
+        </>
+      ) : (
+        <>
+          {/* Git Panel - when PLAN_MODE is disabled */}
+          {workspace && <GitTestPanel workspacePath={workspace.path} />}
         </>
       )}
 

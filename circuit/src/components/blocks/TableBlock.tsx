@@ -84,26 +84,26 @@ export const TableBlock: React.FC<TableBlockProps> = ({ block }) => {
   const { headers, rows, alignments } = tableData
 
   return (
-    <div className="rounded-lg border border-border overflow-hidden">
-      {/* Table header label */}
-      <div className="bg-sidebar/50 px-4 py-2 border-b border-border flex items-center gap-2">
-        <Table size={14} className="text-muted-foreground" />
-        <span className="text-xs font-semibold text-muted-foreground">
-          Table ({rows.length} rows)
+    <div className="rounded-lg border border-border overflow-hidden bg-background">
+      {/* Table header label - more compact */}
+      <div className="bg-muted/30 px-3 py-1.5 border-b border-border flex items-center gap-2">
+        <Table size={12} className="text-muted-foreground" />
+        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+          Table ({rows.length} {rows.length === 1 ? 'row' : 'rows'})
         </span>
       </div>
 
       {/* Scrollable table container */}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          {/* Table header */}
-          <thead className="bg-sidebar border-b border-border">
+          {/* Table header - stronger styling */}
+          <thead className="bg-muted/50 border-b-2 border-border">
             <tr>
               {headers.map((header, i) => (
                 <th
                   key={i}
                   className={cn(
-                    'px-4 py-3 font-semibold text-foreground',
+                    'px-4 py-3 font-bold text-foreground text-xs uppercase tracking-wide',
                     getAlignmentClass(alignments?.[i])
                   )}
                 >
@@ -113,21 +113,25 @@ export const TableBlock: React.FC<TableBlockProps> = ({ block }) => {
             </tr>
           </thead>
 
-          {/* Table body */}
+          {/* Table body with zebra striping */}
           <tbody>
             {rows.map((row, rowIndex) => (
               <tr
                 key={rowIndex}
                 className={cn(
-                  'border-b border-border/50 last:border-0',
-                  'hover:bg-sidebar/30 transition-colors'
+                  'border-b border-border/40 last:border-0',
+                  'transition-colors duration-150',
+                  // Zebra striping
+                  rowIndex % 2 === 0 ? 'bg-background' : 'bg-muted/10',
+                  // Hover effect
+                  'hover:bg-accent/50'
                 )}
               >
                 {row.map((cell, cellIndex) => (
                   <td
                     key={cellIndex}
                     className={cn(
-                      'px-4 py-3 text-foreground',
+                      'px-4 py-3 text-foreground/90',
                       getAlignmentClass(alignments?.[cellIndex])
                     )}
                   >

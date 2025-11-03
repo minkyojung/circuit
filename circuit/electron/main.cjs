@@ -1985,6 +1985,21 @@ ipcMain.handle('circuit:reload-claude-code', async (event, openVSCode = true) =>
   }
 })();
 
+// ============================================================================
+// Git Handlers
+// ============================================================================
+
+// Register git IPC handlers
+(async () => {
+  try {
+    const { registerGitHandlers } = await import('../dist-electron/gitHandlers.js');
+    registerGitHandlers();
+    console.log('[main.cjs] Git handlers registered');
+  } catch (error) {
+    console.error('[main.cjs] Failed to register git handlers:', error);
+  }
+})();
+
 // Cleanup on app quit
 app.on('before-quit', async () => {
   try {

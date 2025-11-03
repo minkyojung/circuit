@@ -28,7 +28,37 @@ export default {
           'SF Pro Text',
           'system-ui',
           'sans-serif'
+        ],
+        mono: [
+          'JetBrains Mono',
+          'Fira Code',
+          'Cascadia Code',
+          'Source Code Pro',
+          'SF Mono',
+          'Menlo',
+          'Consolas',
+          'Monaco',
+          'Courier New',
+          'monospace'
         ]
+      },
+      typography: {
+        DEFAULT: {
+          css: {
+            code: {
+              fontFamily: 'JetBrains Mono, Fira Code, Cascadia Code, Source Code Pro, SF Mono, Menlo, Consolas, Monaco, Courier New, monospace',
+            },
+            'code::before': {
+              content: '""'
+            },
+            'code::after': {
+              content: '""'
+            },
+            pre: {
+              fontFamily: 'JetBrains Mono, Fira Code, Cascadia Code, Source Code Pro, SF Mono, Menlo, Consolas, Monaco, Courier New, monospace',
+            }
+          }
+        }
       },
       fontSize: {
         'xs': 'var(--font-xs)',

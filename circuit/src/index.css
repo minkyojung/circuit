@@ -21,7 +21,26 @@
 
   /* Monospace font utility class for code elements */
   .font-mono {
-    font-family: 'SF Mono', SFMono-Regular, ui-monospace, 'Cascadia Code', Menlo, Monaco, 'Courier New', monospace;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Source Code Pro', 'SF Mono', Menlo, Consolas, Monaco, 'Courier New', monospace !important;
+  }
+
+  /* Force monospace font on all code elements */
+  code,
+  pre,
+  kbd,
+  samp,
+  .shiki code,
+  .shiki pre,
+  .prose code,
+  .prose pre,
+  .prose pre code {
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Source Code Pro', 'SF Mono', Menlo, Consolas, Monaco, 'Courier New', monospace !important;
+  }
+
+  /* Ensure inline code in prose also uses monospace */
+  .prose :where(code):not(:where([class~="not-prose"] *))::before,
+  .prose :where(code):not(:where([class~="not-prose"] *))::after {
+    content: "" !important;
   }
 
   /* Body defaults */
@@ -258,5 +277,34 @@
 
   .xterm .xterm-viewport::-webkit-scrollbar-thumb:hover {
     background: hsl(var(--sidebar-foreground-muted) / 0.5);
+  }
+
+  /* ===== RESIZABLE PANELS ===== */
+  /* Remove all hover effects on resize handle */
+  [data-panel-resize-handle-enabled] {
+    cursor: col-resize;
+  }
+
+  [data-panel-resize-handle-enabled]:hover,
+  [data-panel-resize-handle-enabled]:active,
+  [data-panel-resize-handle-enabled][data-resize-handle-active] {
+    background-color: transparent !important;
+    border-color: transparent !important;
+  }
+
+  [data-panel-resize-handle-enabled]::before,
+  [data-panel-resize-handle-enabled]::after {
+    background-color: transparent !important;
+    border-color: transparent !important;
+  }
+
+  [data-panel-resize-handle-enabled]:hover::before,
+  [data-panel-resize-handle-enabled]:hover::after,
+  [data-panel-resize-handle-enabled]:active::before,
+  [data-panel-resize-handle-enabled]:active::after,
+  [data-panel-resize-handle-enabled][data-resize-handle-active]::before,
+  [data-panel-resize-handle-enabled][data-resize-handle-active]::after {
+    background-color: transparent !important;
+    border-color: transparent !important;
   }
 }

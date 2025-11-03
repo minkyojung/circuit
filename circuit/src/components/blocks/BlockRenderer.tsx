@@ -353,7 +353,7 @@ interface BlockListProps {
 
 export const BlockList: React.FC<BlockListProps> = ({ blocks, onCopy, onExecute, onBookmark }) => {
   return (
-    <div className="space-y-2">
+    <div className="space-y-4">
       {blocks.map((block) => (
         <BlockRenderer
           key={block.id}

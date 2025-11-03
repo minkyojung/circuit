@@ -1229,4 +1229,374 @@
     --diff-addition: var(--success);
     --diff-deletion: var(--destructive);
   }
+
+  /* ===== STRAW LIGHT MODE (WHEAT INSPIRED) ===== */
+  .straw-light {
+    /* Background Hierarchy - Warm wheat/straw tones */
+    --background-primary: oklch(0.87 0.08 80);            /* #EFD395 Straw Yellow - Main window */
+    --background-secondary: oklch(0.96 0.03 80);          /* Very light wheat - Cards */
+    --background-tertiary: oklch(0.91 0.05 80);           /* Light wheat - Nested */
+
+    /* Label Hierarchy - Dark grays from palette */
+    --label-primary: oklch(0.17 0.005 30);                /* #262625 Nero - Main text */
+    --label-secondary: oklch(0.32 0.008 40);              /* #4B4A48 Private Black - Supporting text */
+    --label-tertiary: oklch(0.50 0.005 40);               /* #777674 Steel Wool - Subtle text */
+    --label-quaternary: oklch(0.68 0 0);                  /* #A4A4A4 Rainy Grey - Very subtle */
+
+    /* Fill Hierarchy - Warm wheat fills */
+    --fill-primary: rgba(239, 211, 149, 0.36);
+    --fill-secondary: rgba(239, 211, 149, 0.32);
+    --fill-tertiary: rgba(239, 211, 149, 0.24);
+    --fill-quaternary: rgba(239, 211, 149, 0.18);
+
+    /* Separators - Warm wheat tint */
+    --separator-opaque: rgba(164, 164, 164, 0.25);
+    --separator-translucent: rgba(164, 164, 164, 0.12);
+
+    /* Materials - Glassmorphism with wheat tint */
+    --material-thin: rgba(247, 238, 215, 0.5);
+    --material-regular: rgba(247, 238, 215, 0.7);
+    --material-thick: rgba(247, 238, 215, 0.85);
+    --material-ultra-thick: rgba(247, 238, 215, 0.95);
+
+    /* Legacy tokens */
+    --background: var(--background-primary);
+    --foreground: var(--label-primary);
+    --foreground-muted: var(--label-secondary);
+
+    --card: var(--background-secondary);
+    --card-foreground: var(--label-primary);
+
+    --popover: var(--background-secondary);
+    --popover-foreground: var(--label-primary);
+
+    /* Brand colors - Wheat themed */
+    --primary: oklch(0.65 0.12 75);                       /* Golden wheat */
+    --primary-foreground: oklch(0.17 0.005 30);
+
+    --secondary: oklch(0.91 0.05 80);
+    --secondary-foreground: oklch(0.17 0.005 30);
+
+    /* Muted/subtle colors - wheat gray tint */
+    --muted: oklch(0.82 0.06 80);
+    --muted-foreground: oklch(0.32 0.008 40);
+
+    --accent: oklch(0.89 0.07 78);
+    --accent-foreground: oklch(0.50 0.10 75);
+
+    /* Semantic colors */
+    --destructive: oklch(0.55 0.30 25);
+    --destructive-foreground: oklch(1 0 0);
+
+    --success: oklch(0.55 0.22 150);
+    --success-foreground: oklch(1 0 0);
+
+    --warning: oklch(0.65 0.22 80);
+    --warning-foreground: oklch(0.2 0 0);
+
+    --info: oklch(0.55 0.22 250);
+    --info-foreground: oklch(1 0 0);
+
+    /* UI elements */
+    --border: var(--separator-opaque);
+    --input: oklch(0.91 0.05 80);
+    --ring: oklch(0.65 0.12 75);
+
+    /* Chart colors - wheat themed */
+    --chart-1: oklch(0.75 0.15 75);
+    --chart-2: oklch(0.68 0.18 60);
+    --chart-3: oklch(0.60 0.20 85);
+    --chart-4: oklch(0.55 0.15 70);
+    --chart-5: oklch(0.50 0.12 80);
+
+    /* Window glassmorphism */
+    --window-glass: var(--material-regular);
+
+    /* Sidebar colors - straw theme */
+    --sidebar: oklch(0.85 0.08 80);
+    --sidebar-glass: var(--material-regular);
+    --sidebar-foreground: oklch(0.17 0.005 30);
+    --sidebar-foreground-muted: oklch(0.50 0.005 40);
+    --sidebar-primary: oklch(0.65 0.12 75);
+    --sidebar-primary-foreground: oklch(0.17 0.005 30);
+    --sidebar-accent: rgba(239, 211, 149, 0.25);
+    --sidebar-accent-foreground: oklch(0.17 0.005 30);
+    --sidebar-hover: rgba(239, 211, 149, 0.20);
+    --sidebar-border: var(--separator-opaque);
+    --sidebar-ring: oklch(0.65 0.12 75);
+
+    /* Chat UI colors - straw theme */
+    --chat-input-outer: oklch(0.85 0.08 80);
+    --chat-input-border: var(--separator-opaque);
+    --chat-input-inner: oklch(0.94 0.04 80);
+    --chat-button-selected: oklch(0.80 0.10 78);
+    --chat-button-default: oklch(0.90 0.06 80);
+
+    /* shadcn sidebar compat (HSL) */
+    --sidebar-background: 75 60% 85%;
+
+    /* Status Bar colors - straw theme */
+    --statusbar-bg: oklch(0.92 0.05 80);
+    --statusbar-border: var(--separator-opaque);
+    --statusbar-label: oklch(0.32 0.008 40);
+    --statusbar-value: oklch(0.50 0.005 40);
+    --statusbar-progress-bg: rgba(239, 211, 149, 0.20);
+
+    /* StatusBar progress colors */
+    --statusbar-progress-green: var(--success);
+    --statusbar-progress-yellow: var(--warning);
+    --statusbar-progress-orange: var(--warning);
+    --statusbar-progress-red: var(--destructive);
+
+    /* Git status colors */
+    --status-merged: oklch(0.55 0.25 290);
+    --status-working: oklch(0.62 0.18 60);
+    --status-ahead: oklch(0.55 0.22 250);
+    --status-behind: oklch(0.55 0.28 25);
+    --status-diverged: oklch(0.58 0.18 40);
+    --status-synced: oklch(0.55 0.22 150);
+    --status-local: oklch(0.55 0.12 250);
+
+    /* Glass/Overlay effects */
+    --glass-bg: var(--material-regular);
+    --glass-border: var(--separator-opaque);
+    --glass-hover: rgba(239, 211, 149, 0.20);
+
+    /* Additional semantic names */
+    --text-muted: var(--label-tertiary);
+    --bg-card: var(--background-secondary);
+    --bg-card-elevated: var(--background-tertiary);
+    --bg-section: var(--background-primary);
+
+    /* Overlay system - wheat-tinted */
+    --overlay-thin: rgba(239, 211, 149, 0.10);
+    --overlay-light: rgba(239, 211, 149, 0.15);
+    --overlay-medium: rgba(239, 211, 149, 0.22);
+    --overlay-strong: rgba(239, 211, 149, 0.30);
+
+    /* Modal/Dialog backdrop overlays */
+    --overlay-backdrop: rgba(0, 0, 0, 0.5);
+    --overlay-backdrop-light: rgba(0, 0, 0, 0.3);
+    --overlay-backdrop-strong: rgba(0, 0, 0, 0.7);
+
+    /* Interactive state tokens */
+    --state-hover: var(--overlay-light);
+    --state-active: var(--overlay-medium);
+    --state-focus-ring: var(--ring);
+    --state-disabled-opacity: 0.5;
+
+    /* Border overlays - wheat-tinted */
+    --border-thin: rgba(164, 164, 164, 0.15);
+    --border-light: rgba(164, 164, 164, 0.25);
+    --border-medium: rgba(164, 164, 164, 0.35);
+
+    /* Circuit brand color */
+    --circuit-orange: oklch(0.65 0.15 70);
+    --circuit-error: var(--destructive);
+
+    /* Code block surfaces */
+    --code-bg: var(--background-secondary);
+    --code-border: var(--separator-opaque);
+    --code-header: var(--fill-quaternary);
+
+    --command-bg: var(--background-tertiary);
+    --command-border: var(--separator-opaque);
+    --command-header: var(--fill-tertiary);
+    --command-accent: var(--label-tertiary);
+
+    --diff-bg: var(--code-bg);
+    --diff-border: var(--code-border);
+    --diff-header: var(--code-header);
+    --diff-addition: var(--success);
+    --diff-deletion: var(--destructive);
+  }
+
+  /* ===== SLATE DARK MODE (CHROME INSPIRED) ===== */
+  .slate-dark {
+    /* Background Hierarchy - Cool slate tones */
+    --background-base-primary: oklch(0.11 0 0);           /* #0B1212 Ruined Smores - Deepest */
+    --background-base-secondary: oklch(0.15 0.008 180);   /* #1B2220 Shadow Warrior - Main */
+    --background-base-tertiary: oklch(0.20 0.010 170);    /* #2A302E Beryl Black Green - Sidebar */
+
+    --background-elevated-primary: oklch(0.27 0.012 165); /* #3A403E Tamahagane - Elevated 1 */
+    --background-elevated-secondary: oklch(0.40 0.008 175); /* #606565 Cordite - Elevated 2 */
+    --background-elevated-tertiary: oklch(0.50 0.008 170); /* Elevated 3 */
+
+    --background-primary: var(--background-base-secondary);
+    --background-secondary: var(--background-elevated-primary);
+    --background-tertiary: var(--background-elevated-secondary);
+
+    /* Label Hierarchy - Cool whites and grays */
+    --label-primary: oklch(0.82 0.008 270);               /* #CCCAD1 Chrome Chalice - Main text */
+    --label-secondary: oklch(0.75 0.010 270);             /* Lighter secondary text */
+    --label-tertiary: oklch(0.50 0.008 175);              /* Subtle text */
+    --label-quaternary: oklch(0.35 0.010 170);            /* Very subtle */
+
+    /* Fill Hierarchy - Cool slate fills */
+    --fill-primary: rgba(96, 101, 101, 0.36);
+    --fill-secondary: rgba(96, 101, 101, 0.32);
+    --fill-tertiary: rgba(96, 101, 101, 0.24);
+    --fill-quaternary: rgba(96, 101, 101, 0.18);
+
+    /* Separators - Cool slate tint */
+    --separator-opaque: rgba(204, 202, 209, 0.15);
+    --separator-translucent: rgba(204, 202, 209, 0.08);
+
+    /* Materials - Glassmorphism with slate tint */
+    --material-thin: rgba(27, 34, 32, 0.7);
+    --material-regular: rgba(27, 34, 32, 0.85);
+    --material-thick: rgba(27, 34, 32, 0.92);
+    --material-ultra-thick: rgba(27, 34, 32, 0.97);
+
+    /* Legacy tokens */
+    --background: var(--background-primary);
+    --foreground: var(--label-primary);
+    --foreground-muted: var(--label-secondary);
+
+    --card: var(--background-secondary);
+    --card-foreground: var(--label-primary);
+
+    --popover: var(--background-elevated-primary);
+    --popover-foreground: var(--label-primary);
+
+    /* Brand colors - Cool slate themed */
+    --primary: oklch(0.55 0.08 200);                      /* Cool slate blue */
+    --primary-foreground: oklch(0.82 0.008 270);
+
+    --secondary: var(--background-elevated-tertiary);
+    --secondary-foreground: var(--label-primary);
+
+    /* Muted/subtle colors */
+    --muted: var(--background-elevated-secondary);
+    --muted-foreground: oklch(0.60 0.008 175);
+
+    --accent: oklch(0.32 0.015 170);
+    --accent-foreground: oklch(0.70 0.12 180);
+
+    /* Semantic colors */
+    --destructive: oklch(0.60 0.33 25);
+    --destructive-foreground: oklch(0.98 0 0);
+
+    --success: oklch(0.62 0.25 160);
+    --success-foreground: oklch(0.98 0 0);
+
+    --warning: oklch(0.70 0.25 80);
+    --warning-foreground: oklch(0.15 0 0);
+
+    --info: oklch(0.60 0.25 240);
+    --info-foreground: oklch(0.98 0 0);
+
+    /* UI elements */
+    --border: var(--separator-opaque);
+    --input: var(--background-elevated-secondary);
+    --ring: oklch(0.55 0.08 200);
+
+    /* Chart colors - slate themed */
+    --chart-1: oklch(0.65 0.12 200);
+    --chart-2: oklch(0.60 0.15 180);
+    --chart-3: oklch(0.55 0.18 190);
+    --chart-4: oklch(0.50 0.12 175);
+    --chart-5: oklch(0.45 0.10 185);
+
+    /* Window glassmorphism */
+    --window-glass: var(--material-regular);
+
+    /* Sidebar colors - slate theme */
+    --sidebar: var(--background-base-tertiary);
+    --sidebar-glass: var(--material-regular);
+    --sidebar-foreground: oklch(0.75 0.010 270);
+    --sidebar-foreground-muted: oklch(0.50 0.008 175);
+    --sidebar-primary: oklch(0.55 0.08 200);
+    --sidebar-primary-foreground: oklch(0.82 0.008 270);
+    --sidebar-accent: rgba(96, 101, 101, 0.25);
+    --sidebar-accent-foreground: oklch(0.82 0.008 270);
+    --sidebar-hover: rgba(96, 101, 101, 0.18);
+    --sidebar-border: var(--separator-opaque);
+    --sidebar-ring: oklch(0.55 0.08 200);
+
+    /* Chat UI colors - slate theme */
+    --chat-input-outer: oklch(0.23 0.010 170);
+    --chat-input-border: var(--separator-opaque);
+    --chat-input-inner: oklch(0.29 0.012 165);
+    --chat-button-selected: oklch(0.35 0.015 170);
+    --chat-button-default: oklch(0.27 0.010 168);
+
+    /* shadcn sidebar compat (HSL) */
+    --sidebar-background: 170 10% 18%;
+
+    /* Status Bar colors - slate theme */
+    --statusbar-bg: oklch(0.18 0.010 170);
+    --statusbar-border: var(--separator-opaque);
+    --statusbar-label: oklch(0.60 0.008 175);
+    --statusbar-value: oklch(0.50 0.008 175);
+    --statusbar-progress-bg: rgba(96, 101, 101, 0.15);
+
+    /* StatusBar progress colors */
+    --statusbar-progress-green: var(--success);
+    --statusbar-progress-yellow: var(--warning);
+    --statusbar-progress-orange: var(--warning);
+    --statusbar-progress-red: var(--destructive);
+
+    /* Git status colors */
+    --status-merged: oklch(0.65 0.28 290);
+    --status-working: oklch(0.72 0.20 60);
+    --status-ahead: oklch(0.65 0.25 250);
+    --status-behind: oklch(0.65 0.30 25);
+    --status-diverged: oklch(0.68 0.20 40);
+    --status-synced: oklch(0.65 0.25 160);
+    --status-local: oklch(0.65 0.15 250);
+
+    /* Glass/Overlay effects */
+    --glass-bg: var(--material-regular);
+    --glass-border: var(--separator-opaque);
+    --glass-hover: rgba(96, 101, 101, 0.18);
+
+    /* Additional semantic names */
+    --text-muted: var(--label-tertiary);
+    --bg-card: var(--background-secondary);
+    --bg-card-elevated: var(--background-tertiary);
+    --bg-section: var(--background-primary);
+
+    /* Overlay system - slate-tinted */
+    --overlay-thin: rgba(96, 101, 101, 0.08);
+    --overlay-light: rgba(96, 101, 101, 0.12);
+    --overlay-medium: rgba(96, 101, 101, 0.18);
+    --overlay-strong: rgba(96, 101, 101, 0.25);
+
+    /* Modal/Dialog backdrop overlays */
+    --overlay-backdrop: rgba(0, 0, 0, 0.6);
+    --overlay-backdrop-light: rgba(0, 0, 0, 0.4);
+    --overlay-backdrop-strong: rgba(0, 0, 0, 0.75);
+
+    /* Interactive state tokens */
+    --state-hover: var(--overlay-light);
+    --state-active: var(--overlay-medium);
+    --state-focus-ring: var(--ring);
+    --state-disabled-opacity: 0.5;
+
+    /* Border overlays - slate-tinted */
+    --border-thin: rgba(204, 202, 209, 0.08);
+    --border-light: rgba(204, 202, 209, 0.12);
+    --border-medium: rgba(204, 202, 209, 0.18);
+
+    /* Circuit brand color */
+    --circuit-orange: oklch(0.65 0.15 40);
+    --circuit-error: var(--destructive);
+
+    /* Code block surfaces */
+    --code-bg: var(--background-secondary);
+    --code-border: var(--separator-opaque);
+    --code-header: var(--fill-quaternary);
+
+    --command-bg: var(--background-elevated-tertiary);
+    --command-border: var(--separator-opaque);
+    --command-header: var(--fill-secondary);
+    --command-accent: var(--label-tertiary);
+
+    --diff-bg: var(--code-bg);
+    --diff-border: var(--code-border);
+    --diff-header: var(--code-header);
+    --diff-addition: var(--success);
+    --diff-deletion: var(--destructive);
+  }
 }

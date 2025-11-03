@@ -32,7 +32,7 @@ export const DiagramBlock: React.FC<DiagramBlockProps> = ({ block, onCopy }) => 
           startOnLoad: false,
           theme: 'dark',
           securityLevel: 'loose',
-          fontFamily: '"SF Mono", SFMono-Regular, ui-monospace, monospace',
+          fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", "Source Code Pro", "SF Mono", Menlo, Consolas, Monaco, "Courier New", monospace',
         })
 
         // Clear container
