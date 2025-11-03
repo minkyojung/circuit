@@ -239,6 +239,23 @@ export function UnifiedTabs({
     }
   }
 
+  const handleCloseFileClick = (filePath: string, hasUnsavedChanges: boolean) => {
+    if (hasUnsavedChanges) {
+      setFileToClose(filePath)
+      setCloseFileDialogOpen(true)
+    } else {
+      onCloseFile(filePath)
+    }
+  }
+
+  const handleConfirmCloseFile = () => {
+    if (fileToClose) {
+      onCloseFile(fileToClose)
+      setFileToClose(null)
+    }
+    setCloseFileDialogOpen(false)
+  }
+
   if (!workspaceId) {
     return null
   }
@@ -367,7 +384,7 @@ export function UnifiedTabs({
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
-                    onCloseFile(file.path)
+                    handleCloseFileClick(file.path, file.unsavedChanges || false)
                   }}
                   className={cn(
                     'ml-1 w-4 h-4 flex items-center justify-center rounded transition-all flex-shrink-0',
@@ -405,6 +422,24 @@ export function UnifiedTabs({
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Unsaved file changes confirmation dialog */}
+      <AlertDialog open={closeFileDialogOpen} onOpenChange={setCloseFileDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unsaved Changes</AlertDialogTitle>
+            <AlertDialogDescription>
+              This file has unsaved changes. Closing it will discard all changes. Are you sure you want to continue?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmCloseFile} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Close File
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

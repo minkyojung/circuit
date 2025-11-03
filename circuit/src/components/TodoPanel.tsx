@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { ChevronDown, ChevronRight, Check, Circle, Clock, Zap, MessageSquare, Settings, Terminal as TerminalIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Message } from '@/types/conversation'
@@ -214,11 +214,14 @@ export function TodoPanel({ conversationId, workspace, onCommit }: TodoPanelProp
   const activeCount = sessions.filter(s => ['pending', 'active', 'completed'].includes(s.status)).length
   const archivedCount = sessions.filter(s => s.status === 'archived').length
 
-  const filteredSessions = sessions.filter(s =>
-    selectedFilter === 'active'
-      ? ['pending', 'active', 'completed'].includes(s.status)
-      : s.status === 'archived'
-  )
+  // Memoize filteredSessions to prevent new array creation on every render
+  const filteredSessions = useMemo(() => {
+    return sessions.filter(s =>
+      selectedFilter === 'active'
+        ? ['pending', 'active', 'completed'].includes(s.status)
+        : s.status === 'archived'
+    )
+  }, [sessions, selectedFilter])
 
   const handleScrollToMessage = (messageId: string) => {
     const element = document.querySelector(`[data-message-id="${messageId}"]`)

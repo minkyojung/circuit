@@ -162,15 +162,15 @@ export function FileTabs({
       <AlertDialog open={closeDialogOpen} onOpenChange={setCloseDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>저장되지 않은 변경사항이 있습니다</AlertDialogTitle>
+            <AlertDialogTitle>Unsaved Changes</AlertDialogTitle>
             <AlertDialogDescription>
-              파일을 닫으면 저장되지 않은 변경사항이 모두 사라집니다. 계속하시겠습니까?
+              This file has unsaved changes. Closing it will discard all changes. Are you sure you want to continue?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>취소</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmClose}>
-              닫기
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmClose} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Close File
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
