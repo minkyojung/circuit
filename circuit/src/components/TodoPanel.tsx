@@ -39,16 +39,10 @@ export function TodoPanel({ conversationId, workspace, onCommit }: TodoPanelProp
   const [selectedFilter, setSelectedFilter] = useState<FilterType>('active')
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false)
-  const intervalRef = useRef<NodeJS.Timeout | null>(null)
-  const sessionsRef = useRef<TodoSessionWithActualTodos[]>([])
   const conversationIdRef = useRef<string | null>(null)
   const isInitialLoadRef = useRef<boolean>(true)
 
-  // Keep refs in sync with state
-  useEffect(() => {
-    sessionsRef.current = sessions
-  }, [sessions])
-
+  // Keep ref in sync with conversationId
   useEffect(() => {
     conversationIdRef.current = conversationId
   }, [conversationId])
@@ -107,46 +101,6 @@ export function TodoPanel({ conversationId, workspace, onCommit }: TodoPanelProp
       ipcRenderer.removeListener('todos:deleted', handleTodoDeleted)
     }
   }, [conversationId])
-
-  // Auto-refresh for active sessions (real-time progress tracking)
-  // TEMPORARY: Will be removed once event-driven updates are verified
-  // Only depends on conversationId - never recreate interval when sessions change
-  useEffect(() => {
-    if (!conversationId) {
-      // Clear interval if no conversation
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-        intervalRef.current = null
-        console.log('[TodoPanel] Stopped auto-refresh (no conversation)')
-      }
-      return
-    }
-
-    // Start interval once when conversation is selected
-    if (!intervalRef.current) {
-      console.log('[TodoPanel] Starting auto-refresh interval (TEMPORARY - for testing)')
-      intervalRef.current = setInterval(() => {
-        // Check active sessions using ref (latest value)
-        const hasActiveSessions = sessionsRef.current.some(
-          s => s.status === 'active' && s.actualTodos
-        )
-
-        if (hasActiveSessions && conversationIdRef.current) {
-          // Only reload if there are active sessions
-          loadSessions()
-        }
-      }, 2000)
-    }
-
-    // Cleanup only on conversation change or unmount
-    return () => {
-      if (intervalRef.current) {
-        console.log('[TodoPanel] Cleaning up auto-refresh interval')
-        clearInterval(intervalRef.current)
-        intervalRef.current = null
-      }
-    }
-  }, [conversationId])  // ✅ Only conversationId - interval created once and reused
 
   const loadSessions = async () => {
     if (!conversationId) return
