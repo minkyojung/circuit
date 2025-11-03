@@ -406,7 +406,7 @@ function App() {
             <div className="flex-1" />
 
             {/* Right side - Toggle plans button (when workspace selected) */}
-            {FEATURES.PLAN_MODE && selectedWorkspace && (
+            {selectedWorkspace && (
               <div
                 className="flex items-center gap-2"
                 style={{ WebkitAppRegion: 'no-drag' } as any}
@@ -419,7 +419,7 @@ function App() {
                       ? 'text-foreground hover:bg-sidebar-hover'
                       : 'text-muted-foreground hover:bg-sidebar-hover hover:text-foreground'
                   )}
-                  title="Toggle plans"
+                  title="Toggle right panel"
                 >
                   <PanelRight size={16} />
                 </button>
@@ -476,7 +476,7 @@ function App() {
       </SidebarProvider>
 
       {/* Resize Handle - Overlapping main area border */}
-      {FEATURES.PLAN_MODE && isRightSidebarOpen && (
+      {isRightSidebarOpen && (
         <div
           onMouseDown={handleResizeStart}
           className={cn(
@@ -487,24 +487,22 @@ function App() {
       )}
 
       {/* Right Sidebar - Todo Panel */}
-      {FEATURES.PLAN_MODE && (
-        <div
-          className={cn(
-            "h-full overflow-hidden",
-            isRightSidebarOpen ? "" : "w-0"
-          )}
-          style={{
-            width: isRightSidebarOpen ? `${rightSidebarWidth}px` : 0,
-            transition: isResizing ? 'none' : 'width 0.3s ease-in-out'
-          }}
-        >
-          <TodoPanel
-            conversationId={activeConversationId}
-            workspace={selectedWorkspace}
-            onCommit={() => setShowCommitDialog(true)}
-          />
-        </div>
-      )}
+      <div
+        className={cn(
+          "h-full overflow-hidden",
+          isRightSidebarOpen ? "" : "w-0"
+        )}
+        style={{
+          width: isRightSidebarOpen ? `${rightSidebarWidth}px` : 0,
+          transition: isResizing ? 'none' : 'width 0.3s ease-in-out'
+        }}
+      >
+        <TodoPanel
+          conversationId={activeConversationId}
+          workspace={selectedWorkspace}
+          onCommit={() => setShowCommitDialog(true)}
+        />
+      </div>
 
       {/* Command Palette */}
       <CommandPalette

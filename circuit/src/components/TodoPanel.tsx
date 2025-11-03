@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { FEATURES } from '@/config/features'
 
 // @ts-ignore - Electron IPC
 const { ipcRenderer } = window.require('electron')
@@ -350,94 +351,99 @@ export function TodoPanel({ conversationId, workspace, onCommit }: TodoPanelProp
       )}
 
 
-      {/* Header with filter buttons */}
-      <div
-        className="flex h-[44px] shrink-0 items-center px-3 justify-between"
-        style={{ WebkitAppRegion: 'drag' } as any}
-      >
-        <span className="text-sm font-medium text-sidebar-foreground">Plans</span>
-
-        {/* Filter buttons */}
-        <div className="flex items-center gap-1" style={{ WebkitAppRegion: 'no-drag' } as any}>
-          <button
-            onClick={() => setSelectedFilter('active')}
-            className={cn(
-              "px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-1.5",
-              selectedFilter === 'active'
-                ? "bg-primary/10 text-primary shadow-sm"
-                : "text-sidebar-foreground-muted hover:bg-sidebar-hover hover:text-sidebar-foreground"
-            )}
+      {/* Plans Section - Feature Flag Controlled */}
+      {FEATURES.PLAN_MODE && (
+        <>
+          {/* Header with filter buttons */}
+          <div
+            className="flex h-[44px] shrink-0 items-center px-3 justify-between"
+            style={{ WebkitAppRegion: 'drag' } as any}
           >
-            Active
-            {activeCount > 0 && (
-              <span className={cn(
-                "px-1 py-0.5 rounded text-[10px] font-semibold",
-                selectedFilter === 'active'
-                  ? "bg-primary/20"
-                  : "bg-sidebar-accent"
-              )}>
-                {activeCount}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setSelectedFilter('archived')}
-            className={cn(
-              "px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-1.5",
-              selectedFilter === 'archived'
-                ? "bg-primary/10 text-primary shadow-sm"
-                : "text-sidebar-foreground-muted hover:bg-sidebar-hover hover:text-sidebar-foreground"
-            )}
-          >
-            Archived
-            {archivedCount > 0 && (
-              <span className={cn(
-                "px-1 py-0.5 rounded text-[10px] font-semibold",
-                selectedFilter === 'archived'
-                  ? "bg-primary/20"
-                  : "bg-sidebar-accent"
-              )}>
-                {archivedCount}
-              </span>
-            )}
-          </button>
-        </div>
-      </div>
+            <span className="text-sm font-medium text-sidebar-foreground">Plans</span>
 
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto p-2">
-              {isLoading ? (
-                <div className="px-3 py-6 text-center">
-                  <p className="text-sm text-sidebar-foreground-muted">Loading plans...</p>
-                </div>
-              ) : filteredSessions.length === 0 ? (
-                <div className="px-3 py-6 text-center">
-                  <Clock className="h-12 w-12 mx-auto mb-3 text-sidebar-foreground-muted opacity-20" />
-                  <p className="text-sm text-sidebar-foreground-muted mb-1">
-                    {selectedFilter === 'active' ? 'No active plans' : 'No archived plans'}
-                  </p>
-                  <p className="text-xs text-sidebar-foreground-muted opacity-70">
-                    {selectedFilter === 'active'
-                      ? 'Use Plan Mode to create detailed task plans'
-                      : 'Completed plans will appear here'}
-                  </p>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  <AnimatePresence mode="popLayout">
-                    {filteredSessions.map((session, index) => (
-                      <TodoSessionItem
-                        key={session.id}
-                        session={session}
-                        index={index}
-                        onNavigate={handleScrollToMessage}
-                        onStartTasks={handleStartTasks}
-                      />
-                    ))}
-                  </AnimatePresence>
-                </div>
-              )}
+            {/* Filter buttons */}
+            <div className="flex items-center gap-1" style={{ WebkitAppRegion: 'no-drag' } as any}>
+              <button
+                onClick={() => setSelectedFilter('active')}
+                className={cn(
+                  "px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-1.5",
+                  selectedFilter === 'active'
+                    ? "bg-primary/10 text-primary shadow-sm"
+                    : "text-sidebar-foreground-muted hover:bg-sidebar-hover hover:text-sidebar-foreground"
+                )}
+              >
+                Active
+                {activeCount > 0 && (
+                  <span className={cn(
+                    "px-1 py-0.5 rounded text-[10px] font-semibold",
+                    selectedFilter === 'active'
+                      ? "bg-primary/20"
+                      : "bg-sidebar-accent"
+                  )}>
+                    {activeCount}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setSelectedFilter('archived')}
+                className={cn(
+                  "px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-1.5",
+                  selectedFilter === 'archived'
+                    ? "bg-primary/10 text-primary shadow-sm"
+                    : "text-sidebar-foreground-muted hover:bg-sidebar-hover hover:text-sidebar-foreground"
+                )}
+              >
+                Archived
+                {archivedCount > 0 && (
+                  <span className={cn(
+                    "px-1 py-0.5 rounded text-[10px] font-semibold",
+                    selectedFilter === 'archived'
+                      ? "bg-primary/20"
+                      : "bg-sidebar-accent"
+                  )}>
+                    {archivedCount}
+                  </span>
+                )}
+              </button>
             </div>
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto p-2">
+            {isLoading ? (
+              <div className="px-3 py-6 text-center">
+                <p className="text-sm text-sidebar-foreground-muted">Loading plans...</p>
+              </div>
+            ) : filteredSessions.length === 0 ? (
+              <div className="px-3 py-6 text-center">
+                <Clock className="h-12 w-12 mx-auto mb-3 text-sidebar-foreground-muted opacity-20" />
+                <p className="text-sm text-sidebar-foreground-muted mb-1">
+                  {selectedFilter === 'active' ? 'No active plans' : 'No archived plans'}
+                </p>
+                <p className="text-xs text-sidebar-foreground-muted opacity-70">
+                  {selectedFilter === 'active'
+                    ? 'Use Plan Mode to create detailed task plans'
+                    : 'Completed plans will appear here'}
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <AnimatePresence mode="popLayout">
+                  {filteredSessions.map((session, index) => (
+                    <TodoSessionItem
+                      key={session.id}
+                      session={session}
+                      index={index}
+                      onNavigate={handleScrollToMessage}
+                      onStartTasks={handleStartTasks}
+                    />
+                  ))}
+                </AnimatePresence>
+              </div>
+            )}
+          </div>
+        </>
+      )}
 
       {/* Terminal Section */}
       {workspace && (
