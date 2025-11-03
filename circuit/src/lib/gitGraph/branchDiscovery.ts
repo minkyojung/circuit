@@ -131,6 +131,35 @@ export function identifyExclusiveCommits(
 }
 
 /**
+ * Extract branch name from merge commit message
+ */
+function extractBranchNameFromMergeMessage(message: string): string | null {
+  // Pattern 1: "Merge pull request #123 from user/branch"
+  const prPattern = /Merge pull request #(\d+) from (.+)/;
+  const prMatch = message.match(prPattern);
+  if (prMatch) {
+    const branchName = prMatch[2].trim();
+    return branchName || `PR #${prMatch[1]}`;
+  }
+
+  // Pattern 2: "Merge remote-tracking branch 'origin/branch'"
+  const remotePattern = /Merge remote-tracking branch '([^']+)'/;
+  const remoteMatch = message.match(remotePattern);
+  if (remoteMatch) {
+    return remoteMatch[1];
+  }
+
+  // Pattern 3: "Merge branch 'feature'"
+  const branchPattern = /Merge branch '([^']+)'/;
+  const branchMatch = message.match(branchPattern);
+  if (branchMatch) {
+    return branchMatch[1];
+  }
+
+  return null;
+}
+
+/**
  * Step 4: Create virtual branches for merged branches
  * refs에 없는 머지된 브랜치들을 가상으로 생성
  */
@@ -157,8 +186,9 @@ export function createVirtualBranchesForMerges(
           return;
         }
 
-        // 가상 브랜치 생성
-        const virtualBranchName = `merged-${commit.hash.substring(0, 7)}-${index}`;
+        // 가상 브랜치 이름 추출 (merge message에서)
+        const extractedName = extractBranchNameFromMergeMessage(commit.message);
+        const virtualBranchName = extractedName || `merged-${commit.hash.substring(0, 7)}-${index}`;
 
         // 이미 존재하는지 확인
         if (branches.has(virtualBranchName)) return;
