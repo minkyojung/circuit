@@ -410,6 +410,7 @@ export interface GitCommit {
   parents: string[];
   message: string;
   author: string;
+  email: string;
   date: string;
   refs: string[];
 }
@@ -417,15 +418,15 @@ export interface GitCommit {
 /**
  * Get git log for graph visualization
  */
-ipcMain.handle('git:log', async (event, workspacePath: string, limit: number = 100) => {
+ipcMain.handle('git:log', async (event, workspacePath: string, limit: number = 5000) => {
   try {
     console.log('[Git] Getting commit history for:', workspacePath);
 
-    // Format: hash|parents|subject|author|date|refs
-    // %H = full hash, %P = parent hashes, %s = subject, %an = author name, %ar = relative date, %D = refs
+    // Format: hash|parents|subject|author|email|date|refs
+    // %H = full hash, %P = parent hashes, %s = subject, %an = author name, %ae = author email, %ar = relative date, %D = refs
     // --topo-order: Show commits in topological order (parents before children)
     const { stdout } = await execAsync(
-      `git log --all --topo-order --format="%H|%P|%s|%an|%ar|%D" -${limit}`,
+      `git log --all --topo-order --format="%H|%P|%s|%an|%ae|%ar|%D" -${limit}`,
       { cwd: workspacePath }
     );
 
@@ -437,7 +438,7 @@ ipcMain.handle('git:log', async (event, workspacePath: string, limit: number = 1
       .trim()
       .split('\n')
       .map(line => {
-        const [hash, parents, message, author, date, refs] = line.split('|');
+        const [hash, parents, message, author, email, date, refs] = line.split('|');
 
         return {
           hash,
@@ -445,6 +446,7 @@ ipcMain.handle('git:log', async (event, workspacePath: string, limit: number = 1
           parents: parents ? parents.split(' ') : [],
           message,
           author,
+          email: email || '',
           date,
           refs: refs ? refs.split(', ').filter(Boolean) : []
         };
@@ -455,6 +457,80 @@ ipcMain.handle('git:log', async (event, workspacePath: string, limit: number = 1
     return { success: true, commits };
   } catch (error: any) {
     console.error('[Git] Failed to get log:', error);
+
+    const errorMessage = error.stderr || error.stdout || error.message || 'Unknown error';
+
+    return {
+      success: false,
+      error: errorMessage
+    };
+  }
+});
+
+/**
+ * Git reference (branch, tag, etc.)
+ */
+export interface GitRef {
+  hash: string;
+  ref: string;
+  type: 'branch' | 'tag' | 'remote';
+  name: string;
+}
+
+/**
+ * Get all git refs (branches, tags, remotes)
+ */
+ipcMain.handle('git:refs', async (event, workspacePath: string) => {
+  try {
+    console.log('[Git] Getting refs for:', workspacePath);
+
+    // Get all refs with their commit hashes
+    // Format: <hash> <ref>
+    const { stdout } = await execAsync(
+      'git show-ref --heads --tags',
+      { cwd: workspacePath }
+    );
+
+    if (!stdout.trim()) {
+      return { success: true, refs: [] };
+    }
+
+    const refs: GitRef[] = stdout
+      .trim()
+      .split('\n')
+      .map(line => {
+        const [hash, ref] = line.split(' ');
+
+        let type: 'branch' | 'tag' | 'remote';
+        let name: string;
+
+        if (ref.startsWith('refs/heads/')) {
+          type = 'branch';
+          name = ref.replace('refs/heads/', '');
+        } else if (ref.startsWith('refs/tags/')) {
+          type = 'tag';
+          name = ref.replace('refs/tags/', '');
+        } else if (ref.startsWith('refs/remotes/')) {
+          type = 'remote';
+          name = ref.replace('refs/remotes/', '');
+        } else {
+          type = 'branch';
+          name = ref;
+        }
+
+        return {
+          hash,
+          ref,
+          type,
+          name
+        };
+      });
+
+    console.log('[Git] Retrieved', refs.length, 'refs');
+
+    return { success: true, refs };
+  } catch (error: any) {
+    console.error('[Git] Failed to get refs:', error);
 
     const errorMessage = error.stderr || error.stdout || error.message || 'Unknown error';
 

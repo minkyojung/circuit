@@ -11,7 +11,7 @@ import { useState, useEffect } from 'react';
 import { GitBranch, RefreshCw } from 'lucide-react';
 import type { GitStatus } from '@/types/git';
 import { CommitInterface } from './CommitInterface';
-import { GitGraphV2 } from './GitGraphV2';
+import { GitGraphV3 } from './GitGraphV3';
 import { Stack } from '../ui/stack';
 import { Inline } from '../ui/inline';
 import { PanelHeader } from '../ui/panel-header';
@@ -122,7 +122,7 @@ export function GitTestPanel({ workspacePath }: GitTestPanelProps) {
 
       {/* Git Commit Graph */}
       <div className="border-t border-sidebar-border">
-        <GitGraphV2 workspacePath={workspacePath} limit={100} />
+        <GitGraphV3 workspacePath={workspacePath} limit={5000} />
       </div>
 
       {/* Content area with consistent padding */}
