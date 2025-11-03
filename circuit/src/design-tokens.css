@@ -859,4 +859,374 @@
     --diff-addition: var(--success);
     --diff-deletion: var(--destructive);
   }
+
+  /* ===== WARM LIGHT MODE (AMBER - Gruvbox Inspired) ===== */
+  .warm-light {
+    /* Background Hierarchy - Cream/Beige backgrounds */
+    --background-primary: oklch(0.965 0.015 85);          /* #f9f5d7 Gruvbox light0_hard - warm cream */
+    --background-secondary: oklch(0.975 0.012 85);        /* #fbf1c7 Gruvbox light0 - Cards */
+    --background-tertiary: oklch(0.945 0.018 85);         /* Slightly darker cream - Nested */
+
+    /* Label Hierarchy - Dark warm grays */
+    --label-primary: rgba(40, 40, 40, 1.0);               /* #282828 Gruvbox dark0 - 100% */
+    --label-secondary: rgba(60, 56, 54, 0.95);            /* #3c3836 Gruvbox dark1 - 95% */
+    --label-tertiary: rgba(80, 73, 69, 0.60);             /* #504945 Gruvbox dark2 - 60% */
+    --label-quaternary: rgba(146, 131, 116, 0.25);        /* #928374 Gruvbox gray - 25% */
+
+    /* Fill Hierarchy - Warm neutral fills */
+    --fill-primary: rgba(175, 58, 3, 0.15);               /* Faded orange tint */
+    --fill-secondary: rgba(175, 58, 3, 0.12);
+    --fill-tertiary: rgba(175, 58, 3, 0.09);
+    --fill-quaternary: rgba(175, 58, 3, 0.06);
+
+    /* Separators - Warm tint */
+    --separator-opaque: rgba(175, 58, 3, 0.12);
+    --separator-translucent: rgba(175, 58, 3, 0.06);
+
+    /* Materials - Glassmorphism with warm cream tint */
+    --material-thin: rgba(251, 241, 199, 0.5);            /* Cream glass - subtle */
+    --material-regular: rgba(251, 241, 199, 0.7);         /* Cream glass - standard */
+    --material-thick: rgba(251, 241, 199, 0.85);          /* Cream glass - strong */
+    --material-ultra-thick: rgba(251, 241, 199, 0.95);    /* Cream glass - maximum */
+
+    /* Legacy tokens */
+    --background: var(--background-primary);
+    --foreground: var(--label-primary);
+    --foreground-muted: var(--label-secondary);
+
+    --card: var(--background-secondary);
+    --card-foreground: var(--label-primary);
+
+    --popover: var(--background-secondary);
+    --popover-foreground: var(--label-primary);
+
+    /* Brand colors - Gruvbox warm oranges */
+    --primary: oklch(0.55 0.18 40);                       /* #af3a03 Gruvbox faded_orange */
+    --primary-foreground: oklch(1 0 0);
+
+    --secondary: oklch(0.92 0.018 85);                    /* Light warm gray */
+    --secondary-foreground: oklch(0.24 0 0);
+
+    /* Muted/subtle colors - warm tint */
+    --muted: oklch(0.88 0.02 85);                         /* Warm gray */
+    --muted-foreground: oklch(0.35 0 0);
+
+    --accent: oklch(0.92 0.025 40);                       /* Very light warm tint */
+    --accent-foreground: oklch(0.50 0.18 40);             /* Gruvbox faded orange */
+
+    /* Semantic colors - Gruvbox palette */
+    --destructive: oklch(0.45 0.22 25);                   /* #9d0006 Gruvbox faded_red */
+    --destructive-foreground: oklch(1 0 0);
+
+    --success: oklch(0.50 0.18 145);                      /* #79740e Gruvbox faded_green */
+    --success-foreground: oklch(1 0 0);
+
+    --warning: oklch(0.68 0.16 75);                       /* #b57614 Gruvbox faded_yellow */
+    --warning-foreground: oklch(0.2 0 0);
+
+    --info: oklch(0.45 0.15 240);                         /* #076678 Gruvbox faded_blue */
+    --info-foreground: oklch(1 0 0);
+
+    /* UI elements */
+    --border: var(--separator-opaque);
+    --input: oklch(0.92 0.018 85);
+    --ring: oklch(0.55 0.18 40);                          /* Warm orange focus */
+
+    /* Chart colors - warm-themed */
+    --chart-1: oklch(0.70 0.16 40);                       /* Orange */
+    --chart-2: oklch(0.68 0.16 75);                       /* Yellow */
+    --chart-3: oklch(0.65 0.14 25);                       /* Red */
+    --chart-4: oklch(0.60 0.12 100);                      /* Yellow-green */
+    --chart-5: oklch(0.55 0.10 50);                       /* Brown */
+
+    /* Window glassmorphism */
+    --window-glass: var(--material-regular);
+
+    /* Sidebar colors - warm theme */
+    --sidebar: oklch(0.935 0.018 85);                     /* Warm sidebar */
+    --sidebar-glass: var(--material-regular);
+    --sidebar-foreground: rgba(40, 40, 40, 0.95);
+    --sidebar-foreground-muted: rgba(80, 73, 69, 0.65);
+    --sidebar-primary: oklch(0.55 0.18 40);               /* Warm orange */
+    --sidebar-primary-foreground: oklch(1 0 0);
+    --sidebar-accent: rgba(175, 58, 3, 0.10);             /* Orange-tinted accent */
+    --sidebar-accent-foreground: rgba(40, 40, 40, 0.95);
+    --sidebar-hover: rgba(175, 58, 3, 0.08);              /* Orange-tinted hover */
+    --sidebar-border: var(--separator-opaque);
+    --sidebar-ring: oklch(0.55 0.18 40);
+
+    /* Chat UI colors - warm theme */
+    --chat-input-outer: oklch(0.945 0.018 85);
+    --chat-input-border: var(--separator-opaque);
+    --chat-input-inner: oklch(0.985 0.012 85);
+    --chat-button-selected: oklch(0.90 0.020 85);
+    --chat-button-default: oklch(0.96 0.015 85);
+
+    /* shadcn sidebar compat (HSL) */
+    --sidebar-background: 85 20% 93%;
+
+    /* Status Bar colors - warm theme */
+    --statusbar-bg: oklch(0.97 0.012 85);
+    --statusbar-border: var(--separator-opaque);
+    --statusbar-label: rgba(40, 40, 40, 0.5);
+    --statusbar-value: rgba(40, 40, 40, 0.4);
+    --statusbar-progress-bg: rgba(175, 58, 3, 0.08);
+
+    /* StatusBar progress colors */
+    --statusbar-progress-green: var(--success);
+    --statusbar-progress-yellow: var(--warning);
+    --statusbar-progress-orange: var(--warning);
+    --statusbar-progress-red: var(--destructive);
+
+    /* Git status colors - same as light mode */
+    --status-merged: oklch(0.55 0.25 290);
+    --status-working: oklch(0.62 0.18 60);
+    --status-ahead: oklch(0.55 0.22 250);
+    --status-behind: oklch(0.55 0.28 25);
+    --status-diverged: oklch(0.58 0.18 40);
+    --status-synced: oklch(0.55 0.22 150);
+    --status-local: oklch(0.55 0.12 250);
+
+    /* Glass/Overlay effects */
+    --glass-bg: var(--material-regular);
+    --glass-border: var(--separator-opaque);
+    --glass-hover: rgba(175, 58, 3, 0.08);
+
+    /* Additional semantic names */
+    --text-muted: var(--label-tertiary);
+    --bg-card: var(--background-secondary);
+    --bg-card-elevated: var(--background-tertiary);
+    --bg-section: var(--background-primary);
+
+    /* Overlay system - warm-tinted */
+    --overlay-thin: rgba(175, 58, 3, 0.04);
+    --overlay-light: rgba(175, 58, 3, 0.08);
+    --overlay-medium: rgba(175, 58, 3, 0.12);
+    --overlay-strong: rgba(175, 58, 3, 0.18);
+
+    /* Modal/Dialog backdrop overlays */
+    --overlay-backdrop: rgba(0, 0, 0, 0.5);
+    --overlay-backdrop-light: rgba(0, 0, 0, 0.3);
+    --overlay-backdrop-strong: rgba(0, 0, 0, 0.7);
+
+    /* Interactive state tokens */
+    --state-hover: var(--overlay-light);
+    --state-active: var(--overlay-medium);
+    --state-focus-ring: var(--ring);
+    --state-disabled-opacity: 0.5;
+
+    /* Border overlays - warm-tinted */
+    --border-thin: rgba(175, 58, 3, 0.08);
+    --border-light: rgba(175, 58, 3, 0.12);
+    --border-medium: rgba(175, 58, 3, 0.18);
+
+    /* Circuit brand color - warm orange */
+    --circuit-orange: oklch(0.65 0.18 40);                /* #d65d0e Gruvbox neutral_orange */
+    --circuit-error: var(--destructive);
+
+    /* Code block surfaces */
+    --code-bg: var(--background-secondary);
+    --code-border: var(--separator-opaque);
+    --code-header: var(--fill-quaternary);
+
+    --command-bg: var(--background-tertiary);
+    --command-border: var(--separator-opaque);
+    --command-header: var(--fill-tertiary);
+    --command-accent: var(--label-tertiary);
+
+    --diff-bg: var(--code-bg);
+    --diff-border: var(--code-border);
+    --diff-header: var(--code-header);
+    --diff-addition: var(--success);
+    --diff-deletion: var(--destructive);
+  }
+
+  /* ===== WARM DARK MODE (EMBER - Gruvbox Inspired) ===== */
+  .warm-dark {
+    /* Background Hierarchy - Warm dark grays with brown tint */
+    --background-base-primary: oklch(0.18 0.015 40);      /* #1d2021 Gruvbox dark0_hard */
+    --background-base-secondary: oklch(0.22 0.012 40);    /* #282828 Gruvbox dark0 (main) */
+    --background-base-tertiary: oklch(0.25 0.010 40);     /* #32302f Gruvbox dark0_soft */
+
+    --background-elevated-primary: oklch(0.29 0.012 40);  /* #3c3836 Gruvbox dark1 (cards) */
+    --background-elevated-secondary: oklch(0.35 0.010 40); /* #504945 Gruvbox dark2 */
+    --background-elevated-tertiary: oklch(0.42 0.008 40);  /* #665c54 Gruvbox dark3 */
+
+    --background-primary: var(--background-base-secondary);
+    --background-secondary: var(--background-elevated-primary);
+    --background-tertiary: var(--background-elevated-secondary);
+
+    /* Label Hierarchy - Cream/beige text */
+    --label-primary: rgba(251, 241, 199, 1.0);            /* #fbf1c7 Gruvbox light0 - 100% */
+    --label-secondary: rgba(235, 219, 178, 0.90);         /* #ebdbb2 Gruvbox light1 - 90% */
+    --label-tertiary: rgba(213, 196, 161, 0.50);          /* #d5c4a1 Gruvbox light2 - 50% */
+    --label-quaternary: rgba(189, 174, 147, 0.25);        /* #bdae93 Gruvbox light3 - 25% */
+
+    /* Fill Hierarchy - Warm fills */
+    --fill-primary: rgba(254, 128, 25, 0.18);             /* Bright orange tint */
+    --fill-secondary: rgba(254, 128, 25, 0.15);
+    --fill-tertiary: rgba(254, 128, 25, 0.12);
+    --fill-quaternary: rgba(254, 128, 25, 0.09);
+
+    /* Separators - Warm tint */
+    --separator-opaque: rgba(235, 219, 178, 0.12);
+    --separator-translucent: rgba(235, 219, 178, 0.06);
+
+    /* Materials - Glassmorphism with dark warm tint */
+    --material-thin: rgba(40, 40, 40, 0.7);               /* Dark warm glass - subtle */
+    --material-regular: rgba(40, 40, 40, 0.85);           /* Dark warm glass - standard */
+    --material-thick: rgba(40, 40, 40, 0.92);             /* Dark warm glass - strong */
+    --material-ultra-thick: rgba(40, 40, 40, 0.97);       /* Dark warm glass - maximum */
+
+    /* Legacy tokens */
+    --background: var(--background-primary);
+    --foreground: var(--label-primary);
+    --foreground-muted: var(--label-secondary);
+
+    --card: var(--background-secondary);
+    --card-foreground: var(--label-primary);
+
+    --popover: var(--background-elevated-primary);
+    --popover-foreground: var(--label-primary);
+
+    /* Brand colors - Gruvbox bright oranges */
+    --primary: oklch(0.70 0.20 45);                       /* #fe8019 Gruvbox bright_orange */
+    --primary-foreground: oklch(0.15 0.012 40);           /* Dark warm text */
+
+    --secondary: var(--background-elevated-tertiary);
+    --secondary-foreground: var(--label-primary);
+
+    /* Muted/subtle colors */
+    --muted: var(--background-elevated-secondary);
+    --muted-foreground: rgba(235, 219, 178, 0.55);        /* 55% cream */
+
+    --accent: oklch(0.32 0.015 40);                       /* Dark warm tint */
+    --accent-foreground: oklch(0.70 0.20 45);             /* Bright orange */
+
+    /* Semantic colors - Gruvbox bright palette */
+    --destructive: oklch(0.65 0.25 28);                   /* #fb4934 Gruvbox bright_red */
+    --destructive-foreground: oklch(0.98 0 0);
+
+    --success: oklch(0.72 0.18 142);                      /* #b8bb26 Gruvbox bright_green */
+    --success-foreground: oklch(0.15 0.012 40);
+
+    --warning: oklch(0.80 0.18 85);                       /* #fabd2f Gruvbox bright_yellow */
+    --warning-foreground: oklch(0.15 0.012 40);
+
+    --info: oklch(0.70 0.16 230);                         /* #83a598 Gruvbox bright_blue */
+    --info-foreground: oklch(0.98 0 0);
+
+    /* UI elements */
+    --border: var(--separator-opaque);
+    --input: var(--background-elevated-secondary);
+    --ring: oklch(0.70 0.20 45);                          /* Bright orange ring */
+
+    /* Chart colors - warm-themed (brightened) */
+    --chart-1: oklch(0.70 0.20 45);                       /* Orange */
+    --chart-2: oklch(0.80 0.18 85);                       /* Yellow */
+    --chart-3: oklch(0.65 0.25 28);                       /* Red */
+    --chart-4: oklch(0.72 0.18 142);                      /* Green */
+    --chart-5: oklch(0.60 0.14 200);                      /* Blue */
+
+    /* Window glassmorphism */
+    --window-glass: var(--material-regular);
+
+    /* Sidebar colors - warm dark theme */
+    --sidebar: var(--background-base-tertiary);
+    --sidebar-glass: var(--material-regular);
+    --sidebar-foreground: rgba(235, 219, 178, 0.85);      /* Cream 85% */
+    --sidebar-foreground-muted: rgba(213, 196, 161, 0.55); /* Cream 55% */
+    --sidebar-primary: oklch(0.70 0.20 45);               /* Bright orange */
+    --sidebar-primary-foreground: oklch(0.15 0.012 40);
+    --sidebar-accent: rgba(254, 128, 25, 0.12);           /* Orange-tinted accent */
+    --sidebar-accent-foreground: rgba(251, 241, 199, 0.95);
+    --sidebar-hover: rgba(254, 128, 25, 0.10);            /* Orange-tinted hover */
+    --sidebar-border: var(--separator-opaque);
+    --sidebar-ring: oklch(0.70 0.20 45);
+
+    /* Chat UI colors - warm dark theme */
+    --chat-input-outer: oklch(0.26 0.012 40);
+    --chat-input-border: var(--separator-opaque);
+    --chat-input-inner: oklch(0.32 0.010 40);
+    --chat-button-selected: oklch(0.38 0.012 40);
+    --chat-button-default: oklch(0.30 0.010 40);
+
+    /* shadcn sidebar compat (HSL) */
+    --sidebar-background: 40 8% 15%;
+
+    /* Status Bar colors - warm dark theme */
+    --statusbar-bg: oklch(0.20 0.012 40);
+    --statusbar-border: var(--separator-opaque);
+    --statusbar-label: rgba(235, 219, 178, 0.4);
+    --statusbar-value: rgba(235, 219, 178, 0.3);
+    --statusbar-progress-bg: rgba(254, 128, 25, 0.08);
+
+    /* StatusBar progress colors */
+    --statusbar-progress-green: var(--success);
+    --statusbar-progress-yellow: var(--warning);
+    --statusbar-progress-orange: var(--warning);
+    --statusbar-progress-red: var(--destructive);
+
+    /* Git status colors - brightened for dark mode */
+    --status-merged: oklch(0.65 0.28 290);
+    --status-working: oklch(0.72 0.20 60);
+    --status-ahead: oklch(0.65 0.25 250);
+    --status-behind: oklch(0.65 0.30 25);
+    --status-diverged: oklch(0.68 0.20 40);
+    --status-synced: oklch(0.65 0.25 150);
+    --status-local: oklch(0.65 0.15 250);
+
+    /* Glass/Overlay effects */
+    --glass-bg: var(--material-regular);
+    --glass-border: var(--separator-opaque);
+    --glass-hover: rgba(254, 128, 25, 0.10);
+
+    /* Additional semantic names */
+    --text-muted: var(--label-tertiary);
+    --bg-card: var(--background-secondary);
+    --bg-card-elevated: var(--background-tertiary);
+    --bg-section: var(--background-primary);
+
+    /* Overlay system - warm-tinted */
+    --overlay-thin: rgba(254, 128, 25, 0.04);
+    --overlay-light: rgba(254, 128, 25, 0.08);
+    --overlay-medium: rgba(254, 128, 25, 0.12);
+    --overlay-strong: rgba(254, 128, 25, 0.18);
+
+    /* Modal/Dialog backdrop overlays */
+    --overlay-backdrop: rgba(0, 0, 0, 0.6);
+    --overlay-backdrop-light: rgba(0, 0, 0, 0.4);
+    --overlay-backdrop-strong: rgba(0, 0, 0, 0.75);
+
+    /* Interactive state tokens */
+    --state-hover: var(--overlay-light);
+    --state-active: var(--overlay-medium);
+    --state-focus-ring: var(--ring);
+    --state-disabled-opacity: 0.5;
+
+    /* Border overlays - warm-tinted */
+    --border-thin: rgba(235, 219, 178, 0.08);
+    --border-light: rgba(235, 219, 178, 0.12);
+    --border-medium: rgba(235, 219, 178, 0.18);
+
+    /* Circuit brand color - brightened */
+    --circuit-orange: oklch(0.72 0.20 40);                /* Brighter orange for dark mode */
+    --circuit-error: var(--destructive);
+
+    /* Code block surfaces */
+    --code-bg: var(--background-secondary);
+    --code-border: var(--separator-opaque);
+    --code-header: var(--fill-quaternary);
+
+    --command-bg: var(--background-elevated-tertiary);
+    --command-border: var(--separator-opaque);
+    --command-header: var(--fill-secondary);
+    --command-accent: var(--label-tertiary);
+
+    --diff-bg: var(--code-bg);
+    --diff-border: var(--code-border);
+    --diff-header: var(--code-header);
+    --diff-addition: var(--success);
+    --diff-deletion: var(--destructive);
+  }
 }

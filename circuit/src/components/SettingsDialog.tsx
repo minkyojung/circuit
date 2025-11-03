@@ -161,6 +161,8 @@ const GeneralSettings: React.FC<SettingsPanelProps> = ({ theme, setTheme, settin
             { value: 'dark', label: 'Dark' },
             { value: 'green-light', label: 'Sage' },
             { value: 'green-dark', label: 'Forest' },
+            { value: 'warm-light', label: 'Amber' },
+            { value: 'warm-dark', label: 'Ember' },
             { value: 'system', label: 'System' },
           ]}
           onChange={(value) => setTheme!(value as ThemeMode)}
