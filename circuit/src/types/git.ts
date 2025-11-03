@@ -22,8 +22,9 @@ export interface GitStatus {
 export interface GitCommit {
   hash: string;
   shortHash: string;
+  parents: string[];
   message: string;
   author: string;
-  date: number;
-  branch: string;
+  date: string;
+  refs: string[];
 }

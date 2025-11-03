@@ -402,6 +402,70 @@ Return ONLY a JSON object with this exact format:
 });
 
 /**
+ * Git commit for graph visualization
+ */
+export interface GitCommit {
+  hash: string;
+  shortHash: string;
+  parents: string[];
+  message: string;
+  author: string;
+  date: string;
+  refs: string[];
+}
+
+/**
+ * Get git log for graph visualization
+ */
+ipcMain.handle('git:log', async (event, workspacePath: string, limit: number = 100) => {
+  try {
+    console.log('[Git] Getting commit history for:', workspacePath);
+
+    // Format: hash|parents|subject|author|date|refs
+    // %H = full hash, %P = parent hashes, %s = subject, %an = author name, %ar = relative date, %D = refs
+    // --topo-order: Show commits in topological order (parents before children)
+    const { stdout } = await execAsync(
+      `git log --all --topo-order --format="%H|%P|%s|%an|%ar|%D" -${limit}`,
+      { cwd: workspacePath }
+    );
+
+    if (!stdout.trim()) {
+      return { success: true, commits: [] };
+    }
+
+    const commits: GitCommit[] = stdout
+      .trim()
+      .split('\n')
+      .map(line => {
+        const [hash, parents, message, author, date, refs] = line.split('|');
+
+        return {
+          hash,
+          shortHash: hash.substring(0, 7),
+          parents: parents ? parents.split(' ') : [],
+          message,
+          author,
+          date,
+          refs: refs ? refs.split(', ').filter(Boolean) : []
+        };
+      });
+
+    console.log('[Git] Retrieved', commits.length, 'commits');
+
+    return { success: true, commits };
+  } catch (error: any) {
+    console.error('[Git] Failed to get log:', error);
+
+    const errorMessage = error.stderr || error.stdout || error.message || 'Unknown error';
+
+    return {
+      success: false,
+      error: errorMessage
+    };
+  }
+});
+
+/**
  * Register all git handlers
  */
 export function registerGitHandlers() {

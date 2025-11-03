@@ -3,11 +3,19 @@
  *
  * This is a temporary component to verify that git handlers are working.
  * Will be replaced with full GitPanel later.
+ *
+ * REFACTORED: Now using design system primitives (Stack, Inline, PanelHeader, Button)
  */
 
 import { useState, useEffect } from 'react';
+import { GitBranch, RefreshCw } from 'lucide-react';
 import type { GitStatus } from '@/types/git';
 import { CommitInterface } from './CommitInterface';
+import { GitGraphV2 } from './GitGraphV2';
+import { Stack } from '../ui/stack';
+import { Inline } from '../ui/inline';
+import { PanelHeader } from '../ui/panel-header';
+import { Button } from '../ui/button';
 
 // @ts-ignore - Electron IPC
 const { ipcRenderer } = window.require('electron');
@@ -72,152 +80,172 @@ export function GitTestPanel({ workspacePath }: GitTestPanelProps) {
 
   if (isLoading) {
     return (
-      <div className="p-4">
+      <Stack space="4" className="p-4">
         <div className="text-sm text-muted-foreground">Loading git status...</div>
-      </div>
+      </Stack>
     );
   }
 
   if (error) {
     return (
-      <div className="p-4">
-        <div className="text-sm text-red-500">Error: {error}</div>
-        <button
-          onClick={loadStatus}
-          className="mt-2 px-3 py-1 bg-primary text-primary-foreground rounded text-sm"
-        >
+      <Stack space="4" className="p-4">
+        <div className="text-sm text-destructive">Error: {error}</div>
+        <Button onClick={loadStatus} size="sm">
           Retry
-        </button>
-      </div>
+        </Button>
+      </Stack>
     );
   }
 
   if (!status) {
     return (
-      <div className="p-4">
+      <Stack space="4" className="p-4">
         <div className="text-sm text-muted-foreground">No status</div>
-      </div>
+      </Stack>
     );
   }
 
   return (
-    <div className="p-4 space-y-4">
-      <div>
-        <h3 className="text-sm font-semibold mb-2">Git Status Test</h3>
-        <button
-          onClick={loadStatus}
-          className="px-3 py-1 bg-primary text-primary-foreground rounded text-sm"
-        >
-          Refresh
-        </button>
+    <Stack space="4">
+      {/* Header with standardized spacing and alignment */}
+      <PanelHeader
+        icon={<GitBranch />}
+        title="Git Status"
+        badge={status.staged.length + status.unstaged.length + status.untracked.length || undefined}
+        actions={
+          <Button onClick={loadStatus} size="sm" variant="outline">
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </Button>
+        }
+      />
+
+      {/* Git Commit Graph */}
+      <div className="border-t border-sidebar-border">
+        <GitGraphV2 workspacePath={workspacePath} limit={100} />
       </div>
 
-      {/* Current Branch */}
-      <div className="p-3 bg-sidebar-accent rounded">
-        <div className="text-xs text-muted-foreground">Branch</div>
-        <div className="text-sm font-semibold">{status.currentBranch}</div>
-        {status.remoteBranch && (
-          <div className="text-xs text-muted-foreground mt-1">
-            Remote: {status.remoteBranch}
-            {status.ahead > 0 && <span className="ml-2 text-green-500">↑{status.ahead}</span>}
-            {status.behind > 0 && <span className="ml-2 text-red-500">↓{status.behind}</span>}
+      {/* Content area with consistent padding */}
+      <Stack space="4" className="px-4 pb-4">
+        {/* Current Branch */}
+        <Stack space="1" className="p-3 bg-sidebar-accent rounded">
+          <div className="text-xs text-muted-foreground">Branch</div>
+          <div className="text-sm font-semibold">{status.currentBranch}</div>
+          {status.remoteBranch && (
+            <Inline space="2" className="text-xs text-muted-foreground">
+              <span>Remote: {status.remoteBranch}</span>
+              {status.ahead > 0 && <span className="text-success">↑{status.ahead}</span>}
+              {status.behind > 0 && <span className="text-destructive">↓{status.behind}</span>}
+            </Inline>
+          )}
+        </Stack>
+
+        {/* Staged Files */}
+        {status.staged.length > 0 && (
+          <Stack space="2">
+            <div className="text-xs font-semibold">Staged ({status.staged.length})</div>
+            <Stack space="1">
+              {status.staged.map((file) => (
+                <Inline
+                  key={file.path}
+                  align="center"
+                  justify="between"
+                  className="p-2 bg-sidebar-accent rounded text-sm"
+                >
+                  <Inline space="2" align="center">
+                    <span className="text-success">{file.status}</span>
+                    <span>{file.path}</span>
+                  </Inline>
+                  <Button
+                    onClick={() => handleUnstageFile(file.path)}
+                    variant="ghost"
+                    size="sm"
+                    className="h-auto py-1 text-xs"
+                  >
+                    Unstage
+                  </Button>
+                </Inline>
+              ))}
+            </Stack>
+          </Stack>
+        )}
+
+        {/* Unstaged Files */}
+        {status.unstaged.length > 0 && (
+          <Stack space="2">
+            <div className="text-xs font-semibold">Unstaged ({status.unstaged.length})</div>
+            <Stack space="1">
+              {status.unstaged.map((file) => (
+                <Inline
+                  key={file.path}
+                  align="center"
+                  justify="between"
+                  className="p-2 bg-sidebar-accent rounded text-sm"
+                >
+                  <Inline space="2" align="center">
+                    <span className="text-warning">{file.status}</span>
+                    <span>{file.path}</span>
+                  </Inline>
+                  <Button
+                    onClick={() => handleStageFile(file.path)}
+                    variant="ghost"
+                    size="sm"
+                    className="h-auto py-1 text-xs"
+                  >
+                    Stage
+                  </Button>
+                </Inline>
+              ))}
+            </Stack>
+          </Stack>
+        )}
+
+        {/* Untracked Files */}
+        {status.untracked.length > 0 && (
+          <Stack space="2">
+            <div className="text-xs font-semibold">Untracked ({status.untracked.length})</div>
+            <Stack space="1">
+              {status.untracked.map((file) => (
+                <Inline
+                  key={file.path}
+                  align="center"
+                  justify="between"
+                  className="p-2 bg-sidebar-accent rounded text-sm"
+                >
+                  <Inline space="2" align="center">
+                    <span className="text-muted-foreground">{file.status}</span>
+                    <span>{file.path}</span>
+                  </Inline>
+                  <Button
+                    onClick={() => handleStageFile(file.path)}
+                    variant="ghost"
+                    size="sm"
+                    className="h-auto py-1 text-xs"
+                  >
+                    Stage
+                  </Button>
+                </Inline>
+              ))}
+            </Stack>
+          </Stack>
+        )}
+
+        {/* Empty state */}
+        {status.staged.length === 0 &&
+         status.unstaged.length === 0 &&
+         status.untracked.length === 0 && (
+          <div className="text-center py-8 text-sm text-muted-foreground">
+            No changes
           </div>
         )}
-      </div>
 
-      {/* Staged Files */}
-      {status.staged.length > 0 && (
-        <div>
-          <div className="text-xs font-semibold mb-2">Staged ({status.staged.length})</div>
-          <div className="space-y-1">
-            {status.staged.map((file) => (
-              <div
-                key={file.path}
-                className="flex items-center justify-between p-2 bg-sidebar-accent rounded text-sm"
-              >
-                <span>
-                  <span className="text-green-500 mr-2">{file.status}</span>
-                  {file.path}
-                </span>
-                <button
-                  onClick={() => handleUnstageFile(file.path)}
-                  className="text-xs text-muted-foreground hover:text-foreground"
-                >
-                  Unstage
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Unstaged Files */}
-      {status.unstaged.length > 0 && (
-        <div>
-          <div className="text-xs font-semibold mb-2">Unstaged ({status.unstaged.length})</div>
-          <div className="space-y-1">
-            {status.unstaged.map((file) => (
-              <div
-                key={file.path}
-                className="flex items-center justify-between p-2 bg-sidebar-accent rounded text-sm"
-              >
-                <span>
-                  <span className="text-yellow-500 mr-2">{file.status}</span>
-                  {file.path}
-                </span>
-                <button
-                  onClick={() => handleStageFile(file.path)}
-                  className="text-xs text-muted-foreground hover:text-foreground"
-                >
-                  Stage
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Untracked Files */}
-      {status.untracked.length > 0 && (
-        <div>
-          <div className="text-xs font-semibold mb-2">Untracked ({status.untracked.length})</div>
-          <div className="space-y-1">
-            {status.untracked.map((file) => (
-              <div
-                key={file.path}
-                className="flex items-center justify-between p-2 bg-sidebar-accent rounded text-sm"
-              >
-                <span>
-                  <span className="text-gray-500 mr-2">{file.status}</span>
-                  {file.path}
-                </span>
-                <button
-                  onClick={() => handleStageFile(file.path)}
-                  className="text-xs text-muted-foreground hover:text-foreground"
-                >
-                  Stage
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Empty state */}
-      {status.staged.length === 0 &&
-       status.unstaged.length === 0 &&
-       status.untracked.length === 0 && (
-        <div className="text-center py-8 text-sm text-muted-foreground">
-          No changes
-        </div>
-      )}
-
-      {/* Commit Interface */}
-      <CommitInterface
-        workspacePath={workspacePath}
-        stagedCount={status.staged.length}
-        onCommitSuccess={loadStatus}
-      />
-    </div>
+        {/* Commit Interface */}
+        <CommitInterface
+          workspacePath={workspacePath}
+          stagedCount={status.staged.length}
+          onCommitSuccess={loadStatus}
+        />
+      </Stack>
+    </Stack>
   );
 }
