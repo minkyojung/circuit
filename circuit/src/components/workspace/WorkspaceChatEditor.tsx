@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { Workspace } from '@/types/workspace';
 import type { Message } from '@/types/conversation';
 import Editor, { loader } from '@monaco-editor/react';
@@ -1413,6 +1413,34 @@ The plan is ready. What would you like to do?`,
     setTodoResult(null);
   };
 
+  // Memoize filtered blocks for each message to avoid expensive JSON parsing on every render
+  const messagesWithFilteredBlocks = useMemo(() => {
+    return messages.map(msg => {
+      // Skip if no blocks or no metadata requiring filtering
+      if (!msg.blocks || msg.blocks.length === 0 || (!msg.metadata?.planResult && !msg.metadata?.todoWriteResult)) {
+        return { ...msg, filteredBlocks: msg.blocks };
+      }
+
+      // Filter out plan/todoWrite JSON blocks
+      const filteredBlocks = msg.blocks.filter(block => {
+        if (block.type === 'code' && block.metadata?.language === 'json') {
+          try {
+            const parsed = JSON.parse(block.content);
+            // Remove blocks containing todos array (plan/todoWrite JSON)
+            if (parsed.todos && Array.isArray(parsed.todos)) {
+              return false;
+            }
+          } catch (e) {
+            // Not valid JSON, keep it
+          }
+        }
+        return true;
+      });
+
+      return { ...msg, filteredBlocks };
+    });
+  }, [messages]);
+
   return (
     <div className="h-full bg-card relative">
       {/* Messages Area - with space for floating input */}
@@ -1426,9 +1454,9 @@ The plan is ready. What would you like to do?`,
             <ChatMessageSkeleton />
             <ChatMessageSkeleton />
           </div>
-        ) : messages.length > 0 ? (
+        ) : messagesWithFilteredBlocks.length > 0 ? (
           <div className="space-y-5 max-w-4xl mx-auto">
-            {messages
+            {messagesWithFilteredBlocks
               .filter((msg) => {
                 // Hide empty assistant messages UNLESS it's the pending message (in progress)
                 if (msg.role === 'assistant' && !msg.content && (!msg.blocks || msg.blocks.length === 0)) {
@@ -1567,25 +1595,7 @@ The plan is ready. What would you like to do?`,
                   {/* Block-based rendering with fallback */}
                   {msg.blocks && msg.blocks.length > 0 ? (
                     <BlockList
-                      blocks={
-                        // Filter out plan/todoWrite JSON blocks if this message has planResult or todoWriteResult
-                        msg.metadata?.planResult || msg.metadata?.todoWriteResult
-                          ? msg.blocks.filter(block => {
-                              // Remove JSON code blocks that contain "todos" (plan blocks)
-                              if (block.type === 'code' && block.metadata?.language === 'json') {
-                                try {
-                                  const parsed = JSON.parse(block.content)
-                                  if (parsed.todos && Array.isArray(parsed.todos)) {
-                                    return false // Filter out plan/todoWrite JSON
-                                  }
-                                } catch (e) {
-                                  // Not valid JSON, keep it
-                                }
-                              }
-                              return true
-                            })
-                          : msg.blocks
-                      }
+                      blocks={msg.filteredBlocks || msg.blocks}
                       onCopy={(content) => navigator.clipboard.writeText(content)}
                       onExecute={async (command) => {
                       try {

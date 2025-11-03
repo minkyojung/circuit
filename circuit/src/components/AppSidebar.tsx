@@ -133,25 +133,6 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
     onRepositoryChange?.(repository)
   }, [repository?.id])
 
-  // Auto-refresh statuses only (not workspaces) every 5 seconds
-  // Refreshing workspaces causes object references to change → component remounts
-  useEffect(() => {
-    if (!currentRepository || workspaces.length === 0) {
-      return
-    }
-
-    console.log('[AppSidebar] Setting up status auto-refresh for repository:', currentRepository.name)
-    const interval = setInterval(() => {
-      console.log('[AppSidebar] Status auto-refresh triggered')
-      loadStatuses(workspaces)  // Only refresh statuses, not workspace objects
-    }, 5000)
-
-    return () => {
-      console.log('[AppSidebar] Cleaning up status auto-refresh')
-      clearInterval(interval)
-    }
-  }, [currentRepository?.id, workspaces.length])  // Only restart if workspace count changes
-
   // Load statuses for all workspaces
   const loadStatuses = async (workspaceList: Workspace[]) => {
     const statusPromises = workspaceList.map(async (workspace) => {
@@ -178,17 +159,28 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
   }
 
   // Auto-refresh statuses every 30 seconds
+  // Consolidated from two separate intervals (5s + 30s) to reduce IPC overhead
   useEffect(() => {
-    if (workspaces.length === 0) return
+    if (!currentRepository || workspaces.length === 0) {
+      return
+    }
 
+    console.log('[AppSidebar] Setting up status auto-refresh (30s) for repository:', currentRepository.name)
+
+    // Load immediately on mount
     loadStatuses(workspaces)
 
+    // Then refresh every 30 seconds
     const interval = setInterval(() => {
+      console.log('[AppSidebar] Status auto-refresh triggered')
       loadStatuses(workspaces)
     }, 30000)
 
-    return () => clearInterval(interval)
-  }, [workspaces])
+    return () => {
+      console.log('[AppSidebar] Cleaning up status auto-refresh')
+      clearInterval(interval)
+    }
+  }, [currentRepository?.id, workspaces.length])
 
   // Load file tree when workspace is selected
   useEffect(() => {
