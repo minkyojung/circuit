@@ -309,7 +309,7 @@ export function UnifiedTabs({
                 />
               ) : (
                 <span
-                  className="max-w-[80px] truncate cursor-pointer"
+                  className="cursor-pointer whitespace-nowrap"
                   onClick={() => onConversationChange(conversation.id)}
                   onDoubleClick={() => handleDoubleClick(conversation)}
                 >
