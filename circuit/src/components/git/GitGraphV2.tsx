@@ -441,21 +441,25 @@ export function GitGraphV2({ workspacePath, limit = 5000 }: GitGraphV2Props) {
                         y2={parentY}
                         stroke={node.color}
                         strokeWidth={LINE_WIDTH}
-                        strokeDasharray={isMergeLine ? '4,4' : 'none'}
                         strokeLinecap="round"
                       />
                     );
                   } else {
                     // 90-degree line (branch merge/diverge) with rounded corners
+                    // For merge lines: draw from branch (parent) to merge commit (node)
+                    // For diverge lines: draw from node to parent
                     const curveColor = isMergeLine ? parentNode.color : node.color;
+                    const pathData = isMergeLine
+                      ? get90DegreePath(parentX, parentY, x, y)  // branch → merge commit
+                      : get90DegreePath(x, y, parentX, parentY);  // commit → parent
+
                     return (
                       <path
                         key={`curve-${parent.hash}`}
-                        d={get90DegreePath(x, y, parentX, parentY)}
+                        d={pathData}
                         stroke={curveColor}
                         strokeWidth={LINE_WIDTH}
                         fill="none"
-                        strokeDasharray={isMergeLine ? '4,4' : 'none'}
                         strokeLinecap="round"
                         strokeLinejoin="round"
                       />
