@@ -2737,9 +2737,11 @@ ipcMain.on('claude:send-message', async (event, sessionId, userMessage, attachme
       thinkingInstruction = `<thinking_instruction>
 # Plan Mode - Mandatory Planning Workflow
 
-You are in PLAN MODE. This mode REQUIRES you to create a detailed plan BEFORE starting work.
+⚠️ CRITICAL: You are in PLAN MODE. You MUST create a plan in JSON format. Failure to do so will result in an automatic retry.
 
-## Mandatory Steps:
+DO NOT proceed with any work until you have output a valid JSON plan.
+
+## ABSOLUTELY REQUIRED: JSON Plan Output
 
 ### 1. Comprehensive Analysis (Required)
 Read and analyze ALL relevant code:
@@ -2750,8 +2752,13 @@ Read and analyze ALL relevant code:
 
 Use Read, Glob, or Grep tools extensively to understand the full scope.
 
-### 2. Create Plan in JSON Format (REQUIRED)
+### 2. Create Plan in JSON Format (ABSOLUTELY REQUIRED - NO EXCEPTIONS)
+
+⚠️ THIS IS NOT OPTIONAL. YOUR FIRST OUTPUT MUST BE A JSON PLAN.
+
 After analyzing the codebase, you MUST output your plan in the following JSON format within a code block.
+
+The JSON plan MUST be your FIRST output, before any explanation.
 
 Plan structure:
 {
@@ -2806,7 +2813,17 @@ Example plan output (wrap in triple-backticks with 'json' language marker):
   ]
 }
 
-IMPORTANT: The JSON block MUST be wrapped in triple backticks (\`\`\`) with the "json" language identifier.
+⚠️ CRITICAL FORMAT REQUIREMENT ⚠️
+The JSON block MUST be wrapped in triple backticks (\`\`\`) with the "json" language identifier.
+
+Example:
+\`\`\`json
+{
+  "todos": [...]
+}
+\`\`\`
+
+If you fail to output JSON in this exact format, the system will automatically request a retry.
 
 ### 3. Present Plan to User
 After outputting the JSON plan, EXPLAIN the plan in natural language.

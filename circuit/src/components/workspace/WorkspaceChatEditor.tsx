@@ -621,7 +621,91 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
             console.log('[WorkspaceChat] 📋 Plan from text:', todoWriteData ? `Found ${todoWriteData.todos.length} todos` : 'Not found');
           }
 
-          if (todoWriteData && todoWriteData.todos.length > 0) {
+          // Plan Mode validation: If in Plan Mode but no plan found, retry once
+          const isPlanMode = currentThinkingModeRef.current === 'plan';
+          if (isPlanMode && (!todoWriteData || todoWriteData.todos.length === 0)) {
+            console.warn('[WorkspaceChat] ⚠️ Plan Mode active but no plan found in response');
+
+            // Check if this is already a retry (prevent infinite loop)
+            const isRetry = assistantMessage.metadata?.planRetryAttempt || 0;
+
+            if (isRetry === 0) {
+              console.log('[WorkspaceChat] 🔄 Automatically requesting plan from Claude (retry 1/1)');
+
+              // Update assistant message to show we're requesting a plan
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === assistantMessageId
+                    ? {
+                        ...msg,
+                        metadata: {
+                          ...msg.metadata,
+                          planRetryAttempt: 1
+                        }
+                      }
+                    : msg
+                )
+              );
+
+              // Send automatic follow-up request for plan
+              const retryPrompt = `You are in PLAN MODE. You must create a detailed plan in JSON format before proceeding.
+
+Please create a plan with the following structure:
+\`\`\`json
+{
+  "todos": [
+    {
+      "content": "Task description",
+      "activeForm": "Doing task description",
+      "status": "pending",
+      "complexity": "trivial" | "simple" | "moderate" | "complex" | "very_complex",
+      "priority": "low" | "medium" | "high" | "critical",
+      "estimatedDuration": 30,
+      "order": 0,
+      "depth": 0
+    }
+  ]
+}
+\`\`\`
+
+Wrap the JSON in triple backticks with 'json' language marker. This is REQUIRED.`;
+
+              // Send retry message
+              setTimeout(() => {
+                ipcRenderer.send('claude:send-message', sessionId, retryPrompt, [], 'plan');
+              }, 1000);
+
+              return; // Exit early, wait for retry response
+            } else {
+              console.error('[WorkspaceChat] ❌ Plan Mode retry failed - Claude did not provide a plan after 2 attempts');
+
+              // Show error to user
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === assistantMessageId
+                    ? {
+                        ...msg,
+                        content: msg.content + '\n\n⚠️ **Plan Mode Error**: Claude did not provide a plan in the required JSON format. Please try again or switch to Normal mode.',
+                        metadata: {
+                          ...msg.metadata,
+                          planGenerationFailed: true
+                        }
+                      }
+                    : msg
+                )
+              );
+
+              // Still save the message
+              await ipcRenderer.invoke('message:save', {
+                ...assistantMessage,
+                content: result.message + '\n\n⚠️ **Plan Mode Error**: Claude did not provide a plan in the required JSON format.',
+                metadata: {
+                  ...assistantMessage.metadata,
+                  planGenerationFailed: true
+                }
+              });
+            }
+          } else if (todoWriteData && todoWriteData.todos.length > 0) {
             console.log('[WorkspaceChat] 📋 TodoWrite detected, checking thinking mode');
             console.log('[WorkspaceChat] 📋 Current thinking mode:', currentThinkingModeRef.current);
 
