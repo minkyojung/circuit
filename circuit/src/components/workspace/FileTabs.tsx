@@ -5,10 +5,21 @@
  * Similar to IDE file tabs (VS Code, WebStorm, etc.)
  */
 
+import { useState } from 'react'
 import { X, Circle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getFileName } from '@/lib/fileUtils'
 import { getIconForFile } from 'vscode-material-icon-theme-js'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
 // Import Material Icon Theme SVGs - Common file types
 import ReactTsIcon from 'material-icon-theme/icons/react_ts.svg?react'
@@ -70,6 +81,26 @@ export function FileTabs({
   onFileChange,
   onCloseFile
 }: FileTabsProps) {
+  const [closeDialogOpen, setCloseDialogOpen] = useState(false)
+  const [fileToClose, setFileToClose] = useState<string | null>(null)
+
+  const handleCloseClick = (filePath: string, hasUnsavedChanges: boolean) => {
+    if (hasUnsavedChanges) {
+      setFileToClose(filePath)
+      setCloseDialogOpen(true)
+    } else {
+      onCloseFile(filePath)
+    }
+  }
+
+  const handleConfirmClose = () => {
+    if (fileToClose) {
+      onCloseFile(fileToClose)
+      setFileToClose(null)
+    }
+    setCloseDialogOpen(false)
+  }
+
   if (openFiles.length === 0) {
     return null
   }
@@ -106,7 +137,7 @@ export function FileTabs({
             <button
               onClick={(e) => {
                 e.stopPropagation()
-                onCloseFile(file.path)
+                handleCloseClick(file.path, file.unsavedChanges || false)
               }}
               className={cn(
                 'ml-1 w-4 h-4 flex items-center justify-center rounded transition-all flex-shrink-0',
@@ -126,6 +157,24 @@ export function FileTabs({
           </div>
         )
       })}
+
+      {/* Unsaved changes confirmation dialog */}
+      <AlertDialog open={closeDialogOpen} onOpenChange={setCloseDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>저장되지 않은 변경사항이 있습니다</AlertDialogTitle>
+            <AlertDialogDescription>
+              파일을 닫으면 저장되지 않은 변경사항이 모두 사라집니다. 계속하시겠습니까?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmClose}>
+              닫기
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

@@ -149,14 +149,23 @@ export function TodoPanel({ conversationId, workspace, onCommit }: TodoPanelProp
           // If same length and same IDs in same order, check if actualTodos changed
           if (prevSessions.length === extractedSessions.length) {
             let hasChanges = false
+            let changeReason = ''
 
             for (let i = 0; i < prevSessions.length; i++) {
               const prev = prevSessions[i]
               const next = extractedSessions[i]
 
-              // Check if session changed
-              if (prev.id !== next.id || prev.status !== next.status) {
+              // Check if session ID changed
+              if (prev.id !== next.id) {
                 hasChanges = true
+                changeReason = `Session ID changed at index ${i}: ${prev.id} → ${next.id}`
+                break
+              }
+
+              // Check if session status changed
+              if (prev.status !== next.status) {
+                hasChanges = true
+                changeReason = `Session status changed at index ${i}: ${prev.status} → ${next.status}`
                 break
               }
 
@@ -166,18 +175,32 @@ export function TodoPanel({ conversationId, workspace, onCommit }: TodoPanelProp
 
               if (prevTodoCount !== nextTodoCount) {
                 hasChanges = true
+                changeReason = `Todo completion count changed at index ${i}: ${prevTodoCount} → ${nextTodoCount}`
+                break
+              }
+
+              // Check if actualTodos length changed
+              const prevTodosLength = prev.actualTodos?.length || 0
+              const nextTodosLength = next.actualTodos?.length || 0
+
+              if (prevTodosLength !== nextTodosLength) {
+                hasChanges = true
+                changeReason = `Todo count changed at index ${i}: ${prevTodosLength} → ${nextTodosLength}`
                 break
               }
             }
 
             // No changes detected, return previous reference to prevent re-render
             if (!hasChanges) {
-              console.log('[TodoPanel] No changes detected, skipping sessions update')
+              console.log('[TodoPanel] ✅ No changes detected, skipping sessions update')
               return prevSessions
             }
+
+            console.log('[TodoPanel] 🔄 Changes detected:', changeReason)
+          } else {
+            console.log('[TodoPanel] 🔄 Changes detected: Session count changed', prevSessions.length, '→', extractedSessions.length)
           }
 
-          console.log('[TodoPanel] Changes detected, updating sessions')
           return extractedSessions
         })
       }

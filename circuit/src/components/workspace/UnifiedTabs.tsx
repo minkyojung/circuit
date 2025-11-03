@@ -108,6 +108,8 @@ export function UnifiedTabs({
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState('')
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [closeFileDialogOpen, setCloseFileDialogOpen] = useState(false)
+  const [fileToClose, setFileToClose] = useState<string | null>(null)
 
   useEffect(() => {
     if (!workspaceId) {
