@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import type { Workspace } from '@/types/workspace';
 import type { Message } from '@/types/conversation';
 import Editor, { loader } from '@monaco-editor/react';
@@ -507,11 +508,16 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
 
   // Auto-scroll to bottom when new messages arrive (only if already at bottom)
   useEffect(() => {
-    if (isAtBottom && messages.length > 0) {
-      // Small delay to ensure DOM has updated
-      setTimeout(() => scrollToBottom(), 100);
+    if (isAtBottom && filteredMessages.length > 0) {
+      // Use virtualizer to scroll to last message
+      setTimeout(() => {
+        virtualizer.scrollToIndex(filteredMessages.length - 1, {
+          align: 'end',
+          behavior: 'smooth',
+        });
+      }, 100);
     }
-  }, [messages.length, isAtBottom, scrollToBottom]);
+  }, [filteredMessages.length, isAtBottom, virtualizer]);
 
   // IPC Event Handlers (using useCallback to avoid stale closures)
   const handleThinkingStart = useCallback((_event: any, sessionId: string, _timestamp: number) => {
@@ -1518,6 +1524,52 @@ The plan is ready. What would you like to do?`,
     });
   }, [messages]);
 
+  // Filter out empty assistant messages for display
+  const filteredMessages = useMemo(() => {
+    return messagesWithFilteredBlocks.filter((msg) => {
+      // Hide empty assistant messages UNLESS it's the pending message (in progress)
+      if (msg.role === 'assistant' && !msg.content && (!msg.blocks || msg.blocks.length === 0)) {
+        // Keep if it's the pending message currently being streamed
+        if (isSending && msg.id === pendingAssistantMessageIdRef.current) {
+          return true;
+        }
+        return false;
+      }
+      return true;
+    });
+  }, [messagesWithFilteredBlocks, isSending, pendingAssistantMessageIdRef]);
+
+  // Virtual scrolling setup
+  const virtualizer = useVirtualizer({
+    count: filteredMessages.length,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: (index) => {
+      const msg = filteredMessages[index];
+      if (!msg) return 200;
+
+      // Estimate size based on message characteristics
+      if (msg.role === 'user') {
+        // User messages are typically shorter
+        return msg.metadata?.attachments?.length > 0 ? 120 : 80;
+      }
+
+      // Assistant messages
+      if (msg.blocks && msg.blocks.length > 0) {
+        // Messages with code blocks are taller
+        return 300;
+      }
+
+      if (msg.metadata?.todoWriteResult) {
+        // Todo inline progress is tall
+        return 250;
+      }
+
+      // Default assistant message
+      return 150;
+    },
+    overscan: 5, // Render 5 extra items outside viewport for smooth scrolling
+  });
+
   return (
     <div className="h-full bg-card relative">
       {/* Messages Area - with space for floating input */}
@@ -1531,35 +1583,46 @@ The plan is ready. What would you like to do?`,
             <ChatMessageSkeleton />
             <ChatMessageSkeleton />
           </div>
-        ) : messagesWithFilteredBlocks.length > 0 ? (
-          <div className="space-y-5 max-w-4xl mx-auto">
-            {messagesWithFilteredBlocks
-              .filter((msg) => {
-                // Hide empty assistant messages UNLESS it's the pending message (in progress)
-                if (msg.role === 'assistant' && !msg.content && (!msg.blocks || msg.blocks.length === 0)) {
-                  // Keep if it's the pending message currently being streamed
-                  if (isSending && msg.id === pendingAssistantMessageIdRef.current) {
-                    return true;  // Show in-progress message
-                  }
-                  return false;  // Hide other empty messages
-                }
-                return true;
-              })
-              .map((msg) => (
-                <MessageComponent
+        ) : filteredMessages.length > 0 ? (
+          <div
+            style={{
+              height: `${virtualizer.getTotalSize()}px`,
+              width: '100%',
+              position: 'relative',
+            }}
+          >
+            {virtualizer.getVirtualItems().map((virtualItem) => {
+              const msg = filteredMessages[virtualItem.index];
+              return (
+                <div
                   key={msg.id}
-                  msg={msg}
-                  isSending={isSending}
-                  pendingAssistantMessageId={pendingAssistantMessageIdRef.current}
-                  messageThinkingSteps={messageThinkingSteps}
-                  openReasoningId={openReasoningId}
-                  copiedMessageId={copiedMessageId}
-                  currentDuration={currentDuration}
-                  onCopyMessage={handleCopyMessage}
-                  onToggleReasoning={handleToggleReasoning}
-                  onExecuteCommand={handleExecuteCommand}
-                />
-              ))}
+                  data-index={virtualItem.index}
+                  ref={virtualizer.measureElement}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    transform: `translateY(${virtualItem.start}px)`,
+                  }}
+                >
+                  <div className="max-w-4xl mx-auto px-0 mb-5">
+                    <MessageComponent
+                      msg={msg}
+                      isSending={isSending}
+                      pendingAssistantMessageId={pendingAssistantMessageIdRef.current}
+                      messageThinkingSteps={messageThinkingSteps}
+                      openReasoningId={openReasoningId}
+                      copiedMessageId={copiedMessageId}
+                      currentDuration={currentDuration}
+                      onCopyMessage={handleCopyMessage}
+                      onToggleReasoning={handleToggleReasoning}
+                      onExecuteCommand={handleExecuteCommand}
+                    />
+                  </div>
+                </div>
+              );
+            })}
             {isSending && thinkingSteps.length === 0 && (
               <div className="flex justify-start my-3">
                 <div className="max-w-[75%] w-full">
