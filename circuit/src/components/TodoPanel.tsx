@@ -287,34 +287,30 @@ export function TodoPanel({ conversationId, workspace, onCommit }: TodoPanelProp
   return (
     <div className="h-full w-full flex flex-col flex-shrink-0">
       {/* Top bar with icons and Commit & PR button */}
-      <div className="h-[44px] shrink-0 flex items-center gap-1 px-2" style={{ WebkitAppRegion: 'drag' } as any}>
-        {/* Settings Button */}
-        <button
-          onClick={() => setIsSettingsOpen(true)}
-          className="flex items-center justify-center rounded-md h-7 w-7 transition-colors hover:bg-sidebar-hover text-sidebar-foreground-muted hover:text-sidebar-foreground"
-          style={{ WebkitAppRegion: 'no-drag' } as any}
-          title="Settings"
-        >
-          <Settings size={16} strokeWidth={1.5} />
-        </button>
+      <div className="h-[44px] shrink-0 flex items-center justify-between px-4" style={{ WebkitAppRegion: 'drag' } as any}>
+        {/* Left icon group */}
+        <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as any}>
+          {/* Settings Button */}
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            className="flex items-center justify-center rounded-md h-7 w-7 transition-colors hover:bg-sidebar-hover text-sidebar-foreground-muted hover:text-sidebar-foreground"
+            title="Settings"
+          >
+            <Settings size={16} strokeWidth={1.5} />
+          </button>
 
-        {/* Theme Toggle */}
-        <div style={{ WebkitAppRegion: 'no-drag' } as any}>
+          {/* Theme Toggle */}
           <ThemeToggle className="hover:bg-sidebar-hover text-sidebar-foreground-muted hover:text-sidebar-foreground" />
+
+          {/* Feedback Button */}
+          <button
+            onClick={() => setIsFeedbackOpen(true)}
+            className="flex items-center justify-center rounded-md h-7 w-7 transition-colors hover:bg-sidebar-hover text-sidebar-foreground-muted hover:text-sidebar-foreground"
+            title="Send Feedback"
+          >
+            <MessageSquare size={16} strokeWidth={1.5} />
+          </button>
         </div>
-
-        {/* Feedback Button */}
-        <button
-          onClick={() => setIsFeedbackOpen(true)}
-          className="flex items-center justify-center rounded-md h-7 w-7 transition-colors hover:bg-sidebar-hover text-sidebar-foreground-muted hover:text-sidebar-foreground"
-          style={{ WebkitAppRegion: 'no-drag' } as any}
-          title="Send Feedback"
-        >
-          <MessageSquare size={16} strokeWidth={1.5} />
-        </button>
-
-        {/* Spacer */}
-        <div className="flex-1" />
 
         {/* Commit & PR button */}
         {workspace && onCommit && (
