@@ -3,58 +3,11 @@
  * Icons, extensions, file name parsing, etc.
  */
 
-import type { FC } from 'react'
-import {
-  FileJson,
-  FileCode,
-  FileText,
-  FileType,
-  Braces,
-  FileImage,
-  FileVideo,
-  FileArchive,
-  Settings,
-  File,
-} from 'lucide-react'
-
-// Type for lucide-react icon components
-type IconComponent = FC<{ size?: number; className?: string }>
-
 /**
- * Get file icon based on extension
- */
-export function getFileIcon(filePath: string): IconComponent {
-  const ext = filePath.split('.').pop()?.toLowerCase()
-
-  // Code files
-  if (['ts', 'tsx', 'js', 'jsx'].includes(ext || '')) return FileCode
-  if (['py', 'java', 'c', 'cpp', 'h', 'hpp', 'go', 'rs', 'rb', 'php'].includes(ext || '')) return FileCode
-
-  // Markup/Data
-  if (['json', 'jsonc'].includes(ext || '')) return FileJson
-  if (['html', 'xml', 'svg'].includes(ext || '')) return Braces
-  if (['md', 'mdx', 'txt'].includes(ext || '')) return FileText
-  if (['css', 'scss', 'sass', 'less'].includes(ext || '')) return FileType
-
-  // Config files
-  if (['yaml', 'yml', 'toml', 'ini', 'conf', 'env'].includes(ext || '')) return Settings
-
-  // Media
-  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico'].includes(ext || '')) return FileImage
-  if (['mp4', 'webm', 'mov', 'avi'].includes(ext || '')) return FileVideo
-
-  // Archives
-  if (['zip', 'tar', 'gz', 'rar', '7z'].includes(ext || '')) return FileArchive
-
-  // Default
-  return File
-}
-
-/**
- * Get file name from path
+ * Get file name from path (without directory)
  */
 export function getFileName(filePath: string): string {
-  return filePath.split('/').pop() || filePath
+  return filePath.split('/').pop() || filePath;
 }
 
 /**
