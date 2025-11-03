@@ -3,7 +3,7 @@ import type { Workspace } from '@/types/workspace';
 import type { Message } from '@/types/conversation';
 import Editor, { loader } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
-import { ChevronDown, Copy, Check, Paperclip } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -20,6 +20,7 @@ import { summarizeToolUsage } from '@/lib/thinkingUtils';
 import { motion, AnimatePresence } from 'motion/react';
 import { TodoProvider } from '@/contexts/TodoContext';
 import { TodoConfirmationDialog } from '@/components/todo';
+import { MessageComponent } from './MessageComponent';
 import {
   extractTodoWriteFromBlocks,
   extractPlanFromText,
@@ -419,6 +420,82 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
     setCopiedMessageId(messageId);
     setTimeout(() => setCopiedMessageId(null), 2000);
   }, []);
+
+  // Toggle reasoning accordion handler
+  const handleToggleReasoning = useCallback((messageId: string) => {
+    setOpenReasoningId((prev) => (prev === messageId ? null : messageId));
+  }, []);
+
+  // Execute command handler
+  const handleExecuteCommand = useCallback(async (command: string) => {
+    try {
+      const result = await ipcRenderer.invoke('command:execute', {
+        command,
+        workingDirectory: workspace.path,
+        blockId: undefined
+      });
+
+      if (result.success) {
+        console.log('[CommandBlock] Execution success:', result.output);
+
+        // Add result as a new assistant message with output
+        const resultMessage: Message = {
+          id: `msg-${Date.now()}`,
+          conversationId: conversationId!,
+          role: 'assistant',
+          content: `Command executed successfully (${result.duration}ms)\n\n\`\`\`\n${result.output}\n\`\`\`\n\nExit code: ${result.exitCode}`,
+          timestamp: Date.now(),
+        };
+
+        setMessages((prev) => [...prev, resultMessage]);
+
+        // Save to database with block parsing
+        const saveResult = await ipcRenderer.invoke('message:save', resultMessage);
+        if (saveResult.success && saveResult.blocks) {
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === resultMessage.id ? { ...msg, blocks: saveResult.blocks } : msg
+            )
+          );
+        }
+      } else {
+        console.error('[CommandBlock] Execution failed:', result.error);
+
+        // Add error as a new assistant message
+        const errorMessage: Message = {
+          id: `msg-${Date.now()}`,
+          conversationId: conversationId!,
+          role: 'assistant',
+          content: `Command execution failed\n\n\`\`\`\n${result.error}\n${result.output || ''}\n\`\`\``,
+          timestamp: Date.now(),
+        };
+
+        setMessages((prev) => [...prev, errorMessage]);
+
+        const saveResult = await ipcRenderer.invoke('message:save', errorMessage);
+        if (saveResult.success && saveResult.blocks) {
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === errorMessage.id ? { ...msg, blocks: saveResult.blocks } : msg
+            )
+          );
+        }
+      }
+    } catch (error) {
+      console.error('[CommandBlock] Execute error:', error);
+
+      const errorMessage: Message = {
+        id: `msg-${Date.now()}`,
+        conversationId: conversationId!,
+        role: 'assistant',
+        content: `Failed to execute command: ${error}`,
+        timestamp: Date.now(),
+      };
+
+      setMessages((prev) => [...prev, errorMessage]);
+      await ipcRenderer.invoke('message:save', errorMessage);
+    }
+  }, [workspace.path, conversationId]);
 
   // Check initial scroll position when messages load
   useEffect(() => {
@@ -1469,229 +1546,20 @@ The plan is ready. What would you like to do?`,
                 return true;
               })
               .map((msg) => (
-              <div
-                key={msg.id}
-                data-message-id={msg.id}
-                className={`flex ${
-                  msg.role === 'user' ? 'justify-end' : 'justify-start'
-                } ${msg.role === 'assistant' ? 'mb-2' : ''}`}
-              >
-                <div
-                  className={`max-w-[75%] ${
-                    msg.role === 'user'
-                      ? 'bg-secondary px-3 py-2 rounded-xl border border-border'
-                      : ''
-                  }`}
-                >
-                  {/* Attachment pills - Only for user messages with attachments */}
-                  {msg.role === 'user' && msg.metadata?.attachments && msg.metadata.attachments.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mb-3">
-                      {msg.metadata.attachments.map((file: any) => {
-                        // Extract file extension
-                        const extension = file.name.split('.').pop()?.toUpperCase() || 'FILE';
-                        const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
-
-                        return (
-                          <div
-                            key={file.id}
-                            className="group flex items-center gap-2 pl-2 pr-3 py-2 rounded-xl bg-card transition-all"
-                          >
-                            {/* Icon/Thumbnail - Vertical rectangle */}
-                            <div className="flex-shrink-0">
-                              {file.type.startsWith('image/') ? (
-                                <div className="w-6 h-[30px] rounded-md bg-black flex items-center justify-center">
-                                  <Paperclip className="w-3 h-3 text-muted-foreground" />
-                                </div>
-                              ) : (
-                                <div className="w-6 h-[30px] rounded-md bg-black flex items-center justify-center">
-                                  <Paperclip className="w-3 h-3 text-muted-foreground" />
-                                </div>
-                              )}
-                            </div>
-
-                            {/* File info - Vertical layout with spacing */}
-                            <div className="flex flex-col justify-center min-w-0 gap-1">
-                              <span className="text-sm font-light text-foreground max-w-[160px] truncate leading-tight">
-                                {nameWithoutExt}
-                              </span>
-                              <span className="text-[10px] text-muted-foreground font-medium leading-tight">
-                                {extension}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {/* Reasoning button - Show for assistant messages with reasoning steps */}
-                  {msg.role === 'assistant' && (messageThinkingSteps[msg.id]?.steps?.length > 0 || (isSending && msg.id === pendingAssistantMessageIdRef.current)) && (
-                    <div className="mb-3 flex items-center gap-2">
-                      <button
-                        onClick={() => setOpenReasoningId(openReasoningId === msg.id ? null : msg.id)}
-                        className="flex items-center gap-1 text-base text-muted-foreground/60 hover:text-foreground transition-all"
-                      >
-                        <span className="opacity-80 hover:opacity-100">
-                          {isSending && msg.id === pendingAssistantMessageIdRef.current
-                            ? `${currentDuration}s • ${summarizeToolUsage(messageThinkingSteps[msg.id]?.steps || [])}`
-                            : `${messageThinkingSteps[msg.id].duration}s • ${summarizeToolUsage(messageThinkingSteps[msg.id].steps)}`
-                          }
-                        </span>
-                        <ChevronDown className={`w-4 h-4 opacity-80 transition-transform ${openReasoningId === msg.id ? 'rotate-180' : ''}`} strokeWidth={1.5} />
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Reasoning content (collapsible) - Above message content */}
-                  {(() => {
-                    const shouldShowReasoning = msg.role === 'assistant' && 
-                      openReasoningId === msg.id && 
-                      (messageThinkingSteps[msg.id]?.steps?.length ?? 0) > 0;
-                    
-                    if (!shouldShowReasoning) return null;
-                    
-                    return (
-                      <AnimatePresence>
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: 'auto' }}
-                          exit={{ opacity: 0, height: 0 }}
-                          transition={{ duration: 0.2, ease: 'easeInOut' }}
-                          className="overflow-hidden"
-                        >
-                          <div className="mb-3 pl-1">
-                            <ReasoningAccordion
-                              steps={messageThinkingSteps[msg.id].steps}
-                            />
-                          </div>
-                        </motion.div>
-                      </AnimatePresence>
-                    );
-                  })()}
-
-                  {/* Plan Review moved to right sidebar TodoPanel */}
-
-                  {/* TodoWrite inline display (for Normal/Think modes) */}
-                  {msg.metadata?.todoWriteResult && (
-                    <InlineTodoProgress
-                      todos={msg.metadata.todoWriteResult.todos.map((todo: any) => ({
-                        content: todo.title || todo.content,
-                        activeForm: todo.activeForm || `${todo.title || todo.content}...`,
-                        status: todo.status,
-                        complexity: todo.complexity,
-                        priority: todo.priority,
-                        estimatedDuration: todo.estimatedTime,
-                        description: todo.description,
-                      }))}
-                      defaultExpanded={true}
-                      showProgressBar={true}
-                      autoCollapseOnComplete={true}
-                      onToggle={(expanded) => {
-                        console.log('[InlineTodo] Toggled:', expanded);
-                      }}
-                    />
-                  )}
-
-                  {/* Block-based rendering with fallback */}
-                  {msg.blocks && msg.blocks.length > 0 ? (
-                    <BlockList
-                      blocks={msg.filteredBlocks || msg.blocks}
-                      onCopy={(content) => navigator.clipboard.writeText(content)}
-                      onExecute={async (command) => {
-                      try {
-                        const result = await ipcRenderer.invoke('command:execute', {
-                          command,
-                          workingDirectory: workspace.path,
-                          blockId: undefined
-                        });
-
-                        if (result.success) {
-                          console.log('[CommandBlock] Execution success:', result.output);
-
-                          // Add result as a new assistant message with output
-                          const resultMessage: Message = {
-                            id: `msg-${Date.now()}`,
-                            conversationId: conversationId!,
-                            role: 'assistant',
-                            content: `Command executed successfully (${result.duration}ms)\n\n\`\`\`\n${result.output}\n\`\`\`\n\nExit code: ${result.exitCode}`,
-                            timestamp: Date.now(),
-                          };
-
-                          setMessages((prev) => [...prev, resultMessage]);
-
-                          // Save to database with block parsing
-                          const saveResult = await ipcRenderer.invoke('message:save', resultMessage);
-                          if (saveResult.success && saveResult.blocks) {
-                            setMessages((prev) =>
-                              prev.map((msg) =>
-                                msg.id === resultMessage.id ? { ...msg, blocks: saveResult.blocks } : msg
-                              )
-                            );
-                          }
-                        } else {
-                          console.error('[CommandBlock] Execution failed:', result.error);
-
-                          // Add error as a new assistant message
-                          const errorMessage: Message = {
-                            id: `msg-${Date.now()}`,
-                            conversationId: conversationId!,
-                            role: 'assistant',
-                            content: `Command execution failed\n\n\`\`\`\n${result.error}\n${result.output || ''}\n\`\`\``,
-                            timestamp: Date.now(),
-                          };
-
-                          setMessages((prev) => [...prev, errorMessage]);
-
-                          const saveResult = await ipcRenderer.invoke('message:save', errorMessage);
-                          if (saveResult.success && saveResult.blocks) {
-                            setMessages((prev) =>
-                              prev.map((msg) =>
-                                msg.id === errorMessage.id ? { ...msg, blocks: saveResult.blocks } : msg
-                              )
-                            );
-                          }
-                        }
-                      } catch (error) {
-                        console.error('[CommandBlock] Execute error:', error);
-
-                        const errorMessage: Message = {
-                          id: `msg-${Date.now()}`,
-                          conversationId: conversationId!,
-                          role: 'assistant',
-                          content: `Failed to execute command: ${error}`,
-                          timestamp: Date.now(),
-                        };
-
-                        setMessages((prev) => [...prev, errorMessage]);
-                        await ipcRenderer.invoke('message:save', errorMessage);
-                      }
-                      }}
-                    />
-                  ) : (
-                    <div className="text-base font-normal text-foreground whitespace-pre-wrap leading-relaxed">
-                      {msg.content}
-                    </div>
-                  )}
-
-                  {/* Copy button - Show below message content for assistant messages */}
-                  {msg.role === 'assistant' && (
-                    <div className="mt-3 flex justify-end">
-                      <button
-                        onClick={() => handleCopyMessage(msg.id, msg.content)}
-                        className="p-1 text-muted-foreground/60 hover:text-foreground rounded-md hover:bg-secondary/50 transition-all"
-                        title="Copy message"
-                      >
-                        {copiedMessageId === msg.id ? (
-                          <Check className="w-3 h-3 text-green-500" strokeWidth={1.5} />
-                        ) : (
-                          <Copy className="w-3 h-3 opacity-60 hover:opacity-100 transition-opacity" strokeWidth={1.5} />
-                        )}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
+                <MessageComponent
+                  key={msg.id}
+                  msg={msg}
+                  isSending={isSending}
+                  pendingAssistantMessageId={pendingAssistantMessageIdRef.current}
+                  messageThinkingSteps={messageThinkingSteps}
+                  openReasoningId={openReasoningId}
+                  copiedMessageId={copiedMessageId}
+                  currentDuration={currentDuration}
+                  onCopyMessage={handleCopyMessage}
+                  onToggleReasoning={handleToggleReasoning}
+                  onExecuteCommand={handleExecuteCommand}
+                />
+              ))}
             {isSending && thinkingSteps.length === 0 && (
               <div className="flex justify-start my-3">
                 <div className="max-w-[75%] w-full">
