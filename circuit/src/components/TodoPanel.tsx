@@ -143,7 +143,43 @@ export function TodoPanel({ conversationId, workspace, onCommit }: TodoPanelProp
 
         // Sort by creation time (newest first)
         extractedSessions.sort((a, b) => b.createdAt - a.createdAt)
-        setSessions(extractedSessions)
+
+        // Only update if sessions actually changed (prevent animation re-trigger)
+        setSessions(prevSessions => {
+          // If same length and same IDs in same order, check if actualTodos changed
+          if (prevSessions.length === extractedSessions.length) {
+            let hasChanges = false
+
+            for (let i = 0; i < prevSessions.length; i++) {
+              const prev = prevSessions[i]
+              const next = extractedSessions[i]
+
+              // Check if session changed
+              if (prev.id !== next.id || prev.status !== next.status) {
+                hasChanges = true
+                break
+              }
+
+              // Check if actualTodos changed (status updates)
+              const prevTodoCount = prev.actualTodos?.filter(t => t.status === 'completed').length || 0
+              const nextTodoCount = next.actualTodos?.filter(t => t.status === 'completed').length || 0
+
+              if (prevTodoCount !== nextTodoCount) {
+                hasChanges = true
+                break
+              }
+            }
+
+            // No changes detected, return previous reference to prevent re-render
+            if (!hasChanges) {
+              console.log('[TodoPanel] No changes detected, skipping sessions update')
+              return prevSessions
+            }
+          }
+
+          console.log('[TodoPanel] Changes detected, updating sessions')
+          return extractedSessions
+        })
       }
     } catch (error) {
       console.error('Error loading sessions:', error)
