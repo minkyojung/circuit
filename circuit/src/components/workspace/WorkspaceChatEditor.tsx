@@ -28,6 +28,7 @@ import {
   calculateTotalTime
 } from '@/lib/planModeUtils';
 import type { TodoGenerationResult, TodoDraft, ExecutionMode } from '@/types/todo';
+import { FEATURES } from '@/config/features';
 import { getLanguageFromFilePath } from '@/lib/fileUtils';
 
 // Configure Monaco Editor to use local files instead of CDN
@@ -622,8 +623,9 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
           }
 
           // Plan Mode validation: If in Plan Mode but no plan found, retry once
+          // Only execute if PLAN_MODE feature is enabled
           const isPlanMode = currentThinkingModeRef.current === 'plan';
-          if (isPlanMode && (!todoWriteData || todoWriteData.todos.length === 0)) {
+          if (FEATURES.PLAN_MODE && isPlanMode && (!todoWriteData || todoWriteData.todos.length === 0)) {
             console.warn('[WorkspaceChat] ⚠️ Plan Mode active but no plan found in response');
 
             // Check if this is already a retry (prevent infinite loop)
@@ -705,7 +707,7 @@ Wrap the JSON in triple backticks with 'json' language marker. This is REQUIRED.
                 }
               });
             }
-          } else if (todoWriteData && todoWriteData.todos.length > 0) {
+          } else if (FEATURES.PLAN_MODE && todoWriteData && todoWriteData.todos.length > 0) {
             console.log('[WorkspaceChat] 📋 TodoWrite detected, checking thinking mode');
             console.log('[WorkspaceChat] 📋 Current thinking mode:', currentThinkingModeRef.current);
 
@@ -1911,7 +1913,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
                   readOnly: false,
                   minimap: { enabled: false },
                   fontSize: 12,
-                  fontFamily: '"SF Mono", SFMono-Regular, ui-monospace, "Cascadia Code", Menlo, Monaco, "Courier New", monospace',
+                  fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", "Source Code Pro", "SF Mono", Menlo, Consolas, Monaco, "Courier New", monospace',
                   fontWeight: '300',
                   lineNumbers: 'on',
                   scrollBeyondLastLine: false,

@@ -18,6 +18,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { ContextGauge } from './ContextGauge'
+import { FEATURES } from '@/config/features'
 
 // @ts-ignore - Electron IPC
 const ipcRenderer = typeof window !== 'undefined' && (window as any).require ? (window as any).require('electron').ipcRenderer : null
@@ -437,18 +438,20 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   </DropdownMenuContent>
                 </DropdownMenu>
 
-                {/* Plan Mode Toggle Button */}
-                <button
-                  onClick={togglePlanMode}
-                  className={`inline-flex items-center justify-center ${INPUT_STYLES.controls.sourcesButton} transition-colors ${
-                    isPlanMode
-                      ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
-                  }`}
-                  title="Toggle Plan Mode (⌘⇧P)"
-                >
-                  <ListChecks size={INPUT_STYLES.controls.sourcesIconSize} strokeWidth={1.5} />
-                </button>
+                {/* Plan Mode Toggle Button - Feature Flag Controlled */}
+                {FEATURES.PLAN_MODE && (
+                  <button
+                    onClick={togglePlanMode}
+                    className={`inline-flex items-center justify-center ${INPUT_STYLES.controls.sourcesButton} transition-colors ${
+                      isPlanMode
+                        ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+                    }`}
+                    title="Toggle Plan Mode (⌘⇧P)"
+                  >
+                    <ListChecks size={INPUT_STYLES.controls.sourcesIconSize} strokeWidth={1.5} />
+                  </button>
+                )}
 
                 {/* Context Gauge */}
                 <ContextGauge
