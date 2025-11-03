@@ -264,10 +264,18 @@ export function GitGraphV3({ workspacePath, limit = 5000 }: GitGraphV3Props) {
               const y = index * ROW_HEIGHT + 20;
               const isMerge = commit.isMergeCommit;
 
-              // Show branch label if this is a branch head or start point
-              // Skip virtual branches (merged-xxx)
+              // Branch label strategy (matching GitKraken):
+              // 1. HEAD commits (from refs) - always show
+              // 2. Branch start points - show for real branches only
               let branchLabel: string | null = null;
-              if ((commit.isBranchHead || commit.isBranchStart) && !commit.primaryBranch.startsWith('merged-')) {
+
+              // First, try to get label from refs (HEAD position)
+              const refLabel = getBranchLabel(commit.refs);
+              if (refLabel) {
+                branchLabel = refLabel;
+              }
+              // If no ref, check if this is a branch start point
+              else if (commit.isBranchStart && !commit.primaryBranch.startsWith('merged-')) {
                 branchLabel = commit.primaryBranch;
               }
 
