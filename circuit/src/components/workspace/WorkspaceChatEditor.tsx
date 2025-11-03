@@ -506,19 +506,6 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
     }
   }, [messages.length, handleScroll]);
 
-  // Auto-scroll to bottom when new messages arrive (only if already at bottom)
-  useEffect(() => {
-    if (isAtBottom && filteredMessages.length > 0) {
-      // Use virtualizer to scroll to last message
-      setTimeout(() => {
-        virtualizer.scrollToIndex(filteredMessages.length - 1, {
-          align: 'end',
-          behavior: 'smooth',
-        });
-      }, 100);
-    }
-  }, [filteredMessages.length, isAtBottom, virtualizer]);
-
   // IPC Event Handlers (using useCallback to avoid stale closures)
   const handleThinkingStart = useCallback((_event: any, sessionId: string, _timestamp: number) => {
       console.log('[WorkspaceChat] 🧠 Thinking started:', sessionId);
@@ -1569,6 +1556,19 @@ The plan is ready. What would you like to do?`,
     },
     overscan: 5, // Render 5 extra items outside viewport for smooth scrolling
   });
+
+  // Auto-scroll to bottom when new messages arrive (only if already at bottom)
+  useEffect(() => {
+    if (isAtBottom && filteredMessages.length > 0) {
+      // Use virtualizer to scroll to last message
+      setTimeout(() => {
+        virtualizer.scrollToIndex(filteredMessages.length - 1, {
+          align: 'end',
+          behavior: 'smooth',
+        });
+      }, 100);
+    }
+  }, [filteredMessages.length, isAtBottom, virtualizer]);
 
   return (
     <div className="h-full bg-card relative">

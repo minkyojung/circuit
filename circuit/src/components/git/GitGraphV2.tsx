@@ -48,40 +48,111 @@ interface CommitNode {
 /**
  * Lane assignment algorithm
  *
- * Key principle: Linear history stays on same lane (vertical line)
- *
- * Rules:
- * 1. Root commit → lane 0
- * 2. Linear commit (1 parent) → same lane as parent
- * 3. Merge commit (2+ parents) → first parent's lane
- * 4. Branch split → allocate new lane for child
+ * Strategy:
+ * 1. Build parent-child relationships (two-pass)
+ * 2. Process commits oldest->newest (reversed)
+ * 3. Track which lanes are occupied
+ * 4. Linear history stays on same lane
+ * 5. Branch splits get new lanes
+ * 6. Merges free up branch lanes
  */
 function assignLanes(commits: GitCommit[]): CommitNode[] {
-  const nodes: CommitNode[] = [];
-  const hashToLane = new Map<string, number>();
+  if (commits.length === 0) return [];
 
-  // SIMPLIFIED: All commits on lane 0 for now (debugging)
-  // TODO: Implement proper lane assignment later
-  commits.forEach((commit, index) => {
-    const lane = 0;  // Everyone on main lane
-    hashToLane.set(commit.hash, lane);
-
-    // Build parent info
-    const parentNodes = commit.parents.map(parentHash => ({
-      hash: parentHash,
-      lane: 0,  // All parents also on lane 0
-    }));
-
-    nodes.push({
-      commit,
-      row: index,
-      lane,
-      color: COLORS[0],
-      parents: parentNodes,
+  // Step 1: Build child relationships
+  const hashToChildren = new Map<string, string[]>();
+  commits.forEach(commit => {
+    commit.parents.forEach(parentHash => {
+      if (!hashToChildren.has(parentHash)) {
+        hashToChildren.set(parentHash, []);
+      }
+      hashToChildren.get(parentHash)!.push(commit.hash);
     });
   });
 
-  console.log('[GitGraphV2] Assigned lanes (all lane 0):', nodes.length, 'commits');
+  // Step 2: Process in reverse order (oldest first)
+  const reversed = [...commits].reverse();
+  const hashToLane = new Map<string, number>();
+  const hashToIndex = new Map<string, number>();
+
+  commits.forEach((commit, index) => {
+    hashToIndex.set(commit.hash, index);
+  });
+
+  let nextLane = 0;
+  const occupiedLanes = new Set<number>();
+
+  reversed.forEach((commit) => {
+    const parents = commit.parents;
+    const children = hashToChildren.get(commit.hash) || [];
+    let lane: number;
+
+    if (parents.length === 0) {
+      // Root commit
+      lane = 0;
+      nextLane = Math.max(nextLane, 1);
+    }
+    else if (parents.length === 1) {
+      // Linear history - continue parent's lane
+      const parentLane = hashToLane.get(parents[0]);
+      if (parentLane !== undefined) {
+        lane = parentLane;
+      } else {
+        // Parent not yet processed - allocate new lane
+        lane = nextLane++;
+      }
+    }
+    else {
+      // Merge commit - use first parent's lane (main branch)
+      const firstParentLane = hashToLane.get(parents[0]);
+      lane = firstParentLane !== undefined ? firstParentLane : nextLane++;
+
+      // Free lanes from merged branches (other parents)
+      for (let i = 1; i < parents.length; i++) {
+        const parentLane = hashToLane.get(parents[i]);
+        if (parentLane !== undefined) {
+          occupiedLanes.delete(parentLane);
+        }
+      }
+    }
+
+    hashToLane.set(commit.hash, lane);
+    occupiedLanes.add(lane);
+
+    // Handle branch splits - if this commit has multiple children,
+    // allocate new lanes for additional children
+    if (children.length > 1) {
+      children.slice(1).forEach(childHash => {
+        if (!hashToLane.has(childHash)) {
+          hashToLane.set(childHash, nextLane++);
+        }
+      });
+    }
+  });
+
+  // Step 3: Build final nodes with assigned lanes
+  const nodes: CommitNode[] = commits.map((commit, index) => {
+    const lane = hashToLane.get(commit.hash) ?? 0;
+
+    const parentNodes = commit.parents.map(parentHash => ({
+      hash: parentHash,
+      lane: hashToLane.get(parentHash) ?? lane,
+    }));
+
+    return {
+      commit,
+      row: index,
+      lane,
+      color: COLORS[lane % COLORS.length],
+      parents: parentNodes,
+    };
+  });
+
+  console.log('[GitGraphV2] Assigned lanes:', {
+    commits: nodes.length,
+    maxLane: Math.max(...nodes.map(n => n.lane), 0),
+  });
+
   return nodes;
 }
 
