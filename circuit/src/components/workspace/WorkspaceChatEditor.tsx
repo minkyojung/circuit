@@ -1277,7 +1277,7 @@ The plan is ready. What would you like to do?`,
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="h-full overflow-auto p-6 pb-[120px]"
+        className="h-full overflow-auto p-6 pb-[300px]"
       >
         {isLoadingConversation ? (
           <div className="space-y-5 max-w-4xl mx-auto">
@@ -1577,7 +1577,7 @@ The plan is ready. What would you like to do?`,
       )}
 
       {/* Enhanced Chat Input - Floating */}
-      <div className="absolute bottom-0 left-0 right-0 p-4 pointer-events-none">
+      <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-0 bg-card pointer-events-none">
         <div className="pointer-events-auto">
           <ChatInput
             value={input}
