@@ -110,14 +110,6 @@ export function extractTodoWriteFromBlocks(blocks: Block[]): TodoWriteArgs | nul
 }
 
 /**
- * Extract TodoWrite data from a message
- */
-export function extractTodoWriteFromMessage(message: Message): TodoWriteArgs | null {
-  if (!message.blocks) return null
-  return extractTodoWriteFromBlocks(message.blocks)
-}
-
-/**
  * Convert Claude's TodoWrite format to Circuit's TodoDraft format
  */
 export function convertClaudeTodosToDrafts(claudeTodos: ClaudeTodo[]): TodoDraft[] {

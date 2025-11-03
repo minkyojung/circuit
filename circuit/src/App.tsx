@@ -5,6 +5,7 @@ import { CommandPalette } from "@/components/CommandPalette"
 import { AppSidebar } from "@/components/AppSidebar"
 import { TodoPanel } from "@/components/TodoPanel"
 import { GitTestPanel } from "@/components/git/GitTestPanel"
+import { WorkspaceEmptyState } from "@/components/workspace/WorkspaceEmptyState"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -462,15 +463,10 @@ function App() {
                 )}
               </>
             ) : (
-              <div className="flex flex-1 items-center justify-center text-center p-8">
-                <div>
-                  <FolderGit2 size={48} className="mx-auto text-muted-foreground mb-4" />
-                  <h2 className="text-xl font-semibold text-foreground mb-2">No Workspace Selected</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Select a workspace from the sidebar to start coding
-                  </p>
-                </div>
-              </div>
+              <WorkspaceEmptyState
+                onSelectWorkspace={setSelectedWorkspace}
+                onCreateWorkspace={handleCreateWorkspace}
+              />
             )}
           </div>
         </SidebarInset>

@@ -6,3 +6,4 @@ export { RepositorySwitcher } from './RepositorySwitcher';
 export { WorkspaceChatEditor } from './WorkspaceChatEditor';
 export { CommitDialog } from './CommitDialog';
 export { ConflictResolverDialog } from './ConflictResolverDialog';
+export { WorkspaceEmptyState } from './WorkspaceEmptyState';

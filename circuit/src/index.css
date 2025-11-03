@@ -280,31 +280,74 @@
   }
 
   /* ===== RESIZABLE PANELS ===== */
-  /* Remove all hover effects on resize handle */
-  [data-panel-resize-handle-enabled] {
-    cursor: col-resize;
-  }
-
+  /* Completely disable all hover/active effects on resize handle */
+  [data-panel-resize-handle-enabled],
   [data-panel-resize-handle-enabled]:hover,
   [data-panel-resize-handle-enabled]:active,
-  [data-panel-resize-handle-enabled][data-resize-handle-active] {
+  [data-panel-resize-handle-enabled]:focus,
+  [data-panel-resize-handle-enabled]:focus-visible,
+  [data-panel-resize-handle-enabled][data-resize-handle-active],
+  [data-panel-resize-handle-enabled][data-resize-handle-state="hover"],
+  [data-panel-resize-handle-enabled][data-resize-handle-state="drag"] {
+    cursor: col-resize !important;
+    background: transparent !important;
     background-color: transparent !important;
+    border: none !important;
+    border-width: 0 !important;
     border-color: transparent !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-top: none !important;
+    border-bottom: none !important;
+    outline: none !important;
+    outline-width: 0 !important;
+    outline-color: transparent !important;
+    box-shadow: none !important;
+    opacity: 1 !important;
   }
 
+  /* Remove all pseudo-elements */
   [data-panel-resize-handle-enabled]::before,
-  [data-panel-resize-handle-enabled]::after {
-    background-color: transparent !important;
-    border-color: transparent !important;
-  }
-
+  [data-panel-resize-handle-enabled]::after,
   [data-panel-resize-handle-enabled]:hover::before,
   [data-panel-resize-handle-enabled]:hover::after,
   [data-panel-resize-handle-enabled]:active::before,
   [data-panel-resize-handle-enabled]:active::after,
+  [data-panel-resize-handle-enabled]:focus::before,
+  [data-panel-resize-handle-enabled]:focus::after,
   [data-panel-resize-handle-enabled][data-resize-handle-active]::before,
-  [data-panel-resize-handle-enabled][data-resize-handle-active]::after {
+  [data-panel-resize-handle-enabled][data-resize-handle-active]::after,
+  [data-panel-resize-handle-enabled][data-resize-handle-state="hover"]::before,
+  [data-panel-resize-handle-enabled][data-resize-handle-state="hover"]::after,
+  [data-panel-resize-handle-enabled][data-resize-handle-state="drag"]::before,
+  [data-panel-resize-handle-enabled][data-resize-handle-state="drag"]::after {
+    display: none !important;
+    content: none !important;
+    visibility: hidden !important;
+    background: transparent !important;
     background-color: transparent !important;
+    border: none !important;
+    border-width: 0 !important;
     border-color: transparent !important;
+    outline: none !important;
+    outline-width: 0 !important;
+    box-shadow: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    opacity: 0 !important;
+  }
+
+  /* Also target any child elements */
+  [data-panel-resize-handle-enabled] *,
+  [data-panel-resize-handle-enabled]:hover *,
+  [data-panel-resize-handle-enabled]:active *,
+  [data-panel-resize-handle-enabled]:focus *,
+  [data-panel-resize-handle-enabled][data-resize-handle-active] * {
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+    border-width: 0 !important;
+    border-color: transparent !important;
+    outline: none !important;
   }
 }
