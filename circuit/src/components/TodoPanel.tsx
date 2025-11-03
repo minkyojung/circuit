@@ -43,6 +43,9 @@ export function TodoPanel({ conversationId, workspace, onCommit }: TodoPanelProp
   const conversationIdRef = useRef<string | null>(null)
   const isInitialLoadRef = useRef<boolean>(true)
 
+  // Track CompactBanner height for alignment with main header
+  const [bannerHeight, setBannerHeight] = useState(0)
+
   // Keep ref in sync with conversationId
   useEffect(() => {
     conversationIdRef.current = conversationId
@@ -289,7 +292,7 @@ export function TodoPanel({ conversationId, workspace, onCommit }: TodoPanelProp
       {/* Top bar with icons and Commit & PR button */}
       <div className="h-[44px] shrink-0 flex items-center justify-between px-4" style={{ WebkitAppRegion: 'drag' } as any}>
         {/* Left icon group */}
-        <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as any}>
+        <div className="flex gap-2" style={{ WebkitAppRegion: 'no-drag' } as any}>
           {/* Settings Button */}
           <button
             onClick={() => setIsSettingsOpen(true)}
