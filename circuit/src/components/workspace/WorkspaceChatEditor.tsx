@@ -1551,45 +1551,80 @@ The plan is ready. What would you like to do?`,
   const virtualizer = useVirtualizer({
     count: filteredMessages.length,
     getScrollElement: () => scrollContainerRef.current,
-    estimateSize: (index) => {
+    estimateSize: useCallback((index) => {
       const msg = filteredMessages[index];
       if (!msg) return 200;
 
-      // Estimate size based on message characteristics
+      // More accurate size estimates to reduce measurement corrections
       if (msg.role === 'user') {
         // User messages are typically shorter
-        return msg.metadata?.attachments?.length > 0 ? 120 : 80;
+        const baseHeight = msg.metadata?.attachments?.length > 0 ? 120 : 80;
+        // Account for message length
+        const contentLines = Math.ceil((msg.content?.length || 0) / 80);
+        return baseHeight + (contentLines * 20);
       }
 
-      // Assistant messages
+      // Assistant messages - start with base
+      let estimatedHeight = 150;
+
+      // Add height for blocks
       if (msg.blocks && msg.blocks.length > 0) {
-        // Messages with code blocks are taller
-        return 300;
+        // Each code block is roughly 200-400px
+        estimatedHeight += msg.blocks.length * 250;
       }
 
+      // Add height for inline todo progress
       if (msg.metadata?.todoWriteResult) {
-        // Todo inline progress is tall
-        return 250;
+        const todoCount = msg.metadata.todoWriteResult.todos?.length || 3;
+        estimatedHeight += 80 + (todoCount * 40); // Header + todo items
       }
 
-      // Default assistant message
-      return 150;
-    },
+      // Add height for reasoning accordion (when closed)
+      const hasThinking = messageThinkingSteps[msg.id]?.steps?.length > 0;
+      if (hasThinking) {
+        estimatedHeight += 50; // Collapsed accordion header
+        // If it's open, add much more height
+        if (openReasoningId === msg.id) {
+          const stepCount = messageThinkingSteps[msg.id]?.steps?.length || 0;
+          estimatedHeight += stepCount * 35 + 100; // Expanded steps
+        }
+      }
+
+      // Account for content length
+      const contentLines = Math.ceil((msg.content?.length || 0) / 100);
+      estimatedHeight += contentLines * 18;
+
+      return Math.min(estimatedHeight, 2000); // Cap at 2000px
+    }, [filteredMessages, messageThinkingSteps, openReasoningId]),
     overscan: 5, // Render 5 extra items outside viewport for smooth scrolling
   });
 
+  // Track previous message count to detect new messages
+  const prevMessageCountRef = useRef(filteredMessages.length);
+
   // Auto-scroll to bottom when new messages arrive (only if already at bottom)
   useEffect(() => {
-    if (isAtBottom && filteredMessages.length > 0) {
-      // Use virtualizer to scroll to last message
-      setTimeout(() => {
-        virtualizer.scrollToIndex(filteredMessages.length - 1, {
-          align: 'end',
-          behavior: 'smooth',
+    const isNewMessage = filteredMessages.length > prevMessageCountRef.current;
+    prevMessageCountRef.current = filteredMessages.length;
+
+    if (isAtBottom && isNewMessage && filteredMessages.length > 0) {
+      // Use requestAnimationFrame to ensure DOM has updated
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          // Scroll to bottom using virtualizer - use 'auto' instead of 'smooth'
+          // to avoid conflicts with virtual positioning
+          virtualizer.scrollToIndex(filteredMessages.length - 1, {
+            align: 'end',
+            behavior: 'auto', // Changed from 'smooth' to prevent animation conflicts
+          });
         });
-      }, 100);
+      });
     }
-  }, [filteredMessages.length, isAtBottom, virtualizer]);
+  }, [filteredMessages.length, isAtBottom]); // Removed virtualizer from deps
+
+  // When reasoning accordion is toggled, the estimateSize function recalculates
+  // because openReasoningId is in its dependencies. This triggers virtualizer
+  // to remeasure all items automatically. No manual measure() call needed.
 
   return (
     <div className="h-full bg-card relative">
