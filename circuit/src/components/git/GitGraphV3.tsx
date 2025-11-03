@@ -107,22 +107,49 @@ export function GitGraphV3({ workspacePath, limit = 5000 }: GitGraphV3Props) {
     setLoading(true);
 
     try {
+      console.log('[GitGraphV3] Loading graph for workspace:', workspacePath);
+
       // Load commits and refs
       const [commitsResult, refsResult] = await Promise.all([
         ipcRenderer.invoke('git:log', workspacePath, limit),
         ipcRenderer.invoke('git:refs', workspacePath),
       ]);
 
+      console.log('[GitGraphV3] git:log result:', {
+        success: commitsResult.success,
+        commitCount: commitsResult.commits?.length || 0,
+        error: commitsResult.error
+      });
+      console.log('[GitGraphV3] git:refs result:', {
+        success: refsResult.success,
+        refCount: refsResult.refs?.length || 0,
+        error: refsResult.error
+      });
+
       if (!commitsResult.success || !refsResult.success) {
-        console.error('[GitGraphV3] Failed to load data');
+        console.error('[GitGraphV3] Failed to load data:', {
+          commitsError: commitsResult.error,
+          refsError: refsResult.error
+        });
         return;
       }
 
       const commits = commitsResult.commits || [];
       const refs = refsResult.refs || [];
 
+      console.log('[GitGraphV3] Building graph with:', {
+        commits: commits.length,
+        refs: refs.length
+      });
+
       // Build branch graph
       const branchGraph = buildBranchGraph(commits, refs);
+
+      console.log('[GitGraphV3] Graph built:', {
+        branches: branchGraph.branches.size,
+        commits: branchGraph.commits.size,
+        maxLane: Math.max(...Array.from(branchGraph.branches.values()).map(b => b.lane), 0)
+      });
 
       setGraph(branchGraph);
     } catch (error) {

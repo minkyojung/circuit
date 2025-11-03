@@ -110,24 +110,41 @@ export function detectMerges(
 /**
  * Step 3: Topological sort branches
  * 부모 브랜치가 먼저 오도록 정렬
+ *
+ * Uses two sets to detect cycles:
+ * - visiting: Currently being processed (gray nodes in DFS)
+ * - visited: Fully processed (black nodes in DFS)
  */
 export function topologicalSortBranches(
   branches: Map<string, GitBranch>
 ): string[] {
   const sorted: string[] = [];
   const visited = new Set<string>();
+  const visiting = new Set<string>();  // Detect cycles
 
   function visit(branchName: string) {
+    // Already fully processed
     if (visited.has(branchName)) return;
+
+    // Cycle detected! (branch depends on itself through chain)
+    if (visiting.has(branchName)) {
+      console.warn('[BranchLineage] Cycle detected involving:', branchName);
+      return;
+    }
 
     const branch = branches.get(branchName);
     if (!branch) return;
+
+    // Mark as currently visiting (gray node)
+    visiting.add(branchName);
 
     // 부모 브랜치 먼저 방문
     if (branch.baseBranch) {
       visit(branch.baseBranch);
     }
 
+    // Mark as fully visited (black node)
+    visiting.delete(branchName);
     visited.add(branchName);
     sorted.push(branchName);
   }
