@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { ContextGauge } from './ContextGauge'
 import { FEATURES } from '@/config/features'
+import type { ClaudeModel } from '@/types/settings'
 
 // @ts-ignore - Electron IPC
 const ipcRenderer = typeof window !== 'undefined' && (window as any).require ? (window as any).require('electron').ipcRenderer : null
@@ -82,7 +83,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   isCancelling = false,
   onCancel,
 }) => {
-  const { settings } = useSettingsContext()
+  const { settings, updateSettings } = useSettingsContext()
   const { metrics } = useClaudeMetrics()
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
   const [thinkingMode, setThinkingMode] = useState<ThinkingMode>('normal')
@@ -96,6 +97,26 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     ultrathink: 'Ultrathink',
     plan: 'Plan',
   }
+
+  // Model cycling configuration
+  const modelOrder: ClaudeModel[] = [
+    'claude-sonnet-4-5-20250929',
+    'claude-opus-4-20250514',
+    'claude-haiku-4-20250918',
+  ]
+
+  const modelLabels: Record<ClaudeModel, string> = {
+    'claude-sonnet-4-5-20250929': 'Sonnet 4.5',
+    'claude-opus-4-20250514': 'Opus 4',
+    'claude-haiku-4-20250918': 'Haiku 4',
+  }
+
+  // Cycle to next model
+  const cycleModel = useCallback(() => {
+    const currentIndex = modelOrder.indexOf(settings.model.default)
+    const nextIndex = (currentIndex + 1) % modelOrder.length
+    updateSettings('model', { default: modelOrder[nextIndex] })
+  }, [settings.model.default, updateSettings])
 
   // Plan mode state (separate from thinking mode)
   const [isPlanMode, setIsPlanMode] = useState(false)
@@ -397,6 +418,16 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   title="Attach files"
                 >
                   <Paperclip size={INPUT_STYLES.controls.attachIconSize} strokeWidth={1.5} />
+                </button>
+
+                {/* Model Selector - Cycle through models on click */}
+                <button
+                  onClick={cycleModel}
+                  disabled={disabled}
+                  className={`inline-flex items-center ${INPUT_STYLES.controls.modelButton} text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-50`}
+                  title={`Current: ${modelLabels[settings.model.default]} (click to cycle)`}
+                >
+                  <span>{modelLabels[settings.model.default]}</span>
                 </button>
 
                 {/* Thinking Mode Selector */}
