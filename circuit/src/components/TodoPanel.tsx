@@ -42,6 +42,7 @@ export function TodoPanel({ conversationId, workspace, onCommit }: TodoPanelProp
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const sessionsRef = useRef<TodoSessionWithActualTodos[]>([])
   const conversationIdRef = useRef<string | null>(null)
+  const isInitialLoadRef = useRef<boolean>(true)
 
   // Keep refs in sync with state
   useEffect(() => {
@@ -55,10 +56,15 @@ export function TodoPanel({ conversationId, workspace, onCommit }: TodoPanelProp
   // Load sessions from messages with planResult (initial load only)
   useEffect(() => {
     console.log('[TodoPanel] Initial load - conversationId:', conversationId)
+
+    // Reset initial load flag when conversation changes
+    isInitialLoadRef.current = true
+
     if (conversationId) {
       loadSessions()
     } else {
       setSessions([])
+      setIsLoading(false)
     }
   }, [conversationId])  // ✅ Only conversationId - auto-refresh handles updates
 
@@ -145,7 +151,11 @@ export function TodoPanel({ conversationId, workspace, onCommit }: TodoPanelProp
   const loadSessions = async () => {
     if (!conversationId) return
 
-    setIsLoading(true)
+    // Only show loading indicator on initial load, not during polling/events
+    if (isInitialLoadRef.current) {
+      setIsLoading(true)
+    }
+
     try {
       const result = await ipcRenderer.invoke('message:load', conversationId)
 
@@ -248,7 +258,11 @@ export function TodoPanel({ conversationId, workspace, onCommit }: TodoPanelProp
     } catch (error) {
       console.error('Error loading sessions:', error)
     } finally {
-      setIsLoading(false)
+      // Only hide loading indicator if it was shown (initial load)
+      if (isInitialLoadRef.current) {
+        setIsLoading(false)
+        isInitialLoadRef.current = false
+      }
     }
   }
 
