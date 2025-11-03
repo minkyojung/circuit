@@ -287,7 +287,7 @@ export function TodoPanel({ conversationId, workspace, onCommit }: TodoPanelProp
   return (
     <div className="h-full w-full flex flex-col flex-shrink-0">
       {/* Top bar with icons and Commit & PR button */}
-      <div className="h-[44px] shrink-0 flex items-center gap-1 px-2 pt-2" style={{ WebkitAppRegion: 'drag' } as any}>
+      <div className="h-[44px] shrink-0 flex items-center gap-1 px-2" style={{ WebkitAppRegion: 'drag' } as any}>
         {/* Settings Button */}
         <button
           onClick={() => setIsSettingsOpen(true)}
