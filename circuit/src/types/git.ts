@@ -83,6 +83,10 @@ export interface EnrichedCommit extends GitCommit {
   lane: number;                    // primaryBranch.lane
   color: string;                   // primaryBranch.color
 
+  // Branch markers
+  isBranchHead: boolean;           // 이 커밋이 브랜치의 HEAD인지
+  isBranchStart: boolean;          // 이 커밋이 브랜치의 시작점인지
+
   // Merge info
   isMergeCommit: boolean;
   mergedBranches: string[];        // 이 커밋으로 merge된 브랜치들

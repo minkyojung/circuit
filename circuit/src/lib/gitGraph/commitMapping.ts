@@ -71,6 +71,10 @@ export function enrichCommits(
       });
     }
 
+    // Branch markers
+    const isBranchHead = primaryBranchObj?.head === commit.hash;
+    const isBranchStart = primaryBranchObj?.createdAt === commit.hash;
+
     // Enriched commit 생성
     const enriched: EnrichedCommit = {
       ...commit,
@@ -78,6 +82,8 @@ export function enrichCommits(
       primaryBranch,
       lane: primaryBranchObj?.lane ?? 0,
       color: primaryBranchObj?.color ?? '#888',
+      isBranchHead,
+      isBranchStart,
       isMergeCommit,
       mergedBranches,
     };

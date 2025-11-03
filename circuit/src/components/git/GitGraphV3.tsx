@@ -263,7 +263,13 @@ export function GitGraphV3({ workspacePath, limit = 5000 }: GitGraphV3Props) {
               const x = LEFT_MARGIN + commit.lane * LANE_WIDTH;
               const y = index * ROW_HEIGHT + 20;
               const isMerge = commit.isMergeCommit;
-              const branchLabel = getBranchLabel(commit.refs);
+
+              // Show branch label if this is a branch head or start point
+              // Skip virtual branches (merged-xxx)
+              let branchLabel: string | null = null;
+              if ((commit.isBranchHead || commit.isBranchStart) && !commit.primaryBranch.startsWith('merged-')) {
+                branchLabel = commit.primaryBranch;
+              }
 
               const avatarUrl = getGravatarUrl(commit.email || commit.author);
               const radius = isMerge ? MERGE_NODE_RADIUS : NODE_RADIUS;
