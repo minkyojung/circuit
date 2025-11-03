@@ -5,7 +5,7 @@
  */
 
 import type { GitCommit, GitRef, BranchGraph } from '@/types/git';
-import { extractBranches, buildCommitToBranchMapping, identifyExclusiveCommits } from './branchDiscovery';
+import { extractBranches, buildCommitToBranchMapping, identifyExclusiveCommits, createVirtualBranchesForMerges } from './branchDiscovery';
 import { findBranchBases, detectMerges, topologicalSortBranches } from './branchLineage';
 import { assignLanesToBranches } from './laneManager';
 import { enrichCommits, buildMergePoints } from './commitMapping';
@@ -36,6 +36,9 @@ export function buildBranchGraph(
   const branches = extractBranches(refs);
   const commitToBranches = buildCommitToBranchMapping(branches, commits);
   identifyExclusiveCommits(branches, commitToBranches, commits);
+
+  // Phase 1.5: Create virtual branches for merged commits (not in refs)
+  createVirtualBranchesForMerges(branches, commits, commitToBranches);
 
   // Phase 2: Branch Lineage
   findBranchBases(branches, commits, commitToBranches);
