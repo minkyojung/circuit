@@ -198,6 +198,210 @@ ipcMain.handle('git:unstage-all', async (event, workspacePath: string) => {
 });
 
 /**
+ * Commit staged changes
+ */
+ipcMain.handle('git:commit', async (event, workspacePath: string, message: string) => {
+  try {
+    console.log('[Git] Committing with message:', message);
+
+    // Escape quotes in commit message
+    const escapedMessage = message.replace(/"/g, '\\"');
+
+    await execAsync(`git commit -m "${escapedMessage}"`, { cwd: workspacePath });
+    return { success: true };
+  } catch (error: any) {
+    console.error('[Git] Failed to commit:', error);
+
+    // Extract detailed error message from stderr or stdout
+    const errorMessage = error.stderr || error.stdout || error.message || 'Unknown error';
+
+    return {
+      success: false,
+      error: errorMessage
+    };
+  }
+});
+
+/**
+ * Commit and push staged changes
+ */
+ipcMain.handle('git:commit-and-push', async (event, workspacePath: string, message: string) => {
+  try {
+    console.log('[Git] Committing and pushing with message:', message);
+
+    // Escape quotes in commit message
+    const escapedMessage = message.replace(/"/g, '\\"');
+
+    // Commit
+    await execAsync(`git commit -m "${escapedMessage}"`, { cwd: workspacePath });
+
+    // Get current branch name
+    const { stdout: branch } = await execAsync('git branch --show-current', { cwd: workspacePath });
+    const branchName = branch.trim();
+
+    // Push with upstream tracking (-u sets upstream if not exists)
+    await execAsync(`git push -u origin ${branchName}`, { cwd: workspacePath });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('[Git] Failed to commit and push:', error);
+
+    // Extract detailed error message from stderr or stdout
+    const errorMessage = error.stderr || error.stdout || error.message || 'Unknown error';
+
+    return {
+      success: false,
+      error: errorMessage
+    };
+  }
+});
+
+/**
+ * Generate commit message using Claude CLI
+ */
+ipcMain.handle('git:generate-commit-message', async (event, workspacePath: string) => {
+  try {
+    console.log('[Git] Generating commit message with AI');
+
+    // Get staged diff
+    const { stdout: diff } = await execAsync('git diff --cached', { cwd: workspacePath });
+
+    if (!diff.trim()) {
+      return {
+        success: false,
+        error: 'No staged changes to analyze'
+      };
+    }
+
+    // Get Claude CLI path (same as used in main.cjs)
+    const { homedir } = await import('os');
+    const { join } = await import('path');
+    const CLAUDE_CLI_PATH = join(homedir(), '.claude', 'local', 'claude');
+
+    // Check if Claude CLI exists
+    try {
+      await import('fs/promises').then(fs => fs.access(CLAUDE_CLI_PATH));
+    } catch {
+      return {
+        success: false,
+        error: 'Claude CLI not found. Please install Claude Code first.'
+      };
+    }
+
+    // Prepare prompt
+    const prompt = `Analyze this git diff and generate a concise, conventional commit message.
+
+Diff (first 2000 chars):
+${diff.slice(0, 2000)}
+
+Format: <type>: <description>
+Types: feat, fix, docs, style, refactor, test, chore
+
+Generate 3 commit message options, ordered by quality. Be concise and specific.
+
+Return ONLY a JSON object with this exact format:
+{"suggestions": ["option1", "option2", "option3"]}`;
+
+    // Call Claude CLI
+    const { spawn } = await import('child_process');
+    const claude = spawn(CLAUDE_CLI_PATH, [
+      '--print',
+      '--output-format', 'json',
+      '--model', 'haiku'  // Fast and cheap for commit messages
+    ], {
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+
+    const input = JSON.stringify({
+      role: 'user',
+      content: prompt
+    });
+
+    claude.stdin.write(input);
+    claude.stdin.end();
+
+    let stdout = '';
+    let stderr = '';
+
+    claude.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    claude.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    return new Promise((resolve) => {
+      claude.on('close', (code) => {
+        if (code !== 0) {
+          console.error('[Git] Claude CLI failed:', stderr);
+          resolve({
+            success: false,
+            error: `Claude CLI failed: ${stderr}`
+          });
+          return;
+        }
+
+        try {
+          // Parse Claude CLI response
+          const response = JSON.parse(stdout);
+
+          if (response.type === 'result' && response.subtype === 'success') {
+            // Extract suggestions from Claude's response
+            const resultText = response.result;
+
+            // Try to parse as JSON first
+            let suggestions: string[];
+            try {
+              const parsed = JSON.parse(resultText);
+              suggestions = parsed.suggestions || [];
+            } catch {
+              // If not JSON, try to extract from text
+              const lines = resultText.split('\n').filter((line: string) => line.trim());
+              suggestions = lines.slice(0, 3);
+            }
+
+            if (suggestions.length === 0) {
+              suggestions = ['feat: update code', 'fix: resolve issue', 'chore: update files'];
+            }
+
+            resolve({
+              success: true,
+              suggestions
+            });
+          } else {
+            resolve({
+              success: false,
+              error: 'Unexpected response from Claude CLI'
+            });
+          }
+        } catch (parseError) {
+          console.error('[Git] Failed to parse Claude response:', parseError);
+          resolve({
+            success: false,
+            error: 'Failed to parse AI response'
+          });
+        }
+      });
+
+      claude.on('error', (error) => {
+        console.error('[Git] Claude process error:', error);
+        resolve({
+          success: false,
+          error: `Failed to run Claude CLI: ${error.message}`
+        });
+      });
+    });
+  } catch (error) {
+    console.error('[Git] Failed to generate commit message:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
+});
+
+/**
  * Register all git handlers
  */
 export function registerGitHandlers() {

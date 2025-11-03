@@ -7,6 +7,7 @@
 
 import { useState, useEffect } from 'react';
 import type { GitStatus } from '@/types/git';
+import { CommitInterface } from './CommitInterface';
 
 // @ts-ignore - Electron IPC
 const { ipcRenderer } = window.require('electron');
@@ -210,6 +211,13 @@ export function GitTestPanel({ workspacePath }: GitTestPanelProps) {
           No changes
         </div>
       )}
+
+      {/* Commit Interface */}
+      <CommitInterface
+        workspacePath={workspacePath}
+        stagedCount={status.staged.length}
+        onCommitSuccess={loadStatus}
+      />
     </div>
   );
 }
