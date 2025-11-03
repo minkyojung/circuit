@@ -41,6 +41,17 @@ export function TodoPanel({ conversationId, refreshTrigger, workspace, onCommit 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  const sessionsRef = useRef<TodoSessionWithActualTodos[]>([])
+  const conversationIdRef = useRef<string | null>(null)
+
+  // Keep refs in sync with state
+  useEffect(() => {
+    sessionsRef.current = sessions
+  }, [sessions])
+
+  useEffect(() => {
+    conversationIdRef.current = conversationId
+  }, [conversationId])
 
   // Load sessions from messages with planResult
   useEffect(() => {
@@ -52,9 +63,10 @@ export function TodoPanel({ conversationId, refreshTrigger, workspace, onCommit 
   }, [conversationId, refreshTrigger])
 
   // Auto-refresh for active sessions (real-time progress tracking)
+  // Only depends on conversationId - never recreate interval when sessions change
   useEffect(() => {
     if (!conversationId) {
-      // Clear interval if conversation changes
+      // Clear interval if no conversation
       if (intervalRef.current) {
         clearInterval(intervalRef.current)
         intervalRef.current = null
@@ -63,30 +75,31 @@ export function TodoPanel({ conversationId, refreshTrigger, workspace, onCommit 
       return
     }
 
-    // Check if there are any active sessions with todos
-    const hasActiveSessions = sessions.some(s => s.status === 'active' && s.actualTodos)
-
-    if (hasActiveSessions && !intervalRef.current) {
-      // Start polling
-      console.log('[TodoPanel] Starting auto-refresh for active sessions')
+    // Start interval once when conversation is selected
+    if (!intervalRef.current) {
+      console.log('[TodoPanel] Starting auto-refresh interval')
       intervalRef.current = setInterval(() => {
-        loadSessions()
+        // Check active sessions using ref (latest value)
+        const hasActiveSessions = sessionsRef.current.some(
+          s => s.status === 'active' && s.actualTodos
+        )
+
+        if (hasActiveSessions && conversationIdRef.current) {
+          // Only reload if there are active sessions
+          loadSessions()
+        }
       }, 2000)
-    } else if (!hasActiveSessions && intervalRef.current) {
-      // Stop polling
-      console.log('[TodoPanel] Stopping auto-refresh (no active sessions)')
-      clearInterval(intervalRef.current)
-      intervalRef.current = null
     }
 
-    // Cleanup on unmount
+    // Cleanup only on conversation change or unmount
     return () => {
       if (intervalRef.current) {
+        console.log('[TodoPanel] Cleaning up auto-refresh interval')
         clearInterval(intervalRef.current)
         intervalRef.current = null
       }
     }
-  }, [conversationId, sessions])  // ✅ Check sessions to start/stop polling, but use ref to prevent recreation
+  }, [conversationId])  // ✅ Only conversationId - interval created once and reused
 
   const loadSessions = async () => {
     if (!conversationId) return
