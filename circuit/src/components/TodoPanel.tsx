@@ -493,10 +493,9 @@ function TodoSessionItem({ session, index, onNavigate, onStartTasks }: TodoSessi
       <motion.div
         custom={index}
         variants={listItemVariants}
-        initial="hidden"
+        initial={false}  // Disable initial animation to prevent re-triggering on re-renders
         animate="visible"
         exit="exit"
-        layout
         className={cn(
           "rounded-lg overflow-hidden transition-all duration-200",
           session.status === 'active' && "bg-primary/5 shadow-sm",
