@@ -180,7 +180,7 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
       console.log('[AppSidebar] Cleaning up status auto-refresh')
       clearInterval(interval)
     }
-  }, [currentRepository?.id, workspaces.length])
+  }, [currentRepository?.id, workspaces, loadStatuses])
 
   // Load file tree when workspace is selected
   useEffect(() => {

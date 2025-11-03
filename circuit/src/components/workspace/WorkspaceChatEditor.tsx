@@ -225,8 +225,10 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   const thinkingStartTimeRef = useRef<number>(0);
   const currentStepMessageRef = useRef<string>('Starting analysis');
   const pendingUserMessageRef = useRef<Message | null>(null);
-  const pendingAssistantMessageIdRef = useRef<string | null>(null);
   const currentThinkingModeRef = useRef<import('./ChatInput').ThinkingMode>('normal');
+
+  // Track pending assistant message ID in state instead of ref to trigger re-renders
+  const [pendingAssistantMessageId, setPendingAssistantMessageId] = useState<string | null>(null);
 
   // Refs to hold latest state values (to avoid stale closures in IPC handlers)
   const conversationIdRef = useRef<string | null>(conversationId);
@@ -237,6 +239,12 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   // Scroll state
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
+
+  // Track if component is mounted to prevent setState on unmounted component
+  const isMountedRef = useRef(true);
+
+  // Track workspace path to avoid stale closures in IPC handlers
+  const workspacePathRef = useRef(workspace.path);
 
   // Copy state
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
@@ -325,6 +333,10 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   useEffect(() => {
     conversationIdRef.current = conversationId;
   }, [conversationId]);
+
+  useEffect(() => {
+    workspacePathRef.current = workspace.path;
+  }, [workspace.path]);
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -508,6 +520,7 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
 
   // IPC Event Handlers (using useCallback to avoid stale closures)
   const handleThinkingStart = useCallback((_event: any, sessionId: string, _timestamp: number) => {
+      if (!isMountedRef.current) return; // Prevent setState on unmounted component
       console.log('[WorkspaceChat] 🧠 Thinking started:', sessionId);
 
       // Initialize refs and clear history
@@ -533,7 +546,7 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
 
         // Add to messages state immediately
         setMessages((prev) => [...prev, emptyAssistantMessage]);
-        pendingAssistantMessageIdRef.current = assistantMessageId;
+        setPendingAssistantMessageId(assistantMessageId);
 
         // Auto-open reasoning dropdown for real-time visibility
         setOpenReasoningId(assistantMessageId);
@@ -552,6 +565,7 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   }, []);
 
   const handleMilestone = useCallback((_event: any, _sessionId: string, milestone: any) => {
+      if (!isMountedRef.current) return; // Prevent setState on unmounted component
       console.log('[WorkspaceChat] 📍 Milestone:', milestone);
 
       // Update ref for timer display
@@ -572,14 +586,14 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
         const updatedSteps = [...prev, newStep];
 
         // Update messageThinkingSteps in real-time for the pending assistant message
-        if (pendingAssistantMessageIdRef.current) {
+        if (pendingAssistantMessageId) {
           const duration = thinkingStartTimeRef.current > 0
             ? Math.round((Date.now() - thinkingStartTimeRef.current) / 1000)
             : 0;
 
           setMessageThinkingSteps((prevSteps) => ({
             ...prevSteps,
-            [pendingAssistantMessageIdRef.current!]: {
+            [pendingAssistantMessageId]: {
               steps: updatedSteps,
               duration
             }
@@ -598,6 +612,7 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   }, []);
 
   const handleThinkingComplete = useCallback((_event: any, _sessionId: string, stats: any) => {
+      if (!isMountedRef.current) return; // Prevent setState on unmounted component
       console.log('[WorkspaceChat] ✅ Thinking complete:', stats);
 
       // Note: No need to update tool blocks since they're not in msg.blocks anymore
@@ -613,6 +628,7 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   }, []);
 
   const handleResponseComplete = useCallback(async (_event: any, result: any) => {
+      if (!isMountedRef.current) return; // Prevent setState on unmounted component
       console.log('[WorkspaceChat] Response complete:', result);
 
       const pending = pendingUserMessageRef.current;
@@ -627,7 +643,7 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
         : 0;
 
       // Get existing assistant message ID (created in handleThinkingStart)
-      let assistantMessageId = pendingAssistantMessageIdRef.current;
+      let assistantMessageId = pendingAssistantMessageId;
       const currentThinkingSteps = thinkingStepsRef.current;
 
       if (assistantMessageId) {
@@ -834,7 +850,7 @@ Wrap the JSON in triple backticks with 'json' language marker. This is REQUIRED.
               try {
                 // Read current todos.json file to compare status
                 const todosFileResult = await ipcRenderer.invoke('workspace:read-file',
-                  workspace.path,
+                  workspacePathRef.current,
                   '.circuit/todos.json'
                 );
 
@@ -876,7 +892,7 @@ Wrap the JSON in triple backticks with 'json' language marker. This is REQUIRED.
 
                   // Write updated todos back to file
                   await ipcRenderer.invoke('workspace:write-file',
-                    workspace.path,
+                    workspacePathRef.current,
                     '.circuit/todos.json',
                     JSON.stringify(todosData, null, 2)
                   );
@@ -922,7 +938,7 @@ Wrap the JSON in triple backticks with 'json' language marker. This is REQUIRED.
             try {
               // Read current todos.json file
               const todosFileResult = await ipcRenderer.invoke('workspace:read-file',
-                workspace.path,
+                workspacePathRef.current,
                 '.circuit/todos.json'
               );
 
@@ -957,7 +973,7 @@ Wrap the JSON in triple backticks with 'json' language marker. This is REQUIRED.
 
                 // Write updated todos back to file
                 await ipcRenderer.invoke('workspace:write-file',
-                  workspace.path,
+                  workspacePathRef.current,
                   '.circuit/todos.json',
                   JSON.stringify(todosData, null, 2)
                 );
@@ -1037,11 +1053,12 @@ Wrap the JSON in triple backticks with 'json' language marker. This is REQUIRED.
       });
 
       pendingUserMessageRef.current = null;
-      pendingAssistantMessageIdRef.current = null; // Clear ref
+      setPendingAssistantMessageId(null); // Clear pending message ID
       setIsSending(false);
   }, [parseFileChanges, onFileEdit]);
 
   const handleResponseError = useCallback(async (_event: any, error: any) => {
+      if (!isMountedRef.current) return; // Prevent setState on unmounted component
       console.error('[WorkspaceChat] Response error:', error);
 
       const pending = pendingUserMessageRef.current;
@@ -1068,6 +1085,7 @@ Wrap the JSON in triple backticks with 'json' language marker. This is REQUIRED.
   }, []);
 
   const handleMessageCancelled = useCallback((_event: any, cancelledSessionId: string) => {
+    if (!isMountedRef.current) return; // Prevent setState on unmounted component
     console.log('[WorkspaceChat] Message cancelled:', cancelledSessionId);
 
     // Reset states
@@ -1077,7 +1095,7 @@ Wrap the JSON in triple backticks with 'json' language marker. This is REQUIRED.
 
     // Clear refs
     pendingUserMessageRef.current = null;
-    pendingAssistantMessageIdRef.current = null;
+    setPendingAssistantMessageId(null);
     thinkingStepsRef.current = [];
 
     // Clear timer if running
@@ -1127,7 +1145,7 @@ Wrap the JSON in triple backticks with 'json' language marker. This is REQUIRED.
       }
 
       await ipcRenderer.invoke('workspace:write-file',
-        workspace.path,
+        workspacePathRef.current,
         '.circuit/todos.json',
         JSON.stringify(todosData, null, 2)
       )
@@ -1235,6 +1253,9 @@ The plan is ready. What would you like to do?`,
     ipcRenderer.on('todos:execute-tasks', handleExecuteTasks);
 
     return () => {
+      // Mark component as unmounted to prevent setState calls
+      isMountedRef.current = false;
+
       // Cleanup timer if component unmounts during thinking
       if (thinkingTimerRef.current) {
         clearInterval(thinkingTimerRef.current);
@@ -1517,14 +1538,14 @@ The plan is ready. What would you like to do?`,
       // Hide empty assistant messages UNLESS it's the pending message (in progress)
       if (msg.role === 'assistant' && !msg.content && (!msg.blocks || msg.blocks.length === 0)) {
         // Keep if it's the pending message currently being streamed
-        if (isSending && msg.id === pendingAssistantMessageIdRef.current) {
+        if (isSending && msg.id === pendingAssistantMessageId) {
           return true;
         }
         return false;
       }
       return true;
     });
-  }, [messagesWithFilteredBlocks, isSending, pendingAssistantMessageIdRef]);
+  }, [messagesWithFilteredBlocks, isSending, pendingAssistantMessageId]);
 
   // Virtual scrolling setup
   const virtualizer = useVirtualizer({
@@ -1610,7 +1631,7 @@ The plan is ready. What would you like to do?`,
                     <MessageComponent
                       msg={msg}
                       isSending={isSending}
-                      pendingAssistantMessageId={pendingAssistantMessageIdRef.current}
+                      pendingAssistantMessageId={pendingAssistantMessageId}
                       messageThinkingSteps={messageThinkingSteps}
                       openReasoningId={openReasoningId}
                       copiedMessageId={copiedMessageId}

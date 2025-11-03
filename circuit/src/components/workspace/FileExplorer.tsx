@@ -354,13 +354,22 @@ const FileTreeItemComponent: React.FC<{
 const FileTreeItem = React.memo(
   FileTreeItemComponent,
   (prevProps, nextProps) => {
+    // Compare children array (for folders)
+    const childrenEqual =
+      prevProps.node.children === nextProps.node.children || // Same reference
+      (prevProps.node.children?.length === nextProps.node.children?.length && // Same length
+       prevProps.node.children?.every((child, i) =>
+         child.path === nextProps.node.children?.[i]?.path
+       ));
+
     return (
       prevProps.node.path === nextProps.node.path &&
       prevProps.node.modified === nextProps.node.modified &&
       prevProps.node.added === nextProps.node.added &&
       prevProps.selectedFile === nextProps.selectedFile &&
       prevProps.searchQuery === nextProps.searchQuery &&
-      prevProps.collapseKey === nextProps.collapseKey
+      prevProps.collapseKey === nextProps.collapseKey &&
+      childrenEqual // Add children comparison
     )
   }
 )
