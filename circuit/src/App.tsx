@@ -29,6 +29,7 @@ import { TerminalProvider } from '@/contexts/TerminalContext'
 import { CompactBanner } from '@/components/CompactBanner'
 import { CompactUrgentModal } from '@/components/CompactUrgentModal'
 import { Toaster } from 'sonner'
+import { FEATURES } from '@/config/features'
 import './App.css'
 
 // Project Path Context
@@ -405,7 +406,7 @@ function App() {
             <div className="flex-1" />
 
             {/* Right side - Toggle plans button (when workspace selected) */}
-            {selectedWorkspace && (
+            {FEATURES.PLAN_MODE && selectedWorkspace && (
               <div
                 className="flex items-center gap-2"
                 style={{ WebkitAppRegion: 'no-drag' } as any}
@@ -475,7 +476,7 @@ function App() {
       </SidebarProvider>
 
       {/* Resize Handle - Overlapping main area border */}
-      {isRightSidebarOpen && (
+      {FEATURES.PLAN_MODE && isRightSidebarOpen && (
         <div
           onMouseDown={handleResizeStart}
           className={cn(
@@ -486,22 +487,24 @@ function App() {
       )}
 
       {/* Right Sidebar - Todo Panel */}
-      <div
-        className={cn(
-          "h-full overflow-hidden",
-          isRightSidebarOpen ? "" : "w-0"
-        )}
-        style={{
-          width: isRightSidebarOpen ? `${rightSidebarWidth}px` : 0,
-          transition: isResizing ? 'none' : 'width 0.3s ease-in-out'
-        }}
-      >
-        <TodoPanel
-          conversationId={activeConversationId}
-          workspace={selectedWorkspace}
-          onCommit={() => setShowCommitDialog(true)}
-        />
-      </div>
+      {FEATURES.PLAN_MODE && (
+        <div
+          className={cn(
+            "h-full overflow-hidden",
+            isRightSidebarOpen ? "" : "w-0"
+          )}
+          style={{
+            width: isRightSidebarOpen ? `${rightSidebarWidth}px` : 0,
+            transition: isResizing ? 'none' : 'width 0.3s ease-in-out'
+          }}
+        >
+          <TodoPanel
+            conversationId={activeConversationId}
+            workspace={selectedWorkspace}
+            onCommit={() => setShowCommitDialog(true)}
+          />
+        </div>
+      )}
 
       {/* Command Palette */}
       <CommandPalette
