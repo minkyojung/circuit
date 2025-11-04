@@ -23,18 +23,30 @@ export function parseBlockMarkers(data: string): {
   // Regex to match our custom OSC sequences
   // Format: ESC ] 1337 ; BlockXXX BEL
   // ESC = \x1b, BEL = \x07
-  const blockMarkerRegex = /\x1b\]1337;Block(Boundary|Start|End(?:=(\d+))?)\x07/g;
+  // Updated to capture command in BlockStart=<base64>
+  const blockMarkerRegex = /\x1b\]1337;Block(Boundary|Start(?:=([A-Za-z0-9+/=]+))?|End(?:=(\d+))?)\x07/g;
 
   let match: RegExpExecArray | null;
   while ((match = blockMarkerRegex.exec(data)) !== null) {
-    const markerType = match[1]; // "Boundary", "Start", or "End=123"
+    const markerType = match[1]; // "Boundary", "Start=<base64>", or "End=123"
 
     if (markerType === 'Boundary') {
       markers.push({ type: 'boundary' });
-    } else if (markerType === 'Start') {
-      markers.push({ type: 'start' });
+    } else if (markerType.startsWith('Start')) {
+      // Extract command from BlockStart=<base64>
+      const cmdBase64 = match[2];
+      let command = '';
+      if (cmdBase64) {
+        try {
+          // Decode base64 command
+          command = atob(cmdBase64);
+        } catch (error) {
+          console.warn('[blockParser] Failed to decode command:', error);
+        }
+      }
+      markers.push({ type: 'start', command });
     } else if (markerType.startsWith('End')) {
-      const exitCode = match[2] ? parseInt(match[2], 10) : 0;
+      const exitCode = match[3] ? parseInt(match[3], 10) : 0;
       markers.push({ type: 'end', exitCode });
     }
   }

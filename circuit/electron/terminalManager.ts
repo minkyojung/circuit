@@ -3,6 +3,7 @@ import * as os from 'os'
 import * as fs from 'fs'
 import * as path from 'path'
 import { EventEmitter } from 'events'
+import { getShellHookManager } from './shellHookManager'
 
 interface TerminalSession {
   ptyProcess: pty.IPty
@@ -50,17 +51,31 @@ export class TerminalManager extends EventEmitter {
     console.log(`[TerminalManager] Using shell: ${shell}, cwd: ${cwd}`)
 
     try {
-      // Spawn PTY process
+      // Get shell type for hook injection
+      const shellHookManager = getShellHookManager()
+      const shellType = shellHookManager.detectShell() || 'zsh' // Default to zsh
+
+      // Get environment with hooks injected
+      let env: Record<string, string>
+      try {
+        env = await shellHookManager.getPtyEnvironment(shellType)
+        console.log(`[TerminalManager] Injected shell hooks for ${shellType} via temporary config`)
+      } catch (error) {
+        console.warn(`[TerminalManager] Failed to inject hooks, using default env:`, error)
+        env = { ...process.env }
+      }
+
+      // Add Circuit-specific environment variables
+      env.TERM_PROGRAM = 'Circuit'
+      env.WORKSPACE_ID = workspaceId
+
+      // Spawn PTY process with hooks-enabled environment
       const ptyProcess = pty.spawn(shell, [], {
         name: 'xterm-256color',
         cols: 80,
         rows: 30,
         cwd,
-        env: {
-          ...process.env,
-          TERM_PROGRAM: 'Conductor',
-          WORKSPACE_ID: workspaceId,
-        }
+        env
       })
 
       // Handle PTY data output
@@ -94,14 +109,24 @@ export class TerminalManager extends EventEmitter {
    * Write data to a terminal session
    */
   writeData(workspaceId: string, data: string): void {
+    console.log(`[TerminalManager] writeData called:`, {
+      workspaceId,
+      data: data.replace(/\n/g, '\\n'),
+      dataLength: data.length,
+      hasSession: this.sessions.has(workspaceId)
+    })
+
     const session = this.sessions.get(workspaceId)
     if (!session) {
-      console.warn(`[TerminalManager] No session found for workspace: ${workspaceId}`)
+      console.error(`[TerminalManager] No session found for workspace: ${workspaceId}`)
+      console.log(`[TerminalManager] Available sessions:`, Array.from(this.sessions.keys()))
       return
     }
 
+    console.log(`[TerminalManager] Writing to PTY process...`)
     session.ptyProcess.write(data)
     session.lastActivity = Date.now()
+    console.log(`[TerminalManager] Data written to PTY successfully`)
   }
 
   /**

@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { X, Settings as SettingsIcon, Cpu, Sparkles, Sliders, Archive, Activity, Terminal as TerminalIcon, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { X, Settings as SettingsIcon, Cpu, Sparkles, Sliders, Archive, Activity, Terminal as TerminalIcon } from 'lucide-react';
 import { useSettingsContext } from '@/contexts/SettingsContext';
 import {
   SettingSection,
@@ -324,11 +324,7 @@ const TerminalSettings: React.FC<SettingsPanelProps> = ({ settings, updateSettin
 
     {settings.terminal.mode === 'modern' && (
       <>
-        <SettingSection title="Shell Integration" description="Required for block system to work">
-          <ShellHookSettings />
-        </SettingSection>
-
-        <SettingSection title="Modern Features" description="Warp-style terminal enhancements">
+        <SettingSection title="Modern Features" description="Warp-style terminal enhancements (auto-configured)">
           <ToggleSetting
             label="Enable Blocks"
             description="Group commands and outputs as separate blocks"
@@ -375,6 +371,7 @@ const TerminalSettings: React.FC<SettingsPanelProps> = ({ settings, updateSettin
           disabled={true}
         />
       </SettingSection>
+      </>
     )}
 
     {settings.terminal.mode === 'classic' && (
@@ -537,150 +534,6 @@ const MCPSettings: React.FC = () => {
     </SettingSection>
   );
 };
-
-// Shell Hook Settings Component
-const ShellHookSettings: React.FC = () => {
-  // @ts-ignore - Electron IPC
-  const { ipcRenderer } = window.require('electron')
-
-  const [isChecking, setIsChecking] = useState(true)
-  const [hookStatus, setHookStatus] = useState<{
-    installed: boolean
-    shell: 'zsh' | 'bash' | 'unknown'
-  }>({ installed: false, shell: 'unknown' })
-  const [isInstalling, setIsInstalling] = useState(false)
-  const [message, setMessage] = useState<string | null>(null)
-
-  // Check hook installation status
-  useEffect(() => {
-    checkHookStatus()
-  }, [])
-
-  const checkHookStatus = async () => {
-    setIsChecking(true)
-    try {
-      const result = await ipcRenderer.invoke('terminal:check-shell-hooks')
-      setHookStatus(result)
-    } catch (error) {
-      console.error('[ShellHookSettings] Failed to check hook status:', error)
-    } finally {
-      setIsChecking(false)
-    }
-  }
-
-  const handleInstall = async () => {
-    if (hookStatus.shell === 'unknown') {
-      setMessage('Unable to detect shell type')
-      return
-    }
-
-    setIsInstalling(true)
-    setMessage(null)
-
-    try {
-      const result = await ipcRenderer.invoke('terminal:install-shell-hooks', hookStatus.shell)
-
-      if (result.success) {
-        setMessage('✓ Hooks installed! Restart your terminal.')
-        await checkHookStatus()
-      } else {
-        setMessage(`✗ Installation failed: ${result.message}`)
-      }
-    } catch (error: any) {
-      setMessage(`✗ Error: ${error.message}`)
-    } finally {
-      setIsInstalling(false)
-    }
-  }
-
-  const handleRemove = async () => {
-    if (hookStatus.shell === 'unknown') return
-
-    setIsInstalling(true)
-    setMessage(null)
-
-    try {
-      const result = await ipcRenderer.invoke('terminal:remove-shell-hooks', hookStatus.shell)
-
-      if (result.success) {
-        setMessage('✓ Hooks removed')
-        await checkHookStatus()
-      } else {
-        setMessage(`✗ Removal failed: ${result.message}`)
-      }
-    } catch (error: any) {
-      setMessage(`✗ Error: ${error.message}`)
-    } finally {
-      setIsInstalling(false)
-    }
-  }
-
-  if (isChecking) {
-    return (
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Loader2 className="w-4 h-4 animate-spin" />
-        Checking shell hooks...
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-3">
-      {/* Status */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          {hookStatus.installed ? (
-            <>
-              <CheckCircle2 className="w-4 h-4 text-green-500" />
-              <span className="text-sm text-foreground">Hooks installed ({hookStatus.shell})</span>
-            </>
-          ) : (
-            <>
-              <AlertCircle className="w-4 h-4 text-amber-500" />
-              <span className="text-sm text-foreground">Hooks not installed ({hookStatus.shell})</span>
-            </>
-          )}
-        </div>
-
-        <div className="flex gap-2">
-          {hookStatus.installed ? (
-            <button
-              onClick={handleRemove}
-              disabled={isInstalling}
-              className="px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 rounded-md transition-colors disabled:opacity-50"
-            >
-              {isInstalling ? 'Removing...' : 'Remove'}
-            </button>
-          ) : (
-            <button
-              onClick={handleInstall}
-              disabled={isInstalling || hookStatus.shell === 'unknown'}
-              className="px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded-md transition-colors disabled:opacity-50"
-            >
-              {isInstalling ? 'Installing...' : 'Install Hooks'}
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Message */}
-      {message && (
-        <div className={cn(
-          "text-xs px-3 py-2 rounded-md",
-          message.startsWith('✓') ? 'bg-green-500/10 text-green-700 dark:text-green-400' : 'bg-red-500/10 text-red-700 dark:text-red-400'
-        )}>
-          {message}
-        </div>
-      )}
-
-      {/* Info */}
-      <div className="text-xs text-muted-foreground leading-relaxed">
-        Shell hooks inject commands into your <code className="px-1 py-0.5 bg-muted rounded text-foreground">.{hookStatus.shell}rc</code> to enable block boundaries.
-        You'll need to restart your terminal after installation.
-      </div>
-    </div>
-  )
-}
 
 const ArchiveSettings: React.FC = () => {
   const [workspaces, setWorkspaces] = React.useState<any[]>([])

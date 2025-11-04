@@ -4,7 +4,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
 import FontFaceObserver from 'fontfaceobserver'
-import { useBlock } from './BlockContext'
+import { useBlocks } from './BlockContext'
 import { useSettingsContext } from './SettingsContext'
 
 // @ts-ignore - Electron IPC
@@ -49,6 +49,9 @@ interface TerminalContextValue extends TerminalState {
 
   // Destroy terminal session
   destroyTerminal: (workspaceId: string) => void
+
+  // Write data to terminal (send commands)
+  writeData: (workspaceId: string, data: string) => void
 
   // UI state controls
   toggleTerminal: () => void
@@ -111,7 +114,7 @@ export function TerminalProvider({ children }: TerminalProviderProps) {
   const createdSessions = useRef<Set<string>>(new Set())
 
   // Get block context and settings for Modern terminal mode
-  const { processData } = useBlock()
+  const { processData } = useBlocks()
   const { settings } = useSettingsContext()
 
   // Persist state changes
@@ -292,6 +295,26 @@ export function TerminalProvider({ children }: TerminalProviderProps) {
     createdSessions.current.delete(workspaceId)
   }
 
+  const writeData = (workspaceId: string, data: string) => {
+    console.log(`[TerminalContext] writeData called:`, {
+      workspaceId,
+      data: data.replace(/\n/g, '\\n'),
+      dataLength: data.length
+    })
+
+    // Send data to PTY session via IPC
+    ipcRenderer.invoke('terminal:write', workspaceId, data)
+      .then((result: any) => {
+        console.log(`[TerminalContext] writeData IPC response:`, result)
+        if (!result?.success) {
+          console.error(`[TerminalContext] Write failed:`, result?.error)
+        }
+      })
+      .catch((error: any) => {
+        console.error(`[TerminalContext] writeData IPC error:`, error)
+      })
+  }
+
   const toggleTerminal = () => {
     setIsOpen(prev => !prev)
   }
@@ -309,6 +332,7 @@ export function TerminalProvider({ children }: TerminalProviderProps) {
     createPtySession,
     switchWorkspace,
     destroyTerminal,
+    writeData,
     toggleTerminal,
     setHeight,
     hasTerminal,

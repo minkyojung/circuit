@@ -120,7 +120,7 @@ trap '__circuit_debug_trap' DEBUG
  */
 export type BlockMarkerEvent =
   | { type: 'boundary' }
-  | { type: 'start' }
+  | { type: 'start'; command?: string }
   | { type: 'end'; exitCode: number };
 
 /**

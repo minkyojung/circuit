@@ -71,17 +71,33 @@ export class BlockManager {
   private handleMarker(workspaceId: string, marker: BlockMarkerEvent, cwd: string): void {
     const currentState = this.state.get(workspaceId) ?? { type: 'idle' };
 
+    console.log(`[BlockManager] handleMarker:`, {
+      workspaceId,
+      markerType: marker.type,
+      command: marker.type === 'start' ? marker.command : undefined,
+      currentState: currentState.type
+    });
+
     switch (marker.type) {
       case 'boundary':
         // Prompt boundary - prepare for command input
+        console.log(`[BlockManager] Boundary: setting state to command_input`);
         this.state.set(workspaceId, { type: 'command_input', buffer: '' });
         break;
 
       case 'start': {
         // Command execution started
-        const command = this.commandBuffer.get(workspaceId) ?? '';
+        // Use command from marker (passed from preexec) instead of commandBuffer
+        const command = marker.command || '';
         const blockId = nanoid();
         const startTime = Date.now();
+
+        console.log(`[BlockManager] Start: creating block`, {
+          rawCommand: command,
+          extractedCommand: extractCommand(command),
+          blockId,
+          currentBlocks: this.blocks.get(workspaceId)?.length || 0
+        });
 
         // Create new block
         const block: TerminalBlock = {
@@ -97,9 +113,11 @@ export class BlockManager {
         };
 
         this.addBlock(workspaceId, block);
+        console.log(`[BlockManager] Block created, total blocks: ${this.blocks.get(workspaceId)?.length || 0}`);
 
         // Update state
         this.state.set(workspaceId, { type: 'executing', blockId, startTime });
+        // Clear commandBuffer (no longer needed but keep for backwards compatibility)
         this.commandBuffer.delete(workspaceId);
         break;
       }

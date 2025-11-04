@@ -1,10 +1,10 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Workspace } from '@/types/workspace'
 import { useSettingsContext } from '@/contexts/SettingsContext'
-import { useBlock } from '@/contexts/BlockContext'
+import { useBlocks } from '@/contexts/BlockContext'
 import { useTerminal } from '@/contexts/TerminalContext'
 import { BlockList } from './BlockList'
-import { Terminal as TerminalIcon, Sparkles, Layers } from 'lucide-react'
+import { Terminal as TerminalIcon, Sparkles, Layers, Send } from 'lucide-react'
 
 interface ModernTerminalProps {
   workspace: Workspace
@@ -12,8 +12,12 @@ interface ModernTerminalProps {
 
 export function ModernTerminal({ workspace }: ModernTerminalProps) {
   const { settings } = useSettingsContext()
-  const { getBlocks } = useBlock()
-  const { getOrCreateTerminal, createPtySession } = useTerminal()
+  const { getBlocks } = useBlocks()
+  const { getOrCreateTerminal, createPtySession, writeData } = useTerminal()
+  const [inputValue, setInputValue] = useState('')
+  const [isPtyReady, setIsPtyReady] = useState(false)
+  const [isInitializing, setIsInitializing] = useState(true)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   // Get real blocks from BlockContext
   const blocks = getBlocks(workspace.id)
@@ -21,29 +25,54 @@ export function ModernTerminal({ workspace }: ModernTerminalProps) {
   const blocksEnabled = settings.terminal.modernFeatures.enableBlocks
 
   // Initialize PTY session for this workspace
+  // CRITICAL: PTY session MUST be created regardless of blocksEnabled
+  // The terminal needs PTY to function, blocks are just a UI feature
   useEffect(() => {
     let isMounted = true
+    setIsInitializing(true)
+    setIsPtyReady(false)
 
     const initPty = async () => {
-      if (!workspace || !blocksEnabled) return
-
-      console.log('[ModernTerminal] Initializing PTY for workspace:', workspace.id)
-
-      // Create terminal data (needed for PTY session)
-      const terminalData = await getOrCreateTerminal(workspace.id, workspace.path)
-      if (!terminalData || !isMounted) {
-        console.error('[ModernTerminal] Failed to get terminal data')
+      if (!workspace) {
+        console.error('[ModernTerminal] No workspace provided')
+        setIsInitializing(false)
         return
       }
 
-      // Create PTY session if not already created
-      if (!terminalData.hasInitialized) {
-        terminalData.hasInitialized = true
-        const success = await createPtySession(workspace.id, workspace.path)
-        if (!success) {
-          console.error('[ModernTerminal] Failed to create PTY session')
+      console.log('[ModernTerminal] Initializing PTY for workspace:', workspace.id)
+
+      try {
+        // Create terminal data (needed for PTY session)
+        const terminalData = await getOrCreateTerminal(workspace.id, workspace.path)
+        if (!terminalData || !isMounted) {
+          console.error('[ModernTerminal] Failed to get terminal data')
+          setIsInitializing(false)
+          return
+        }
+
+        // Create PTY session if not already created
+        if (!terminalData.hasInitialized) {
+          console.log('[ModernTerminal] Creating new PTY session...')
+          terminalData.hasInitialized = true
+          const success = await createPtySession(workspace.id, workspace.path)
+
+          if (!success) {
+            console.error('[ModernTerminal] Failed to create PTY session')
+            setIsPtyReady(false)
+          } else {
+            console.log('[ModernTerminal] ✓ PTY session created successfully')
+            setIsPtyReady(true)
+          }
         } else {
-          console.log('[ModernTerminal] PTY session created successfully')
+          console.log('[ModernTerminal] PTY session already exists')
+          setIsPtyReady(true)
+        }
+      } catch (error) {
+        console.error('[ModernTerminal] Error during PTY initialization:', error)
+        setIsPtyReady(false)
+      } finally {
+        if (isMounted) {
+          setIsInitializing(false)
         }
       }
     }
@@ -53,7 +82,44 @@ export function ModernTerminal({ workspace }: ModernTerminalProps) {
     return () => {
       isMounted = false
     }
-  }, [workspace.id, workspace.path, blocksEnabled, getOrCreateTerminal, createPtySession])
+  }, [workspace.id, workspace.path, getOrCreateTerminal, createPtySession])
+
+  // Handle command submission
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    console.log('[ModernTerminal] handleSubmit called:', {
+      inputValue,
+      isPtyReady,
+      hasWriteData: !!writeData,
+      workspaceId: workspace.id
+    })
+
+    if (!inputValue.trim()) {
+      console.log('[ModernTerminal] Empty input, ignoring')
+      return
+    }
+
+    if (!writeData) {
+      console.error('[ModernTerminal] writeData function not available!')
+      return
+    }
+
+    if (!isPtyReady) {
+      console.warn('[ModernTerminal] PTY not ready yet, waiting...')
+      // Try to send anyway, IPC handler might queue it
+    }
+
+    // Send command to PTY (with newline)
+    console.log('[ModernTerminal] Sending command to PTY:', inputValue)
+    try {
+      writeData(workspace.id, inputValue + '\n')
+      setInputValue('')
+      console.log('[ModernTerminal] Command sent successfully')
+    } catch (error) {
+      console.error('[ModernTerminal] Failed to send command:', error)
+    }
+  }
 
   // Debug logging
   console.log('[ModernTerminal] Settings check:', {
@@ -131,7 +197,7 @@ export function ModernTerminal({ workspace }: ModernTerminalProps) {
                 <TerminalIcon className="w-12 h-12 mx-auto mb-2 opacity-50" />
                 <p className="text-sm">No commands yet</p>
                 <p className="text-xs mt-1">
-                  Commands you run will appear as blocks here
+                  Type a command below to get started
                 </p>
               </div>
             </div>
@@ -144,6 +210,36 @@ export function ModernTerminal({ workspace }: ModernTerminalProps) {
             highlightFailed={settings.terminal.modernFeatures.highlightFailedCommands}
             autoScroll={true}
           />
+        )}
+      </div>
+
+      {/* Command Input */}
+      <div className="border-t border-border bg-muted/20">
+        <form onSubmit={handleSubmit} className="flex items-center gap-2 px-4 py-3">
+          <div className="text-sm text-muted-foreground">$</div>
+          <input
+            ref={inputRef}
+            type="text"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            placeholder={isInitializing ? "Initializing terminal..." : (isPtyReady ? "Type a command..." : "Terminal not ready...")}
+            className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none font-mono"
+            disabled={isInitializing}
+            autoFocus
+          />
+          <button
+            type="submit"
+            disabled={!inputValue.trim() || isInitializing}
+            className="p-1.5 rounded hover:bg-muted transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            title={isInitializing ? "Initializing..." : (!isPtyReady ? "Terminal not ready" : "Send command")}
+          >
+            <Send className="w-4 h-4 text-muted-foreground" />
+          </button>
+        </form>
+        {!isPtyReady && !isInitializing && (
+          <div className="px-4 pb-2 text-xs text-amber-500">
+            Terminal session not ready. Check console for errors.
+          </div>
         )}
       </div>
     </div>

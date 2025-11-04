@@ -3,11 +3,14 @@
  *
  * Manages injection and removal of shell hooks for block detection
  * in user's shell configuration files (.zshrc, .bashrc)
+ *
+ * v2: Now supports automatic temporary config injection for PTY sessions
  */
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
+import { app } from 'electron';
 
 const HOOK_MARKER_START = '# === Circuit Terminal Hooks START ===';
 const HOOK_MARKER_END = '# === Circuit Terminal Hooks END ===';
@@ -22,10 +25,10 @@ const SHELL_HOOKS = {
 # Added by Circuit - Modern Terminal Mode
 
 __circuit_precmd() {
-  local exit_code=$?
+  local exit_code=\$?
   # Send block end with exit code from previous command
-  if [ -n "$__circuit_command_running" ]; then
-    printf "\\033]1337;BlockEnd=%s\\007" "$exit_code"
+  if [ -n "\$__circuit_command_running" ]; then
+    printf "\\033]1337;BlockEnd=%s\\007" "\$exit_code"
     unset __circuit_command_running
   fi
   # Send block boundary before prompt
@@ -33,14 +36,21 @@ __circuit_precmd() {
 }
 
 __circuit_preexec() {
-  # Send block start before command execution
-  printf "\\033]1337;BlockStart\\007"
+  # Send block start with command included in OSC sequence
+  # This avoids prompt contamination in commandBuffer
+  # Base64 encode to safely transmit special characters
+  local cmd_b64=\$(printf "%s" "\$1" | base64)
+  printf "\\033]1337;BlockStart=%s\\007" "\$cmd_b64"
   __circuit_command_running=1
 }
 
-# Register hooks
-precmd_functions+=(__circuit_precmd)
-preexec_functions+=(__circuit_preexec)
+# Register hooks (with guards to prevent duplicate registration)
+if [[ ! " \${precmd_functions[@]} " =~ " __circuit_precmd " ]]; then
+  precmd_functions+=(__circuit_precmd)
+fi
+if [[ ! " \${preexec_functions[@]} " =~ " __circuit_preexec " ]]; then
+  preexec_functions+=(__circuit_preexec)
+fi
 `,
 
   bash: `
@@ -48,10 +58,10 @@ preexec_functions+=(__circuit_preexec)
 # Added by Circuit - Modern Terminal Mode
 
 __circuit_precmd() {
-  local exit_code=$?
+  local exit_code=\$?
   # Send block end with exit code from previous command
-  if [ -n "$__circuit_command_running" ]; then
-    printf "\\033]1337;BlockEnd=%s\\007" "$exit_code"
+  if [ -n "\$__circuit_command_running" ]; then
+    printf "\\033]1337;BlockEnd=%s\\007" "\$exit_code"
     unset __circuit_command_running
   fi
   # Send block boundary before prompt
@@ -59,21 +69,34 @@ __circuit_precmd() {
 }
 
 __circuit_preexec() {
-  # Send block start before command execution
-  printf "\\033]1337;BlockStart\\007"
+  # Send block start with command included in OSC sequence
+  # Base64 encode to safely transmit special characters
+  local cmd_b64=\$(printf "%s" "\$BASH_COMMAND" | base64)
+  printf "\\033]1337;BlockStart=%s\\007" "\$cmd_b64"
   __circuit_command_running=1
 }
 
 # Bash doesn't have preexec by default, so we need to emulate it
 __circuit_debug_trap() {
-  if [ -n "$BASH_COMMAND" ] && [ "$BASH_COMMAND" != "__circuit_precmd" ]; then
+  if [ -n "\$BASH_COMMAND" ] && [ "\$BASH_COMMAND" != "__circuit_precmd" ]; then
     __circuit_preexec
   fi
 }
 
-# Register hooks
-PROMPT_COMMAND="__circuit_precmd"
-trap '__circuit_debug_trap' DEBUG
+# Register hooks (with guards to prevent duplicate registration)
+# For PROMPT_COMMAND, append if not already present
+if [[ "\$PROMPT_COMMAND" != *"__circuit_precmd"* ]]; then
+  if [ -n "\$PROMPT_COMMAND" ]; then
+    PROMPT_COMMAND="\$PROMPT_COMMAND; __circuit_precmd"
+  else
+    PROMPT_COMMAND="__circuit_precmd"
+  fi
+fi
+
+# For DEBUG trap, only set if not already set
+if [[ "\$(trap -p DEBUG)" != *"__circuit_debug_trap"* ]]; then
+  trap '__circuit_debug_trap' DEBUG
+fi
 `,
 } as const;
 
@@ -247,6 +270,110 @@ export class ShellHookManager {
     }
 
     return null;
+  }
+
+  /**
+   * Create temporary shell config with hooks for PTY session
+   * This doesn't modify user's actual shell config files
+   *
+   * @param shellType - 'zsh' or 'bash'
+   * @returns Path to temporary config directory
+   */
+  async createTempShellConfig(shellType: 'zsh' | 'bash'): Promise<string> {
+    try {
+      // Create temp directory in app data
+      const userDataPath = app.getPath('userData');
+      const tempConfigDir = path.join(userDataPath, 'circuit-shell-configs', shellType);
+
+      // Ensure directory exists
+      await fs.mkdir(tempConfigDir, { recursive: true });
+
+      // Get the hook script
+      const hookScript = SHELL_HOOKS[shellType];
+
+      // Read user's existing config (if any) to preserve their settings
+      const userConfigPath = this.getShellConfigPath(shellType);
+      let userConfig = '';
+      try {
+        userConfig = await fs.readFile(userConfigPath, 'utf-8');
+      } catch (error: any) {
+        if (error.code !== 'ENOENT') {
+          console.warn('[ShellHookManager] Could not read user config:', error.message);
+        }
+      }
+
+      // Create temporary config that sources user's config + adds our hooks
+      let tempConfig = '';
+
+      if (shellType === 'zsh') {
+        // For zsh: source user's .zshrc first, then add hooks
+        tempConfig = `# Circuit Terminal - Temporary Config
+# This file is auto-generated and sources your original .zshrc
+
+# Source user's original config (if exists)
+if [ -f "${userConfigPath}" ]; then
+  source "${userConfigPath}"
+fi
+
+# Circuit hooks
+${hookScript}
+`;
+
+        // Write .zshrc to temp directory
+        const tempZshrc = path.join(tempConfigDir, '.zshrc');
+        await fs.writeFile(tempZshrc, tempConfig, 'utf-8');
+
+      } else if (shellType === 'bash') {
+        // For bash: source user's .bashrc first, then add hooks
+        tempConfig = `# Circuit Terminal - Temporary Config
+# This file is auto-generated and sources your original .bashrc
+
+# Source user's original config (if exists)
+if [ -f "${userConfigPath}" ]; then
+  source "${userConfigPath}"
+fi
+
+# Circuit hooks
+${hookScript}
+`;
+
+        // Write .bashrc to temp directory
+        const tempBashrc = path.join(tempConfigDir, '.bashrc');
+        await fs.writeFile(tempBashrc, tempConfig, 'utf-8');
+      }
+
+      console.log('[ShellHookManager] Created temp shell config:', tempConfigDir);
+      return tempConfigDir;
+    } catch (error: any) {
+      console.error('[ShellHookManager] Failed to create temp config:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get environment variables to inject hooks into PTY session
+   * This modifies the shell to use our temporary config with hooks
+   *
+   * @param shellType - 'zsh' or 'bash'
+   * @returns Environment variables object for PTY
+   */
+  async getPtyEnvironment(shellType: 'zsh' | 'bash'): Promise<Record<string, string>> {
+    const tempConfigDir = await this.createTempShellConfig(shellType);
+
+    const env: Record<string, string> = {
+      ...process.env,
+    };
+
+    if (shellType === 'zsh') {
+      // ZDOTDIR tells zsh where to find .zshrc
+      env.ZDOTDIR = tempConfigDir;
+    } else if (shellType === 'bash') {
+      // BASH_ENV is sourced for non-interactive shells
+      // For interactive shells, we'll use --rcfile flag in PTY spawn
+      env.BASH_ENV = path.join(tempConfigDir, '.bashrc');
+    }
+
+    return env;
   }
 }
 

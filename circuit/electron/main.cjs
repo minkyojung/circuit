@@ -3914,8 +3914,25 @@ ipcMain.handle('terminal:create-session', async (event, workspaceId, workspacePa
  */
 ipcMain.handle('terminal:write', async (event, workspaceId, data) => {
   try {
+    console.log('[Terminal] Write request:', {
+      workspaceId,
+      data: data.replace(/\n/g, '\\n'),
+      dataLength: data.length
+    });
     const manager = await getTerminalManagerInstance();
+    const hasSession = manager.hasSession(workspaceId);
+    console.log('[Terminal] Session exists:', hasSession);
+
+    if (!hasSession) {
+      console.error('[Terminal] No session found for workspace:', workspaceId);
+      return {
+        success: false,
+        error: `No terminal session found for workspace: ${workspaceId}`
+      };
+    }
+
     manager.writeData(workspaceId, data);
+    console.log('[Terminal] Data written successfully');
     return { success: true };
   } catch (error) {
     console.error('[Terminal] Failed to write data:', error);
