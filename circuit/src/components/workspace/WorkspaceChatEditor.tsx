@@ -59,6 +59,16 @@ interface WorkspaceChatEditorProps {
 
   // Unsaved changes callback
   onUnsavedChange?: (filePath: string, hasChanges: boolean) => void;
+
+  // File reference click callback
+  onFileReferenceClick?: (filePath: string, lineStart?: number, lineEnd?: number) => void;
+
+  // File cursor position for jumping to line
+  fileCursorPosition?: {
+    filePath: string
+    lineStart: number
+    lineEnd: number
+  } | null;
 }
 
 type ViewMode = 'chat' | 'editor' | 'split';
@@ -73,7 +83,9 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
   viewMode: externalViewMode,
   onViewModeChange,
   openFiles: externalOpenFiles = [],
-  onUnsavedChange
+  onUnsavedChange,
+  onFileReferenceClick,
+  fileCursorPosition
 }) => {
   const [sessionId, setSessionId] = useState<string | null>(null);
 
@@ -148,6 +160,7 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
             selectedFile={selectedFile}
             onCloseFile={handleCloseFile}
             onUnsavedChange={onUnsavedChange}
+            fileCursorPosition={fileCursorPosition}
           />
         </div>
       )}
@@ -174,6 +187,7 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
               selectedFile={selectedFile}
               onCloseFile={handleCloseFile}
               onUnsavedChange={onUnsavedChange}
+              fileCursorPosition={fileCursorPosition}
             />
           </ResizablePanel>
         </ResizablePanelGroup>
@@ -1747,6 +1761,7 @@ The plan is ready. What would you like to do?`,
                       onCopyMessage={handleCopyMessage}
                       onToggleReasoning={handleToggleReasoning}
                       onExecuteCommand={handleExecuteCommand}
+                      onFileReferenceClick={onFileReferenceClick}
                     />
                   </div>
                 </div>
@@ -1856,6 +1871,11 @@ interface EditorPanelProps {
   selectedFile: string | null;
   onCloseFile?: (filePath: string) => void;
   onUnsavedChange?: (filePath: string, hasChanges: boolean) => void;
+  fileCursorPosition?: {
+    filePath: string
+    lineStart: number
+    lineEnd: number
+  } | null;
 }
 
 const EditorPanel: React.FC<EditorPanelProps> = ({
@@ -1864,6 +1884,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
   selectedFile,
   onCloseFile,
   onUnsavedChange,
+  fileCursorPosition,
 }) => {
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [fileContents, setFileContents] = useState<Map<string, string>>(new Map());
@@ -1871,6 +1892,9 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
   const [unsavedChanges, setUnsavedChanges] = useState<Map<string, boolean>>(new Map());
   const [isSaving, setIsSaving] = useState(false);
   const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit');
+
+  // Monaco editor instance ref
+  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
 
   // Set active file when selectedFile changes (from sidebar)
   useEffect(() => {
@@ -1980,6 +2004,48 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activeFile, hasUnsavedChanges, fileContent]);
 
+  // Handle Monaco editor mount
+  const handleEditorDidMount = (editor: monaco.editor.IStandaloneCodeEditor) => {
+    editorRef.current = editor;
+  };
+
+  // Jump to line when fileCursorPosition changes
+  useEffect(() => {
+    if (!editorRef.current || !fileCursorPosition) return;
+    if (fileCursorPosition.filePath !== activeFile) return;
+
+    const editor = editorRef.current;
+    const { lineStart, lineEnd } = fileCursorPosition;
+
+    // Reveal line in center of editor
+    editor.revealLineInCenter(lineStart);
+
+    // Set cursor position
+    editor.setPosition({ lineNumber: lineStart, column: 1 });
+
+    // Highlight line range with animation
+    const decorations = editor.deltaDecorations([], [
+      {
+        range: new monaco.Range(lineStart, 1, lineEnd, 1),
+        options: {
+          isWholeLine: true,
+          className: 'highlighted-line-reference',
+          glyphMarginClassName: 'highlighted-line-glyph'
+        }
+      }
+    ]);
+
+    // Clear highlight after 2 seconds
+    const timeout = setTimeout(() => {
+      editor.deltaDecorations(decorations, []);
+    }, 2000);
+
+    // Focus editor
+    editor.focus();
+
+    return () => clearTimeout(timeout);
+  }, [fileCursorPosition, activeFile]);
+
   return (
     <div className="h-full flex flex-col">
       {/* Editor Content */}
@@ -2036,6 +2102,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
               language={getLanguageFromFilePath(activeFile || '')}
               value={fileContent}
               onChange={handleContentChange}
+              onMount={handleEditorDidMount}
               theme="vs-dark"
               options={{
                 readOnly: false,

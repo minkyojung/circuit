@@ -20,6 +20,7 @@ export interface MessageComponentProps {
   onCopyMessage: (messageId: string, content: string) => void;
   onToggleReasoning: (messageId: string) => void;
   onExecuteCommand: (command: string) => Promise<void>;
+  onFileReferenceClick?: (filePath: string, lineStart?: number, lineEnd?: number) => void;
 }
 
 const MessageComponentInner: React.FC<MessageComponentProps> = ({
@@ -33,6 +34,7 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
   onCopyMessage,
   onToggleReasoning,
   onExecuteCommand,
+  onFileReferenceClick,
 }) => {
   return (
     <div
@@ -166,6 +168,7 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
             blocks={msg.filteredBlocks || msg.blocks}
             onCopy={(content) => navigator.clipboard.writeText(content)}
             onExecute={onExecuteCommand}
+            onFileReferenceClick={onFileReferenceClick}
           />
         ) : (
           <div className="text-base font-normal text-foreground whitespace-pre-wrap leading-relaxed">

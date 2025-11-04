@@ -32,6 +32,7 @@ interface BlockRendererProps {
   onCopy?: (content: string) => void
   onExecute?: (content: string) => void
   onBookmark?: (blockId: string) => void
+  onFileReferenceClick?: (filePath: string, lineStart?: number, lineEnd?: number) => void
 }
 
 /**
@@ -122,12 +123,14 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
   onCopy,
   onExecute,
   onBookmark,
+  onFileReferenceClick,
 }) => {
   // Common props passed to all block components
   const commonProps = {
     block,
     onCopy: onCopy || (() => navigator.clipboard.writeText(block.content)),
     onBookmark: onBookmark || (() => console.log('Bookmark:', block.id)),
+    onFileReferenceClick,
   }
 
   // Wrapper function to add data-block-id to all blocks
@@ -349,9 +352,10 @@ interface BlockListProps {
   onCopy?: (content: string) => void
   onExecute?: (content: string) => void
   onBookmark?: (blockId: string) => void
+  onFileReferenceClick?: (filePath: string, lineStart?: number, lineEnd?: number) => void
 }
 
-export const BlockList: React.FC<BlockListProps> = ({ blocks, onCopy, onExecute, onBookmark }) => {
+export const BlockList: React.FC<BlockListProps> = ({ blocks, onCopy, onExecute, onBookmark, onFileReferenceClick }) => {
   return (
     <div className="space-y-4">
       {blocks.map((block) => (
@@ -361,6 +365,7 @@ export const BlockList: React.FC<BlockListProps> = ({ blocks, onCopy, onExecute,
           onCopy={onCopy}
           onExecute={onExecute}
           onBookmark={onBookmark}
+          onFileReferenceClick={onFileReferenceClick}
         />
       ))}
     </div>

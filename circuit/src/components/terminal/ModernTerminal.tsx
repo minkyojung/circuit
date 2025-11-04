@@ -4,7 +4,7 @@ import { useSettingsContext } from '@/contexts/SettingsContext'
 import { useBlocks } from '@/contexts/BlockContext'
 import { useTerminal } from '@/contexts/TerminalContext'
 import { BlockList } from './BlockList'
-import { Terminal as TerminalIcon, Sparkles, Layers, Send } from 'lucide-react'
+import { Terminal as TerminalIcon, Sparkles, Layers, Send, ChevronDown, FolderOpen, Home, Copy } from 'lucide-react'
 
 interface ModernTerminalProps {
   workspace: Workspace
@@ -23,6 +23,9 @@ export function ModernTerminal({ workspace }: ModernTerminalProps) {
   const [history, setHistory] = useState<string[]>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
   const [tempInput, setTempInput] = useState('') // Save current input when navigating history
+
+  // Directory dropdown
+  const [isDirectoryDropdownOpen, setIsDirectoryDropdownOpen] = useState(false)
 
   // Get real blocks from BlockContext
   const blocks = getBlocks(workspace.id)
@@ -52,6 +55,47 @@ export function ModernTerminal({ workspace }: ModernTerminalProps) {
   }
 
   const currentDir = formatPath(getCurrentDirectory())
+
+  // Get path segments for directory navigation
+  const getPathSegments = (path: string): { name: string; fullPath: string }[] => {
+    const homeDir = process.env.HOME || process.env.USERPROFILE || ''
+    let segments: { name: string; fullPath: string }[] = []
+
+    // Replace ~ with actual home directory for processing
+    let fullPath = path
+    if (path.startsWith('~')) {
+      fullPath = homeDir + path.slice(1)
+    }
+
+    // Split path into segments
+    const parts = fullPath.split('/').filter(p => p)
+    let currentPath = ''
+
+    // Add home segment
+    segments.push({ name: '~', fullPath: homeDir })
+
+    // Add each directory segment
+    for (const part of parts) {
+      currentPath += '/' + part
+      const displayPath = currentPath.startsWith(homeDir)
+        ? '~' + currentPath.slice(homeDir.length)
+        : currentPath
+      segments.push({ name: part, fullPath: displayPath })
+    }
+
+    return segments
+  }
+
+  // Handle directory change
+  const handleChangeDirectory = (path: string) => {
+    if (!writeData || !isPtyReady) return
+    console.log('[ModernTerminal] Changing directory to:', path)
+    writeData(workspace.id, `cd ${path}\n`)
+    setIsDirectoryDropdownOpen(false)
+  }
+
+  const pathSegments = getPathSegments(currentDir)
+  const currentFolderName = pathSegments[pathSegments.length - 1]?.name || 'unknown'
 
   // Load command history from localStorage on mount
   useEffect(() => {
@@ -346,11 +390,82 @@ export function ModernTerminal({ workspace }: ModernTerminalProps) {
         )}
       </div>
 
-      {/* Command Input */}
+      {/* Command Input Section */}
       <div className="border-t border-border bg-muted/20">
+        {/* Directory Navigation Bar */}
+        <div className="px-4 py-2 border-b border-border/50 bg-background/50">
+          <div className="relative inline-block">
+            <button
+              onClick={() => setIsDirectoryDropdownOpen(!isDirectoryDropdownOpen)}
+              className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-muted/50 transition-colors text-sm"
+              disabled={isInitializing}
+            >
+              <FolderOpen className="w-3.5 h-3.5 text-blue-500" />
+              <span className="font-mono text-foreground">{currentFolderName}</span>
+              <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+            </button>
+
+            {/* Dropdown Menu */}
+            {isDirectoryDropdownOpen && (
+              <>
+                {/* Backdrop to close dropdown */}
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setIsDirectoryDropdownOpen(false)}
+                />
+
+                {/* Menu */}
+                <div className="absolute left-0 top-full mt-1 z-20 min-w-[300px] rounded-md border border-border bg-background shadow-lg">
+                  {/* Current Full Path */}
+                  <div className="px-3 py-2 border-b border-border/50 bg-muted/30">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-mono text-muted-foreground truncate flex-1">
+                        {currentDir}
+                      </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          navigator.clipboard.writeText(getCurrentDirectory())
+                        }}
+                        className="p-1 hover:bg-muted rounded transition-colors"
+                        title="Copy full path"
+                      >
+                        <Copy className="w-3 h-3 text-muted-foreground" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Parent Directories */}
+                  <div className="py-1">
+                    {pathSegments.slice(0, -1).reverse().map((segment, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => handleChangeDirectory(segment.fullPath)}
+                        className="w-full px-3 py-1.5 text-left hover:bg-muted/50 transition-colors flex items-center gap-2"
+                      >
+                        {segment.name === '~' ? (
+                          <Home className="w-3.5 h-3.5 text-muted-foreground" />
+                        ) : (
+                          <FolderOpen className="w-3.5 h-3.5 text-muted-foreground" />
+                        )}
+                        <span className="text-sm font-mono">
+                          {segment.name}
+                        </span>
+                        <span className="text-xs text-muted-foreground ml-auto">
+                          cd {segment.fullPath}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Command Input */}
         <form onSubmit={handleSubmit} className="flex items-center gap-2 px-4 py-3">
-          <div className="text-sm text-muted-foreground font-mono flex items-center gap-1.5">
-            <span className="text-blue-500">{currentDir}</span>
+          <div className="text-sm text-muted-foreground font-mono">
             <span>$</span>
           </div>
           <input

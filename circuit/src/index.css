@@ -285,6 +285,30 @@
     background: hsl(var(--sidebar-foreground-muted) / 0.5);
   }
 
+  /* ===== FILE REFERENCE LINE HIGHLIGHTING ===== */
+  /* Line highlight animation for file references */
+  .highlighted-line-reference {
+    background-color: rgba(59, 130, 246, 0.15) !important;
+    animation: highlight-fade 2s ease-out;
+  }
+
+  .highlighted-line-glyph {
+    background-color: rgba(59, 130, 246, 0.4) !important;
+    width: 3px !important;
+  }
+
+  @keyframes highlight-fade {
+    0% {
+      background-color: rgba(59, 130, 246, 0.3) !important;
+    }
+    50% {
+      background-color: rgba(59, 130, 246, 0.15) !important;
+    }
+    100% {
+      background-color: rgba(59, 130, 246, 0.05) !important;
+    }
+  }
+
   /* ===== RESIZABLE PANELS ===== */
   /* Completely disable all hover/active effects on resize handle */
   [data-panel-resize-handle-enabled],

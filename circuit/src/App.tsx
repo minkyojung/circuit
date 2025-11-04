@@ -68,6 +68,13 @@ function App() {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
   const [currentRepository, setCurrentRepository] = useState<any>(null)
 
+  // File cursor position for jumping to line
+  const [fileCursorPosition, setFileCursorPosition] = useState<{
+    filePath: string
+    lineStart: number
+    lineEnd: number
+  } | null>(null)
+
   // File tabs state (lifted from WorkspaceChatEditor)
   const [openFiles, setOpenFiles] = useState<string[]>([])
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null)
@@ -181,15 +188,31 @@ function App() {
     return projectPath.split('/').filter(Boolean).pop() || 'Unknown Repository'
   }, [currentRepository, projectPath])
 
-  // Handle file selection from sidebar
-  const handleFileSelect = (filePath: string) => {
-    console.log('[App] File selected:', filePath)
+  // Handle file selection from sidebar or file reference pills
+  const handleFileSelect = (filePath: string, lineStart?: number, lineEnd?: number) => {
+    console.log('[App] File selected:', filePath, lineStart, lineEnd)
     setSelectedFile(filePath)
     setActiveFilePath(filePath)
 
     // Add to openFiles if not already there
     if (!openFiles.includes(filePath)) {
       setOpenFiles([...openFiles, filePath])
+    }
+
+    // Store line selection for Monaco to use
+    if (lineStart) {
+      setFileCursorPosition({
+        filePath,
+        lineStart,
+        lineEnd: lineEnd || lineStart
+      })
+    } else {
+      setFileCursorPosition(null)
+    }
+
+    // Switch to editor or split view when opening a file
+    if (viewMode === 'chat') {
+      setViewMode('split')
     }
   }
 
@@ -446,6 +469,8 @@ function App() {
                   onViewModeChange={setViewMode}
                   openFiles={openFiles}
                   onUnsavedChange={handleUnsavedChange}
+                  onFileReferenceClick={handleFileSelect}
+                  fileCursorPosition={fileCursorPosition}
                 />
 
                 {/* Commit Dialog */}
