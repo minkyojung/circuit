@@ -122,17 +122,31 @@ export function TerminalProvider({ children }: TerminalProviderProps) {
     savePersistedState({ isOpen, height })
   }, [isOpen, height])
 
-  // Set up IPC listeners for terminal data and exit events
+  // Keep latest refs to avoid stale closures
+  const settingsRef = useRef(settings)
+  const processDataRef = useRef(processData)
+
   useEffect(() => {
+    settingsRef.current = settings
+    processDataRef.current = processData
+  }, [settings, processData])
+
+  // Set up IPC listeners for terminal data and exit events
+  // IMPORTANT: Don't add settings/processData to deps - use refs to avoid re-registering listeners
+  useEffect(() => {
+    console.log('[TerminalContext] Registering IPC listeners for terminal data')
+
     const handleTerminalData = (event: any, workspaceId: string, data: string) => {
       const terminalData = terminalsRef.current.get(workspaceId)
       if (terminalData) {
         terminalData.terminal.write(data)
 
         // If Modern terminal mode with blocks enabled, also process for block system
-        if (settings.terminal.mode === 'modern' && settings.terminal.modernFeatures.enableBlocks) {
+        // Use ref to get latest settings without re-registering listener
+        if (settingsRef.current.terminal.mode === 'modern' && settingsRef.current.terminal.modernFeatures.enableBlocks) {
+          console.log('[TerminalContext] Processing data for blocks:', { workspaceId, dataLength: data.length })
           // TODO: Get actual CWD from workspace - for now use placeholder
-          processData(workspaceId, data, '~')
+          processDataRef.current(workspaceId, data, '~')
         }
       }
     }
@@ -154,6 +168,7 @@ export function TerminalProvider({ children }: TerminalProviderProps) {
     ipcRenderer.on('terminal:exit', handleTerminalExit)
 
     return () => {
+      console.log('[TerminalContext] Removing IPC listeners for terminal data')
       ipcRenderer.removeListener('terminal:data', handleTerminalData)
       ipcRenderer.removeListener('terminal:exit', handleTerminalExit)
     }
