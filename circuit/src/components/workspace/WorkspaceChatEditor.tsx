@@ -1431,25 +1431,54 @@ The plan is ready. What would you like to do?`,
     }
   }, [workspace, sessionId, conversationId, setMessages, setIsSending])
 
-  // Listen for thinking steps from Electron (separate useEffect to avoid re-registering listeners)
+  // Store handlers in refs to avoid re-registering IPC listeners
+  const handlersRef = useRef({
+    handleThinkingStart,
+    handleMilestone,
+    handleThinkingComplete,
+    handleResponseComplete,
+    handleResponseError,
+    handleMessageCancelled,
+    handleExecuteTasks
+  });
+
+  // Update refs when handlers change (but don't re-register listeners)
+  handlersRef.current = {
+    handleThinkingStart,
+    handleMilestone,
+    handleThinkingComplete,
+    handleResponseComplete,
+    handleResponseError,
+    handleMessageCancelled,
+    handleExecuteTasks
+  };
+
+  // Listen for thinking steps from Electron (register once, use refs for handlers)
   useEffect(() => {
     // CRITICAL: Reset mounted flag when listeners are registered
     isMountedRef.current = true;
     console.log('[WorkspaceChat] 🎧 Registering IPC listeners, sessionId:', sessionIdRef.current, 'isMounted:', isMountedRef.current);
 
-    // Wrap handlers with debug logging to see if events arrive
+    // Wrap handlers to use refs (always call latest version)
     const debugThinkingStart = (event: any, ...args: any[]) => {
       console.log('[WorkspaceChat] 🎤 RAW thinking-start event received:', args, 'isMounted:', isMountedRef.current);
-      handleThinkingStart(event, ...args);
+      handlersRef.current.handleThinkingStart(event, ...args);
     };
 
+    const wrappedMilestone = (event: any, ...args: any[]) => handlersRef.current.handleMilestone(event, ...args);
+    const wrappedThinkingComplete = (event: any, ...args: any[]) => handlersRef.current.handleThinkingComplete(event, ...args);
+    const wrappedResponseComplete = (event: any, ...args: any[]) => handlersRef.current.handleResponseComplete(event, ...args);
+    const wrappedResponseError = (event: any, ...args: any[]) => handlersRef.current.handleResponseError(event, ...args);
+    const wrappedMessageCancelled = (event: any, ...args: any[]) => handlersRef.current.handleMessageCancelled(event, ...args);
+    const wrappedExecuteTasks = (event: any, ...args: any[]) => handlersRef.current.handleExecuteTasks(event, ...args);
+
     ipcRenderer.on('claude:thinking-start', debugThinkingStart);
-    ipcRenderer.on('claude:milestone', handleMilestone);
-    ipcRenderer.on('claude:thinking-complete', handleThinkingComplete);
-    ipcRenderer.on('claude:response-complete', handleResponseComplete);
-    ipcRenderer.on('claude:response-error', handleResponseError);
-    ipcRenderer.on('claude:message-cancelled', handleMessageCancelled);
-    ipcRenderer.on('todos:execute-tasks', handleExecuteTasks);
+    ipcRenderer.on('claude:milestone', wrappedMilestone);
+    ipcRenderer.on('claude:thinking-complete', wrappedThinkingComplete);
+    ipcRenderer.on('claude:response-complete', wrappedResponseComplete);
+    ipcRenderer.on('claude:response-error', wrappedResponseError);
+    ipcRenderer.on('claude:message-cancelled', wrappedMessageCancelled);
+    ipcRenderer.on('todos:execute-tasks', wrappedExecuteTasks);
 
     return () => {
       console.log('[WorkspaceChat] 🧹 Cleanup: Removing IPC listeners');
@@ -1465,14 +1494,14 @@ The plan is ready. What would you like to do?`,
       }
 
       ipcRenderer.removeListener('claude:thinking-start', debugThinkingStart);
-      ipcRenderer.removeListener('claude:milestone', handleMilestone);
-      ipcRenderer.removeListener('claude:thinking-complete', handleThinkingComplete);
-      ipcRenderer.removeListener('claude:response-complete', handleResponseComplete);
-      ipcRenderer.removeListener('claude:response-error', handleResponseError);
-      ipcRenderer.removeListener('claude:message-cancelled', handleMessageCancelled);
-      ipcRenderer.removeListener('todos:execute-tasks', handleExecuteTasks);
+      ipcRenderer.removeListener('claude:milestone', wrappedMilestone);
+      ipcRenderer.removeListener('claude:thinking-complete', wrappedThinkingComplete);
+      ipcRenderer.removeListener('claude:response-complete', wrappedResponseComplete);
+      ipcRenderer.removeListener('claude:response-error', wrappedResponseError);
+      ipcRenderer.removeListener('claude:message-cancelled', wrappedMessageCancelled);
+      ipcRenderer.removeListener('todos:execute-tasks', wrappedExecuteTasks);
     };
-  }, [handleThinkingStart, handleMilestone, handleThinkingComplete, handleResponseComplete, handleResponseError, handleMessageCancelled, handleExecuteTasks]);
+  }, []); // Empty deps - register once, use refs for latest handlers
 
   // Cancel current message
   const handleCancel = () => {
@@ -1888,9 +1917,12 @@ The plan is ready. What would you like to do?`,
   }, [messagesWithFilteredBlocks, isSending, pendingAssistantMessageId]);
 
   // Virtual scrolling setup
+  // Memoize getScrollElement to prevent virtualizer recreation
+  const getScrollElement = useCallback(() => scrollContainerRef.current, []);
+
   const virtualizer = useVirtualizer({
     count: filteredMessages.length,
-    getScrollElement: () => scrollContainerRef.current,
+    getScrollElement,
     estimateSize: useCallback(() => {
       // Use single fixed height for all messages to avoid measurement issues
       return 200;

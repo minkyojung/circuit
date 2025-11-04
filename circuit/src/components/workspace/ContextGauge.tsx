@@ -80,7 +80,7 @@ export const ContextGauge: React.FC<ContextGaugeProps> = ({
                 'inline-flex items-center justify-center',
                 'px-2 h-[24px]',
                 'rounded-full border transition-all duration-200',
-                'text-xs font-medium',
+                'text-xs font-light',
                 getPillStyles(),
                 getTextColor(),
                 disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
@@ -95,7 +95,7 @@ export const ContextGauge: React.FC<ContextGaugeProps> = ({
               className={cn(
                 'inline-flex items-center justify-center',
                 'px-1 h-[24px]',
-                'text-xs font-medium',
+                'text-xs font-light',
                 getTextColor()
               )}
               aria-label={`Context usage: ${clampedPercentage.toFixed(1)}%`}
@@ -106,7 +106,7 @@ export const ContextGauge: React.FC<ContextGaugeProps> = ({
         </TooltipTrigger>
         <TooltipContent side="top" className="text-xs">
           <div className="space-y-1">
-            <div className="font-medium">
+            <div className="font-light">
               Context:{' '}
               {current && limit
                 ? `${formatTokens(current)} / ${formatTokens(limit)}`

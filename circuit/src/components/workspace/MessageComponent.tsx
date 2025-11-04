@@ -1,7 +1,7 @@
 import React from 'react';
 import type { Message } from '@/types/conversation';
 import type { ThinkingStep } from '@/types/thinking';
-import { Paperclip, ChevronDown, Copy, Check } from 'lucide-react';
+import { Paperclip, ChevronDown, Copy, Check, Play, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { BlockList } from '@/components/blocks';
 import { InlineTodoProgress } from '@/components/blocks/InlineTodoProgress';
@@ -21,6 +21,8 @@ export interface MessageComponentProps {
   onToggleReasoning: (messageId: string) => void;
   onExecuteCommand: (command: string) => Promise<void>;
   onFileReferenceClick?: (filePath: string, lineStart?: number, lineEnd?: number) => void;
+  onRunAgent?: (messageId: string) => void;
+  agentStates?: Map<string, { state: 'running' | 'completed' | 'failed' | 'cancelled'; progress: number; error?: string }>;
 }
 
 const MessageComponentInner: React.FC<MessageComponentProps> = ({
@@ -35,7 +37,24 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
   onToggleReasoning,
   onExecuteCommand,
   onFileReferenceClick,
+  onRunAgent,
+  agentStates,
 }) => {
+  // Parse metadata safely
+  const metadata = React.useMemo(() => {
+    try {
+      return typeof msg.metadata === 'string' ? JSON.parse(msg.metadata || '{}') : msg.metadata || {};
+    } catch (error) {
+      console.error('[MessageComponent] Failed to parse metadata:', error);
+      return {};
+    }
+  }, [msg.metadata]);
+
+  const isTask = metadata.isTask === true;
+  const todoId = metadata.todoId;
+
+  // Get agent state for this task (using todoId)
+  const agentState = isTask && todoId && agentStates ? agentStates.get(todoId) : null;
   return (
     <div
       data-message-id={msg.id}
@@ -171,9 +190,46 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
             onFileReferenceClick={onFileReferenceClick}
           />
         ) : (
-          <div className="text-base font-normal text-foreground whitespace-pre-wrap leading-relaxed">
-            {msg.content}
-          </div>
+          <>
+            <div className="text-base font-normal text-foreground whitespace-pre-wrap leading-relaxed">
+              {msg.content}
+            </div>
+
+            {/* Task controls - Show for user messages marked as task */}
+            {isTask && msg.role === 'user' && onRunAgent && (
+              <div className="mt-3 flex items-center gap-2">
+                {!agentState || agentState.state === 'cancelled' ? (
+                  <button
+                    onClick={() => onRunAgent(msg.id)}
+                    className={cn(
+                      'inline-flex items-center gap-2 px-3 py-1.5 rounded-md',
+                      'text-sm font-medium',
+                      'bg-primary text-primary-foreground',
+                      'hover:bg-primary/90 transition-colors'
+                    )}
+                  >
+                    <Play className="w-3.5 h-3.5" />
+                    Run Agent
+                  </button>
+                ) : agentState.state === 'running' ? (
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-info/10 text-info">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span className="text-sm font-medium">Running... {agentState.progress}%</span>
+                  </div>
+                ) : agentState.state === 'completed' ? (
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-success/10 text-success">
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    <span className="text-sm font-medium">Completed</span>
+                  </div>
+                ) : agentState.state === 'failed' ? (
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-destructive/10 text-destructive">
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    <span className="text-sm font-medium" title={agentState.error}>Failed</span>
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </>
         )}
 
         {/* Copy button - Show below message content for assistant messages */}

@@ -13,13 +13,23 @@ import { cn } from '@/lib/utils';
 interface CompactIndicatorProps {
   workspaceId?: string;
   workspacePath?: string;
+  context?: {
+    current: number;
+    limit: number;
+    percentage: number;
+    lastCompact: string | null;
+    sessionStart: string;
+    prunableTokens: number;
+    shouldCompact: boolean;
+  } | null;
 }
 
 export const CompactIndicator: React.FC<CompactIndicatorProps> = ({
   workspaceId,
   workspacePath,
+  context,
 }) => {
-  const { compactState, percentage } = useAutoCompact({ workspaceId, workspacePath });
+  const { compactState, percentage } = useAutoCompact({ workspaceId, workspacePath, context });
 
   // Don't show anything for normal level
   if (compactState.level === 'normal') {

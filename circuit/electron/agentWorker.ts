@@ -8,6 +8,7 @@
 import { spawn, ChildProcess } from 'child_process'
 import * as path from 'path'
 import * as os from 'os'
+import * as fs from 'fs'
 
 // Types
 export interface AgentContext {
@@ -68,6 +69,24 @@ export class AgentWorker {
     this.startTime = Date.now()
     console.log(`[AgentWorker] Executing todo: ${this.todoId}`)
 
+    // Validate workspace path (security: prevent command injection)
+    const resolvedPath = path.resolve(this.context.workspacePath)
+    if (!fs.existsSync(resolvedPath)) {
+      throw new Error(`Invalid workspace path: ${this.context.workspacePath}`)
+    }
+    if (!fs.statSync(resolvedPath).isDirectory()) {
+      throw new Error(`Workspace path is not a directory: ${this.context.workspacePath}`)
+    }
+
+    // Sanitize instruction (remove control characters)
+    const sanitizedInstruction = this.context.instruction.replace(/[\x00-\x1F\x7F]/g, '')
+    if (sanitizedInstruction.trim().length === 0) {
+      throw new Error('Instruction cannot be empty after sanitization')
+    }
+
+    // Store sanitized instruction
+    this.context.instruction = sanitizedInstruction
+
     return new Promise((resolve, reject) => {
       try {
         // Spawn Claude CLI
@@ -79,7 +98,7 @@ export class AgentWorker {
           '--model', 'sonnet',
           '--permission-mode', 'acceptEdits'
         ], {
-          cwd: this.context.workspacePath,
+          cwd: resolvedPath,  // Use validated path
           stdio: ['pipe', 'pipe', 'pipe']
         })
 
@@ -184,7 +203,23 @@ Start working on the task now.`
     this.cancelled = true
 
     if (this.claudeProcess) {
+      // Remove all listeners first to prevent memory leaks
+      this.claudeProcess.stdout?.removeAllListeners()
+      this.claudeProcess.stderr?.removeAllListeners()
+      this.claudeProcess.removeAllListeners()
+
+      // Then kill the process
       this.claudeProcess.kill('SIGTERM')
+
+      // Force kill after 5 seconds if still running
+      const process = this.claudeProcess
+      setTimeout(() => {
+        if (process && !process.killed) {
+          console.log(`[AgentWorker] Force killing process for todo: ${this.todoId}`)
+          process.kill('SIGKILL')
+        }
+      }, 5000)
+
       this.claudeProcess = null
     }
   }

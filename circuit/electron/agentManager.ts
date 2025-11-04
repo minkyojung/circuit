@@ -45,22 +45,35 @@ export class AgentManager {
   async startAgent(todo: Todo, context: AgentContext): Promise<void> {
     console.log(`[AgentManager] Start request for todo: ${todo.id}`)
 
-    // Check if already running
+    // Atomic check and reserve: prevent race condition
     if (this.activeAgents.has(todo.id)) {
       throw new Error(`Agent for todo ${todo.id} is already running`)
     }
 
+    // Reserve slot immediately (atomic operation)
+    const worker = new AgentWorker(todo.id, context)
+    this.activeAgents.set(todo.id, worker)
+
     // Phase 1: No concurrent limit check yet
-    // Just start the agent
-    await this.executeAgent(todo, context)
+    // Execute the agent
+    try {
+      await this.executeAgent(todo, context, worker)
+    } catch (error) {
+      // Clean up on failure to start
+      this.activeAgents.delete(todo.id)
+      throw error
+    }
   }
 
   /**
    * Execute agent (internal)
+   * Worker must already be in activeAgents map
    */
-  private async executeAgent(todo: Todo, context: AgentContext): Promise<void> {
-    const worker = new AgentWorker(todo.id, context)
-    this.activeAgents.set(todo.id, worker)
+  private async executeAgent(todo: Todo, context: AgentContext, worker: AgentWorker): Promise<void> {
+    // Verify worker is in map (sanity check)
+    if (!this.activeAgents.has(todo.id)) {
+      throw new Error(`Race condition detected: worker not in activeAgents for ${todo.id}`)
+    }
 
     try {
       // Update todo status: pending → in_progress
@@ -71,8 +84,7 @@ export class AgentManager {
       console.log(`[AgentManager] Executing agent for todo: ${todo.id}`)
 
       // Broadcast started event
-      // TODO: Implement EventBroadcaster.broadcastAgentStarted
-      // EventBroadcaster.broadcastAgentStarted(todo.id)
+      EventBroadcaster.broadcastAgentStarted(todo.id)
 
       // Execute
       const result = await worker.execute()
@@ -118,8 +130,7 @@ export class AgentManager {
     }
 
     // Broadcast completed event
-    // TODO: Implement EventBroadcaster.broadcastAgentCompleted
-    // EventBroadcaster.broadcastAgentCompleted(todo.id, result)
+    EventBroadcaster.broadcastAgentCompleted(todo.id, result)
 
     console.log(`[AgentManager] Agent result saved for todo: ${todo.id}`)
   }
@@ -136,11 +147,10 @@ export class AgentManager {
     }
 
     // Broadcast failed event
-    // TODO: Implement EventBroadcaster.broadcastAgentFailed
-    // EventBroadcaster.broadcastAgentFailed(todo.id, {
-    //   message: error.message,
-    //   stack: error.stack
-    // })
+    EventBroadcaster.broadcastAgentFailed(todo.id, {
+      message: error.message,
+      stack: error.stack
+    })
   }
 
   /**
@@ -163,8 +173,7 @@ export class AgentManager {
     }
 
     // Broadcast cancelled event
-    // TODO: Implement EventBroadcaster.broadcastAgentCancelled
-    // EventBroadcaster.broadcastAgentCancelled(todoId)
+    EventBroadcaster.broadcastAgentCancelled(todoId)
   }
 
   /**

@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import type { Workspace, WorkspaceCreateResult, WorkspaceListResult, WorkspaceStatus, Repository } from '@/types/workspace'
 import { Plus, GitBranch, Check, GitMerge, GitCommit, Archive, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -134,7 +134,7 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
   }, [repository?.id])
 
   // Load statuses for all workspaces
-  const loadStatuses = async (workspaceList: Workspace[]) => {
+  const loadStatuses = useCallback(async (workspaceList: Workspace[]) => {
     const statusPromises = workspaceList.map(async (workspace) => {
       try {
         const result = await ipcRenderer.invoke('workspace:get-status', workspace.path)
@@ -156,31 +156,37 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
     })
 
     setStatuses(newStatuses)
-  }
+  }, []) // setStatuses is stable from useState
 
   // Auto-refresh statuses every 30 seconds
   // Consolidated from two separate intervals (5s + 30s) to reduce IPC overhead
+  // Store workspaces in a ref to avoid useEffect re-triggering on every render
+  const workspacesRef = useRef(workspaces);
+  workspacesRef.current = workspaces;
+
   useEffect(() => {
-    if (!currentRepository || workspaces.length === 0) {
+    const currentWorkspaces = workspacesRef.current;
+
+    if (!currentRepository || currentWorkspaces.length === 0) {
       return
     }
 
     console.log('[AppSidebar] Setting up status auto-refresh (30s) for repository:', currentRepository.name)
 
     // Load immediately on mount
-    loadStatuses(workspaces)
+    loadStatuses(currentWorkspaces)
 
     // Then refresh every 30 seconds
     const interval = setInterval(() => {
       console.log('[AppSidebar] Status auto-refresh triggered')
-      loadStatuses(workspaces)
+      loadStatuses(workspacesRef.current)
     }, 30000)
 
     return () => {
       console.log('[AppSidebar] Cleaning up status auto-refresh')
       clearInterval(interval)
     }
-  }, [currentRepository?.id, workspaces, loadStatuses])
+  }, [currentRepository?.id, workspaces.length, loadStatuses]) // Use length instead of array reference
 
   // Load file tree when workspace is selected
   useEffect(() => {

@@ -133,20 +133,6 @@ export const TodoPanel: React.FC<TodoPanelProps> = ({
         )}
       </div>
 
-      {/* Footer (optional - for future actions) */}
-      {/* <div className="flex-shrink-0 px-4 py-3 border-t border-border">
-        <button
-          className={cn(
-            'w-full flex items-center justify-center gap-2 px-3 py-2',
-            'rounded-lg border border-border',
-            'hover:bg-muted transition-colors',
-            'text-sm font-medium'
-          )}
-        >
-          <Plus className="w-4 h-4" />
-          Add Task
-        </button>
-      </div> */}
     </motion.div>
   )
 }

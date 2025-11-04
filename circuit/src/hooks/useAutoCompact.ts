@@ -26,6 +26,15 @@ interface CompactState {
 interface UseAutoCompactOptions {
   workspaceId?: string;
   workspacePath?: string;
+  context?: {
+    current: number;
+    limit: number;
+    percentage: number;
+    lastCompact: string | null;
+    sessionStart: string;
+    prunableTokens: number;
+    shouldCompact: boolean;
+  } | null;
 }
 
 interface UseAutoCompactReturn {
@@ -60,9 +69,16 @@ interface UseAutoCompactReturn {
  * });
  */
 export function useAutoCompact(options: UseAutoCompactOptions): UseAutoCompactReturn {
-  const { workspaceId, workspacePath } = options;
+  const { workspaceId, workspacePath, context: externalContext } = options;
   const { settings } = useSettingsContext();
-  const { context } = useWorkspaceContext(workspaceId, workspacePath);
+
+  // Use external context if provided, otherwise fetch it
+  const { context: fetchedContext } = useWorkspaceContext(
+    externalContext ? undefined : workspaceId,
+    externalContext ? undefined : workspacePath
+  );
+
+  const context = externalContext || fetchedContext;
 
   const [compactState, setCompactState] = useState<CompactState>({
     level: 'normal',

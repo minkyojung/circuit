@@ -13,6 +13,48 @@ import type { AgentContext } from './agentWorker'
 import { getStorage } from './conversationHandlers'
 
 /**
+ * Helper to get todo with retry logic
+ * Handles async DB persistence by retrying with exponential backoff
+ */
+async function getTodoWithRetry(
+  storage: ConversationStorage,
+  todoId: string,
+  options: {
+    maxRetries: number
+    initialDelay: number
+    maxDelay: number
+  }
+): Promise<Todo | undefined> {
+  const { maxRetries, initialDelay, maxDelay } = options
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const todo = storage.getTodo(todoId)
+
+    if (todo) {
+      if (attempt > 0) {
+        console.log(`[AgentHandlers] Todo found after ${attempt} retries`)
+      }
+      return todo
+    }
+
+    // If this was the last attempt, give up
+    if (attempt === maxRetries) {
+      console.warn(`[AgentHandlers] Todo not found after ${maxRetries} retries`)
+      return undefined
+    }
+
+    // Calculate delay with exponential backoff
+    const delay = Math.min(initialDelay * Math.pow(2, attempt), maxDelay)
+    console.log(`[AgentHandlers] Todo not found, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`)
+
+    // Wait before next attempt
+    await new Promise(resolve => setTimeout(resolve, delay))
+  }
+
+  return undefined
+}
+
+/**
  * Register agent IPC handlers
  *
  * NOTE: This must be called AFTER conversation handlers are initialized
@@ -48,12 +90,35 @@ export function registerAgentHandlers() {
     relevantFiles?: string[]
   }) => {
     try {
+      // Validate input
+      if (!data || typeof data.todoId !== 'string' || !data.todoId.trim()) {
+        return { success: false, error: 'Invalid todoId: must be a non-empty string' }
+      }
+
+      if (data.workspaceId !== undefined && typeof data.workspaceId !== 'string') {
+        return { success: false, error: 'Invalid workspaceId: must be a string' }
+      }
+
+      if (data.relevantFiles !== undefined && !Array.isArray(data.relevantFiles)) {
+        return { success: false, error: 'Invalid relevantFiles: must be an array' }
+      }
+
+      // Sanitize relevantFiles (filter out non-strings and path traversal attempts)
+      const sanitizedFiles = (data.relevantFiles || []).filter(
+        f => typeof f === 'string' && !f.includes('..') && f.trim().length > 0
+      )
+
       console.log('[AgentHandlers] Starting agent for todo:', data.todoId)
 
-      // Get todo
-      const todo = storage.getTodo(data.todoId)
+      // Get todo with retry logic (handles async DB persistence)
+      const todo = await getTodoWithRetry(storage, data.todoId, {
+        maxRetries: 5,
+        initialDelay: 50,
+        maxDelay: 500
+      })
+
       if (!todo) {
-        return { success: false, error: 'Todo not found' }
+        return { success: false, error: 'Todo not found after retries' }
       }
 
       // Get workspace path
@@ -83,7 +148,7 @@ export function registerAgentHandlers() {
         conversationId: todo.conversationId,
         workspacePath,
         instruction: todo.content,
-        relevantFiles: data.relevantFiles || []
+        relevantFiles: sanitizedFiles  // Use sanitized files
       }
 
       // Start agent
@@ -105,6 +170,11 @@ export function registerAgentHandlers() {
    */
   ipcMain.handle('agent:cancel', async (_event: IpcMainInvokeEvent, todoId: string) => {
     try {
+      // Validate input
+      if (typeof todoId !== 'string' || !todoId.trim()) {
+        return { success: false, error: 'Invalid todoId: must be a non-empty string' }
+      }
+
       console.log('[AgentHandlers] Cancelling agent for todo:', todoId)
       await agentManager.cancelAgent(todoId)
       return { success: true }
@@ -123,6 +193,11 @@ export function registerAgentHandlers() {
    */
   ipcMain.handle('agent:get-status', async (_event: IpcMainInvokeEvent, todoId: string) => {
     try {
+      // Validate input
+      if (typeof todoId !== 'string' || !todoId.trim()) {
+        return { success: false, error: 'Invalid todoId: must be a non-empty string' }
+      }
+
       const status = agentManager.getAgentStatus(todoId)
       return { success: true, status }
 
