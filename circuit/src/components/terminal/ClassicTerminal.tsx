@@ -201,7 +201,7 @@ export function ClassicTerminal({ workspace }: ClassicTerminalProps) {
         resizeObserver.disconnect()
       }
     }
-  }, [workspace.id, getOrCreateTerminal, createPtySession, workspace.path])
+  }, [workspace.id, getOrCreateTerminal, createPtySession]) // workspace.path used from closure
 
   return (
     <div
