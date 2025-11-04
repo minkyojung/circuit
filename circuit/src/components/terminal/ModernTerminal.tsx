@@ -19,10 +19,63 @@ export function ModernTerminal({ workspace }: ModernTerminalProps) {
   const [isInitializing, setIsInitializing] = useState(true)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // Command history
+  const [history, setHistory] = useState<string[]>([])
+  const [historyIndex, setHistoryIndex] = useState(-1)
+  const [tempInput, setTempInput] = useState('') // Save current input when navigating history
+
   // Get real blocks from BlockContext
   const blocks = getBlocks(workspace.id)
 
   const blocksEnabled = settings.terminal.modernFeatures.enableBlocks
+
+  // Get current working directory from most recent block or workspace
+  const getCurrentDirectory = (): string => {
+    if (blocks.length > 0) {
+      // Use cwd from most recent block
+      const latestBlock = blocks[blocks.length - 1]
+      if (latestBlock.cwd) {
+        return latestBlock.cwd
+      }
+    }
+    // Fallback to workspace path
+    return workspace.path
+  }
+
+  // Format directory path - replace home directory with ~
+  const formatPath = (path: string): string => {
+    const homeDir = process.env.HOME || process.env.USERPROFILE || ''
+    if (homeDir && path.startsWith(homeDir)) {
+      return '~' + path.slice(homeDir.length)
+    }
+    return path
+  }
+
+  const currentDir = formatPath(getCurrentDirectory())
+
+  // Load command history from localStorage on mount
+  useEffect(() => {
+    const storageKey = `circuit-terminal-history-${workspace.id}`
+    const savedHistory = localStorage.getItem(storageKey)
+    if (savedHistory) {
+      try {
+        const parsed = JSON.parse(savedHistory)
+        if (Array.isArray(parsed)) {
+          setHistory(parsed)
+        }
+      } catch (error) {
+        console.warn('[ModernTerminal] Failed to parse history:', error)
+      }
+    }
+  }, [workspace.id])
+
+  // Save history to localStorage whenever it changes
+  useEffect(() => {
+    if (history.length > 0) {
+      const storageKey = `circuit-terminal-history-${workspace.id}`
+      localStorage.setItem(storageKey, JSON.stringify(history))
+    }
+  }, [history, workspace.id])
 
   // Initialize PTY session for this workspace
   // CRITICAL: PTY session MUST be created regardless of blocksEnabled
@@ -84,6 +137,75 @@ export function ModernTerminal({ workspace }: ModernTerminalProps) {
     }
   }, [workspace.id, workspace.path, getOrCreateTerminal, createPtySession])
 
+  // Handle keyboard navigation through history
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Ctrl+C: Send interrupt signal to PTY
+    if (e.key === 'c' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault()
+
+      // Check if there's a running command
+      const hasRunningBlock = blocks.some(b => b.status === 'running')
+
+      if (hasRunningBlock && writeData && isPtyReady) {
+        console.log('[ModernTerminal] Sending Ctrl+C (SIGINT) to PTY')
+        // Send SIGINT (Ctrl+C) to PTY - ASCII code 3
+        writeData(workspace.id, '\x03')
+      } else if (inputValue) {
+        // If no running command, clear input field
+        setInputValue('')
+      }
+      return
+    }
+
+    if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      if (history.length === 0) return
+
+      // Save current input when starting history navigation
+      if (historyIndex === -1) {
+        setTempInput(inputValue)
+      }
+
+      const newIndex = historyIndex === -1
+        ? history.length - 1
+        : Math.max(0, historyIndex - 1)
+
+      setHistoryIndex(newIndex)
+      setInputValue(history[newIndex])
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      if (historyIndex === -1) return
+
+      const newIndex = historyIndex + 1
+
+      if (newIndex >= history.length) {
+        // Back to current input
+        setHistoryIndex(-1)
+        setInputValue(tempInput)
+      } else {
+        setHistoryIndex(newIndex)
+        setInputValue(history[newIndex])
+      }
+    }
+  }
+
+  // Handle command rerun from block
+  const handleRerun = (command: string) => {
+    console.log('[ModernTerminal] Rerunning command:', command)
+    if (!writeData || !isPtyReady) {
+      console.warn('[ModernTerminal] Cannot rerun - terminal not ready')
+      return
+    }
+
+    // Add to history
+    if (command && (history.length === 0 || history[history.length - 1] !== command)) {
+      setHistory(prev => [...prev, command])
+    }
+
+    // Send to PTY
+    writeData(workspace.id, command + '\n')
+  }
+
   // Handle command submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -109,6 +231,16 @@ export function ModernTerminal({ workspace }: ModernTerminalProps) {
       console.warn('[ModernTerminal] PTY not ready yet, waiting...')
       // Try to send anyway, IPC handler might queue it
     }
+
+    // Add to history (avoid duplicates of last command)
+    const trimmedInput = inputValue.trim()
+    if (trimmedInput && (history.length === 0 || history[history.length - 1] !== trimmedInput)) {
+      setHistory(prev => [...prev, trimmedInput])
+    }
+
+    // Reset history navigation
+    setHistoryIndex(-1)
+    setTempInput('')
 
     // Send command to PTY (with newline)
     console.log('[ModernTerminal] Sending command to PTY:', inputValue)
@@ -208,6 +340,7 @@ export function ModernTerminal({ workspace }: ModernTerminalProps) {
             workspaceId={workspace.id}
             showTimestamps={settings.terminal.modernFeatures.showTimestamps}
             highlightFailed={settings.terminal.modernFeatures.highlightFailedCommands}
+            onRerun={handleRerun}
             autoScroll={true}
           />
         )}
@@ -216,12 +349,16 @@ export function ModernTerminal({ workspace }: ModernTerminalProps) {
       {/* Command Input */}
       <div className="border-t border-border bg-muted/20">
         <form onSubmit={handleSubmit} className="flex items-center gap-2 px-4 py-3">
-          <div className="text-sm text-muted-foreground">$</div>
+          <div className="text-sm text-muted-foreground font-mono flex items-center gap-1.5">
+            <span className="text-blue-500">{currentDir}</span>
+            <span>$</span>
+          </div>
           <input
             ref={inputRef}
             type="text"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={handleKeyDown}
             placeholder={isInitializing ? "Initializing terminal..." : (isPtyReady ? "Type a command..." : "Terminal not ready...")}
             className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none font-mono"
             disabled={isInitializing}
