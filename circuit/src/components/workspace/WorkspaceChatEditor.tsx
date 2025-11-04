@@ -1920,13 +1920,16 @@ The plan is ready. What would you like to do?`,
   // Memoize getScrollElement to prevent virtualizer recreation
   const getScrollElement = useCallback(() => scrollContainerRef.current, []);
 
+  // Memoize estimateSize to prevent virtualizer recreation
+  const estimateSize = useCallback(() => {
+    // Use single fixed height for all messages to avoid measurement issues
+    return 200;
+  }, []);
+
   const virtualizer = useVirtualizer({
     count: filteredMessages.length,
     getScrollElement,
-    estimateSize: useCallback(() => {
-      // Use single fixed height for all messages to avoid measurement issues
-      return 200;
-    }, []),
+    estimateSize,
     overscan: 5, // Render 5 extra items outside viewport for smooth scrolling
   });
 

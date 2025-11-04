@@ -33,11 +33,14 @@ export function BlockList({
   // Memoize getScrollElement to prevent virtualizer recreation
   const getScrollElement = useCallback(() => parentRef.current, []);
 
+  // Memoize estimateSize to prevent virtualizer recreation
+  const estimateSize = useCallback(() => 150, []);
+
   // Virtualizer for performance
   const virtualizer = useVirtualizer({
     count: blocks.length,
     getScrollElement,
-    estimateSize: () => 150, // Estimated block height
+    estimateSize,
     overscan: 5, // Render 5 extra blocks above/below viewport
   });
 
