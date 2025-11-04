@@ -5,7 +5,7 @@
  * Uses @tanstack/react-virtual for efficient rendering
  */
 
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { TerminalBlock } from '@/types/terminal';
 import { BlockView } from './BlockView';
@@ -30,10 +30,13 @@ export function BlockList({
   const parentRef = useRef<HTMLDivElement>(null);
   const prevBlockCountRef = useRef(blocks.length);
 
+  // Memoize getScrollElement to prevent virtualizer recreation
+  const getScrollElement = useCallback(() => parentRef.current, []);
+
   // Virtualizer for performance
   const virtualizer = useVirtualizer({
     count: blocks.length,
-    getScrollElement: () => parentRef.current,
+    getScrollElement,
     estimateSize: () => 150, // Estimated block height
     overscan: 5, // Render 5 extra blocks above/below viewport
   });
