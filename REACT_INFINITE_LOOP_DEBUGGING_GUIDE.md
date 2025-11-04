@@ -1,16 +1,18 @@
 # React 무한 루프 디버깅 가이드
 
 > **문제 발생일**: 2025-01-05
-> **해결 소요 시간**: 약 3시간
-> **핵심 교훈**: 에러 메시지보다 로그 타임라인 분석이 더 중요하다
+> **해결 소요 시간**: 약 4시간 (2개 세션)
+> **핵심 교훈**: 로그를 믿고, 실제 에러 스택을 분석하라. 추측하지 말라.
 
 ## 📋 목차
 
 1. [문제 증상](#문제-증상)
-2. [근본 원인 분석](#근본-원인-분석)
-3. [해결 방법](#해결-방법)
-4. [재발 방지 가이드](#재발-방지-가이드)
-5. [React 무한 루프 패턴 사전](#react-무한-루프-패턴-사전)
+2. [디버깅 타임라인](#디버깅-타임라인)
+3. [실제 근본 원인](#실제-근본-원인)
+4. [왜 이렇게 찾기 어려웠나](#왜-이렇게-찾기-어려웠나)
+5. [해결 방법](#해결-방법)
+6. [재발 방지 가이드](#재발-방지-가이드)
+7. [React 무한 루프 패턴 사전](#react-무한-루프-패턴-사전)
 
 ---
 
@@ -39,457 +41,663 @@ at chunk-XWW6MF7Y.js:27:23
 - 워크스페이스 선택 시 앱 크래시
 - 화면이 아무것도 렌더링되지 않음
 - 콘솔에 무한 에러 로그
+- **중요**: `setRef`가 무한 재귀적으로 호출됨
 
 ---
 
-## 근본 원인 분석
+## 디버깅 타임라인
 
-### 🎯 진짜 원인: ChatInput의 useEffect 무한 루프
+### 세션 1: 잘못된 가설들
 
-**파일**: `circuit/src/components/workspace/ChatInput.tsx` (Line 117-150)
+#### 시도 1: AppSidebar.tsx 최적화
+**가설**: loadStatuses가 메모이제이션되지 않아서 무한 호출
+**결과**: ❌ 실패
 
-#### 문제 코드
 ```typescript
-useEffect(() => {
-  if (!codeAttachment) {
-    setAttachedFiles(prev => prev.filter(f => f.type !== 'code/selection'))
-    return
-  }
-
-  // ❌ 문제: attachedFiles를 읽고 있음
-  const exists = attachedFiles.some(f => f.id === codeAttachmentId)
-  if (!exists) {
-    setAttachedFiles(prev => [...prev, codeFile])
-  }
-}, [codeAttachment, attachedFiles]) // ⚠️ attachedFiles가 의존성 배열에!
+// 고친 것
+const loadStatuses = useCallback(async (workspaceList: Workspace[]) => {
+  // ...
+}, []);
 ```
 
-#### 무한 루프 메커니즘
-```
-1. useEffect 실행
-   ↓
-2. setAttachedFiles() 호출
-   ↓
-3. attachedFiles 상태 변경
-   ↓
-4. useEffect 의존성 (attachedFiles) 변화 감지
-   ↓
-5. useEffect 재실행 → 1번으로 돌아감 💥
-```
+#### 시도 2: useAutoCompact 조건부 Hook
+**가설**: 조건부 useWorkspaceContext 호출이 문제
+**결과**: ❌ 실패
 
-#### 해결 방법
 ```typescript
-useEffect(() => {
-  if (!codeAttachment) {
-    setAttachedFiles(prev => prev.filter(f => f.type !== 'code/selection'))
-    return
-  }
-
-  const codeAttachmentId = `code-${codeAttachment.filePath}-${codeAttachment.lineStart}-${codeAttachment.lineEnd}`
-
-  // ✅ setState 콜백 안에서 체크
-  setAttachedFiles(prev => {
-    const exists = prev.some(f => f.id === codeAttachmentId)
-    if (exists) {
-      return prev // ✅ 변경 없음 → 리렌더 없음
-    }
-    return [...prev, codeFile]
-  })
-}, [codeAttachment]) // ✅ attachedFiles 제거!
-```
-
----
-
-### 🔧 기여 원인들 (직접적 원인은 아니지만 개선 필요)
-
-#### 1. useClaudeMetrics의 에러 처리
-**파일**: `circuit/src/hooks/useClaudeMetrics.ts`
-
-**문제**: IPC handler가 없을 때 console.error + setError로 무한 재시도
-```typescript
-// ❌ 이전
-catch (err) {
-  console.error('[useClaudeMetrics] Start error:', err);
-  setError(err.message); // setState → 리렌더
+// 고친 것: context를 prop으로 받도록 변경
+export function useAutoCompact(options: { context: ContextMetrics | null }) {
+  // useWorkspaceContext() 제거
 }
+```
 
-// ✅ 수정
+#### 시도 3: ClassicTerminal workspace.path
+**가설**: workspace.path가 의존성 배열에 있어서 무한 재초기화
+**결과**: ❌ 실패
+
+```typescript
+// 고친 것
+}, [workspace.id, getOrCreateTerminal, createPtySession])
+// workspace.path 제거
+```
+
+#### 시도 4: useClaudeMetrics 에러 처리
+**가설**: IPC 에러가 setState를 호출해서 리렌더 유발
+**결과**: ❌ 실패
+
+```typescript
+// 고친 것
 catch (err) {
   console.warn('[useClaudeMetrics] Metrics not available (this is OK):', err);
-  // setError 호출 안 함
+  // setError() 제거
 }
 ```
 
-#### 2. ClassicTerminal의 workspace.path 의존성
-**파일**: `circuit/src/components/terminal/ClassicTerminal.tsx` (Line 204)
+#### 시도 5: BlockList getScrollElement
+**가설**: BlockList의 unmemoized callback이 문제
+**결과**: ❌ 실패 (그리고 BlockList는 사용되지 않는 죽은 코드였음!)
 
-**문제**: workspace.path가 의존성 배열에 있었음
+#### 시도 6: ChatInput.tsx useEffect ⭐ 잘못된 "해결"
+**가설**: attachedFiles가 의존성 배열에 있어서 무한 루프
+**결과**: ❌ 고쳤다고 생각했지만... 실제로는 아니었음
+
 ```typescript
-// ❌ 이전
-}, [workspace.id, getOrCreateTerminal, createPtySession, workspace.path])
-
-// ✅ 수정 (주석에 이미 명시되어 있었음!)
-}, [workspace.id, getOrCreateTerminal, createPtySession])
-// workspace.path used from closure
-```
-
-#### 3. Virtual Scroller의 getScrollElement 미메모이제이션
-**파일들**:
-- `circuit/src/components/workspace/WorkspaceChatEditor.tsx` (Line 1892)
-- `circuit/src/components/terminal/BlockList.tsx` (Line 34)
-
-**문제**: 매 렌더링마다 새로운 함수 생성
-```typescript
-// ❌ 이전
-const virtualizer = useVirtualizer({
-  getScrollElement: () => scrollContainerRef.current, // 새 함수
-})
-
-// ✅ 수정
-const getScrollElement = useCallback(() => scrollContainerRef.current, []);
-const virtualizer = useVirtualizer({
-  getScrollElement, // 안정적인 참조
-})
-```
-
-#### 4. useAutoCompact의 조건부 Hook 호출
-**파일**: `circuit/src/hooks/useAutoCompact.ts`
-
-**문제**: React Hooks Rules 위반
-```typescript
-// ❌ 이전 (조건부 hook 호출)
-const { context } = useWorkspaceContext(
-  externalContext ? undefined : workspaceId
-);
-
-// ✅ 수정 (hook 제거, context를 필수 prop으로)
-export function useAutoCompact(options: { context: ContextMetrics | null }) {
-  const { context } = options; // prop으로 받음
-}
-```
-
-#### 5. WorkspaceChatEditor의 IPC listener 재등록
-**파일**: `circuit/src/components/workspace/WorkspaceChatEditor.tsx` (Line 1456-1504)
-
-**문제**: 핸들러가 의존성 배열에 있어 계속 재등록
-```typescript
-// ❌ 이전
+// 고친 것
 useEffect(() => {
-  ipcRenderer.on('event', handleSomething)
-  return () => ipcRenderer.removeListener('event', handleSomething)
-}, [handleSomething, ...7개 핸들러]) // 핸들러 변경 시마다
-
-// ✅ 수정 (Ref 패턴)
-const handlersRef = useRef({ handleSomething, ... })
-handlersRef.current = { handleSomething, ... }
-
-useEffect(() => {
-  const wrapped = (...args) => handlersRef.current.handleSomething(...args)
-  ipcRenderer.on('event', wrapped)
-  return () => ipcRenderer.removeListener('event', wrapped)
-}, []) // 한 번만 등록
+  // ...
+  setAttachedFiles(prev => {
+    const exists = prev.some(f => f.id === codeAttachmentId)
+    if (exists) return prev
+    return [...prev, codeFile]
+  })
+}, [codeAttachment]) // attachedFiles 제거
 ```
 
-#### 6. AppSidebar의 loadStatuses 재생성
-**파일**: `circuit/src/components/AppSidebar.tsx` (Line 137-189)
+**문제**: 사용자가 "됐다"고 했지만, 실제로는 여전히 같은 에러가 발생하고 있었음!
 
-**문제**: 함수가 메모이제이션 안 됨 + 배열 참조 불안정
+---
+
+### 세션 2: 진실의 순간 ⭐
+
+#### 🔍 결정적 발견
+
+사용자가 다시 로그를 보냈고, 여전히 **같은 에러 스택**이 찍히고 있었습니다:
+
+```
+at setRef (chunk-XWW6MF7Y.js:18:12)
+at Array.map (<anonymous>)
+at setRef (chunk-XWW6MF7Y.js:18:12)
+```
+
+**핵심 깨달음**:
+1. ChatInput 수정은 **효과가 없었음**
+2. 에러 스택을 보면 `setRef` → `Array.map` → `setRef` 패턴
+3. 이것은 **virtualizer의 measureElement**를 의미함!
+4. **virtualizer가 무한 재구성되고 있다!**
+
+#### 🎯 실제 근본 원인 발견
+
+**파일**: `circuit/src/components/workspace/WorkspaceChatEditor.tsx:1923-1931`
+
+**문제 코드**:
 ```typescript
-// ❌ 이전
-const loadStatuses = async (workspaceList) => { ... }
-useEffect(() => { ... }, [workspaces, loadStatuses])
-
-// ✅ 수정
-const loadStatuses = useCallback(async (workspaceList) => { ... }, [])
-const workspacesRef = useRef(workspaces)
-useEffect(() => { ... }, [workspaces.length, loadStatuses])
+const virtualizer = useVirtualizer({
+  count: filteredMessages.length,
+  getScrollElement,
+  estimateSize: useCallback(() => {  // ❌❌❌ 이게 문제!
+    return 200;
+  }, []),
+  overscan: 5,
+});
 ```
 
-#### 7. WorkspaceChatEditor에 key prop 누락
-**파일**: `circuit/src/App.tsx` (Line 461)
+---
 
-**문제**: workspace 변경 시 컴포넌트 재사용
+## 실제 근본 원인
+
+### 🔥 Inline useCallback의 함정
+
+**왜 이게 문제인가?**
+
+많은 개발자들이 착각하는 것:
+- ❌ "useCallback을 썼으니까 메모이제이션 되어있을 것이다"
+- ❌ "inline으로 써도 첫 렌더에서 안정화될 것이다"
+
+**실제로 일어나는 일**:
+
 ```typescript
-// ❌ 이전
-<WorkspaceChatEditor workspace={selectedWorkspace} ... />
+// 렌더 사이클 1
+const virtualizer = useVirtualizer({
+  estimateSize: useCallback(() => 200, [])  // 새 참조 A 생성
+})
+// useVirtualizer가 새 참조 A를 받음
+// → virtualizer 재구성
+// → measureElement(setRef) 호출
+// → 리렌더 트리거
 
-// ✅ 수정
-<WorkspaceChatEditor
-  key={selectedWorkspace.id}
-  workspace={selectedWorkspace}
-  ...
-/>
+// 렌더 사이클 2
+const virtualizer = useVirtualizer({
+  estimateSize: useCallback(() => 200, [])  // 이제 참조 A (안정화됨)
+})
+// 하지만 이미 리렌더가 트리거되어서...
+
+// 렌더 사이클 3
+const virtualizer = useVirtualizer({
+  estimateSize: useCallback(() => 200, [])  // 참조 A
+})
+// 또 리렌더...
+
+// 💥 무한 루프!
 ```
+
+### 무한 루프 메커니즘
+
+```
+1. 컴포넌트 렌더
+   ↓
+2. useVirtualizer 실행, inline useCallback 생성
+   ↓
+3. useCallback의 첫 참조는 아직 불안정 (React가 안정화 중)
+   ↓
+4. useVirtualizer가 불안정한 참조를 받음
+   ↓
+5. virtualizer 내부 재구성
+   ↓
+6. measureElement(setRef) 호출
+   ↓
+7. setRef가 상태 변경 유발
+   ↓
+8. 컴포넌트 리렌더 → 1번으로 돌아감 💥
+```
+
+### 왜 이렇게 찾기 어려웠나?
+
+1. **번들된 코드**: 에러 스택이 `chunk-XWW6MF7Y.js`를 가리킴
+   - 소스맵이 제대로 작동 안 함
+   - 어떤 컴포넌트인지 바로 알 수 없음
+
+2. **잘못된 확신**: ChatInput을 "고쳤다"고 착각
+   - 사용자가 "됐다"고 해서 넘어감
+   - 실제로는 여전히 문제가 있었음
+
+3. **useCallback의 미묘한 동작**:
+   - "useCallback = 메모이제이션"이라는 단순한 생각
+   - **inline useCallback은 첫 렌더에서 불안정함**을 몰랐음
+
+4. **virtualizer의 복잡한 내부 동작**:
+   - virtualizer가 언제 재구성되는지 명확하지 않음
+   - measureElement(setRef)가 상태 변경을 유발하는지 몰랐음
 
 ---
 
 ## 해결 방법
 
-### 최종 수정 파일 목록
+### ✅ 올바른 패턴
 
-| 파일 | 문제 | 중요도 |
-|------|------|--------|
-| `ChatInput.tsx` | useEffect 무한 루프 | ⭐⭐⭐ **근본 원인** |
-| `useClaudeMetrics.ts` | 에러 처리 | ⭐⭐ 기여 요인 |
-| `ClassicTerminal.tsx` | 의존성 배열 | ⭐⭐ 기여 요인 |
-| `WorkspaceChatEditor.tsx` | virtualizer + IPC | ⭐⭐ 기여 요인 |
-| `BlockList.tsx` | virtualizer | ⭐ 개선 |
-| `useAutoCompact.ts` | 조건부 hook | ⭐ 개선 |
-| `AppSidebar.tsx` | 함수 메모이제이션 | ⭐ 개선 |
-| `App.tsx` | key prop | ⭐ 개선 |
+**핵심 규칙**: useVirtualizer에 전달하는 **모든 콜백**은 **useVirtualizer 호출 전**에 정의해야 함!
 
-### 커밋 히스토리
-```bash
-2c78702 fix: attempt to resolve infinite render loop with multiple optimizations
-232f207 fix: resolve infinite render loop - root cause fixes
-59027a3 fix: memoize getScrollElement in BlockList to prevent infinite loop
-e2a91f8 fix: remove workspace.path from ClassicTerminal useEffect deps
-473eb49 fix: silence useClaudeMetrics errors to prevent infinite loops
-ccffcf4 fix: FOUND IT! ChatInput useEffect infinite loop
+```typescript
+// ✅ 올바른 방법
+const getScrollElement = useCallback(() => scrollContainerRef.current, []);
+
+const estimateSize = useCallback(() => {
+  return 200;
+}, []);
+
+const virtualizer = useVirtualizer({
+  count: filteredMessages.length,
+  getScrollElement,     // 이미 안정화된 참조
+  estimateSize,         // 이미 안정화된 참조
+  overscan: 5,
+});
+```
+
+### ❌ 피해야 할 패턴들
+
+```typescript
+// ❌ 패턴 1: 인라인 화살표 함수
+const virtualizer = useVirtualizer({
+  estimateSize: () => 200  // 매 렌더마다 새 함수!
+});
+
+// ❌ 패턴 2: 인라인 useCallback
+const virtualizer = useVirtualizer({
+  estimateSize: useCallback(() => 200, [])  // 첫 렌더에서 불안정!
+});
+
+// ❌ 패턴 3: 인라인 익명 함수
+const virtualizer = useVirtualizer({
+  estimateSize: function() { return 200 }  // 매 렌더마다 새 함수!
+});
+```
+
+### 🔧 실제 수정 내역
+
+#### WorkspaceChatEditor.tsx
+```diff
+- const virtualizer = useVirtualizer({
+-   count: filteredMessages.length,
+-   getScrollElement,
+-   estimateSize: useCallback(() => {
+-     return 200;
+-   }, []),
+-   overscan: 5,
+- });
+
++ const getScrollElement = useCallback(() => scrollContainerRef.current, []);
++
++ const estimateSize = useCallback(() => {
++   return 200;
++ }, []);
++
++ const virtualizer = useVirtualizer({
++   count: filteredMessages.length,
++   getScrollElement,
++   estimateSize,
++   overscan: 5,
++ });
+```
+
+#### BlockList.tsx
+```diff
+- const virtualizer = useVirtualizer({
+-   count: blocks.length,
+-   getScrollElement,
+-   estimateSize: () => 150,
+-   overscan: 5,
+- });
+
++ const getScrollElement = useCallback(() => parentRef.current, []);
++
++ const estimateSize = useCallback(() => 150, []);
++
++ const virtualizer = useVirtualizer({
++   count: blocks.length,
++   getScrollElement,
++   estimateSize,
++   overscan: 5,
++ });
 ```
 
 ---
 
 ## 재발 방지 가이드
 
-### 1. 디버깅 전략
+### 1. 무한 루프 디버깅 체크리스트
 
-#### ✅ DO: 로그 타임라인 분석
-```
-Line 40: ClassicTerminal 초기화
-Line 41: TerminalContext 터미널 생성
-Line 42: 💥 에러 발생
-```
-→ **ClassicTerminal 초기화 시점에 문제 집중**
+무한 루프가 발생하면 이 순서대로 체크하세요:
 
-#### ❌ DON'T: 에러 메시지만 믿기
-- "circuit:metrics-start not found" 에러가 많이 보였지만 **진짜 원인이 아니었음**
-- useClaudeMetrics를 먼저 수정했지만 문제 지속
-- **에러는 증상일 뿐, 원인이 아닐 수 있다!**
+- [ ] **에러 스택 확인**: 어떤 함수가 반복 호출되는가?
+  - `setRef` → virtualizer 문제
+  - `setState` → state 관리 문제
+  - `useEffect` → 의존성 배열 문제
 
-#### 올바른 접근 순서
-1. **에러 로그의 타임라인 분석** (어떤 순서로 발생?)
-2. **에러 스택 트레이스 역추적** (어느 컴포넌트?)
-3. **해당 컴포넌트의 useEffect/useState 체크**
-4. **의존성 배열 검증**
+- [ ] **로그 타임라인 분석**:
+  - 무엇이 먼저 실행되는가?
+  - 어떤 순서로 호출되는가?
+  - 언제 멈추지 않고 반복되기 시작하는가?
 
-### 2. useEffect 작성 규칙
+- [ ] **의존성 배열 점검**:
+  - useEffect, useMemo, useCallback의 deps 확인
+  - setState 대상이 deps에 있는가?
+  - 객체/배열 참조가 매번 바뀌는가?
 
-#### Rule 1: 의존성 배열에 setState가 업데이트하는 상태 넣지 않기
+- [ ] **inline 함수 제거**:
+  - useVirtualizer, useCallback, useMemo 등에 전달하는 함수
+  - 모두 미리 정의되어 있는가?
+
+- [ ] **React DevTools Profiler**:
+  - 어떤 컴포넌트가 반복 렌더되는가?
+  - 왜 렌더되는가? (props? state? context?)
+
+### 2. Virtual Scroller 사용 시 필수 규칙
+
 ```typescript
-// ❌ 나쁜 예
-useEffect(() => {
-  if (someCondition) {
-    setState(...)
-  }
-}, [state]) // state가 변경되면 다시 실행 → 무한 루프
-
-// ✅ 좋은 예
-useEffect(() => {
-  setState(prev => {
-    if (someCondition(prev)) {
-      return newValue
-    }
-    return prev // 변경 없으면 prev 반환
-  })
-}, [dependency]) // state 제거
-```
-
-#### Rule 2: 함수는 항상 useCallback으로 메모이제이션
-```typescript
-// ❌ 나쁜 예
-const handleSomething = () => { ... }
-useEffect(() => { ... }, [handleSomething]) // 매번 재생성
-
-// ✅ 좋은 예
-const handleSomething = useCallback(() => { ... }, [deps])
-useEffect(() => { ... }, [handleSomething])
-```
-
-#### Rule 3: 배열/객체 참조는 ref 패턴 사용
-```typescript
-// ❌ 나쁜 예
-useEffect(() => {
-  loadData(items)
-}, [items]) // 배열 참조 변경 시마다
-
-// ✅ 좋은 예
-const itemsRef = useRef(items)
-itemsRef.current = items
-useEffect(() => {
-  loadData(itemsRef.current)
-}, [items.length]) // 길이만 추적
-```
-
-#### Rule 4: IPC 리스너는 ref 패턴으로
-```typescript
-// ✅ Best Practice
-const handlersRef = useRef({ handler1, handler2, ... })
-handlersRef.current = { handler1, handler2, ... }
-
-useEffect(() => {
-  const wrapped = (...args) => handlersRef.current.handler1(...args)
-  ipcRenderer.on('event', wrapped)
-  return () => ipcRenderer.removeListener('event', wrapped)
-}, []) // 빈 배열 - 한 번만 등록
-```
-
-### 3. Virtual Scroller 사용 시
-
-#### 필수 메모이제이션
-```typescript
-// ✅ 항상 이렇게
-const getScrollElement = useCallback(() => scrollRef.current, [])
+// ✅ 올바른 패턴 - 모든 콜백을 미리 정의
+const getScrollElement = useCallback(() => ref.current, []);
+const estimateSize = useCallback(() => height, []);
+const measureElement = useCallback((el) => {
+  // 측정 로직
+}, []);
 
 const virtualizer = useVirtualizer({
-  count: items.length,
-  getScrollElement, // 안정적인 참조
-  estimateSize: useCallback(() => 200, []),
-})
+  count,
+  getScrollElement,
+  estimateSize,
+  // measureElement (필요 시)
+});
+
+// ❌ 절대 하지 말 것
+const virtualizer = useVirtualizer({
+  getScrollElement: () => ref.current,              // ❌
+  estimateSize: useCallback(() => height, []),      // ❌
+  measureElement: (el) => { /* ... */ },            // ❌
+});
 ```
 
-### 4. Key Prop 규칙
+### 3. useEffect 안전 패턴
 
-#### 리스트 렌더링 시
 ```typescript
-// ✅ 안정적인 ID 사용
-{items.map(item => (
-  <Component key={item.id} data={item} />
-))}
-```
-
-#### 컴포넌트 재마운트 필요 시
-```typescript
-// ✅ key로 컴포넌트 교체 강제
-<WorkspaceChatEditor
-  key={workspace.id}
-  workspace={workspace}
-/>
-```
-
-### 5. 에러 처리 Best Practices
-
-#### IPC 호출 실패 시
-```typescript
-// ✅ 조용히 실패 (선택적 기능일 경우)
-try {
-  const result = await ipcRenderer.invoke('optional-feature')
-  if (result.success) {
-    setData(result.data)
+// ❌ 위험한 패턴
+useEffect(() => {
+  if (someArray.length > 0) {
+    setSomeArray([...someArray, newItem])  // someArray 읽고 쓰기!
   }
-} catch (err) {
-  console.warn('[Component] Optional feature not available:', err)
-  // setError 호출 안 함 - setState 방지
-}
+}, [someArray])  // 💥
 
-// ✅ 에러 표시 (필수 기능일 경우)
-try {
-  const result = await ipcRenderer.invoke('critical-feature')
-  if (result.success) {
-    setData(result.data)
-  } else {
-    setError(result.error)
-  }
-} catch (err) {
-  console.error('[Component] Critical error:', err)
-  setError(err.message)
-}
+// ✅ 안전한 패턴
+useEffect(() => {
+  setSomeArray(prev => {
+    if (prev.length > 0) {
+      return [...prev, newItem]  // prev로만 읽기
+    }
+    return prev
+  })
+}, [])  // 또는 다른 의존성
+```
+
+### 4. 디버깅 전략
+
+#### A. 로그 먼저, 추측은 나중에
+```typescript
+// 무한 루프 의심 지점에 로그 추가
+console.log('[ComponentName] Rendering:', {
+  timestamp: Date.now(),
+  props,
+  state
+});
+
+useEffect(() => {
+  console.log('[ComponentName] Effect triggered:', {
+    dependency1,
+    dependency2
+  });
+}, [dependency1, dependency2]);
+```
+
+#### B. 바이너리 서치로 원인 격리
+```typescript
+// 1. 컴포넌트를 반으로 나눠서 주석 처리
+// 2. 에러가 사라지면 → 주석 처리한 부분에 문제
+// 3. 에러가 여전하면 → 나머지 부분에 문제
+// 4. 반복해서 범위를 좁혀감
+```
+
+#### C. React DevTools Profiler
+1. Profiler 탭 열기
+2. 녹화 시작
+3. 문제 재현
+4. 녹화 중단
+5. 어떤 컴포넌트가 수천 번 렌더되는지 확인
+
+#### D. 에러 스택 패턴 인식
+```javascript
+// 패턴 1: setRef 무한 루프 → virtualizer 문제
+at setRef (chunk-XXX.js:18:12)
+at Array.map (<anonymous>)
+at setRef (chunk-XXX.js:18:12)
+
+// 패턴 2: setState 무한 루프 → useEffect deps 문제
+at setState (react-dom.js:XXX)
+at Component.render (Component.tsx:XXX)
+at setState (react-dom.js:XXX)
+
+// 패턴 3: IPC 무한 등록 → useEffect deps 문제
+at ipcRenderer.on (electron.js:XXX)
+at useEffect (react-dom.js:XXX)
+at ipcRenderer.removeListener (electron.js:XXX)
 ```
 
 ---
 
 ## React 무한 루프 패턴 사전
 
-### Pattern 1: setState in useEffect with state dependency
+### 패턴 1: setState 타겟을 의존성에 포함 ⭐ 가장 흔함
+
 ```typescript
-// 🔥 위험
+// ❌ 무한 루프
+const [items, setItems] = useState([])
 useEffect(() => {
-  setState(value)
-}, [state])
-```
+  if (items.length === 0) {
+    setItems([1, 2, 3])  // items를 변경
+  }
+}, [items])  // 💥 items가 변경되면 다시 실행
 
-### Pattern 2: Array/Object in dependency
-```typescript
-// 🔥 위험
-const items = [1, 2, 3] // 매 렌더마다 새 배열
+// ✅ 해결책 1: 의존성 제거
 useEffect(() => {
-  doSomething(items)
-}, [items])
-```
+  setItems([1, 2, 3])
+}, [])  // 한 번만 실행
 
-### Pattern 3: Non-memoized function in dependency
-```typescript
-// 🔥 위험
-const handler = () => { ... } // 매 렌더마다 새 함수
+// ✅ 해결책 2: functional update
 useEffect(() => {
-  doSomething(handler)
-}, [handler])
+  setItems(prev => prev.length === 0 ? [1, 2, 3] : prev)
+}, [])
 ```
 
-### Pattern 4: Conditional Hook Call
+### 패턴 2: 객체/배열 참조가 매번 바뀜
+
 ```typescript
-// 🔥 위험
-const data = condition ? useHook() : null // React Hooks Rules 위반
+// ❌ 무한 루프
+const [data, setData] = useState({ count: 0 })
+useEffect(() => {
+  // 매번 새 객체 생성!
+  const newData = { count: data.count }
+  loadData(newData)
+}, [data])  // 💥 data 참조가 계속 바뀜
+
+// ✅ 해결책: 원시값으로 비교
+useEffect(() => {
+  const newData = { count: data.count }
+  loadData(newData)
+}, [data.count])  // count 값으로 비교
 ```
 
-### Pattern 5: Virtual Scroller with unstable callback
+### 패턴 3: useMemo 없이 복잡한 계산
+
 ```typescript
-// 🔥 위험
-useVirtualizer({
-  getScrollElement: () => ref.current // 매 렌더마다 새 함수
+// ❌ 무한 루프
+function Component({ items }) {
+  // 매 렌더마다 새 배열!
+  const filtered = items.filter(x => x.active)
+
+  useEffect(() => {
+    processItems(filtered)
+  }, [filtered])  // 💥 filtered는 항상 새 참조
+}
+
+// ✅ 해결책: useMemo
+function Component({ items }) {
+  const filtered = useMemo(
+    () => items.filter(x => x.active),
+    [items]
+  )
+
+  useEffect(() => {
+    processItems(filtered)
+  }, [filtered])  // ✅ items 변경시만 재계산
+}
+```
+
+### 패턴 4: Virtual Scroller inline 콜백 ⭐⭐ 이번 케이스!
+
+```typescript
+// ❌ 무한 루프 - inline 화살표 함수
+const virtualizer = useVirtualizer({
+  estimateSize: () => 200  // 매번 새 함수!
+})
+
+// ❌ 무한 루프 - inline useCallback
+const virtualizer = useVirtualizer({
+  estimateSize: useCallback(() => 200, [])  // 첫 렌더에서 불안정!
+})
+
+// ✅ 해결책
+const estimateSize = useCallback(() => 200, [])
+const virtualizer = useVirtualizer({
+  estimateSize
 })
 ```
 
+### 패턴 5: IPC 핸들러를 useEffect에서 등록
+
+```typescript
+// ❌ 무한 등록/해제
+function Component() {
+  const handleData = (event, data) => {
+    setData(data)
+  }
+
+  useEffect(() => {
+    ipcRenderer.on('data', handleData)
+    return () => ipcRenderer.removeListener('data', handleData)
+  }, [handleData])  // 💥 handleData는 매번 새 함수
+}
+
+// ✅ 해결책: ref 패턴
+function Component() {
+  const handlersRef = useRef({})
+
+  handlersRef.current.handleData = (event, data) => {
+    setData(data)
+  }
+
+  useEffect(() => {
+    const wrapped = (e, d) => handlersRef.current.handleData(e, d)
+    ipcRenderer.on('data', wrapped)
+    return () => ipcRenderer.removeListener('data', wrapped)
+  }, [])  // ✅ 한 번만 등록
+}
+```
+
+### 패턴 6: 조건부 Hook 호출 (React Hooks Rules 위반)
+
+```typescript
+// ❌ 무한 루프 + Rules 위반
+function Component({ needsContext }) {
+  if (needsContext) {
+    const context = useContext(SomeContext)  // 💥 조건부 Hook!
+    // ...
+  }
+}
+
+// ✅ 해결책: 항상 호출, 조건부로 사용
+function Component({ needsContext }) {
+  const context = useContext(SomeContext)
+
+  if (needsContext) {
+    // context 사용
+  }
+}
+```
+
+### 패턴 7: workspace.path 같은 객체 속성을 의존성에
+
+```typescript
+// ❌ 무한 재초기화
+useEffect(() => {
+  initializeWorkspace(workspace.path)
+}, [workspace.path])  // 💥 workspace 객체가 바뀌면 path도 "다른" 값
+
+// ✅ 해결책 1: workspace.id 사용
+useEffect(() => {
+  initializeWorkspace(workspace.path)
+}, [workspace.id])  // workspace가 바뀔 때만
+
+// ✅ 해결책 2: closure에서 사용 (주석 필수!)
+useEffect(() => {
+  initializeWorkspace(workspace.path)
+}, [workspace.id])  // workspace.path는 closure에서 사용
+```
+
 ---
 
-## 디버깅 체크리스트
+## 교훈 및 베스트 프랙티스
 
-무한 루프 발생 시 순서대로 체크:
+### 🎓 이 버그에서 배운 것
 
-- [ ] **1단계**: 로그 타임라인 분석 - 어느 컴포넌트에서 시작?
-- [ ] **2단계**: 에러 스택에서 컴포넌트 추출
-- [ ] **3단계**: 해당 컴포넌트의 모든 useEffect 검토
-  - [ ] 의존성 배열에 setState로 업데이트하는 상태가 있나?
-  - [ ] 의존성 배열에 메모이제이션 안 된 함수가 있나?
-  - [ ] 의존성 배열에 배열/객체가 직접 들어가 있나?
-- [ ] **4단계**: useState와 setState 호출 체크
-  - [ ] setState를 여러 번 호출하고 있나?
-  - [ ] setState 결과가 다른 setState를 트리거하나?
-- [ ] **5단계**: ref callback과 virtual scroller 체크
-  - [ ] ref callback에서 setState 호출?
-  - [ ] getScrollElement가 메모이제이션 되었나?
-- [ ] **6단계**: IPC 리스너 체크
-  - [ ] 중복 등록되고 있나?
-  - [ ] 핸들러가 의존성 배열에 있나?
+1. **"됐다"를 믿지 마라**
+   - 항상 로그로 검증
+   - 에러가 정말 사라졌는지 확인
+   - 테스트를 여러 번 반복
+
+2. **에러 스택을 읽는 법을 배워라**
+   - `setRef` → virtualizer
+   - `setState` → state 관리
+   - 패턴을 인식하면 원인을 빨리 찾을 수 있음
+
+3. **inline callback의 위험성**
+   - useCallback을 썼다고 안전한 게 아님
+   - 반드시 호출 전에 정의해야 함
+   - 특히 third-party 라이브러리 (virtualizer 등)
+
+4. **React의 렌더 사이클을 이해하라**
+   - useCallback/useMemo는 첫 렌더에서도 시간이 걸림
+   - 안정화되기 전에 사용하면 위험
+   - 순서가 중요함!
+
+5. **추측보다 측정**
+   - 로그를 추가하라
+   - React DevTools를 사용하라
+   - 타임라인을 분석하라
+
+### ✅ Virtual Scroller 체크리스트
+
+useVirtualizer를 사용할 때마다 이것을 확인하세요:
+
+```typescript
+// [ ] 1. getScrollElement이 useVirtualizer 전에 정의되었는가?
+const getScrollElement = useCallback(() => ref.current, []);
+
+// [ ] 2. estimateSize가 useVirtualizer 전에 정의되었는가?
+const estimateSize = useCallback(() => height, []);
+
+// [ ] 3. measureElement (있다면)가 useVirtualizer 전에 정의되었는가?
+const measureElement = useCallback((el) => {
+  // ...
+}, []);
+
+// [ ] 4. 모든 콜백이 안정적인 의존성을 가지는가?
+// [ ] 5. useVirtualizer 내부에 inline 함수가 없는가?
+
+const virtualizer = useVirtualizer({
+  count,
+  getScrollElement,     // ✅
+  estimateSize,         // ✅
+  // measureElement,    // ✅
+});
+```
+
+### 🔍 디버깅 황금률
+
+1. **에러 메시지를 읽어라** (하지만 맹신하지 마라)
+2. **로그를 추가하라** (추측하지 마라)
+3. **패턴을 인식하라** (경험을 쌓아라)
+4. **바이너리 서치로 격리하라** (범위를 좁혀라)
+5. **React DevTools를 사용하라** (도구를 활용하라)
+6. **커밋 히스토리를 확인하라** (언제부터 문제였나?)
+7. **다른 사람의 코드를 읽어라** (비슷한 사례를 찾아라)
 
 ---
 
-## 결론
+## 참고 자료
 
-### 핵심 교훈
+- [React Docs: Rules of Hooks](https://react.dev/warnings/invalid-hook-call-warning)
+- [React Docs: useCallback](https://react.dev/reference/react/useCallback)
+- [React Docs: useMemo](https://react.dev/reference/react/useMemo)
+- [TanStack Virtual Docs](https://tanstack.com/virtual/latest)
+- [React DevTools Profiler Guide](https://react.dev/learn/react-developer-tools)
 
-1. **에러 메시지만 믿지 말고 로그 타임라인을 분석하라**
-2. **useEffect 의존성 배열은 신중하게 관리하라**
-3. **setState를 하는 상태를 의존성에 넣지 마라**
-4. **모든 함수는 useCallback으로 메모이제이션하라**
-5. **Virtual Scroller의 모든 콜백은 메모이제이션하라**
+---
 
-### 이 문서가 도움이 되는 경우
+## 관련 커밋
 
-- React 무한 루프 에러 발생 시
-- "Maximum update depth exceeded" 에러 발생 시
-- useEffect가 예상보다 많이 실행될 때
-- 컴포넌트가 계속 리렌더링될 때
-- Virtual Scroller 사용 시 성능 문제
-
-### 참고 자료
-
-- [React Hooks Rules](https://react.dev/reference/rules/rules-of-hooks)
-- [useEffect Dependency Array](https://react.dev/reference/react/useEffect#specifying-reactive-dependencies)
-- [React Virtual Documentation](https://tanstack.com/virtual/latest)
+- `ef97e3d` - fix: extract estimateSize callback to prevent virtualizer infinite loop
+- `b8a8320` - docs: update infinite loop guide with actual root cause
+- `ccffcf4` - fix: FOUND IT! ChatInput useEffect infinite loop (실제로는 해결 안 됨)
+- `cd78c55` - docs: comprehensive React infinite loop debugging guide (부정확한 버전)
 
 ---
 
 **마지막 업데이트**: 2025-01-05
-**버전**: 1.0
-**작성자**: Claude Code + Human Developer
+**작성자**: Claude Code Assistant
+**프로젝트**: Circuit - Conductor AI Workspace
