@@ -1,16 +1,11 @@
 /**
- * WorkspaceEmptyState - Welcome screen when no workspace is selected
+ * ChatEmptyState - Empty state shown when there are no messages
  *
- * Shows cube logo and keyboard shortcuts
+ * Displays a centered cube logo with keyboard shortcuts
  */
 
 import React from 'react'
-import { Box } from 'lucide-react'
-
-interface WorkspaceEmptyStateProps {
-  onSelectWorkspace: (workspace: any) => void
-  onCreateWorkspace: () => void
-}
+import { Box, ArrowUp, Terminal, PanelLeft, Search } from 'lucide-react'
 
 interface ShortcutItemProps {
   label: string
@@ -37,7 +32,7 @@ const ShortcutItem: React.FC<ShortcutItemProps> = ({ label, keys }) => {
   )
 }
 
-export function WorkspaceEmptyState({ onSelectWorkspace, onCreateWorkspace }: WorkspaceEmptyStateProps) {
+export const ChatEmptyState: React.FC = () => {
   return (
     <div className="flex flex-col items-center justify-center h-full pb-32">
       {/* Cube Logo */}

@@ -41,10 +41,12 @@ export function enrichCommits(
       });
 
       if (exclusiveBranch) {
+        console.log(`[CommitMapping] ${commit.hash.substring(0,7)} → exclusive to ${exclusiveBranch}`);
         primaryBranch = exclusiveBranch;
         primaryBranchObj = branches.get(exclusiveBranch);
       } else {
         // 모두 공유 → 가장 왼쪽 (lane 작은) 브랜치
+        console.log(`[CommitMapping] ${commit.hash.substring(0,7)} → shared by ${belongsToBranches.join(', ')}, using lowest lane`);
         const sorted = belongsToBranches
           .map(name => branches.get(name))
           .filter(b => b !== undefined)

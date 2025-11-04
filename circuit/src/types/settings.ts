@@ -13,6 +13,36 @@ export type SendKeyCombo = 'enter' | 'cmd-enter' | 'shift-enter';
 export type CompletionSound = 'chime' | 'ding' | 'pop' | 'none';
 export type ThemeMode = 'light' | 'dark' | 'system' | 'green-light' | 'green-dark' | 'warm-light' | 'warm-dark' | 'straw-light' | 'slate-dark';
 export type CompactMode = 'immediate' | 'idle' | 'prompt';
+export type TerminalMode = 'classic' | 'modern';
+export type TerminalRenderer = 'canvas' | 'webgl' | 'dom';
+
+/**
+ * Terminal settings
+ * Controls terminal mode and features
+ */
+export interface TerminalSettings {
+  // Terminal mode (classic xterm.js vs modern Warp-style)
+  mode: TerminalMode;
+
+  // Rendering engine
+  renderer: TerminalRenderer;
+
+  // Modern mode features (Warp-style)
+  modernFeatures: {
+    enableBlocks: boolean;              // Group commands and outputs as blocks
+    enableEnhancedInput: boolean;       // Monaco-based input editor
+    showTimestamps: boolean;            // Show command execution timestamps
+    highlightFailedCommands: boolean;   // Highlight blocks with non-zero exit codes
+    enableWorkflows: boolean;           // Save and execute command workflows
+  };
+
+  // Classic mode features
+  classicFeatures: {
+    scrollback: number;                 // Number of lines to keep in history
+    cursorBlink: boolean;               // Enable cursor blinking
+    fontSize: number;                   // Font size in pixels
+  };
+}
 
 /**
  * Auto-compact settings
@@ -83,6 +113,9 @@ export interface CircuitSettings {
     threshold: number; // Character count threshold
   };
 
+  // Terminal configuration
+  terminal: TerminalSettings;
+
   // Context management (auto-compact)
   context: AutoCompactSettings;
 }
@@ -114,6 +147,22 @@ export const defaultSettings: CircuitSettings = {
   attachments: {
     autoConvertLongText: true,
     threshold: 5000,
+  },
+  terminal: {
+    mode: 'classic', // Start with classic mode for safety
+    renderer: 'canvas', // Canvas for transparency support
+    modernFeatures: {
+      enableBlocks: true,
+      enableEnhancedInput: true,
+      showTimestamps: true,
+      highlightFailedCommands: true,
+      enableWorkflows: false, // Enable later when implemented
+    },
+    classicFeatures: {
+      scrollback: 1000,
+      cursorBlink: true,
+      fontSize: 12,
+    },
   },
   context: {
     enabled: true,

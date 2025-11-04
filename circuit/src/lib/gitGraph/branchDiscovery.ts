@@ -179,12 +179,11 @@ export function createVirtualBranchesForMerges(
         const mergedParent = commitMap.get(mergedParentHash);
         if (!mergedParent) return;
 
-        // 이미 브랜치가 할당되어 있으면 스킵
-        const existingBranches = commitToBranches.get(mergedParentHash);
-        if (existingBranches && existingBranches.size === 1) {
-          // 한 브랜치에만 속함 = exclusive → 이미 처리됨
-          return;
-        }
+        // 이미 활성 브랜치의 HEAD면 스킵 (아직 살아있는 브랜치)
+        const isActiveBranchHead = Array.from(branches.values()).some(b =>
+          b.isActive && b.head === mergedParentHash
+        );
+        if (isActiveBranchHead) return;
 
         // 가상 브랜치 이름 추출 (merge message에서)
         const extractedName = extractBranchNameFromMergeMessage(commit.message);

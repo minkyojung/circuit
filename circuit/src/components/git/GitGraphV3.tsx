@@ -291,23 +291,13 @@ export function GitGraphV3({ workspacePath, limit = 5000 }: GitGraphV3Props) {
               const y = index * ROW_HEIGHT + 20;
               const isMerge = commit.isMergeCommit;
 
-              // Branch label strategy (matching GitKraken):
-              // 1. HEAD commits (from refs) - always show
-              // 2. Branch start points - show for real and named virtual branches
+              // Branch label strategy (Row-by-Row):
+              // Only show labels for commits with refs (branch HEADs)
               let branchLabel: string | null = null;
 
-              // First, try to get label from refs (HEAD position)
               const refLabel = getBranchLabel(commit.refs);
               if (refLabel) {
                 branchLabel = refLabel;
-              }
-              // If no ref, check if this is a branch start point
-              else if (commit.isBranchStart) {
-                // Skip unnamed virtual branches (merged-xxxxx-0 format)
-                const isUnnamedVirtual = /^merged-[0-9a-f]{7}-\d+$/.test(commit.primaryBranch);
-                if (!isUnnamedVirtual) {
-                  branchLabel = commit.primaryBranch;
-                }
               }
 
               const avatarUrl = getGravatarUrl(commit.email || commit.author);

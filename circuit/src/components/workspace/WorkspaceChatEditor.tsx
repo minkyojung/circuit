@@ -235,6 +235,7 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
 
   // Refs to hold latest state values (to avoid stale closures in IPC handlers)
   const sessionIdRef = useRef<string | null>(sessionId);
+  const pendingAssistantMessageIdRef = useRef<string | null>(null);
   const conversationIdRef = useRef<string | null>(conversationId);
   const messagesRef = useRef<Message[]>(messages);
   const thinkingStepsRef = useRef<ThinkingStep[]>(thinkingSteps);
@@ -357,6 +358,10 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   useEffect(() => {
     messageThinkingStepsRef.current = messageThinkingSteps;
   }, [messageThinkingSteps]);
+
+  useEffect(() => {
+    pendingAssistantMessageIdRef.current = pendingAssistantMessageId;
+  }, [pendingAssistantMessageId]);
 
   // Set prefilled message when provided
   useEffect(() => {
@@ -633,14 +638,15 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
         const updatedSteps = [...prev, newStep];
 
         // Update messageThinkingSteps in real-time for the pending assistant message
-        if (pendingAssistantMessageId) {
+        const currentPendingId = pendingAssistantMessageIdRef.current;
+        if (currentPendingId) {
           const duration = thinkingStartTimeRef.current > 0
             ? Math.round((Date.now() - thinkingStartTimeRef.current) / 1000)
             : 0;
 
           setMessageThinkingSteps((prevSteps) => ({
             ...prevSteps,
-            [pendingAssistantMessageId]: {
+            [currentPendingId]: {
               steps: updatedSteps,
               duration
             }
