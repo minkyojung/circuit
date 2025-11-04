@@ -459,6 +459,7 @@ function App() {
             {selectedWorkspace ? (
               <>
                 <WorkspaceChatEditor
+                  key={selectedWorkspace.id}
                   workspace={selectedWorkspace}
                   selectedFile={selectedFile}
                   prefillMessage={chatPrefillMessage}

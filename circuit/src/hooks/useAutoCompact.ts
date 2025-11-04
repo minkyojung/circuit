@@ -13,7 +13,6 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useSettingsContext } from '@/contexts/SettingsContext';
-import { useWorkspaceContext } from '@/hooks/useWorkspaceContext';
 
 export type CompactLevel = 'normal' | 'warning' | 'recommend' | 'urgent';
 
@@ -23,18 +22,20 @@ interface CompactState {
   userDismissed: boolean;
 }
 
+interface ContextMetrics {
+  current: number;
+  limit: number;
+  percentage: number;
+  lastCompact: string | null;
+  sessionStart: string;
+  prunableTokens: number;
+  shouldCompact: boolean;
+}
+
 interface UseAutoCompactOptions {
   workspaceId?: string;
   workspacePath?: string;
-  context?: {
-    current: number;
-    limit: number;
-    percentage: number;
-    lastCompact: string | null;
-    sessionStart: string;
-    prunableTokens: number;
-    shouldCompact: boolean;
-  } | null;
+  context: ContextMetrics | null; // Now required, not optional
 }
 
 interface UseAutoCompactReturn {
@@ -69,16 +70,8 @@ interface UseAutoCompactReturn {
  * });
  */
 export function useAutoCompact(options: UseAutoCompactOptions): UseAutoCompactReturn {
-  const { workspaceId, workspacePath, context: externalContext } = options;
+  const { workspaceId, workspacePath, context } = options;
   const { settings } = useSettingsContext();
-
-  // Use external context if provided, otherwise fetch it
-  const { context: fetchedContext } = useWorkspaceContext(
-    externalContext ? undefined : workspaceId,
-    externalContext ? undefined : workspacePath
-  );
-
-  const context = externalContext || fetchedContext;
 
   const [compactState, setCompactState] = useState<CompactState>({
     level: 'normal',
