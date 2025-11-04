@@ -1618,70 +1618,12 @@ The plan is ready. What would you like to do?`,
   const virtualizer = useVirtualizer({
     count: filteredMessages.length,
     getScrollElement: () => scrollContainerRef.current,
-    estimateSize: useCallback((index) => {
-      const msg = filteredMessages[index];
-      if (!msg) return 200;
-
-      // Define minimum heights to prevent overlap
-      const MIN_USER_HEIGHT = 60;
-      const MIN_ASSISTANT_HEIGHT = 100;
-
-      // More accurate size estimates to reduce measurement corrections
-      if (msg.role === 'user') {
-        // User messages are typically shorter
-        const baseHeight = msg.metadata?.attachments?.length > 0 ? 120 : 80;
-        // Account for message length
-        const contentLines = Math.ceil((msg.content?.length || 0) / 80);
-        const calculatedHeight = baseHeight + (contentLines * 20);
-        return Math.max(calculatedHeight, MIN_USER_HEIGHT);
-      }
-
-      // Assistant messages - start with base
-      let estimatedHeight = 150;
-
-      // Add height for blocks
-      if (msg.blocks && msg.blocks.length > 0) {
-        // Each code block is roughly 200-400px
-        estimatedHeight += msg.blocks.length * 250;
-      }
-
-      // Add height for inline todo progress
-      if (msg.metadata?.todoWriteResult) {
-        const todoCount = msg.metadata.todoWriteResult.todos?.length || 3;
-        estimatedHeight += 80 + (todoCount * 40); // Header + todo items
-      }
-
-      // Add height for reasoning accordion (when closed)
-      const hasThinking = messageThinkingSteps[msg.id]?.steps?.length > 0;
-      if (hasThinking) {
-        estimatedHeight += 50; // Collapsed accordion header
-        // If it's open, add much more height
-        if (openReasoningId === msg.id) {
-          const stepCount = messageThinkingSteps[msg.id]?.steps?.length || 0;
-          estimatedHeight += stepCount * 35 + 100; // Expanded steps
-        }
-      }
-
-      // Account for content length
-      const contentLines = Math.ceil((msg.content?.length || 0) / 100);
-      estimatedHeight += contentLines * 18;
-
-      // Ensure minimum height and cap at maximum
-      return Math.max(Math.min(estimatedHeight, 2000), MIN_ASSISTANT_HEIGHT);
-    }, [filteredMessages, messageThinkingSteps, openReasoningId]),
+    estimateSize: useCallback(() => {
+      // Use single fixed height for all messages to avoid measurement issues
+      return 200;
+    }, []),
     overscan: 5, // Render 5 extra items outside viewport for smooth scrolling
   });
-
-  // Force virtualizer to remeasure when messages change
-  useEffect(() => {
-    if (filteredMessages.length > 0) {
-      console.log('[ChatPanel] 📏 Remeasuring virtualizer, message count:', filteredMessages.length);
-      // Use requestAnimationFrame to ensure DOM has updated before measuring
-      requestAnimationFrame(() => {
-        virtualizer.measure();
-      });
-    }
-  }, [filteredMessages.length, virtualizer]);
 
   // Track previous message count to detect new messages
   const prevMessageCountRef = useRef(filteredMessages.length);
@@ -1730,18 +1672,10 @@ The plan is ready. What would you like to do?`,
               width: '100%',
               position: 'relative',
             }}
+            data-virtualizer-total-size={virtualizer.getTotalSize()}
           >
             {virtualizer.getVirtualItems().map((virtualItem) => {
               const msg = filteredMessages[virtualItem.index];
-
-              // Debug: Log message rendering position
-              console.log('[ChatPanel] 🎨 Rendering message:', {
-                id: msg.id,
-                role: msg.role,
-                index: virtualItem.index,
-                startPosition: virtualItem.start,
-                estimatedSize: virtualItem.size,
-              });
 
               return (
                 <div
@@ -1775,13 +1709,24 @@ The plan is ready. What would you like to do?`,
               );
             })}
             {isSending && thinkingSteps.length === 0 && (
-              <div className="flex justify-start my-3">
-                <div className="max-w-[75%] w-full">
-                  {/* Initial loading state with Shimmer */}
-                  <div className="space-y-2 pl-1">
-                    <Shimmer duration={2} className="text-sm text-muted-foreground">
-                      Analyzing your request...
-                    </Shimmer>
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  transform: `translateY(${virtualizer.getTotalSize()}px)`,
+                }}
+              >
+                <div className="max-w-4xl mx-auto px-0 mb-5">
+                  <div className="flex justify-start">
+                    <div className="max-w-[75%]">
+                      <div className="space-y-2 pl-1">
+                        <Shimmer duration={2} className="text-sm text-muted-foreground">
+                          Analyzing your request...
+                        </Shimmer>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
