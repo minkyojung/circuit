@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
-import { ArrowUp, Paperclip, X, ListChecks, ChevronDown } from 'lucide-react'
+import { ArrowUp, Paperclip, X, ListChecks, ChevronDown, ListTodo, Code } from 'lucide-react'
 import { toast } from 'sonner'
 import { useSettingsContext } from '@/contexts/SettingsContext'
 import { useClaudeMetrics } from '@/hooks/useClaudeMetrics'
@@ -37,6 +37,15 @@ interface ChatInputProps {
   onCancel?: () => void
   workspacePath?: string
   projectPath?: string
+  onAddTodo?: (content: string) => void | Promise<void>
+  // Code attachment from editor selection
+  codeAttachment?: {
+    code: string
+    filePath: string
+    lineStart: number
+    lineEnd: number
+  } | null
+  onCodeAttachmentRemove?: () => void
 }
 
 export interface AttachedFile {
@@ -45,6 +54,13 @@ export interface AttachedFile {
   type: string
   size: number
   url: string  // Data URL or Object URL
+  // For code attachments
+  code?: {
+    content: string
+    filePath: string
+    lineStart: number
+    lineEnd: number
+  }
 }
 
 const INPUT_STYLES = {
@@ -86,6 +102,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   onCancel,
   workspacePath,
   projectPath,
+  onAddTodo,
+  codeAttachment,
+  onCodeAttachmentRemove,
 }) => {
   const { settings, updateSettings } = useSettingsContext()
   const { metrics } = useClaudeMetrics()
@@ -93,6 +112,42 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const [thinkingMode, setThinkingMode] = useState<ThinkingMode>('normal')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // Convert code attachment to AttachedFile when it changes
+  useEffect(() => {
+    if (!codeAttachment) {
+      // Remove code attachment from attachedFiles if it was removed
+      setAttachedFiles(prev => prev.filter(f => f.type !== 'code/selection'))
+      return
+    }
+
+    // Check if this code attachment already exists
+    const codeAttachmentId = `code-${codeAttachment.filePath}-${codeAttachment.lineStart}-${codeAttachment.lineEnd}`
+    const exists = attachedFiles.some(f => f.id === codeAttachmentId)
+
+    if (!exists) {
+      // Create AttachedFile from code attachment
+      const lineInfo = codeAttachment.lineEnd !== codeAttachment.lineStart
+        ? `${codeAttachment.lineStart}-${codeAttachment.lineEnd}`
+        : `${codeAttachment.lineStart}`
+
+      const codeFile: AttachedFile = {
+        id: codeAttachmentId,
+        name: `${codeAttachment.filePath}:${lineInfo}`,
+        type: 'code/selection',
+        size: codeAttachment.code.length,
+        url: '', // Not used for code
+        code: {
+          content: codeAttachment.code,
+          filePath: codeAttachment.filePath,
+          lineStart: codeAttachment.lineStart,
+          lineEnd: codeAttachment.lineEnd,
+        }
+      }
+
+      setAttachedFiles(prev => [...prev, codeFile])
+    }
+  }, [codeAttachment, attachedFiles])
 
   // Slash commands state
   const [availableCommands, setAvailableCommands] = useState<Array<{ name: string; fileName: string }>>([])
@@ -477,6 +532,20 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     )
   }, [])
 
+  // Handle add as todo
+  const handleAddAsTodo = useCallback(async () => {
+    if (!value.trim() || !onAddTodo) return
+
+    try {
+      await onAddTodo(value.trim())
+      onChange('') // Clear input after adding
+      toast.success('Added to tasks')
+    } catch (error) {
+      console.error('[ChatInput] Failed to add todo:', error)
+      toast.error('Failed to add task')
+    }
+  }, [value, onAddTodo, onChange])
+
   return (
     <div className={INPUT_STYLES.container.maxWidth}>
       {/* Slash Command Menu */}
@@ -535,7 +604,52 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   {/* Attachments Pills - Arc-inspired design */}
                   <div className="flex flex-wrap gap-2 px-4">
                     {attachedFiles.map((file) => {
-                      // Extract file extension
+                      // Handle code attachments differently
+                      if (file.type === 'code/selection' && file.code) {
+                        const pathParts = file.code.filePath.split('/')
+                        const fileName = pathParts[pathParts.length - 1]
+                        const lineInfo = file.code.lineEnd !== file.code.lineStart
+                          ? `${file.code.lineStart}-${file.code.lineEnd}`
+                          : `${file.code.lineStart}`
+
+                        return (
+                          <div
+                            key={file.id}
+                            className="group flex items-center gap-2 pl-2 pr-2 py-2 rounded-xl bg-card transition-all"
+                          >
+                            {/* Code icon - Purple */}
+                            <div className="flex-shrink-0">
+                              <div className="w-6 h-[30px] rounded-md bg-purple-500/20 flex items-center justify-center">
+                                <Code className="w-3 h-3 text-purple-400" strokeWidth={2} />
+                              </div>
+                            </div>
+
+                            {/* Code info - Vertical layout */}
+                            <div className="flex flex-col justify-center min-w-0 gap-1">
+                              <span className="text-sm font-light text-foreground max-w-[160px] truncate leading-tight font-mono">
+                                {fileName}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground font-medium leading-tight font-mono">
+                                :{lineInfo}
+                              </span>
+                            </div>
+
+                            {/* Remove button */}
+                            <button
+                              onClick={() => {
+                                handleRemoveFile(file.id)
+                                onCodeAttachmentRemove?.()
+                              }}
+                              className="ml-0.5 p-0.5 rounded-md transition-colors opacity-60 group-hover:opacity-100 hover:text-foreground hover:bg-secondary/30 dark:hover:text-white dark:hover:bg-secondary/20"
+                              aria-label="Remove code attachment"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        )
+                      }
+
+                      // Regular file attachments
                       const extension = file.name.split('.').pop()?.toUpperCase() || 'FILE';
                       const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
 
@@ -622,7 +736,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   className={`inline-flex items-center ${INPUT_STYLES.controls.modelButton} text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-50`}
                   title={`Current: ${modelLabels[settings.model.default]} (click to cycle)`}
                 >
-                  <span>{modelLabels[settings.model.default]}</span>
+                  <span className="font-light">{modelLabels[settings.model.default]}</span>
                 </button>
 
                 {/* Thinking Mode Selector */}
@@ -632,7 +746,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                       className={`inline-flex items-center gap-1 ${INPUT_STYLES.controls.modelButton} text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors`}
                       disabled={disabled}
                     >
-                      <span>{thinkingModeLabels[thinkingMode]}</span>
+                      <span className="font-light">{thinkingModeLabels[thinkingMode]}</span>
                       <ChevronDown size={12} strokeWidth={1.5} />
                     </button>
                   </DropdownMenuTrigger>
@@ -676,6 +790,18 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     title="Toggle Plan Mode (⌘⇧P)"
                   >
                     <ListChecks size={INPUT_STYLES.controls.sourcesIconSize} strokeWidth={1.5} />
+                  </button>
+                )}
+
+                {/* Add as Todo Button */}
+                {onAddTodo && value.trim() && (
+                  <button
+                    onClick={handleAddAsTodo}
+                    disabled={disabled}
+                    className={`inline-flex items-center justify-center ${INPUT_STYLES.controls.sourcesButton} text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-50`}
+                    title="Add as Task"
+                  >
+                    <ListTodo size={INPUT_STYLES.controls.sourcesIconSize} strokeWidth={1.5} />
                   </button>
                 )}
               </div>

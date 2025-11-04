@@ -19,11 +19,13 @@ import { ReasoningAccordion } from '@/components/reasoning/ReasoningAccordion';
 import type { ThinkingStep } from '@/types/thinking';
 import { summarizeToolUsage } from '@/lib/thinkingUtils';
 import { motion, AnimatePresence } from 'motion/react';
-import { TodoProvider } from '@/contexts/TodoContext';
+import { TodoProvider, useTodos } from '@/contexts/TodoContext';
+import { useAgent } from '@/contexts/AgentContext';
 import { TodoConfirmationDialog } from '@/components/todo';
 import { MessageComponent } from './MessageComponent';
 import { ChatEmptyState } from './ChatEmptyState';
 import { MarkdownPreview } from './MarkdownPreview';
+import { FloatingCodeActions } from './FloatingCodeActions';
 import {
   extractTodoWriteFromBlocks,
   extractPlanFromText,
@@ -271,6 +273,16 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   const [thinkingSteps, setThinkingSteps] = useState<ThinkingStep[]>([]);
   const [messageThinkingSteps, setMessageThinkingSteps] = useState<Record<string, { steps: ThinkingStep[], duration: number }>>({});
 
+  // Todo context
+  const { createTodosFromDrafts, todos } = useTodos();
+
+  // Agent context
+  const { startAgent, agents: agentStatesByTodoId } = useAgent();
+
+  // Simply pass through agentStatesByTodoId as it's already todoId-based
+  // MessageComponent will use todoId from metadata to look up the state
+  const messageAgentStates = agentStatesByTodoId;
+
   // Todo-related state
   const [todoResult, setTodoResult] = useState<TodoGenerationResult | null>(null);
   const [showTodoDialog, setShowTodoDialog] = useState(false);
@@ -316,6 +328,45 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
 
   // Real-time duration for in-progress message
   const [currentDuration, setCurrentDuration] = useState<number>(0);
+
+  // Code attachment state for "Ask Claude" action
+  const [codeAttachment, setCodeAttachment] = useState<{
+    code: string
+    filePath: string
+    lineStart: number
+    lineEnd: number
+  } | null>(null);
+
+  // Handle code selection actions from editor
+  useEffect(() => {
+    if (!codeSelectionAction) return;
+
+    const { type, code, filePath, lineStart, lineEnd } = codeSelectionAction;
+
+    if (type === 'ask') {
+      // For "Ask" action: Attach code to chat input for manual sending
+      setCodeAttachment({ code, filePath, lineStart, lineEnd });
+    } else {
+      // For other actions: Auto-generate and send prompt
+      const lineInfo = lineEnd !== lineStart ? `${lineStart}-${lineEnd}` : `${lineStart}`;
+      let prompt = '';
+
+      if (type === 'explain') {
+        prompt = `Explain this code from ${filePath}:${lineInfo}:\n\n\`\`\`\n${code}\n\`\`\``;
+      } else if (type === 'optimize') {
+        prompt = `Optimize this code from ${filePath}:${lineInfo}:\n\n\`\`\`\n${code}\n\`\`\`\n\nProvide specific improvements for performance, readability, and maintainability.`;
+      } else if (type === 'add-tests') {
+        prompt = `Generate comprehensive tests for this code from ${filePath}:${lineInfo}:\n\n\`\`\`\n${code}\n\`\`\`\n\nInclude unit tests, edge cases, and integration tests where appropriate.`;
+      }
+
+      if (prompt) {
+        executePrompt(prompt, [], 'normal');
+      }
+    }
+
+    // Clear the action after handling
+    onCodeSelectionHandled?.();
+  }, [codeSelectionAction, onCodeSelectionHandled]);
 
   // Load conversation when workspace or externalConversationId changes
   useEffect(() => {
@@ -1435,20 +1486,143 @@ The plan is ready. What would you like to do?`,
     ipcRenderer.send('claude:cancel-message', sessionId);
   };
 
+  // Handle running agent for a task message
+  const handleRunAgentForMessage = useCallback(async (messageId: string) => {
+    // Find the message to get todoId from metadata
+    const message = messages.find(m => m.id === messageId);
+    if (!message) {
+      console.warn('[ChatPanel] No message found:', messageId);
+      return;
+    }
+
+    // Parse metadata to get todoId
+    let todoId: string | undefined;
+    try {
+      const metadata = typeof message.metadata === 'string'
+        ? JSON.parse(message.metadata)
+        : message.metadata;
+      todoId = metadata?.todoId;
+    } catch (error) {
+      console.error('[ChatPanel] Failed to parse metadata:', error);
+    }
+
+    if (!todoId) {
+      console.warn('[ChatPanel] No todoId found in message metadata:', messageId);
+      return;
+    }
+
+    try {
+      console.log('[ChatPanel] Starting agent for todo:', todoId, 'workspace:', workspace.id);
+      await startAgent(todoId, workspace.id);
+    } catch (error) {
+      console.error('[ChatPanel] Failed to start agent:', error);
+    }
+  }, [messages, startAgent, workspace.id]);
+
+  // Handle adding text as todo - creates a user message with todo
+  const handleAddTodo = useCallback(async (content: string) => {
+    if (!content.trim()) {
+      throw new Error('Task content cannot be empty');
+    }
+
+    try {
+      // Ensure we have a conversationId (create if needed)
+      let activeConversationId = conversationId;
+
+      if (!activeConversationId) {
+        console.log('[ChatPanel] No conversation ID, creating new conversation for task');
+        try {
+          const createResult = await ipcRenderer.invoke('conversation:create', workspace.id);
+          if (createResult.success && createResult.conversation) {
+            activeConversationId = createResult.conversation.id;
+            setConversationId(activeConversationId);
+            if (onConversationChange) {
+              onConversationChange(activeConversationId);
+            }
+          } else {
+            throw new Error('Failed to create conversation');
+          }
+        } catch (error) {
+          console.error('[ChatPanel] Error creating conversation:', error);
+          throw new Error('Failed to create conversation. Please try again.');
+        }
+      }
+
+      const timestamp = Date.now();
+      const messageId = `msg-${timestamp}`;
+      const todoId = `todo-${messageId}-0`;  // Pre-generate todoId
+
+      // Create user message (UI only - not saved to DB)
+      const userMessage: Message = {
+        id: messageId,
+        conversationId: activeConversationId,
+        role: 'user',
+        content: content.trim(),
+        timestamp,
+        metadata: JSON.stringify({
+          isTask: true,
+          todoId: todoId  // Store todoId in metadata
+        }),
+      };
+
+      // Add message to UI immediately
+      setMessages(prev => [...prev, userMessage]);
+
+      // Create todo linked to this message
+      console.log('[ChatPanel] Creating todo with ID:', todoId);
+      await createTodosFromDrafts(
+        activeConversationId,
+        messageId,
+        [
+          {
+            content: content.trim(),
+            activeForm: content.trim(),
+            order: todos.length,
+            depth: 0,
+          }
+        ]
+      );
+      console.log('[ChatPanel] Todo created successfully:', todoId);
+      console.log('[ChatPanel] Task added as message:', messageId, 'todoId:', todoId);
+    } catch (error) {
+      console.error('[ChatPanel] Failed to add todo:', error);
+      throw error; // Re-throw to show error toast in ChatInput
+    }
+  }, [conversationId, createTodosFromDrafts, todos.length, workspace.id, onConversationChange]);
+
   const handleSend = async (inputText: string, attachments: AttachedFile[], thinkingMode: import('./ChatInput').ThinkingMode) => {
     if (!inputText.trim() && attachments.length === 0) return;
     if (isSending || !sessionId) return;
 
+    // Build final input with code attachments prepended
+    let finalInput = inputText;
+    const codeAttachments = attachments.filter(a => a.type === 'code/selection' && a.code);
+
+    if (codeAttachments.length > 0) {
+      const codeBlocks = codeAttachments.map(a => {
+        if (!a.code) return '';
+        const lineInfo = a.code.lineEnd !== a.code.lineStart
+          ? `${a.code.lineStart}-${a.code.lineEnd}`
+          : `${a.code.lineStart}`;
+        return `Code from ${a.code.filePath}:${lineInfo}:\n\`\`\`\n${a.code.content}\n\`\`\``;
+      }).join('\n\n');
+
+      finalInput = `${codeBlocks}\n\n${inputText}`;
+
+      // Clear code attachment state
+      setCodeAttachment(null);
+    }
+
     // Plan mode: Let Claude generate detailed todos
     if (thinkingMode === 'plan') {
       console.log('[ChatPanel] Plan mode: Claude will generate todos');
-      await executePrompt(inputText, attachments, thinkingMode);
+      await executePrompt(finalInput, attachments, thinkingMode);
       return;
     }
 
     // Normal/Think modes: Execute directly without todo analysis
     // Todo analysis is ONLY for plan mode now
-    await executePrompt(inputText, attachments, thinkingMode);
+    await executePrompt(finalInput, attachments, thinkingMode);
   };
 
   const executePrompt = async (inputText: string, attachments: AttachedFile[], thinkingMode: import('./ChatInput').ThinkingMode) => {
@@ -1803,6 +1977,8 @@ The plan is ready. What would you like to do?`,
                       onToggleReasoning={handleToggleReasoning}
                       onExecuteCommand={handleExecuteCommand}
                       onFileReferenceClick={onFileReferenceClick}
+                      onRunAgent={handleRunAgentForMessage}
+                      agentStates={messageAgentStates}
                     />
                   </div>
                 </div>
@@ -1866,7 +2042,7 @@ The plan is ready. What would you like to do?`,
 
       {/* Enhanced Chat Input - Floating */}
       <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-0 bg-card pointer-events-none">
-        <div className="pointer-events-auto">
+        <div className="pointer-events-auto max-w-4xl mx-auto">
           <ChatInput
             value={input}
             onChange={setInput}
@@ -1878,6 +2054,9 @@ The plan is ready. What would you like to do?`,
             onCancel={handleCancel}
             workspacePath={workspace.path}
             projectPath={workspace.path.split('/.conductor/workspaces/')[0]}
+            onAddTodo={handleAddTodo}
+            codeAttachment={codeAttachment}
+            onCodeAttachmentRemove={() => setCodeAttachment(null)}
           />
         </div>
       </div>
@@ -1945,6 +2124,14 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
   // Monaco editor instance ref
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
 
+  // Floating action bar state
+  const [floatingActionsVisible, setFloatingActionsVisible] = useState(false);
+  const [floatingActionsPosition, setFloatingActionsPosition] = useState({ top: 0, left: 0 });
+  const [currentSelection, setCurrentSelection] = useState<{
+    code: string
+    selection: monaco.Selection
+  } | null>(null);
+
   // Handler: Ask about code
   const handleAskAboutCode = useCallback((code: string, filePath: string, selection: monaco.Selection) => {
     if (onCodeSelectionAction) {
@@ -1996,6 +2183,35 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
       });
     }
   }, [onCodeSelectionAction]);
+
+  // Floating action bar button handlers
+  const handleFloatingAsk = useCallback(() => {
+    if (currentSelection && activeFile) {
+      handleAskAboutCode(currentSelection.code, activeFile, currentSelection.selection);
+      setFloatingActionsVisible(false);
+    }
+  }, [currentSelection, activeFile, handleAskAboutCode]);
+
+  const handleFloatingExplain = useCallback(() => {
+    if (currentSelection && activeFile) {
+      handleExplainCode(currentSelection.code, activeFile, currentSelection.selection);
+      setFloatingActionsVisible(false);
+    }
+  }, [currentSelection, activeFile, handleExplainCode]);
+
+  const handleFloatingOptimize = useCallback(() => {
+    if (currentSelection && activeFile) {
+      handleOptimizeCode(currentSelection.code, activeFile, currentSelection.selection);
+      setFloatingActionsVisible(false);
+    }
+  }, [currentSelection, activeFile, handleOptimizeCode]);
+
+  const handleFloatingAddTests = useCallback(() => {
+    if (currentSelection && activeFile) {
+      handleAddTests(currentSelection.code, activeFile, currentSelection.selection);
+      setFloatingActionsVisible(false);
+    }
+  }, [currentSelection, activeFile, handleAddTests]);
 
   // Set active file when selectedFile changes (from sidebar)
   useEffect(() => {
@@ -2108,6 +2324,53 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
   // Handle Monaco editor mount
   const handleEditorDidMount = (editor: monaco.editor.IStandaloneCodeEditor) => {
     editorRef.current = editor;
+
+    // Listen for selection changes to show/hide floating actions
+    editor.onDidChangeCursorSelection((e) => {
+      const selection = e.selection;
+      const model = editor.getModel();
+
+      if (!model || selection.isEmpty()) {
+        // No selection or empty selection - hide floating actions
+        setFloatingActionsVisible(false);
+        setCurrentSelection(null);
+        return;
+      }
+
+      // Get selected text
+      const selectedText = model.getValueInRange(selection);
+
+      if (!selectedText.trim()) {
+        // Only whitespace selected - hide floating actions
+        setFloatingActionsVisible(false);
+        setCurrentSelection(null);
+        return;
+      }
+
+      // Store current selection
+      setCurrentSelection({
+        code: selectedText,
+        selection
+      });
+
+      // Calculate position for floating action bar
+      // Position it above the selection start
+      const position = editor.getScrolledVisiblePosition(selection.getStartPosition());
+
+      if (position) {
+        const editorDom = editor.getDomNode();
+        if (!editorDom) return;
+
+        const editorRect = editorDom.getBoundingClientRect();
+
+        // Position above the selection with some offset
+        const top = editorRect.top + position.top - 45; // 45px above selection
+        const left = editorRect.left + position.left;
+
+        setFloatingActionsPosition({ top, left });
+        setFloatingActionsVisible(true);
+      }
+    });
 
     // Add context menu actions for Claude AI assistance
     editor.addAction({
@@ -2223,6 +2486,16 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
         </div>
       ) : (
         <div className="flex-1 relative min-h-0">
+          {/* Floating Code Actions (appears on selection) */}
+          <FloatingCodeActions
+            visible={floatingActionsVisible}
+            position={floatingActionsPosition}
+            onAsk={handleFloatingAsk}
+            onExplain={handleFloatingExplain}
+            onOptimize={handleFloatingOptimize}
+            onAddTests={handleFloatingAddTests}
+          />
+
           {/* Floating Edit/Preview Toggle (only for markdown) */}
           {isMarkdown && (
             <div className="absolute top-3 right-3 z-10">
