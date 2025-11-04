@@ -23,6 +23,7 @@ import { TodoProvider } from '@/contexts/TodoContext';
 import { TodoConfirmationDialog } from '@/components/todo';
 import { MessageComponent } from './MessageComponent';
 import { ChatEmptyState } from './ChatEmptyState';
+import { MarkdownPreview } from './MarkdownPreview';
 import {
   extractTodoWriteFromBlocks,
   extractPlanFromText,
@@ -33,6 +34,7 @@ import {
 import type { TodoGenerationResult, TodoDraft, ExecutionMode } from '@/types/todo';
 import { FEATURES } from '@/config/features';
 import { getLanguageFromFilePath } from '@/lib/fileUtils';
+import { cn } from '@/lib/utils';
 
 // Configure Monaco Editor to use local files instead of CDN
 loader.config({ monaco });
@@ -1868,11 +1870,13 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
   const [isLoadingFile, setIsLoadingFile] = useState(false);
   const [unsavedChanges, setUnsavedChanges] = useState<Map<string, boolean>>(new Map());
   const [isSaving, setIsSaving] = useState(false);
+  const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit');
 
   // Set active file when selectedFile changes (from sidebar)
   useEffect(() => {
     if (selectedFile && selectedFile !== activeFile) {
       setActiveFile(selectedFile);
+      setViewMode('edit'); // Reset to edit mode when switching files
     }
   }, [selectedFile]);
 
@@ -1885,6 +1889,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
 
   const fileContent = activeFile ? fileContents.get(activeFile) || '' : '';
   const hasUnsavedChanges = activeFile ? unsavedChanges.get(activeFile) || false : false;
+  const isMarkdown = activeFile?.toLowerCase().endsWith('.md') || activeFile?.toLowerCase().endsWith('.markdown');
 
   // Load file contents when active file changes
   useEffect(() => {
@@ -1978,46 +1983,78 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
   return (
     <div className="h-full flex flex-col">
       {/* Editor Content */}
-      <div className="flex-1 flex items-center justify-center text-muted-foreground">
-        {!activeFile ? (
+      {!activeFile ? (
+        <div className="flex-1 flex items-center justify-center text-muted-foreground">
           <div className="text-center">
             <p>No files open</p>
             <p className="text-xs mt-2">Files will appear here when Claude edits them</p>
           </div>
-        ) : (
-          <div className="w-full h-full flex flex-col">
-            {isLoadingFile ? (
-              <div className="flex-1 flex items-center justify-center">
-                <div className="text-sm text-muted-foreground">Loading {activeFile}...</div>
+        </div>
+      ) : (
+        <div className="flex-1 relative min-h-0">
+          {/* Floating Edit/Preview Toggle (only for markdown) */}
+          {isMarkdown && (
+            <div className="absolute top-3 right-3 z-10">
+              <div className="flex items-center gap-1 bg-secondary/95 backdrop-blur-sm rounded-md p-1 shadow-lg border border-border">
+                <button
+                  onClick={() => setViewMode('edit')}
+                  className={cn(
+                    'px-3 py-1 text-xs font-medium rounded transition-colors',
+                    viewMode === 'edit'
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => setViewMode('preview')}
+                  className={cn(
+                    'px-3 py-1 text-xs font-medium rounded transition-colors',
+                    viewMode === 'preview'
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  Preview
+                </button>
               </div>
-            ) : (
-              <Editor
-                height="100%"
-                key={activeFile} // Force remount on file change
-                defaultLanguage={getLanguageFromFilePath(activeFile || '')}
-                language={getLanguageFromFilePath(activeFile || '')}
-                value={fileContent}
-                onChange={handleContentChange}
-                theme="vs-dark"
-                options={{
-                  readOnly: false,
-                  minimap: { enabled: false },
-                  fontSize: 12,
-                  fontFamily: 'ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Code", "Courier New", monospace',
-                  fontWeight: '400',
-                  fontLigatures: true,
-                  lineHeight: 1.5,
-                  lineNumbers: 'on',
-                  scrollBeyondLastLine: false,
-                  automaticLayout: true,
-                  tabSize: 2,
-                  insertSpaces: true,
-                }}
-              />
-            )}
-          </div>
-        )}
-      </div>
+            </div>
+          )}
+
+          {isLoadingFile ? (
+            <div className="h-full flex items-center justify-center">
+              <div className="text-sm text-muted-foreground">Loading {activeFile}...</div>
+            </div>
+          ) : isMarkdown && viewMode === 'preview' ? (
+            <MarkdownPreview content={fileContent} />
+          ) : (
+            <Editor
+              height="100%"
+              key={activeFile} // Force remount on file change
+              defaultLanguage={getLanguageFromFilePath(activeFile || '')}
+              language={getLanguageFromFilePath(activeFile || '')}
+              value={fileContent}
+              onChange={handleContentChange}
+              theme="vs-dark"
+              options={{
+                readOnly: false,
+                minimap: { enabled: false },
+                fontSize: 12,
+                fontFamily: 'ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Code", "Courier New", monospace',
+                fontWeight: '400',
+                fontLigatures: true,
+                lineHeight: 1.5,
+                lineNumbers: 'on',
+                scrollBeyondLastLine: false,
+                automaticLayout: true,
+                tabSize: 2,
+                insertSpaces: true,
+              }}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 };
