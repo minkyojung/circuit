@@ -121,12 +121,16 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       return
     }
 
-    // Check if this code attachment already exists
+    // Create AttachedFile from code attachment
     const codeAttachmentId = `code-${codeAttachment.filePath}-${codeAttachment.lineStart}-${codeAttachment.lineEnd}`
-    const exists = attachedFiles.some(f => f.id === codeAttachmentId)
 
-    if (!exists) {
-      // Create AttachedFile from code attachment
+    // Check if this code attachment already exists (check inside setState to avoid re-triggering)
+    setAttachedFiles(prev => {
+      const exists = prev.some(f => f.id === codeAttachmentId)
+      if (exists) {
+        return prev // No change
+      }
+
       const lineInfo = codeAttachment.lineEnd !== codeAttachment.lineStart
         ? `${codeAttachment.lineStart}-${codeAttachment.lineEnd}`
         : `${codeAttachment.lineStart}`
@@ -145,9 +149,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         }
       }
 
-      setAttachedFiles(prev => [...prev, codeFile])
-    }
-  }, [codeAttachment, attachedFiles])
+      return [...prev, codeFile]
+    })
+  }, [codeAttachment]) // Removed attachedFiles from deps!
 
   // Slash commands state
   const [availableCommands, setAvailableCommands] = useState<Array<{ name: string; fileName: string }>>([])
