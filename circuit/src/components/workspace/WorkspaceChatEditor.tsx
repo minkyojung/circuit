@@ -528,10 +528,17 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
 
   // IPC Event Handlers (using useCallback to avoid stale closures)
   const handleThinkingStart = useCallback((_event: any, eventSessionId: string, _timestamp: number) => {
-      if (!isMountedRef.current) return; // Prevent setState on unmounted component
+      console.log('[WorkspaceChat] 🎬 handleThinkingStart called, isMounted:', isMountedRef.current, 'eventSessionId:', eventSessionId);
+
+      if (!isMountedRef.current) {
+        console.log('[WorkspaceChat] ⚠️  Component unmounted, ignoring event');
+        return;
+      }
 
       // Filter: only handle events for THIS component's session
       const currentSessionId = sessionIdRef.current;
+      console.log('[WorkspaceChat] 🔍 Session check - current:', currentSessionId, 'event:', eventSessionId);
+
       if (!currentSessionId || eventSessionId !== currentSessionId) {
         console.log('[WorkspaceChat] ⏭️  Ignoring thinking-start for different session:', eventSessionId, '(current:', currentSessionId, ')');
         return;
@@ -1312,7 +1319,17 @@ The plan is ready. What would you like to do?`,
 
   // Listen for thinking steps from Electron (separate useEffect to avoid re-registering listeners)
   useEffect(() => {
-    ipcRenderer.on('claude:thinking-start', handleThinkingStart);
+    // CRITICAL: Reset mounted flag when listeners are registered
+    isMountedRef.current = true;
+    console.log('[WorkspaceChat] 🎧 Registering IPC listeners, sessionId:', sessionIdRef.current, 'isMounted:', isMountedRef.current);
+
+    // Wrap handlers with debug logging to see if events arrive
+    const debugThinkingStart = (event: any, ...args: any[]) => {
+      console.log('[WorkspaceChat] 🎤 RAW thinking-start event received:', args, 'isMounted:', isMountedRef.current);
+      handleThinkingStart(event, ...args);
+    };
+
+    ipcRenderer.on('claude:thinking-start', debugThinkingStart);
     ipcRenderer.on('claude:milestone', handleMilestone);
     ipcRenderer.on('claude:thinking-complete', handleThinkingComplete);
     ipcRenderer.on('claude:response-complete', handleResponseComplete);
@@ -1321,6 +1338,8 @@ The plan is ready. What would you like to do?`,
     ipcRenderer.on('todos:execute-tasks', handleExecuteTasks);
 
     return () => {
+      console.log('[WorkspaceChat] 🧹 Cleanup: Removing IPC listeners');
+
       // Mark component as unmounted to prevent setState calls
       isMountedRef.current = false;
 
@@ -1331,7 +1350,7 @@ The plan is ready. What would you like to do?`,
         console.log('[WorkspaceChat] 🧹 Timer cleaned up on unmount');
       }
 
-      ipcRenderer.removeListener('claude:thinking-start', handleThinkingStart);
+      ipcRenderer.removeListener('claude:thinking-start', debugThinkingStart);
       ipcRenderer.removeListener('claude:milestone', handleMilestone);
       ipcRenderer.removeListener('claude:thinking-complete', handleThinkingComplete);
       ipcRenderer.removeListener('claude:response-complete', handleResponseComplete);
@@ -1448,7 +1467,15 @@ The plan is ready. What would you like to do?`,
     pendingUserMessageRef.current = userMessage;
 
     // Send message (non-blocking) - response will arrive via event listeners
+    console.log('[ChatPanel] 📨 Sending message to Claude:', {
+      sessionId,
+      messageLength: currentInput.length,
+      attachmentsCount: attachments.length,
+      thinkingMode,
+      currentSessionIdRef: sessionIdRef.current
+    });
     ipcRenderer.send('claude:send-message', sessionId, currentInput, attachments, thinkingMode);
+    console.log('[ChatPanel] 📨 Message sent, waiting for IPC events...');
   };
 
   // Todo confirmation handlers
