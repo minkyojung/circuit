@@ -401,31 +401,33 @@ function App() {
 
               {/* Column 2: Tabs container (flexible with overflow) */}
               <div className="min-w-0 overflow-x-auto">
-                {selectedWorkspace ? (
-                  <UnifiedTabs
-                    workspaceId={selectedWorkspace.id}
-                    workspaceName={selectedWorkspace.name}
-                    activeConversationId={activeConversationId}
-                    onConversationChange={setActiveConversationId}
-                    openFiles={openFiles.map(path => ({
-                      path,
-                      unsavedChanges: unsavedFiles.has(path)
-                    }))}
-                    activeFilePath={activeFilePath}
-                    onFileChange={setActiveFilePath}
-                    onCloseFile={handleCloseFile}
-                  />
-                ) : (
-                  <Breadcrumb>
-                    <BreadcrumbList>
-                      <BreadcrumbItem>
-                        <BreadcrumbPage className="font-medium text-muted-foreground">
-                          {repositoryName}
-                        </BreadcrumbPage>
-                      </BreadcrumbItem>
-                    </BreadcrumbList>
-                  </Breadcrumb>
-                )}
+                <div className="max-w-4xl mx-auto">
+                  {selectedWorkspace ? (
+                    <UnifiedTabs
+                      workspaceId={selectedWorkspace.id}
+                      workspaceName={selectedWorkspace.name}
+                      activeConversationId={activeConversationId}
+                      onConversationChange={setActiveConversationId}
+                      openFiles={openFiles.map(path => ({
+                        path,
+                        unsavedChanges: unsavedFiles.has(path)
+                      }))}
+                      activeFilePath={activeFilePath}
+                      onFileChange={setActiveFilePath}
+                      onCloseFile={handleCloseFile}
+                    />
+                  ) : (
+                    <Breadcrumb>
+                      <BreadcrumbList>
+                        <BreadcrumbItem>
+                          <BreadcrumbPage className="font-medium text-muted-foreground">
+                            {repositoryName}
+                          </BreadcrumbPage>
+                        </BreadcrumbItem>
+                      </BreadcrumbList>
+                    </Breadcrumb>
+                  )}
+                </div>
               </div>
             </div>
 
