@@ -322,6 +322,7 @@ ${hookScript}
         // Write .zshrc to temp directory
         const tempZshrc = path.join(tempConfigDir, '.zshrc');
         await fs.writeFile(tempZshrc, tempConfig, 'utf-8');
+        console.log('[ShellHookManager] Wrote zsh config to:', tempZshrc);
 
       } else if (shellType === 'bash') {
         // For bash: source user's .bashrc first, then add hooks
@@ -340,9 +341,12 @@ ${hookScript}
         // Write .bashrc to temp directory
         const tempBashrc = path.join(tempConfigDir, '.bashrc');
         await fs.writeFile(tempBashrc, tempConfig, 'utf-8');
+        console.log('[ShellHookManager] Wrote bash config to:', tempBashrc);
       }
 
       console.log('[ShellHookManager] Created temp shell config:', tempConfigDir);
+      console.log('[ShellHookManager] User config path:', userConfigPath);
+      console.log('[ShellHookManager] User config exists:', userConfig.length > 0);
       return tempConfigDir;
     } catch (error: any) {
       console.error('[ShellHookManager] Failed to create temp config:', error);

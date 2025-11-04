@@ -55,11 +55,30 @@ export class TerminalManager extends EventEmitter {
       const shellHookManager = getShellHookManager()
       const shellType = shellHookManager.detectShell() || 'zsh' // Default to zsh
 
+      console.log(`[TerminalManager] Detected shell type: ${shellType}`)
+      console.log(`[TerminalManager] Shell path: ${shell}`)
+
       // Get environment with hooks injected
       let env: Record<string, string>
+      let shellArgs: string[] = []
+      let tempConfigDir: string | null = null
+
       try {
-        env = await shellHookManager.getPtyEnvironment(shellType)
-        console.log(`[TerminalManager] Injected shell hooks for ${shellType} via temporary config`)
+        tempConfigDir = await shellHookManager.createTempShellConfig(shellType)
+        env = { ...process.env }
+
+        if (shellType === 'zsh') {
+          // For zsh, ZDOTDIR tells it where to find .zshrc
+          env.ZDOTDIR = tempConfigDir
+          console.log(`[TerminalManager] Set ZDOTDIR to: ${tempConfigDir}`)
+        } else if (shellType === 'bash') {
+          // For bash interactive shells, use --rcfile flag
+          const rcPath = path.join(tempConfigDir, '.bashrc')
+          shellArgs = ['--rcfile', rcPath]
+          console.log(`[TerminalManager] Using bash --rcfile: ${rcPath}`)
+        }
+
+        console.log(`[TerminalManager] Injected shell hooks for ${shellType}`)
       } catch (error) {
         console.warn(`[TerminalManager] Failed to inject hooks, using default env:`, error)
         env = { ...process.env }
@@ -70,7 +89,8 @@ export class TerminalManager extends EventEmitter {
       env.WORKSPACE_ID = workspaceId
 
       // Spawn PTY process with hooks-enabled environment
-      const ptyProcess = pty.spawn(shell, [], {
+      console.log(`[TerminalManager] Spawning PTY with args:`, shellArgs)
+      const ptyProcess = pty.spawn(shell, shellArgs, {
         name: 'xterm-256color',
         cols: 80,
         rows: 30,
@@ -80,6 +100,20 @@ export class TerminalManager extends EventEmitter {
 
       // Handle PTY data output
       ptyProcess.onData((data: string) => {
+        // Log if data contains OSC sequences (for debugging)
+        if (data.includes('\x1b]1337')) {
+          console.log('[TerminalManager] OSC sequence detected in PTY output')
+          // Log the sequence type
+          if (data.includes('BlockStart')) {
+            console.log('[TerminalManager] → BlockStart marker found')
+          }
+          if (data.includes('BlockEnd')) {
+            console.log('[TerminalManager] → BlockEnd marker found')
+          }
+          if (data.includes('BlockBoundary')) {
+            console.log('[TerminalManager] → BlockBoundary marker found')
+          }
+        }
         this.emit('data', workspaceId, data)
       })
 

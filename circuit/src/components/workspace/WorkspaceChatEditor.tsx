@@ -93,6 +93,15 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
   const viewMode = externalViewMode || 'chat';
   const openFiles = externalOpenFiles;
 
+  // Code selection state for editor → chat communication
+  const [codeSelectionAction, setCodeSelectionAction] = useState<{
+    type: 'ask' | 'explain' | 'optimize' | 'add-tests'
+    code: string
+    filePath: string
+    lineStart: number
+    lineEnd: number
+  } | null>(null);
+
   // File edit handler
   const handleFileEdit = (filePath: string) => {
     // This will be handled by parent (App.tsx) through file selection
@@ -104,6 +113,18 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
     // Will be handled by parent via UnifiedTabs
     console.log('[WorkspaceChatEditor] File closed:', filePath);
   };
+
+  // Code selection handler - from EditorPanel
+  const handleCodeSelectionAction = useCallback((action: {
+    type: 'ask' | 'explain' | 'optimize' | 'add-tests'
+    code: string
+    filePath: string
+    lineStart: number
+    lineEnd: number
+  }) => {
+    console.log('[WorkspaceChatEditor] Code selection action:', action.type);
+    setCodeSelectionAction(action);
+  }, []);
 
   // Start Claude session when workspace changes
   useEffect(() => {
@@ -148,6 +169,8 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
             onPrefillCleared={onPrefillCleared}
             onConversationChange={onConversationChange}
             onFileReferenceClick={onFileReferenceClick}
+            codeSelectionAction={codeSelectionAction}
+            onCodeSelectionHandled={() => setCodeSelectionAction(null)}
           />
         </div>
       )}
@@ -162,6 +185,7 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
             onCloseFile={handleCloseFile}
             onUnsavedChange={onUnsavedChange}
             fileCursorPosition={fileCursorPosition}
+            onCodeSelectionAction={handleCodeSelectionAction}
           />
         </div>
       )}
@@ -179,6 +203,8 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
               onPrefillCleared={onPrefillCleared}
               onConversationChange={onConversationChange}
               onFileReferenceClick={onFileReferenceClick}
+              codeSelectionAction={codeSelectionAction}
+              onCodeSelectionHandled={() => setCodeSelectionAction(null)}
             />
           </ResizablePanel>
           <ResizableHandle />
@@ -190,6 +216,7 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
               onCloseFile={handleCloseFile}
               onUnsavedChange={onUnsavedChange}
               fileCursorPosition={fileCursorPosition}
+              onCodeSelectionAction={handleCodeSelectionAction}
             />
           </ResizablePanel>
         </ResizablePanelGroup>
@@ -211,6 +238,14 @@ interface ChatPanelProps {
   onPrefillCleared?: () => void;
   onConversationChange?: (conversationId: string | null) => void;
   onFileReferenceClick?: (filePath: string, lineStart?: number, lineEnd?: number) => void;
+  codeSelectionAction?: {
+    type: 'ask' | 'explain' | 'optimize' | 'add-tests'
+    code: string
+    filePath: string
+    lineStart: number
+    lineEnd: number
+  } | null;
+  onCodeSelectionHandled?: () => void;
 }
 
 // ChatInput component now handles all input styling and controls
@@ -223,7 +258,9 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   externalConversationId,
   onPrefillCleared,
   onConversationChange,
-  onFileReferenceClick
+  onFileReferenceClick,
+  codeSelectionAction,
+  onCodeSelectionHandled
 }) => {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -1880,6 +1917,13 @@ interface EditorPanelProps {
     lineStart: number
     lineEnd: number
   } | null;
+  onCodeSelectionAction?: (action: {
+    type: 'ask' | 'explain' | 'optimize' | 'add-tests'
+    code: string
+    filePath: string
+    lineStart: number
+    lineEnd: number
+  }) => void;
 }
 
 const EditorPanel: React.FC<EditorPanelProps> = ({
@@ -1889,6 +1933,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
   onCloseFile,
   onUnsavedChange,
   fileCursorPosition,
+  onCodeSelectionAction,
 }) => {
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [fileContents, setFileContents] = useState<Map<string, string>>(new Map());
@@ -1899,6 +1944,58 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
 
   // Monaco editor instance ref
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+
+  // Handler: Ask about code
+  const handleAskAboutCode = useCallback((code: string, filePath: string, selection: monaco.Selection) => {
+    if (onCodeSelectionAction) {
+      onCodeSelectionAction({
+        type: 'ask',
+        code,
+        filePath,
+        lineStart: selection.startLineNumber,
+        lineEnd: selection.endLineNumber
+      });
+    }
+  }, [onCodeSelectionAction]);
+
+  // Handler: Explain code
+  const handleExplainCode = useCallback((code: string, filePath: string, selection: monaco.Selection) => {
+    if (onCodeSelectionAction) {
+      onCodeSelectionAction({
+        type: 'explain',
+        code,
+        filePath,
+        lineStart: selection.startLineNumber,
+        lineEnd: selection.endLineNumber
+      });
+    }
+  }, [onCodeSelectionAction]);
+
+  // Handler: Optimize code
+  const handleOptimizeCode = useCallback((code: string, filePath: string, selection: monaco.Selection) => {
+    if (onCodeSelectionAction) {
+      onCodeSelectionAction({
+        type: 'optimize',
+        code,
+        filePath,
+        lineStart: selection.startLineNumber,
+        lineEnd: selection.endLineNumber
+      });
+    }
+  }, [onCodeSelectionAction]);
+
+  // Handler: Add tests
+  const handleAddTests = useCallback((code: string, filePath: string, selection: monaco.Selection) => {
+    if (onCodeSelectionAction) {
+      onCodeSelectionAction({
+        type: 'add-tests',
+        code,
+        filePath,
+        lineStart: selection.startLineNumber,
+        lineEnd: selection.endLineNumber
+      });
+    }
+  }, [onCodeSelectionAction]);
 
   // Set active file when selectedFile changes (from sidebar)
   useEffect(() => {
@@ -2011,6 +2108,70 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
   // Handle Monaco editor mount
   const handleEditorDidMount = (editor: monaco.editor.IStandaloneCodeEditor) => {
     editorRef.current = editor;
+
+    // Add context menu actions for Claude AI assistance
+    editor.addAction({
+      id: 'ask-claude-about-selection',
+      label: '💬 Ask Claude about this',
+      contextMenuGroupId: 'claude',
+      contextMenuOrder: 1,
+      keybindings: [
+        monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK
+      ],
+      run: (ed) => {
+        const selection = ed.getSelection();
+        const selectedText = ed.getModel()?.getValueInRange(selection);
+
+        if (selectedText && activeFile) {
+          handleAskAboutCode(selectedText, activeFile, selection);
+        }
+      }
+    });
+
+    editor.addAction({
+      id: 'explain-code',
+      label: '📖 Explain this code',
+      contextMenuGroupId: 'claude',
+      contextMenuOrder: 2,
+      run: (ed) => {
+        const selection = ed.getSelection();
+        const selectedText = ed.getModel()?.getValueInRange(selection);
+
+        if (selectedText && activeFile) {
+          handleExplainCode(selectedText, activeFile, selection);
+        }
+      }
+    });
+
+    editor.addAction({
+      id: 'optimize-code',
+      label: '⚡ Optimize this',
+      contextMenuGroupId: 'claude',
+      contextMenuOrder: 3,
+      run: (ed) => {
+        const selection = ed.getSelection();
+        const selectedText = ed.getModel()?.getValueInRange(selection);
+
+        if (selectedText && activeFile) {
+          handleOptimizeCode(selectedText, activeFile, selection);
+        }
+      }
+    });
+
+    editor.addAction({
+      id: 'add-tests',
+      label: '🧪 Add tests for this',
+      contextMenuGroupId: 'claude',
+      contextMenuOrder: 4,
+      run: (ed) => {
+        const selection = ed.getSelection();
+        const selectedText = ed.getModel()?.getValueInRange(selection);
+
+        if (selectedText && activeFile) {
+          handleAddTests(selectedText, activeFile, selection);
+        }
+      }
+    });
   };
 
   // Jump to line when fileCursorPosition changes
