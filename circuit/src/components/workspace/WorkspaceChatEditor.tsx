@@ -147,6 +147,7 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
             externalConversationId={externalConversationId}
             onPrefillCleared={onPrefillCleared}
             onConversationChange={onConversationChange}
+            onFileReferenceClick={onFileReferenceClick}
           />
         </div>
       )}
@@ -177,6 +178,7 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
               externalConversationId={externalConversationId}
               onPrefillCleared={onPrefillCleared}
               onConversationChange={onConversationChange}
+              onFileReferenceClick={onFileReferenceClick}
             />
           </ResizablePanel>
           <ResizableHandle />
@@ -208,6 +210,7 @@ interface ChatPanelProps {
   externalConversationId?: string | null;
   onPrefillCleared?: () => void;
   onConversationChange?: (conversationId: string | null) => void;
+  onFileReferenceClick?: (filePath: string, lineStart?: number, lineEnd?: number) => void;
 }
 
 // ChatInput component now handles all input styling and controls
@@ -219,7 +222,8 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   prefillMessage,
   externalConversationId,
   onPrefillCleared,
-  onConversationChange
+  onConversationChange,
+  onFileReferenceClick
 }) => {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);

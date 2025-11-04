@@ -393,16 +393,16 @@ export function ModernTerminal({ workspace }: ModernTerminalProps) {
       {/* Command Input Section */}
       <div className="border-t border-border bg-muted/20">
         {/* Directory Navigation Bar */}
-        <div className="px-4 py-2 border-b border-border/50 bg-background/50">
+        <div className="px-3 py-1.5 border-b border-border/50 bg-background/50">
           <div className="relative inline-block">
             <button
               onClick={() => setIsDirectoryDropdownOpen(!isDirectoryDropdownOpen)}
-              className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-muted/50 transition-colors text-sm"
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-muted/50 transition-colors text-xs"
               disabled={isInitializing}
             >
-              <FolderOpen className="w-3.5 h-3.5 text-blue-500" />
-              <span className="font-mono text-foreground">{currentFolderName}</span>
-              <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+              <FolderOpen className="w-3 h-3 text-blue-500" />
+              <span className="font-mono text-foreground text-xs">{currentFolderName}</span>
+              <ChevronDown className="w-3 h-3 text-muted-foreground" />
             </button>
 
             {/* Dropdown Menu */}
@@ -415,11 +415,11 @@ export function ModernTerminal({ workspace }: ModernTerminalProps) {
                 />
 
                 {/* Menu */}
-                <div className="absolute left-0 top-full mt-1 z-20 min-w-[300px] rounded-md border border-border bg-background shadow-lg">
+                <div className="absolute left-0 top-full mt-0.5 z-20 w-[280px] rounded border border-border bg-background shadow-lg">
                   {/* Current Full Path */}
-                  <div className="px-3 py-2 border-b border-border/50 bg-muted/30">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-mono text-muted-foreground truncate flex-1">
+                  <div className="px-2 py-1.5 border-b border-border/50 bg-muted/30">
+                    <div className="flex items-center justify-between gap-1.5">
+                      <span className="text-[10px] font-mono text-muted-foreground truncate flex-1">
                         {currentDir}
                       </span>
                       <button
@@ -427,32 +427,32 @@ export function ModernTerminal({ workspace }: ModernTerminalProps) {
                           e.stopPropagation()
                           navigator.clipboard.writeText(getCurrentDirectory())
                         }}
-                        className="p-1 hover:bg-muted rounded transition-colors"
+                        className="p-0.5 hover:bg-muted rounded transition-colors flex-shrink-0"
                         title="Copy full path"
                       >
-                        <Copy className="w-3 h-3 text-muted-foreground" />
+                        <Copy className="w-2.5 h-2.5 text-muted-foreground" />
                       </button>
                     </div>
                   </div>
 
                   {/* Parent Directories */}
-                  <div className="py-1">
+                  <div className="py-0.5 max-h-[200px] overflow-y-auto">
                     {pathSegments.slice(0, -1).reverse().map((segment, idx) => (
                       <button
                         key={idx}
                         onClick={() => handleChangeDirectory(segment.fullPath)}
-                        className="w-full px-3 py-1.5 text-left hover:bg-muted/50 transition-colors flex items-center gap-2"
+                        className="w-full px-2 py-1 text-left hover:bg-muted/50 transition-colors flex items-center gap-1.5"
                       >
                         {segment.name === '~' ? (
-                          <Home className="w-3.5 h-3.5 text-muted-foreground" />
+                          <Home className="w-3 h-3 text-muted-foreground flex-shrink-0" />
                         ) : (
-                          <FolderOpen className="w-3.5 h-3.5 text-muted-foreground" />
+                          <FolderOpen className="w-3 h-3 text-muted-foreground flex-shrink-0" />
                         )}
-                        <span className="text-sm font-mono">
+                        <span className="text-xs font-mono truncate">
                           {segment.name}
                         </span>
-                        <span className="text-xs text-muted-foreground ml-auto">
-                          cd {segment.fullPath}
+                        <span className="text-[10px] text-muted-foreground ml-auto flex-shrink-0">
+                          cd
                         </span>
                       </button>
                     ))}
