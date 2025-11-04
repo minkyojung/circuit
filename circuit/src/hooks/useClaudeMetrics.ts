@@ -59,7 +59,7 @@ export function useClaudeMetrics(): UseClaudeMetricsResult {
   // Refresh metrics manually
   const refresh = useCallback(async () => {
     if (!ipcRenderer) {
-      setError('Electron IPC not available');
+      // Silently fail
       setLoading(false);
       return;
     }
@@ -70,18 +70,16 @@ export function useClaudeMetrics(): UseClaudeMetricsResult {
       if (result.success && result.metrics) {
         setMetrics(result.metrics);
         setError(null);
-      } else {
-        setError(result.error || 'Failed to refresh metrics');
       }
     } catch (err) {
-      console.error('[useClaudeMetrics] Refresh error:', err);
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      // Silently fail - metrics not available
+      console.warn('[useClaudeMetrics] Refresh not available (ignored)');
     }
   }, []);
 
   useEffect(() => {
     if (!ipcRenderer) {
-      setError('Electron IPC not available');
+      // Silently fail
       setLoading(false);
       return;
     }
@@ -118,9 +116,10 @@ export function useClaudeMetrics(): UseClaudeMetricsResult {
           setLoading(false);
         }
       } catch (err) {
-        console.error('[useClaudeMetrics] Start error:', err);
+        console.warn('[useClaudeMetrics] Metrics not available (this is OK):', err);
         if (mounted) {
-          setError(err instanceof Error ? err.message : 'Unknown error');
+          // Don't set error state - just fail silently
+          // setError(err instanceof Error ? err.message : 'Unknown error');
           setLoading(false);
         }
       }
@@ -158,7 +157,8 @@ export function useClaudeMetrics(): UseClaudeMetricsResult {
             setError(null);
           }
         } catch (err) {
-          console.error('[useClaudeMetrics] Polling error:', err);
+          // Silently fail - metrics not available
+          // console.warn('[useClaudeMetrics] Polling error (ignored):', err);
         }
       }
     }, 10000); // 10초
@@ -174,8 +174,10 @@ export function useClaudeMetrics(): UseClaudeMetricsResult {
       ipcRenderer?.removeListener('circuit:metrics-updated', handleMetricsUpdate);
       ipcRenderer?.removeListener('circuit:metrics-error', handleMetricsError);
 
-      // Stop monitoring
-      ipcRenderer?.invoke('circuit:metrics-stop').catch(console.error);
+      // Stop monitoring (silently fail if not available)
+      ipcRenderer?.invoke('circuit:metrics-stop').catch(() => {
+        // Silently ignore - metrics not available
+      });
     };
   }, []);
 
