@@ -2002,11 +2002,11 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
                 options={{
                   readOnly: false,
                   minimap: { enabled: false },
-                  fontSize: 14,
+                  fontSize: 12,
                   fontFamily: 'ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Code", "Courier New", monospace',
                   fontWeight: '400',
                   fontLigatures: true,
-                  lineHeight: 1.6,
+                  lineHeight: 1.5,
                   lineNumbers: 'on',
                   scrollBeyondLastLine: false,
                   automaticLayout: true,
