@@ -254,6 +254,7 @@ export function TerminalProvider({ children }: TerminalProviderProps) {
 
       createdSessions.current.add(workspaceId)
       console.log(`[TerminalContext] PTY session created successfully for workspace: ${workspaceId}`)
+
       return true
     }
 
