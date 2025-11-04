@@ -22,6 +22,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { TodoProvider } from '@/contexts/TodoContext';
 import { TodoConfirmationDialog } from '@/components/todo';
 import { MessageComponent } from './MessageComponent';
+import { ChatEmptyState } from './ChatEmptyState';
 import {
   extractTodoWriteFromBlocks,
   extractPlanFromText,
@@ -106,15 +107,17 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
     };
 
     startSession();
+  }, [workspace.path]);
 
-    // Cleanup on unmount
+  // Cleanup session when component unmounts or sessionId changes
+  useEffect(() => {
     return () => {
       if (sessionId) {
         console.log('[WorkspaceChatEditor] Stopping Claude session:', sessionId);
         ipcRenderer.invoke('claude:stop-session', sessionId);
       }
     };
-  }, [workspace.path]);
+  }, [sessionId]);
 
 
   return (
@@ -231,6 +234,7 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   const [pendingAssistantMessageId, setPendingAssistantMessageId] = useState<string | null>(null);
 
   // Refs to hold latest state values (to avoid stale closures in IPC handlers)
+  const sessionIdRef = useRef<string | null>(sessionId);
   const conversationIdRef = useRef<string | null>(conversationId);
   const messagesRef = useRef<Message[]>(messages);
   const thinkingStepsRef = useRef<ThinkingStep[]>(thinkingSteps);
@@ -330,6 +334,10 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   }, [workspace.id, externalConversationId]);
 
   // Sync refs with latest state (to avoid stale closures)
+  useEffect(() => {
+    sessionIdRef.current = sessionId;
+  }, [sessionId]);
+
   useEffect(() => {
     conversationIdRef.current = conversationId;
   }, [conversationId]);
@@ -519,9 +527,17 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   }, [messages.length, handleScroll]);
 
   // IPC Event Handlers (using useCallback to avoid stale closures)
-  const handleThinkingStart = useCallback((_event: any, sessionId: string, _timestamp: number) => {
+  const handleThinkingStart = useCallback((_event: any, eventSessionId: string, _timestamp: number) => {
       if (!isMountedRef.current) return; // Prevent setState on unmounted component
-      console.log('[WorkspaceChat] 🧠 Thinking started:', sessionId);
+
+      // Filter: only handle events for THIS component's session
+      const currentSessionId = sessionIdRef.current;
+      if (!currentSessionId || eventSessionId !== currentSessionId) {
+        console.log('[WorkspaceChat] ⏭️  Ignoring thinking-start for different session:', eventSessionId, '(current:', currentSessionId, ')');
+        return;
+      }
+
+      console.log('[WorkspaceChat] 🧠 Thinking started:', eventSessionId);
 
       // Initialize refs and clear history
       thinkingStartTimeRef.current = Date.now();
@@ -545,7 +561,15 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
         };
 
         // Add to messages state immediately
-        setMessages((prev) => [...prev, emptyAssistantMessage]);
+        setMessages((prev) => {
+          console.log('[ChatPanel] 🤖 Adding assistant message:', {
+            messageId: assistantMessageId,
+            prevLength: prev.length,
+            newLength: prev.length + 1,
+            timestamp: Date.now()
+          });
+          return [...prev, emptyAssistantMessage];
+        });
         setPendingAssistantMessageId(assistantMessageId);
 
         // Auto-open reasoning dropdown for real-time visibility
@@ -564,8 +588,15 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
       console.log('[WorkspaceChat] ✅ Timer started');
   }, []);
 
-  const handleMilestone = useCallback((_event: any, _sessionId: string, milestone: any) => {
+  const handleMilestone = useCallback((_event: any, eventSessionId: string, milestone: any) => {
       if (!isMountedRef.current) return; // Prevent setState on unmounted component
+
+      // Filter: only handle events for THIS component's session
+      const currentSessionId = sessionIdRef.current;
+      if (!currentSessionId || eventSessionId !== currentSessionId) {
+        return; // Silently ignore events for other sessions
+      }
+
       console.log('[WorkspaceChat] 📍 Milestone:', milestone);
 
       // Update ref for timer display
@@ -611,8 +642,14 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
       }
   }, []);
 
-  const handleThinkingComplete = useCallback((_event: any, _sessionId: string, stats: any) => {
+  const handleThinkingComplete = useCallback((_event: any, eventSessionId: string, stats: any) => {
       if (!isMountedRef.current) return; // Prevent setState on unmounted component
+
+      // Filter: only handle events for THIS component's session
+      const currentSessionId = sessionIdRef.current;
+      if (!currentSessionId || eventSessionId !== currentSessionId) {
+        return; // Silently ignore events for other sessions
+      }
       console.log('[WorkspaceChat] ✅ Thinking complete:', stats);
 
       // Note: No need to update tool blocks since they're not in msg.blocks anymore
@@ -629,6 +666,14 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
 
   const handleResponseComplete = useCallback(async (_event: any, result: any) => {
       if (!isMountedRef.current) return; // Prevent setState on unmounted component
+
+      // Filter: only handle events for THIS component's session
+      const currentSessionId = sessionIdRef.current;
+      if (!currentSessionId || result.sessionId !== currentSessionId) {
+        console.log('[WorkspaceChat] ⏭️  Ignoring response-complete for different session:', result.sessionId, '(current:', currentSessionId, ')');
+        return;
+      }
+
       console.log('[WorkspaceChat] Response complete:', result);
 
       const pending = pendingUserMessageRef.current;
@@ -1059,6 +1104,13 @@ Wrap the JSON in triple backticks with 'json' language marker. This is REQUIRED.
 
   const handleResponseError = useCallback(async (_event: any, error: any) => {
       if (!isMountedRef.current) return; // Prevent setState on unmounted component
+
+      // Filter: only handle events for THIS component's session
+      const currentSessionId = sessionIdRef.current;
+      if (error.sessionId && currentSessionId && error.sessionId !== currentSessionId) {
+        return; // Silently ignore errors for other sessions
+      }
+
       console.error('[WorkspaceChat] Response error:', error);
 
       const pending = pendingUserMessageRef.current;
@@ -1086,6 +1138,13 @@ Wrap the JSON in triple backticks with 'json' language marker. This is REQUIRED.
 
   const handleMessageCancelled = useCallback((_event: any, cancelledSessionId: string) => {
     if (!isMountedRef.current) return; // Prevent setState on unmounted component
+
+    // Filter: only handle events for THIS component's session
+    const currentSessionId = sessionIdRef.current;
+    if (!currentSessionId || cancelledSessionId !== currentSessionId) {
+      return; // Silently ignore cancellations for other sessions
+    }
+
     console.log('[WorkspaceChat] Message cancelled:', cancelledSessionId);
 
     // Reset states
@@ -1349,7 +1408,15 @@ The plan is ready. What would you like to do?`,
     };
 
     // Optimistic UI update
-    setMessages([...messages, userMessage]);
+    setMessages((prev) => {
+      console.log('[ChatPanel] 📤 Adding user message:', {
+        messageId: userMessage.id,
+        prevLength: prev.length,
+        newLength: prev.length + 1,
+        timestamp: Date.now()
+      });
+      return [...prev, userMessage];
+    });
     const currentInput = inputText;
     setInput('');
     setIsSending(true);
@@ -1555,13 +1622,18 @@ The plan is ready. What would you like to do?`,
       const msg = filteredMessages[index];
       if (!msg) return 200;
 
+      // Define minimum heights to prevent overlap
+      const MIN_USER_HEIGHT = 60;
+      const MIN_ASSISTANT_HEIGHT = 100;
+
       // More accurate size estimates to reduce measurement corrections
       if (msg.role === 'user') {
         // User messages are typically shorter
         const baseHeight = msg.metadata?.attachments?.length > 0 ? 120 : 80;
         // Account for message length
         const contentLines = Math.ceil((msg.content?.length || 0) / 80);
-        return baseHeight + (contentLines * 20);
+        const calculatedHeight = baseHeight + (contentLines * 20);
+        return Math.max(calculatedHeight, MIN_USER_HEIGHT);
       }
 
       // Assistant messages - start with base
@@ -1594,10 +1666,22 @@ The plan is ready. What would you like to do?`,
       const contentLines = Math.ceil((msg.content?.length || 0) / 100);
       estimatedHeight += contentLines * 18;
 
-      return Math.min(estimatedHeight, 2000); // Cap at 2000px
+      // Ensure minimum height and cap at maximum
+      return Math.max(Math.min(estimatedHeight, 2000), MIN_ASSISTANT_HEIGHT);
     }, [filteredMessages, messageThinkingSteps, openReasoningId]),
     overscan: 5, // Render 5 extra items outside viewport for smooth scrolling
   });
+
+  // Force virtualizer to remeasure when messages change
+  useEffect(() => {
+    if (filteredMessages.length > 0) {
+      console.log('[ChatPanel] 📏 Remeasuring virtualizer, message count:', filteredMessages.length);
+      // Use requestAnimationFrame to ensure DOM has updated before measuring
+      requestAnimationFrame(() => {
+        virtualizer.measure();
+      });
+    }
+  }, [filteredMessages.length, virtualizer]);
 
   // Track previous message count to detect new messages
   const prevMessageCountRef = useRef(filteredMessages.length);
@@ -1649,10 +1733,21 @@ The plan is ready. What would you like to do?`,
           >
             {virtualizer.getVirtualItems().map((virtualItem) => {
               const msg = filteredMessages[virtualItem.index];
+
+              // Debug: Log message rendering position
+              console.log('[ChatPanel] 🎨 Rendering message:', {
+                id: msg.id,
+                role: msg.role,
+                index: virtualItem.index,
+                startPosition: virtualItem.start,
+                estimatedSize: virtualItem.size,
+              });
+
               return (
                 <div
                   key={msg.id}
                   data-index={virtualItem.index}
+                  data-message-id={msg.id}
                   ref={virtualizer.measureElement}
                   style={{
                     position: 'absolute',
@@ -1693,9 +1788,7 @@ The plan is ready. What would you like to do?`,
             )}
           </div>
         ) : (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-sm text-muted-foreground">No messages yet. Start a conversation!</div>
-          </div>
+          <ChatEmptyState />
         )}
       </div>
 
@@ -1727,6 +1820,8 @@ The plan is ready. What would you like to do?`,
             showControls={true}
             isCancelling={isCancelling}
             onCancel={handleCancel}
+            workspacePath={workspace.path}
+            projectPath={workspace.path.split('/.conductor/workspaces/')[0]}
           />
         </div>
       </div>

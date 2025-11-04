@@ -12,10 +12,12 @@ import { GitBranch, RefreshCw } from 'lucide-react';
 import type { GitStatus } from '@/types/git';
 import { CommitInterface } from './CommitInterface';
 import { GitGraphV3 } from './GitGraphV3';
+import { MCPTimeline } from '../mcp/MCPTimeline';
 import { Stack } from '../ui/stack';
 import { Inline } from '../ui/inline';
 import { PanelHeader } from '../ui/panel-header';
 import { Button } from '../ui/button';
+import { FEATURES } from '@/config/features';
 
 // @ts-ignore - Electron IPC
 const { ipcRenderer } = window.require('electron');
@@ -120,9 +122,13 @@ export function GitTestPanel({ workspacePath }: GitTestPanelProps) {
         }
       />
 
-      {/* Git Commit Graph */}
+      {/* Git Commit Graph OR MCP Timeline (feature flag controlled) */}
       <div className="border-t border-sidebar-border">
-        <GitGraphV3 workspacePath={workspacePath} limit={5000} />
+        {FEATURES.GIT_GRAPH ? (
+          <GitGraphV3 workspacePath={workspacePath} limit={5000} />
+        ) : (
+          <MCPTimeline limit={50} refreshInterval={5000} />
+        )}
       </div>
 
       {/* Content area with consistent padding */}

@@ -3977,3 +3977,60 @@ ipcMain.handle('terminal:has-session', async (event, workspaceId) => {
     };
   }
 });
+
+/**
+ * Slash Commands: List available commands in workspace
+ */
+ipcMain.handle('slash-commands:list', async (event, workspacePath) => {
+  try {
+    const commandsPath = path.join(workspacePath, '.claude', 'commands');
+
+    // Check if directory exists
+    try {
+      await fs.access(commandsPath);
+    } catch {
+      // Directory doesn't exist, return empty list
+      return { success: true, commands: [] };
+    }
+
+    // Read all files in directory
+    const files = await fs.readdir(commandsPath);
+
+    // Filter for .md files and extract command names
+    const commands = files
+      .filter(file => file.endsWith('.md'))
+      .map(file => ({
+        name: file.replace(/\.md$/, ''), // Remove .md extension
+        fileName: file,
+      }));
+
+    return { success: true, commands };
+  } catch (error) {
+    console.error('[Slash Commands] Failed to list commands:', error);
+    return {
+      success: false,
+      error: error.message,
+      commands: []
+    };
+  }
+});
+
+/**
+ * Slash Commands: Get command content
+ */
+ipcMain.handle('slash-commands:get', async (event, workspacePath, commandName) => {
+  try {
+    const commandPath = path.join(workspacePath, '.claude', 'commands', `${commandName}.md`);
+
+    // Read file content
+    const content = await fs.readFile(commandPath, 'utf-8');
+
+    return { success: true, content };
+  } catch (error) {
+    console.error('[Slash Commands] Failed to read command:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});

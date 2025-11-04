@@ -5,7 +5,7 @@
  * with file attachment support and improved UX.
  */
 
-import React, { useState, useRef, useCallback, useEffect } from 'react'
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { ArrowUp, Paperclip, X, ListChecks, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { useSettingsContext } from '@/contexts/SettingsContext'
@@ -35,6 +35,8 @@ interface ChatInputProps {
   showControls?: boolean
   isCancelling?: boolean
   onCancel?: () => void
+  workspacePath?: string
+  projectPath?: string
 }
 
 export interface AttachedFile {
@@ -82,6 +84,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   showControls = true,
   isCancelling = false,
   onCancel,
+  workspacePath,
+  projectPath,
 }) => {
   const { settings, updateSettings } = useSettingsContext()
   const { metrics } = useClaudeMetrics()
@@ -89,6 +93,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const [thinkingMode, setThinkingMode] = useState<ThinkingMode>('normal')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // Slash commands state
+  const [availableCommands, setAvailableCommands] = useState<Array<{ name: string; fileName: string }>>([])
+  const [showCommandMenu, setShowCommandMenu] = useState(false)
+  const [selectedCommandIndex, setSelectedCommandIndex] = useState(0)
+  const commandMenuRef = useRef<HTMLDivElement>(null)
 
   const thinkingModeLabels: Record<ThinkingMode, string> = {
     normal: 'Normal',
@@ -138,6 +148,116 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [togglePlanMode])
+
+  // Load slash commands when project changes
+  useEffect(() => {
+    console.log('[ChatInput] 🔍 Slash Commands - projectPath:', projectPath)
+    console.log('[ChatInput] 🔍 Slash Commands - ipcRenderer:', !!ipcRenderer)
+
+    if (!projectPath || !ipcRenderer) {
+      console.log('[ChatInput] ⚠️ Slash Commands - Missing projectPath or ipcRenderer, clearing commands')
+      setAvailableCommands([])
+      return
+    }
+
+    const loadCommands = async () => {
+      try {
+        console.log('[ChatInput] 📡 Slash Commands - Calling IPC with:', projectPath)
+        const result = await ipcRenderer.invoke('slash-commands:list', projectPath)
+        console.log('[ChatInput] 📥 Slash Commands - IPC Result:', result)
+
+        if (result.success) {
+          console.log('[ChatInput] ✅ Slash Commands - Loaded commands:', result.commands)
+          setAvailableCommands(result.commands || [])
+        } else {
+          console.log('[ChatInput] ❌ Slash Commands - Failed:', result.error)
+        }
+      } catch (error) {
+        console.error('[ChatInput] Failed to load slash commands:', error)
+      }
+    }
+
+    loadCommands()
+  }, [projectPath])
+
+  // Detect slash command input
+  useEffect(() => {
+    console.log('[ChatInput] 🎯 Input changed:', value)
+    console.log('[ChatInput] 🎯 Available commands:', availableCommands.length)
+
+    // Check if input starts with `/` and has at least one character after it
+    if (value.startsWith('/') && value.length > 1 && !value.includes('\n')) {
+      const command = value.slice(1).toLowerCase()
+
+      // Filter commands that match the input
+      const filtered = availableCommands.filter(cmd =>
+        cmd.name.toLowerCase().startsWith(command)
+      )
+
+      console.log('[ChatInput] 🎯 Filtered commands:', filtered.length)
+
+      if (filtered.length > 0) {
+        console.log('[ChatInput] ✅ Showing command menu')
+        setShowCommandMenu(true)
+        setSelectedCommandIndex(0)
+      } else {
+        console.log('[ChatInput] ❌ No filtered commands, hiding menu')
+        setShowCommandMenu(false)
+      }
+    } else if (value === '/') {
+      // Show all commands when user types just `/`
+      console.log('[ChatInput] 🎯 Typed "/" - available commands:', availableCommands.length)
+      if (availableCommands.length > 0) {
+        console.log('[ChatInput] ✅ Showing all commands')
+        setShowCommandMenu(true)
+        setSelectedCommandIndex(0)
+      } else {
+        console.log('[ChatInput] ❌ No commands available')
+      }
+    } else {
+      setShowCommandMenu(false)
+    }
+  }, [value, availableCommands])
+
+  // Get filtered commands for display
+  const filteredCommands = useMemo(() => {
+    if (!value.startsWith('/')) return []
+
+    if (value === '/') {
+      return availableCommands
+    }
+
+    const command = value.slice(1).toLowerCase()
+    return availableCommands.filter(cmd =>
+      cmd.name.toLowerCase().startsWith(command)
+    )
+  }, [value, availableCommands])
+
+  // Execute slash command
+  const executeCommand = useCallback(async (commandName: string) => {
+    if (!projectPath || !ipcRenderer) return
+
+    try {
+      // Load command content
+      const result = await ipcRenderer.invoke('slash-commands:get', projectPath, commandName)
+
+      if (result.success) {
+        // Clear input and close menu
+        onChange('')
+        setShowCommandMenu(false)
+
+        // Submit the command content as a message
+        await onSubmit(result.content, attachedFiles, thinkingMode)
+
+        toast.success(`Executed /${commandName}`)
+      } else {
+        toast.error(`Failed to load command: ${result.error}`)
+      }
+    } catch (error) {
+      console.error('[ChatInput] Failed to execute command:', error)
+      toast.error('Failed to execute command')
+    }
+  }, [projectPath, onSubmit, attachedFiles, thinkingMode, onChange])
 
   // File attachment handling
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -225,12 +345,47 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      // Handle command menu navigation
+      if (showCommandMenu && filteredCommands.length > 0) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault()
+          setSelectedCommandIndex(prev =>
+            prev < filteredCommands.length - 1 ? prev + 1 : 0
+          )
+          return
+        }
+
+        if (e.key === 'ArrowUp') {
+          e.preventDefault()
+          setSelectedCommandIndex(prev =>
+            prev > 0 ? prev - 1 : filteredCommands.length - 1
+          )
+          return
+        }
+
+        if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
+          e.preventDefault()
+          const selectedCommand = filteredCommands[selectedCommandIndex]
+          if (selectedCommand) {
+            executeCommand(selectedCommand.name)
+          }
+          return
+        }
+
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          setShowCommandMenu(false)
+          return
+        }
+      }
+
+      // Normal send (Cmd/Ctrl+Enter)
       if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault()
         handleSend()
       }
     },
-    [handleSend]
+    [handleSend, showCommandMenu, filteredCommands, selectedCommandIndex, executeCommand]
   )
 
   // Handle paste - auto-convert long text to attachment
@@ -324,6 +479,46 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
   return (
     <div className={INPUT_STYLES.container.maxWidth}>
+      {/* Slash Command Menu */}
+      <AnimatePresence>
+        {showCommandMenu && filteredCommands.length > 0 && (
+          <motion.div
+            ref={commandMenuRef}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            transition={{ duration: 0.15 }}
+            className="absolute bottom-full left-0 right-0 mb-2 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-50"
+          >
+            <div className="p-2 border-b border-border">
+              <p className="text-xs text-muted-foreground">Slash Commands</p>
+            </div>
+            <div className="max-h-64 overflow-y-auto">
+              {filteredCommands.map((command, index) => (
+                <button
+                  key={command.name}
+                  onClick={() => executeCommand(command.name)}
+                  className={`w-full px-3 py-2 text-left transition-colors ${
+                    index === selectedCommandIndex
+                      ? 'bg-primary/10 text-primary'
+                      : 'hover:bg-secondary/50'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-mono">/{command.name}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+            <div className="p-2 border-t border-border">
+              <p className="text-[10px] text-muted-foreground">
+                ↑↓ navigate • Enter select • Esc close
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Input Card - Floating */}
       <div className="relative w-full flex flex-col border-[0.5px] border-border rounded-2xl bg-muted shadow-lg">
           {/* Attachments - Only appears when files exist */}

@@ -16,6 +16,17 @@ export const FEATURES = {
    * Default: false (disabled in production)
    */
   PLAN_MODE: import.meta.env.VITE_FEATURE_PLAN_MODE === 'true',
+
+  /**
+   * Git Graph - Commit history visualization
+   *
+   * When enabled: Shows Git Graph in workspace view
+   * When disabled: Shows MCP Timeline instead (default for MCP-focused workflow)
+   *
+   * Environment variable: VITE_FEATURE_GIT_GRAPH
+   * Default: false (MCP Timeline is the new default)
+   */
+  GIT_GRAPH: import.meta.env.VITE_FEATURE_GIT_GRAPH === 'true',
 } as const
 
 export type FeatureFlags = typeof FEATURES

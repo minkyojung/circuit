@@ -1,0 +1,1 @@
+Run all tests in the project and report the results. If any tests fail, analyze the failures and suggest fixes.
