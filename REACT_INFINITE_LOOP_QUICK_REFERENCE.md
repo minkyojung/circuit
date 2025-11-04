@@ -53,19 +53,33 @@ useEffect(() => {
 }, [memoizedItems])
 ```
 
-### 4. Virtual Scroller의 unstable callback
+### 4. Virtual Scroller의 unstable callback ⭐ **실제 근본 원인**
 ```typescript
-// ❌ 무한 루프
+// ❌ 무한 루프 - inline 함수
 useVirtualizer({
-  getScrollElement: () => ref.current // 매번 새 함수
+  getScrollElement: () => ref.current, // 매번 새 함수
+  estimateSize: () => 150 // 매번 새 함수
 })
 
-// ✅ 해결
-const getScrollElement = useCallback(() => ref.current, [])
+// ❌ 무한 루프 - inline useCallback (useCallback도 첫 렌더에서 불안정)
 useVirtualizer({
-  getScrollElement
+  getScrollElement,
+  estimateSize: useCallback(() => 150, []) // ⚠️ 이것도 문제!
+})
+
+// ✅ 해결 - useVirtualizer 호출 전에 정의
+const getScrollElement = useCallback(() => ref.current, [])
+const estimateSize = useCallback(() => 150, [])
+useVirtualizer({
+  getScrollElement,
+  estimateSize
 })
 ```
+
+**왜 inline useCallback도 문제인가?**
+- useCallback이 첫 렌더에서 안정화되기 전에 useVirtualizer가 실행됨
+- virtualizer가 재구성 → measureElement(setRef) 호출 → 재렌더 → 무한 루프
+- **반드시 useVirtualizer 호출 전에 별도로 정의해야 함**
 
 ### 5. IPC 핸들러를 의존성으로 추가
 ```typescript
@@ -162,14 +176,19 @@ const virtualizer = useVirtualizer({
 
 ## 🎯 이 프로젝트에서 고친 것들
 
-1. **ChatInput.tsx** - useEffect 의존성에서 attachedFiles 제거 ⭐ **근본 원인**
-2. **useClaudeMetrics.ts** - 에러 처리를 warn으로 변경, setState 제거
-3. **ClassicTerminal.tsx** - workspace.path 의존성 제거
-4. **WorkspaceChatEditor.tsx** - getScrollElement 메모이제이션, IPC ref 패턴
-5. **BlockList.tsx** - getScrollElement 메모이제이션
-6. **useAutoCompact.ts** - 조건부 hook 제거
-7. **AppSidebar.tsx** - loadStatuses 메모이제이션
-8. **App.tsx** - WorkspaceChatEditor에 key prop 추가
+1. **WorkspaceChatEditor.tsx** - estimateSize inline callback 제거 ⭐⭐ **실제 근본 원인**
+   - `useVirtualizer()` 내부에 `useCallback(() => 150, [])` 인라인 정의
+   - 첫 렌더에서 불안정한 참조 → virtualizer 재구성 → measureElement(setRef) → 재렌더 → 무한 루프
+   - 해결: useVirtualizer 호출 전에 별도로 정의
+2. **BlockList.tsx** - estimateSize inline 함수 제거
+   - `() => 150` 인라인 화살표 함수 사용 (매 렌더마다 새 함수)
+3. **ChatInput.tsx** - useEffect 의존성에서 attachedFiles 제거
+4. **useClaudeMetrics.ts** - 에러 처리를 warn으로 변경, setState 제거
+5. **ClassicTerminal.tsx** - workspace.path 의존성 제거
+6. **WorkspaceChatEditor.tsx** - getScrollElement 메모이제이션, IPC ref 패턴
+7. **useAutoCompact.ts** - 조건부 hook 제거
+8. **AppSidebar.tsx** - loadStatuses 메모이제이션
+9. **App.tsx** - WorkspaceChatEditor에 key prop 추가
 
 ---
 
