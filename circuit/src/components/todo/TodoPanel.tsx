@@ -9,23 +9,45 @@ import { motion } from 'framer-motion'
 import { ListTodo, X } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useTodos } from '../../contexts/TodoContext'
+import { useAgent } from '../../contexts/AgentContext'
 import { TodoList } from './TodoList'
 import { TodoStats } from './TodoStats'
+import type { Workspace } from '../../types/workspace'
 
 interface TodoPanelProps {
   conversationId?: string
+  workspace?: Workspace | null
   className?: string
   onClose?: () => void
+  onCommit?: () => void
 }
 
 export const TodoPanel: React.FC<TodoPanelProps> = ({
   conversationId: _conversationId,
+  workspace,
   className,
   onClose,
 }) => {
   const { todos, stats, isLoading, error, getTodoTree, updateTodoStatus, deleteTodo } = useTodos()
+  const { startAgent } = useAgent()
 
   const todoTree = getTodoTree()
+
+  // Handle agent execution
+  const handleRunAgent = async (todoId: string) => {
+    if (!workspace) {
+      console.warn('[TodoPanel] No workspace selected, cannot run agent')
+      return
+    }
+
+    try {
+      console.log('[TodoPanel] Starting agent for todo:', todoId, 'workspace:', workspace.id)
+      await startAgent(todoId, workspace.id)
+    } catch (error) {
+      console.error('[TodoPanel] Failed to start agent:', error)
+      // TODO: Show error toast
+    }
+  }
 
   return (
     <motion.div
@@ -92,6 +114,8 @@ export const TodoPanel: React.FC<TodoPanelProps> = ({
                 todos={todoTree}
                 onStatusChange={updateTodoStatus}
                 onDelete={deleteTodo}
+                workspaceId={workspace?.id}
+                onRunAgent={handleRunAgent}
               />
             </div>
 
