@@ -1700,7 +1700,7 @@ The plan is ready. What would you like to do?`,
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="h-full overflow-auto p-6 pb-[300px]"
+        className="h-full overflow-auto p-3 pb-[300px]"
       >
         {isLoadingConversation ? (
           <div className="space-y-5 max-w-4xl mx-auto">

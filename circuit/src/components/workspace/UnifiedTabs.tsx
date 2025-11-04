@@ -262,11 +262,8 @@ export function UnifiedTabs({
 
   return (
     <>
-      <div className="inline-flex items-center gap-2">
-        {/* Tabs area */}
-        <div className="flex items-center gap-2">
-          {/* Conversation Tabs */}
-          <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1">
+        {/* Conversation Tabs */}
         {conversations.map((conversation) => {
           const isActive = conversation.id === activeConversationId
           const isRead = isActive || (conversation.lastViewedAt && conversation.lastViewedAt >= conversation.updatedAt)
@@ -344,69 +341,63 @@ export function UnifiedTabs({
         >
           <Plus size={16} />
         </button>
-      </div>
 
-      {/* Separator between conversations and files */}
-      {openFiles.length > 0 && (
-        <Separator orientation="vertical" className="h-6" />
-      )}
+        {/* Separator between conversations and files */}
+        {openFiles.length > 0 && (
+          <Separator orientation="vertical" className="h-6 mx-1" />
+        )}
 
-      {/* File Tabs */}
-      {openFiles.length > 0 && (
-        <div className="flex items-center gap-0.5">
-          {openFiles.map((file) => {
-            const isActive = file.path === activeFilePath
-            const fileName = getFileName(file.path)
-            const FileIconComponent = getFileIconComponent(fileName)
+        {/* File Tabs */}
+        {openFiles.map((file) => {
+          const isActive = file.path === activeFilePath
+          const fileName = getFileName(file.path)
+          const FileIconComponent = getFileIconComponent(fileName)
 
-            return (
-              <div
-                key={file.path}
+          return (
+            <div
+              key={file.path}
+              className={cn(
+                'group relative flex items-center gap-2 px-2 py-[7px] transition-colors',
+                'text-sm font-medium whitespace-nowrap cursor-pointer',
+                'rounded-md',
+                isActive
+                  ? 'bg-secondary text-secondary-foreground'
+                  : 'bg-transparent text-muted-foreground hover:bg-secondary/50 hover:text-secondary-foreground'
+              )}
+              onClick={() => onFileChange(file.path)}
+            >
+              {/* File Icon */}
+              <FileIconComponent className="shrink-0 w-4 h-4" />
+
+              {/* File Name */}
+              <span className="max-w-[300px] truncate">
+                {fileName}
+              </span>
+
+              {/* Close button or unsaved indicator */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleCloseFileClick(file.path, file.unsavedChanges || false)
+                }}
                 className={cn(
-                  'group relative flex items-center gap-2 px-2 py-[7px] transition-colors',
-                  'text-sm font-medium whitespace-nowrap cursor-pointer',
-                  'rounded-md',
-                  isActive
-                    ? 'bg-secondary text-secondary-foreground'
-                    : 'bg-transparent text-muted-foreground hover:bg-secondary/50 hover:text-secondary-foreground'
+                  'ml-1 w-4 h-4 flex items-center justify-center rounded transition-all flex-shrink-0',
+                  file.unsavedChanges
+                    ? 'text-foreground hover:bg-secondary'
+                    : 'hover:bg-destructive/20 hover:text-destructive',
+                  isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                 )}
-                onClick={() => onFileChange(file.path)}
+                title={file.unsavedChanges ? 'Unsaved changes - Click to close' : 'Close file'}
               >
-                {/* File Icon */}
-                <FileIconComponent className="shrink-0 w-4 h-4" />
-
-                {/* File Name */}
-                <span className="max-w-[300px] truncate">
-                  {fileName}
-                </span>
-
-                {/* Close button or unsaved indicator */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleCloseFileClick(file.path, file.unsavedChanges || false)
-                  }}
-                  className={cn(
-                    'ml-1 w-4 h-4 flex items-center justify-center rounded transition-all flex-shrink-0',
-                    file.unsavedChanges
-                      ? 'text-foreground hover:bg-secondary'
-                      : 'hover:bg-destructive/20 hover:text-destructive',
-                    isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                  )}
-                  title={file.unsavedChanges ? 'Unsaved changes - Click to close' : 'Close file'}
-                >
-                  {file.unsavedChanges ? (
-                    <Circle size={8} fill="currentColor" />
-                  ) : (
-                    <X size={14} />
-                  )}
-                </button>
-              </div>
-            )
-          })}
-        </div>
-      )}
-        </div>
+                {file.unsavedChanges ? (
+                  <Circle size={8} fill="currentColor" />
+                ) : (
+                  <X size={14} />
+                )}
+              </button>
+            </div>
+          )
+        })}
       </div>
 
       {/* Delete confirmation dialog */}

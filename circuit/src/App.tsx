@@ -335,7 +335,7 @@ function App() {
 
           {/* Main Header with Breadcrumb */}
           <header
-            className="flex h-[44px] shrink-0 items-center gap-2 border-b border-border px-4"
+            className="flex h-[44px] shrink-0 items-center gap-2 border-b border-border px-3"
             style={{ WebkitAppRegion: 'drag' } as any}
           >
             <div
