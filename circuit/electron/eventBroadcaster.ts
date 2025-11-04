@@ -56,4 +56,54 @@ export class EventBroadcaster {
       timestamp: Date.now(),
     })
   }
+
+  /**
+   * Broadcast agent started event
+   */
+  static broadcastAgentStarted(todoId: string): void {
+    console.log('[EventBroadcaster] Broadcasting agent:started', { todoId })
+
+    this.broadcast('agent:started', {
+      todoId,
+      timestamp: Date.now(),
+    })
+  }
+
+  /**
+   * Broadcast agent completed event
+   */
+  static broadcastAgentCompleted(todoId: string, result: any): void {
+    console.log('[EventBroadcaster] Broadcasting agent:completed', { todoId })
+
+    this.broadcast('agent:completed', {
+      todoId,
+      result,
+      timestamp: Date.now(),
+    })
+  }
+
+  /**
+   * Broadcast agent failed event
+   */
+  static broadcastAgentFailed(todoId: string, error: { message: string; stack?: string }): void {
+    console.log('[EventBroadcaster] Broadcasting agent:failed', { todoId, error: error.message })
+
+    this.broadcast('agent:failed', {
+      todoId,
+      error,
+      timestamp: Date.now(),
+    })
+  }
+
+  /**
+   * Broadcast agent cancelled event
+   */
+  static broadcastAgentCancelled(todoId: string): void {
+    console.log('[EventBroadcaster] Broadcasting agent:cancelled', { todoId })
+
+    this.broadcast('agent:cancelled', {
+      todoId,
+      timestamp: Date.now(),
+    })
+  }
 }

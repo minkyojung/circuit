@@ -525,8 +525,14 @@ app.whenReady().then(async () => {
     console.log('[main.cjs] Storage initialized, registering handlers...');
     registerConversationHandlers();
     console.log('[main.cjs] ✅ Conversation handlers registered successfully');
+
+    // Register agent handlers (requires storage to be initialized)
+    console.log('[main.cjs] Registering agent handlers...');
+    const { registerAgentHandlers } = require('../dist-electron/agentHandlers.js');
+    registerAgentHandlers();
+    console.log('[main.cjs] ✅ Agent handlers registered successfully');
   } catch (error) {
-    console.error('[main.cjs] ❌ CRITICAL: Failed to register conversation handlers:', error);
+    console.error('[main.cjs] ❌ CRITICAL: Failed to register handlers:', error);
     console.error('[main.cjs] Error stack:', error.stack);
   }
 
