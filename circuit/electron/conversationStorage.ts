@@ -1059,7 +1059,7 @@ export class ConversationStorage {
 
     this.db
       .prepare(`
-        INSERT INTO todos (
+        INSERT OR REPLACE INTO todos (
           id, conversation_id, message_id, parent_id, order_index, depth,
           content, description, active_form, status, progress, priority, complexity,
           thinking_step_ids, block_ids,
@@ -1103,7 +1103,7 @@ export class ConversationStorage {
 
     const transaction = this.db.transaction(() => {
       const stmt = this.db!.prepare(`
-        INSERT INTO todos (
+        INSERT OR REPLACE INTO todos (
           id, conversation_id, message_id, parent_id, order_index, depth,
           content, description, active_form, status, progress, priority, complexity,
           thinking_step_ids, block_ids,

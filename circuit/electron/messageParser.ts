@@ -41,7 +41,8 @@ export type BlockType =
   | 'diagram'    // Mermaid diagram
   | 'link'       // URL reference
   | 'quote'      // Quote block
-  | 'list'       // Checklist/TODO
+  | 'list'       // List (generic)
+  | 'checklist'  // Checklist with checkboxes
   | 'table'      // Table data
   | 'tool';      // Tool invocation (AI SDK integration)
 
@@ -83,6 +84,14 @@ export interface BlockMetadata {
   totalItems?: number;
   completedItems?: number;
 
+  // Link blocks
+  title?: string;
+  description?: string;
+
+  // Quote blocks
+  author?: string;
+  source?: string;
+
   // Bookmarking
   isBookmarked?: boolean;
   bookmarkNote?: string;
@@ -95,6 +104,10 @@ export interface BlockMetadata {
   args?: Record<string, unknown>;
   result?: unknown;
   error?: unknown;
+  duration?: number;  // Execution duration in milliseconds
+  status?: 'pending' | 'running' | 'success' | 'error';
+  suggestedFix?: string;  // Error blocks
+  errorCode?: string | number;  // Error blocks
 }
 
 /**

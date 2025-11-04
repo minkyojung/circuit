@@ -13,19 +13,49 @@
 
 /* ===== BASE STYLES ===== */
 @layer base {
-  /* Default typography */
-  * {
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    font-weight: var(--font-medium);
-  }
-
-  /* Body defaults */
+  /* Body defaults - Typography foundation */
   body {
     @apply text-foreground;
     color: var(--foreground);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-weight: var(--font-medium);
     font-size: var(--font-base);
     line-height: var(--leading-normal);
     background-color: transparent;
+  }
+
+  /* Ensure form elements inherit font from body */
+  button,
+  input,
+  select,
+  textarea,
+  optgroup {
+    font-family: inherit;
+    font-weight: inherit;
+  }
+
+  /* Monospace font utility class for code elements */
+  .font-mono {
+    font-family: ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Code", "Courier New", monospace;
+  }
+
+  /* Monospace font for code elements */
+  code,
+  pre,
+  kbd,
+  samp,
+  .shiki code,
+  .shiki pre,
+  .prose code,
+  .prose pre,
+  .prose pre code {
+    font-family: ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Code", "Courier New", monospace;
+  }
+
+  /* Ensure inline code in prose also uses monospace */
+  .prose :where(code):not(:where([class~="not-prose"] *))::before,
+  .prose :where(code):not(:where([class~="not-prose"] *))::after {
+    content: "";
   }
 
   /* Border color utility */
@@ -191,5 +221,163 @@
     outline: 2px solid var(--ring);
     outline-offset: -2px;
     border-radius: var(--radius-md);
+  }
+
+  /* ===== TERMINAL STYLES ===== */
+  /* CSS variables for terminal styling */
+  :root {
+    --xterm-background: transparent;
+    --xterm-font-weight: 300;
+    --xterm-font-weight-bold: 600;
+    --xterm-padding: 0;
+  }
+
+  /* Base xterm styles (essential from xterm.css) */
+  .xterm {
+    cursor: text;
+    position: relative;
+    user-select: none;
+    -ms-user-select: none;
+    -webkit-user-select: none;
+    padding: var(--xterm-padding);
+    font-weight: var(--xterm-font-weight) !important;
+    background: var(--xterm-background) !important;
+  }
+
+  .xterm.focus,
+  .xterm:focus {
+    outline: none;
+  }
+
+  /* Override xterm internal layers - ALL must be transparent */
+  .xterm .xterm-viewport,
+  .xterm .xterm-screen,
+  .xterm .xterm-rows,
+  .xterm canvas,
+  .xterm .xterm-helpers,
+  .xterm .xterm-decoration-container {
+    background-color: var(--xterm-background) !important;
+    background: var(--xterm-background) !important;
+  }
+
+  /* Force WebGL canvas transparency */
+  canvas.xterm-link-layer,
+  canvas.xterm-cursor-layer,
+  canvas.xterm-decoration-layer {
+    background: var(--xterm-background) !important;
+  }
+
+  /* Custom scrollbar for terminal */
+  .xterm .xterm-viewport::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .xterm .xterm-viewport::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .xterm .xterm-viewport::-webkit-scrollbar-thumb {
+    background: hsl(var(--sidebar-foreground-muted) / 0.3);
+    border-radius: 4px;
+  }
+
+  .xterm .xterm-viewport::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--sidebar-foreground-muted) / 0.5);
+  }
+
+  /* ===== FILE REFERENCE LINE HIGHLIGHTING ===== */
+  /* Line highlight animation for file references */
+  .highlighted-line-reference {
+    background-color: rgba(59, 130, 246, 0.15) !important;
+    animation: highlight-fade 2s ease-out;
+  }
+
+  .highlighted-line-glyph {
+    background-color: rgba(59, 130, 246, 0.4) !important;
+    width: 3px !important;
+  }
+
+  @keyframes highlight-fade {
+    0% {
+      background-color: rgba(59, 130, 246, 0.3) !important;
+    }
+    50% {
+      background-color: rgba(59, 130, 246, 0.15) !important;
+    }
+    100% {
+      background-color: rgba(59, 130, 246, 0.05) !important;
+    }
+  }
+
+  /* ===== RESIZABLE PANELS ===== */
+  /* Completely disable all hover/active effects on resize handle */
+  [data-panel-resize-handle-enabled],
+  [data-panel-resize-handle-enabled]:hover,
+  [data-panel-resize-handle-enabled]:active,
+  [data-panel-resize-handle-enabled]:focus,
+  [data-panel-resize-handle-enabled]:focus-visible,
+  [data-panel-resize-handle-enabled][data-resize-handle-active],
+  [data-panel-resize-handle-enabled][data-resize-handle-state="hover"],
+  [data-panel-resize-handle-enabled][data-resize-handle-state="drag"] {
+    cursor: col-resize !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+    border-width: 0 !important;
+    border-color: transparent !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-top: none !important;
+    border-bottom: none !important;
+    outline: none !important;
+    outline-width: 0 !important;
+    outline-color: transparent !important;
+    box-shadow: none !important;
+    opacity: 1 !important;
+  }
+
+  /* Remove all pseudo-elements */
+  [data-panel-resize-handle-enabled]::before,
+  [data-panel-resize-handle-enabled]::after,
+  [data-panel-resize-handle-enabled]:hover::before,
+  [data-panel-resize-handle-enabled]:hover::after,
+  [data-panel-resize-handle-enabled]:active::before,
+  [data-panel-resize-handle-enabled]:active::after,
+  [data-panel-resize-handle-enabled]:focus::before,
+  [data-panel-resize-handle-enabled]:focus::after,
+  [data-panel-resize-handle-enabled][data-resize-handle-active]::before,
+  [data-panel-resize-handle-enabled][data-resize-handle-active]::after,
+  [data-panel-resize-handle-enabled][data-resize-handle-state="hover"]::before,
+  [data-panel-resize-handle-enabled][data-resize-handle-state="hover"]::after,
+  [data-panel-resize-handle-enabled][data-resize-handle-state="drag"]::before,
+  [data-panel-resize-handle-enabled][data-resize-handle-state="drag"]::after {
+    display: none !important;
+    content: none !important;
+    visibility: hidden !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+    border-width: 0 !important;
+    border-color: transparent !important;
+    outline: none !important;
+    outline-width: 0 !important;
+    box-shadow: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    opacity: 0 !important;
+  }
+
+  /* Also target any child elements */
+  [data-panel-resize-handle-enabled] *,
+  [data-panel-resize-handle-enabled]:hover *,
+  [data-panel-resize-handle-enabled]:active *,
+  [data-panel-resize-handle-enabled]:focus *,
+  [data-panel-resize-handle-enabled][data-resize-handle-active] * {
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+    border-width: 0 !important;
+    border-color: transparent !important;
+    outline: none !important;
   }
 }

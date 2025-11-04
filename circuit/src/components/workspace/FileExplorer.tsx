@@ -122,7 +122,7 @@ interface FileExplorerProps {
   onRefresh?: () => void
 }
 
-const FileTreeItem: React.FC<{
+const FileTreeItemComponent: React.FC<{
   node: FileNode
   depth: number
   onSelect?: (path: string) => void
@@ -349,6 +349,31 @@ const FileTreeItem: React.FC<{
   )
 }
 
+// Memoized FileTreeItem to prevent unnecessary re-renders of file tree
+// Only re-render when node path, selected file, search query, or collapse key changes
+const FileTreeItem = React.memo(
+  FileTreeItemComponent,
+  (prevProps, nextProps) => {
+    // Compare children array (for folders)
+    const childrenEqual =
+      prevProps.node.children === nextProps.node.children || // Same reference
+      (prevProps.node.children?.length === nextProps.node.children?.length && // Same length
+       prevProps.node.children?.every((child, i) =>
+         child.path === nextProps.node.children?.[i]?.path
+       ));
+
+    return (
+      prevProps.node.path === nextProps.node.path &&
+      prevProps.node.modified === nextProps.node.modified &&
+      prevProps.node.added === nextProps.node.added &&
+      prevProps.selectedFile === nextProps.selectedFile &&
+      prevProps.searchQuery === nextProps.searchQuery &&
+      prevProps.collapseKey === nextProps.collapseKey &&
+      childrenEqual // Add children comparison
+    )
+  }
+)
+
 export const FileExplorer: React.FC<FileExplorerProps> = ({
   fileTree,
   isLoading = false,
@@ -357,15 +382,25 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   onRefresh,
 }) => {
   const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [collapseKey, setCollapseKey] = useState(0) // Key to force collapse all folders
   const searchInputRef = useRef<HTMLInputElement>(null)
 
-  // Filter file tree based on search query
-  const filteredFileTree = useMemo(() => {
-    if (!searchQuery.trim()) return fileTree
+  // Debounce search query to avoid expensive filtering on every keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery)
+    }, 300)
 
-    const query = searchQuery.toLowerCase()
+    return () => clearTimeout(timer)
+  }, [searchQuery])
+
+  // Filter file tree based on debounced search query
+  const filteredFileTree = useMemo(() => {
+    if (!debouncedSearchQuery.trim()) return fileTree
+
+    const query = debouncedSearchQuery.toLowerCase()
 
     const filterNodes = (nodes: FileNode[]): FileNode[] => {
       return nodes.reduce<FileNode[]>((acc, node) => {
@@ -382,7 +417,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     }
 
     return filterNodes(fileTree)
-  }, [fileTree, searchQuery])
+  }, [fileTree, debouncedSearchQuery])
 
   // Calculate git status summary from fileTree
   const gitStats = useMemo(() => {

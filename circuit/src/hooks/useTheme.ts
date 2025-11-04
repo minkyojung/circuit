@@ -11,7 +11,7 @@ export function useTheme() {
   const { settings, updateSetting } = useSettingsContext();
   const theme = settings.theme.mode;
 
-  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark' | 'green-light' | 'green-dark'>('light');
+  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark' | 'green-light' | 'green-dark' | 'warm-light' | 'warm-dark' | 'straw-light' | 'slate-dark'>('light');
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -19,7 +19,7 @@ export function useTheme() {
       ? 'dark'
       : 'light';
 
-    let effectiveTheme: 'light' | 'dark' | 'green-light' | 'green-dark';
+    let effectiveTheme: 'light' | 'dark' | 'green-light' | 'green-dark' | 'warm-light' | 'warm-dark' | 'straw-light' | 'slate-dark';
 
     if (theme === 'system') {
       effectiveTheme = systemTheme;
@@ -28,7 +28,7 @@ export function useTheme() {
     }
 
     // Update DOM - remove all theme classes first
-    root.classList.remove('light', 'dark', 'green-light', 'green-dark');
+    root.classList.remove('light', 'dark', 'green-light', 'green-dark', 'warm-light', 'warm-dark', 'straw-light', 'slate-dark');
     root.classList.add(effectiveTheme);
 
     // Update resolved theme state
@@ -43,7 +43,7 @@ export function useTheme() {
     const handleChange = () => {
       const systemTheme = mediaQuery.matches ? 'dark' : 'light';
       const root = window.document.documentElement;
-      root.classList.remove('light', 'dark', 'green-light', 'green-dark');
+      root.classList.remove('light', 'dark', 'green-light', 'green-dark', 'warm-light', 'warm-dark', 'straw-light', 'slate-dark');
       root.classList.add(systemTheme);
       setResolvedTheme(systemTheme);
     };
@@ -66,7 +66,11 @@ export function useTheme() {
       if (current === 'light') next = 'dark';
       else if (current === 'dark') next = 'green-light';
       else if (current === 'green-light') next = 'green-dark';
-      else if (current === 'green-dark') next = 'system';
+      else if (current === 'green-dark') next = 'warm-light';
+      else if (current === 'warm-light') next = 'warm-dark';
+      else if (current === 'warm-dark') next = 'straw-light';
+      else if (current === 'straw-light') next = 'slate-dark';
+      else if (current === 'slate-dark') next = 'system';
       else next = 'light';
       setTheme(next);
     },

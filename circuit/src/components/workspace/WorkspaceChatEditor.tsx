@@ -1,15 +1,17 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import type { Workspace } from '@/types/workspace';
 import type { Message } from '@/types/conversation';
 import Editor, { loader } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
-import { Columns2, Maximize2, Save, ChevronDown, Copy, Check, Paperclip } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import {
   ResizablePanelGroup,
   ResizablePanel,
   ResizableHandle,
 } from '@/components/ui/resizable';
 import { BlockList } from '@/components/blocks';
+import { InlineTodoProgress } from '@/components/blocks/InlineTodoProgress';
 import { ChatInput, type AttachedFile } from './ChatInput';
 import { ChatMessageSkeleton } from '@/components/ui/skeleton';
 import { Shimmer } from '@/components/ai-elements/shimmer';
@@ -17,8 +19,13 @@ import { ReasoningAccordion } from '@/components/reasoning/ReasoningAccordion';
 import type { ThinkingStep } from '@/types/thinking';
 import { summarizeToolUsage } from '@/lib/thinkingUtils';
 import { motion, AnimatePresence } from 'motion/react';
-import { TodoProvider } from '@/contexts/TodoContext';
+import { TodoProvider, useTodos } from '@/contexts/TodoContext';
+import { useAgent } from '@/contexts/AgentContext';
 import { TodoConfirmationDialog } from '@/components/todo';
+import { MessageComponent } from './MessageComponent';
+import { ChatEmptyState } from './ChatEmptyState';
+import { MarkdownPreview } from './MarkdownPreview';
+import { FloatingCodeActions } from './FloatingCodeActions';
 import {
   extractTodoWriteFromBlocks,
   extractPlanFromText,
@@ -27,6 +34,9 @@ import {
   calculateTotalTime
 } from '@/lib/planModeUtils';
 import type { TodoGenerationResult, TodoDraft, ExecutionMode } from '@/types/todo';
+import { FEATURES } from '@/config/features';
+import { getLanguageFromFilePath } from '@/lib/fileUtils';
+import { cn } from '@/lib/utils';
 
 // Configure Monaco Editor to use local files instead of CDN
 loader.config({ monaco });
@@ -41,7 +51,26 @@ interface WorkspaceChatEditorProps {
   conversationId?: string | null;
   onPrefillCleared?: () => void;
   onConversationChange?: (conversationId: string | null) => void;
-  onPlanAdded?: () => void;
+
+  // View mode props (lifted to App.tsx)
+  viewMode?: ViewMode;
+  onViewModeChange?: (mode: ViewMode) => void;
+
+  // Open files props (lifted to App.tsx)
+  openFiles?: string[];
+
+  // Unsaved changes callback
+  onUnsavedChange?: (filePath: string, hasChanges: boolean) => void;
+
+  // File reference click callback
+  onFileReferenceClick?: (filePath: string, lineStart?: number, lineEnd?: number) => void;
+
+  // File cursor position for jumping to line
+  fileCursorPosition?: {
+    filePath: string
+    lineStart: number
+    lineEnd: number
+  } | null;
 }
 
 type ViewMode = 'chat' | 'editor' | 'split';
@@ -53,20 +82,51 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
   conversationId: externalConversationId = null,
   onPrefillCleared,
   onConversationChange,
-  onPlanAdded
+  viewMode: externalViewMode,
+  onViewModeChange,
+  openFiles: externalOpenFiles = [],
+  onUnsavedChange,
+  onFileReferenceClick,
+  fileCursorPosition
 }) => {
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [openFiles, setOpenFiles] = useState<string[]>([]);
-  const [viewMode, setViewMode] = useState<ViewMode>('chat');
 
-  // Auto-switch to editor mode when file is selected
-  useEffect(() => {
-    if (selectedFile && viewMode === 'chat') {
-      setViewMode('editor');
-    } else if (!selectedFile && viewMode !== 'chat') {
-      setViewMode('chat');
-    }
-  }, [selectedFile]);
+  // Use external viewMode if provided, otherwise use local state
+  const viewMode = externalViewMode || 'chat';
+  const openFiles = externalOpenFiles;
+
+  // Code selection state for editor → chat communication
+  const [codeSelectionAction, setCodeSelectionAction] = useState<{
+    type: 'ask' | 'explain' | 'optimize' | 'add-tests'
+    code: string
+    filePath: string
+    lineStart: number
+    lineEnd: number
+  } | null>(null);
+
+  // File edit handler
+  const handleFileEdit = (filePath: string) => {
+    // This will be handled by parent (App.tsx) through file selection
+    console.log('[WorkspaceChatEditor] File edited:', filePath);
+  };
+
+  // File close handler - delegate to parent
+  const handleCloseFile = (filePath: string) => {
+    // Will be handled by parent via UnifiedTabs
+    console.log('[WorkspaceChatEditor] File closed:', filePath);
+  };
+
+  // Code selection handler - from EditorPanel
+  const handleCodeSelectionAction = useCallback((action: {
+    type: 'ask' | 'explain' | 'optimize' | 'add-tests'
+    code: string
+    filePath: string
+    lineStart: number
+    lineEnd: number
+  }) => {
+    console.log('[WorkspaceChatEditor] Code selection action:', action.type);
+    setCodeSelectionAction(action);
+  }, []);
 
   // Start Claude session when workspace changes
   useEffect(() => {
@@ -84,29 +144,18 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
     };
 
     startSession();
+  }, [workspace.path]);
 
-    // Cleanup on unmount
+  // Cleanup session when component unmounts or sessionId changes
+  useEffect(() => {
     return () => {
       if (sessionId) {
         console.log('[WorkspaceChatEditor] Stopping Claude session:', sessionId);
         ipcRenderer.invoke('claude:stop-session', sessionId);
       }
     };
-  }, [workspace.path]);
+  }, [sessionId]);
 
-  const handleFileEdit = (filePath: string) => {
-    console.log('[WorkspaceChatEditor] File edited:', filePath);
-    if (!openFiles.includes(filePath)) {
-      setOpenFiles([...openFiles, filePath]);
-    }
-  };
-
-  // Add selected file to open files when it changes
-  useEffect(() => {
-    if (selectedFile && !openFiles.includes(selectedFile)) {
-      setOpenFiles([...openFiles, selectedFile]);
-    }
-  }, [selectedFile]);
 
   return (
     <div className="h-full">
@@ -121,7 +170,9 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
             externalConversationId={externalConversationId}
             onPrefillCleared={onPrefillCleared}
             onConversationChange={onConversationChange}
-            onPlanAdded={onPlanAdded}
+            onFileReferenceClick={onFileReferenceClick}
+            codeSelectionAction={codeSelectionAction}
+            onCodeSelectionHandled={() => setCodeSelectionAction(null)}
           />
         </div>
       )}
@@ -133,8 +184,10 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
             workspace={workspace}
             openFiles={openFiles}
             selectedFile={selectedFile}
-            onToggleSplit={() => setViewMode('split')}
-            isSplitMode={false}
+            onCloseFile={handleCloseFile}
+            onUnsavedChange={onUnsavedChange}
+            fileCursorPosition={fileCursorPosition}
+            onCodeSelectionAction={handleCodeSelectionAction}
           />
         </div>
       )}
@@ -151,7 +204,9 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
               externalConversationId={externalConversationId}
               onPrefillCleared={onPrefillCleared}
               onConversationChange={onConversationChange}
-              onPlanAdded={onPlanAdded}
+              onFileReferenceClick={onFileReferenceClick}
+              codeSelectionAction={codeSelectionAction}
+              onCodeSelectionHandled={() => setCodeSelectionAction(null)}
             />
           </ResizablePanel>
           <ResizableHandle />
@@ -160,8 +215,10 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
               workspace={workspace}
               openFiles={openFiles}
               selectedFile={selectedFile}
-              onToggleSplit={() => setViewMode('editor')}
-              isSplitMode={true}
+              onCloseFile={handleCloseFile}
+              onUnsavedChange={onUnsavedChange}
+              fileCursorPosition={fileCursorPosition}
+              onCodeSelectionAction={handleCodeSelectionAction}
             />
           </ResizablePanel>
         </ResizablePanelGroup>
@@ -182,7 +239,15 @@ interface ChatPanelProps {
   externalConversationId?: string | null;
   onPrefillCleared?: () => void;
   onConversationChange?: (conversationId: string | null) => void;
-  onPlanAdded?: () => void;
+  onFileReferenceClick?: (filePath: string, lineStart?: number, lineEnd?: number) => void;
+  codeSelectionAction?: {
+    type: 'ask' | 'explain' | 'optimize' | 'add-tests'
+    code: string
+    filePath: string
+    lineStart: number
+    lineEnd: number
+  } | null;
+  onCodeSelectionHandled?: () => void;
 }
 
 // ChatInput component now handles all input styling and controls
@@ -195,15 +260,28 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   externalConversationId,
   onPrefillCleared,
   onConversationChange,
-  onPlanAdded
+  onFileReferenceClick,
+  codeSelectionAction,
+  onCodeSelectionHandled
 }) => {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
   const [isLoadingConversation, setIsLoadingConversation] = useState(true);
   const [thinkingSteps, setThinkingSteps] = useState<ThinkingStep[]>([]);
   const [messageThinkingSteps, setMessageThinkingSteps] = useState<Record<string, { steps: ThinkingStep[], duration: number }>>({});
+
+  // Todo context
+  const { createTodosFromDrafts, todos } = useTodos();
+
+  // Agent context
+  const { startAgent, agents: agentStatesByTodoId } = useAgent();
+
+  // Simply pass through agentStatesByTodoId as it's already todoId-based
+  // MessageComponent will use todoId from metadata to look up the state
+  const messageAgentStates = agentStatesByTodoId;
 
   // Todo-related state
   const [todoResult, setTodoResult] = useState<TodoGenerationResult | null>(null);
@@ -219,9 +297,14 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   const thinkingStartTimeRef = useRef<number>(0);
   const currentStepMessageRef = useRef<string>('Starting analysis');
   const pendingUserMessageRef = useRef<Message | null>(null);
-  const pendingAssistantMessageIdRef = useRef<string | null>(null);
+  const currentThinkingModeRef = useRef<import('./ChatInput').ThinkingMode>('normal');
+
+  // Track pending assistant message ID in state instead of ref to trigger re-renders
+  const [pendingAssistantMessageId, setPendingAssistantMessageId] = useState<string | null>(null);
 
   // Refs to hold latest state values (to avoid stale closures in IPC handlers)
+  const sessionIdRef = useRef<string | null>(sessionId);
+  const pendingAssistantMessageIdRef = useRef<string | null>(null);
   const conversationIdRef = useRef<string | null>(conversationId);
   const messagesRef = useRef<Message[]>(messages);
   const thinkingStepsRef = useRef<ThinkingStep[]>(thinkingSteps);
@@ -231,6 +314,12 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
 
+  // Track if component is mounted to prevent setState on unmounted component
+  const isMountedRef = useRef(true);
+
+  // Track workspace path to avoid stale closures in IPC handlers
+  const workspacePathRef = useRef(workspace.path);
+
   // Copy state
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
 
@@ -239,6 +328,45 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
 
   // Real-time duration for in-progress message
   const [currentDuration, setCurrentDuration] = useState<number>(0);
+
+  // Code attachment state for "Ask Claude" action
+  const [codeAttachment, setCodeAttachment] = useState<{
+    code: string
+    filePath: string
+    lineStart: number
+    lineEnd: number
+  } | null>(null);
+
+  // Handle code selection actions from editor
+  useEffect(() => {
+    if (!codeSelectionAction) return;
+
+    const { type, code, filePath, lineStart, lineEnd } = codeSelectionAction;
+
+    if (type === 'ask') {
+      // For "Ask" action: Attach code to chat input for manual sending
+      setCodeAttachment({ code, filePath, lineStart, lineEnd });
+    } else {
+      // For other actions: Auto-generate and send prompt
+      const lineInfo = lineEnd !== lineStart ? `${lineStart}-${lineEnd}` : `${lineStart}`;
+      let prompt = '';
+
+      if (type === 'explain') {
+        prompt = `Explain this code from ${filePath}:${lineInfo}:\n\n\`\`\`\n${code}\n\`\`\``;
+      } else if (type === 'optimize') {
+        prompt = `Optimize this code from ${filePath}:${lineInfo}:\n\n\`\`\`\n${code}\n\`\`\`\n\nProvide specific improvements for performance, readability, and maintainability.`;
+      } else if (type === 'add-tests') {
+        prompt = `Generate comprehensive tests for this code from ${filePath}:${lineInfo}:\n\n\`\`\`\n${code}\n\`\`\`\n\nInclude unit tests, edge cases, and integration tests where appropriate.`;
+      }
+
+      if (prompt) {
+        executePrompt(prompt, [], 'normal');
+      }
+    }
+
+    // Clear the action after handling
+    onCodeSelectionHandled?.();
+  }, [codeSelectionAction, onCodeSelectionHandled]);
 
   // Load conversation when workspace or externalConversationId changes
   useEffect(() => {
@@ -316,8 +444,16 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
 
   // Sync refs with latest state (to avoid stale closures)
   useEffect(() => {
+    sessionIdRef.current = sessionId;
+  }, [sessionId]);
+
+  useEffect(() => {
     conversationIdRef.current = conversationId;
   }, [conversationId]);
+
+  useEffect(() => {
+    workspacePathRef.current = workspace.path;
+  }, [workspace.path]);
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -330,6 +466,10 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   useEffect(() => {
     messageThinkingStepsRef.current = messageThinkingSteps;
   }, [messageThinkingSteps]);
+
+  useEffect(() => {
+    pendingAssistantMessageIdRef.current = pendingAssistantMessageId;
+  }, [pendingAssistantMessageId]);
 
   // Set prefilled message when provided
   useEffect(() => {
@@ -415,6 +555,82 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
     setTimeout(() => setCopiedMessageId(null), 2000);
   }, []);
 
+  // Toggle reasoning accordion handler
+  const handleToggleReasoning = useCallback((messageId: string) => {
+    setOpenReasoningId((prev) => (prev === messageId ? null : messageId));
+  }, []);
+
+  // Execute command handler
+  const handleExecuteCommand = useCallback(async (command: string) => {
+    try {
+      const result = await ipcRenderer.invoke('command:execute', {
+        command,
+        workingDirectory: workspace.path,
+        blockId: undefined
+      });
+
+      if (result.success) {
+        console.log('[CommandBlock] Execution success:', result.output);
+
+        // Add result as a new assistant message with output
+        const resultMessage: Message = {
+          id: `msg-${Date.now()}`,
+          conversationId: conversationId!,
+          role: 'assistant',
+          content: `Command executed successfully (${result.duration}ms)\n\n\`\`\`\n${result.output}\n\`\`\`\n\nExit code: ${result.exitCode}`,
+          timestamp: Date.now(),
+        };
+
+        setMessages((prev) => [...prev, resultMessage]);
+
+        // Save to database with block parsing
+        const saveResult = await ipcRenderer.invoke('message:save', resultMessage);
+        if (saveResult.success && saveResult.blocks) {
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === resultMessage.id ? { ...msg, blocks: saveResult.blocks } : msg
+            )
+          );
+        }
+      } else {
+        console.error('[CommandBlock] Execution failed:', result.error);
+
+        // Add error as a new assistant message
+        const errorMessage: Message = {
+          id: `msg-${Date.now()}`,
+          conversationId: conversationId!,
+          role: 'assistant',
+          content: `Command execution failed\n\n\`\`\`\n${result.error}\n${result.output || ''}\n\`\`\``,
+          timestamp: Date.now(),
+        };
+
+        setMessages((prev) => [...prev, errorMessage]);
+
+        const saveResult = await ipcRenderer.invoke('message:save', errorMessage);
+        if (saveResult.success && saveResult.blocks) {
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === errorMessage.id ? { ...msg, blocks: saveResult.blocks } : msg
+            )
+          );
+        }
+      }
+    } catch (error) {
+      console.error('[CommandBlock] Execute error:', error);
+
+      const errorMessage: Message = {
+        id: `msg-${Date.now()}`,
+        conversationId: conversationId!,
+        role: 'assistant',
+        content: `Failed to execute command: ${error}`,
+        timestamp: Date.now(),
+      };
+
+      setMessages((prev) => [...prev, errorMessage]);
+      await ipcRenderer.invoke('message:save', errorMessage);
+    }
+  }, [workspace.path, conversationId]);
+
   // Check initial scroll position when messages load
   useEffect(() => {
     if (messages.length > 0 && scrollContainerRef.current) {
@@ -423,17 +639,25 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
     }
   }, [messages.length, handleScroll]);
 
-  // Auto-scroll to bottom when new messages arrive (only if already at bottom)
-  useEffect(() => {
-    if (isAtBottom && messages.length > 0) {
-      // Small delay to ensure DOM has updated
-      setTimeout(() => scrollToBottom(), 100);
-    }
-  }, [messages.length, isAtBottom, scrollToBottom]);
-
   // IPC Event Handlers (using useCallback to avoid stale closures)
-  const handleThinkingStart = useCallback((_event: any, sessionId: string, _timestamp: number) => {
-      console.log('[WorkspaceChat] 🧠 Thinking started:', sessionId);
+  const handleThinkingStart = useCallback((_event: any, eventSessionId: string, _timestamp: number) => {
+      console.log('[WorkspaceChat] 🎬 handleThinkingStart called, isMounted:', isMountedRef.current, 'eventSessionId:', eventSessionId);
+
+      if (!isMountedRef.current) {
+        console.log('[WorkspaceChat] ⚠️  Component unmounted, ignoring event');
+        return;
+      }
+
+      // Filter: only handle events for THIS component's session
+      const currentSessionId = sessionIdRef.current;
+      console.log('[WorkspaceChat] 🔍 Session check - current:', currentSessionId, 'event:', eventSessionId);
+
+      if (!currentSessionId || eventSessionId !== currentSessionId) {
+        console.log('[WorkspaceChat] ⏭️  Ignoring thinking-start for different session:', eventSessionId, '(current:', currentSessionId, ')');
+        return;
+      }
+
+      console.log('[WorkspaceChat] 🧠 Thinking started:', eventSessionId);
 
       // Initialize refs and clear history
       thinkingStartTimeRef.current = Date.now();
@@ -457,11 +681,28 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
         };
 
         // Add to messages state immediately
-        setMessages((prev) => [...prev, emptyAssistantMessage]);
-        pendingAssistantMessageIdRef.current = assistantMessageId;
+        setMessages((prev) => {
+          console.log('[ChatPanel] 🤖 Adding assistant message:', {
+            messageId: assistantMessageId,
+            prevLength: prev.length,
+            newLength: prev.length + 1,
+            timestamp: Date.now()
+          });
+          return [...prev, emptyAssistantMessage];
+        });
+        setPendingAssistantMessageId(assistantMessageId);
 
         // Auto-open reasoning dropdown for real-time visibility
         setOpenReasoningId(assistantMessageId);
+
+        // Initialize messageThinkingSteps for this message so accordion displays immediately
+        setMessageThinkingSteps((prevSteps) => ({
+          ...prevSteps,
+          [assistantMessageId]: {
+            steps: [],
+            duration: 0
+          }
+        }));
 
         console.log('[WorkspaceChat] ✅ Empty assistant message created:', assistantMessageId);
       }
@@ -476,7 +717,15 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
       console.log('[WorkspaceChat] ✅ Timer started');
   }, []);
 
-  const handleMilestone = useCallback((_event: any, _sessionId: string, milestone: any) => {
+  const handleMilestone = useCallback((_event: any, eventSessionId: string, milestone: any) => {
+      if (!isMountedRef.current) return; // Prevent setState on unmounted component
+
+      // Filter: only handle events for THIS component's session
+      const currentSessionId = sessionIdRef.current;
+      if (!currentSessionId || eventSessionId !== currentSessionId) {
+        return; // Silently ignore events for other sessions
+      }
+
       console.log('[WorkspaceChat] 📍 Milestone:', milestone);
 
       // Update ref for timer display
@@ -497,14 +746,15 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
         const updatedSteps = [...prev, newStep];
 
         // Update messageThinkingSteps in real-time for the pending assistant message
-        if (pendingAssistantMessageIdRef.current) {
+        const currentPendingId = pendingAssistantMessageIdRef.current;
+        if (currentPendingId) {
           const duration = thinkingStartTimeRef.current > 0
             ? Math.round((Date.now() - thinkingStartTimeRef.current) / 1000)
             : 0;
 
           setMessageThinkingSteps((prevSteps) => ({
             ...prevSteps,
-            [pendingAssistantMessageIdRef.current!]: {
+            [currentPendingId]: {
               steps: updatedSteps,
               duration
             }
@@ -522,7 +772,14 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
       }
   }, []);
 
-  const handleThinkingComplete = useCallback((_event: any, _sessionId: string, stats: any) => {
+  const handleThinkingComplete = useCallback((_event: any, eventSessionId: string, stats: any) => {
+      if (!isMountedRef.current) return; // Prevent setState on unmounted component
+
+      // Filter: only handle events for THIS component's session
+      const currentSessionId = sessionIdRef.current;
+      if (!currentSessionId || eventSessionId !== currentSessionId) {
+        return; // Silently ignore events for other sessions
+      }
       console.log('[WorkspaceChat] ✅ Thinking complete:', stats);
 
       // Note: No need to update tool blocks since they're not in msg.blocks anymore
@@ -538,6 +795,15 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   }, []);
 
   const handleResponseComplete = useCallback(async (_event: any, result: any) => {
+      if (!isMountedRef.current) return; // Prevent setState on unmounted component
+
+      // Filter: only handle events for THIS component's session
+      const currentSessionId = sessionIdRef.current;
+      if (!currentSessionId || result.sessionId !== currentSessionId) {
+        console.log('[WorkspaceChat] ⏭️  Ignoring response-complete for different session:', result.sessionId, '(current:', currentSessionId, ')');
+        return;
+      }
+
       console.log('[WorkspaceChat] Response complete:', result);
 
       const pending = pendingUserMessageRef.current;
@@ -552,7 +818,7 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
         : 0;
 
       // Get existing assistant message ID (created in handleThinkingStart)
-      let assistantMessageId = pendingAssistantMessageIdRef.current;
+      let assistantMessageId = pendingAssistantMessageId;
       const currentThinkingSteps = thinkingStepsRef.current;
 
       if (assistantMessageId) {
@@ -617,8 +883,94 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
             console.log('[WorkspaceChat] 📋 Plan from text:', todoWriteData ? `Found ${todoWriteData.todos.length} todos` : 'Not found');
           }
 
-          if (todoWriteData && todoWriteData.todos.length > 0) {
-            console.log('[WorkspaceChat] 📋 Plan mode: Plan detected, adding to message metadata');
+          // Plan Mode validation: If in Plan Mode but no plan found, retry once
+          // Only execute if PLAN_MODE feature is enabled
+          const isPlanMode = currentThinkingModeRef.current === 'plan';
+          if (FEATURES.PLAN_MODE && isPlanMode && (!todoWriteData || todoWriteData.todos.length === 0)) {
+            console.warn('[WorkspaceChat] ⚠️ Plan Mode active but no plan found in response');
+
+            // Check if this is already a retry (prevent infinite loop)
+            const isRetry = assistantMessage.metadata?.planRetryAttempt || 0;
+
+            if (isRetry === 0) {
+              console.log('[WorkspaceChat] 🔄 Automatically requesting plan from Claude (retry 1/1)');
+
+              // Update assistant message to show we're requesting a plan
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === assistantMessageId
+                    ? {
+                        ...msg,
+                        metadata: {
+                          ...msg.metadata,
+                          planRetryAttempt: 1
+                        }
+                      }
+                    : msg
+                )
+              );
+
+              // Send automatic follow-up request for plan
+              const retryPrompt = `You are in PLAN MODE. You must create a detailed plan in JSON format before proceeding.
+
+Please create a plan with the following structure:
+\`\`\`json
+{
+  "todos": [
+    {
+      "content": "Task description",
+      "activeForm": "Doing task description",
+      "status": "pending",
+      "complexity": "trivial" | "simple" | "moderate" | "complex" | "very_complex",
+      "priority": "low" | "medium" | "high" | "critical",
+      "estimatedDuration": 30,
+      "order": 0,
+      "depth": 0
+    }
+  ]
+}
+\`\`\`
+
+Wrap the JSON in triple backticks with 'json' language marker. This is REQUIRED.`;
+
+              // Send retry message
+              setTimeout(() => {
+                ipcRenderer.send('claude:send-message', sessionId, retryPrompt, [], 'plan');
+              }, 1000);
+
+              return; // Exit early, wait for retry response
+            } else {
+              console.error('[WorkspaceChat] ❌ Plan Mode retry failed - Claude did not provide a plan after 2 attempts');
+
+              // Show error to user
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === assistantMessageId
+                    ? {
+                        ...msg,
+                        content: msg.content + '\n\n⚠️ **Plan Mode Error**: Claude did not provide a plan in the required JSON format. Please try again or switch to Normal mode.',
+                        metadata: {
+                          ...msg.metadata,
+                          planGenerationFailed: true
+                        }
+                      }
+                    : msg
+                )
+              );
+
+              // Still save the message
+              await ipcRenderer.invoke('message:save', {
+                ...assistantMessage,
+                content: result.message + '\n\n⚠️ **Plan Mode Error**: Claude did not provide a plan in the required JSON format.',
+                metadata: {
+                  ...assistantMessage.metadata,
+                  planGenerationFailed: true
+                }
+              });
+            }
+          } else if (FEATURES.PLAN_MODE && todoWriteData && todoWriteData.todos.length > 0) {
+            console.log('[WorkspaceChat] 📋 TodoWrite detected, checking thinking mode');
+            console.log('[WorkspaceChat] 📋 Current thinking mode:', currentThinkingModeRef.current);
 
             // Convert Claude's todos to Circuit format
             const todoDrafts = convertClaudeTodosToDrafts(todoWriteData.todos);
@@ -628,49 +980,132 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
               todos: todoDrafts,
               complexity: calculateOverallComplexity(todoDrafts),
               estimatedTotalTime: calculateTotalTime(todoDrafts),
-              confidence: 0.95, // High confidence - Claude analyzed the codebase
-              reasoning: 'Claude analyzed codebase and created detailed plan in Plan Mode'
+              confidence: 0.95,
+              reasoning: currentThinkingModeRef.current === 'plan'
+                ? 'Claude analyzed codebase and created detailed plan in Plan Mode'
+                : 'Claude automatically created task breakdown while working'
             };
 
-            // Add plan to assistant message metadata
-            setMessages((prev) =>
-              prev.map((msg) =>
-                msg.id === assistantMessageId
-                  ? {
-                      ...msg,
-                      metadata: {
-                        ...msg.metadata,
-                        planResult: todoResult,
-                        hasPendingPlan: true
+            // Determine where to display based on thinking mode
+            const isPlanMode = currentThinkingModeRef.current === 'plan';
+
+            if (isPlanMode) {
+              // Plan Mode: Display in right sidebar (persistent)
+              console.log('[WorkspaceChat] 📋 Plan Mode: Adding to sidebar');
+
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === assistantMessageId
+                    ? {
+                        ...msg,
+                        metadata: {
+                          ...msg.metadata,
+                          planResult: todoResult,
+                          hasPendingPlan: true
+                        }
+                      }
+                    : msg
+                )
+              );
+
+              const updatedMessage = {
+                ...assistantMessage,
+                metadata: {
+                  ...assistantMessage.metadata,
+                  planResult: todoResult,
+                  hasPendingPlan: true
+                }
+              };
+
+              console.log('[WorkspaceChat] 💾 Saving plan to sidebar');
+              await ipcRenderer.invoke('message:save', updatedMessage);
+
+              // Sync TodoWrite status updates to database
+              console.log('[WorkspaceChat] 🔄 Syncing TodoWrite status to database');
+              try {
+                // Read current todos.json file to compare status
+                const todosFileResult = await ipcRenderer.invoke('workspace:read-file',
+                  workspacePathRef.current,
+                  '.circuit/todos.json'
+                );
+
+                if (todosFileResult.success && todosFileResult.content) {
+                  const todosData = JSON.parse(todosFileResult.content);
+
+                  // Update each todo in database based on TodoWrite data
+                  for (let i = 0; i < todoWriteData.todos.length && i < todosData.todos.length; i++) {
+                    const claudeTodo = todoWriteData.todos[i];
+                    const dbTodo = todosData.todos[i];
+
+                    // Update status if different
+                    if (claudeTodo.status && claudeTodo.status !== dbTodo.status) {
+                      console.log(`[WorkspaceChat] 🔄 Updating todo ${dbTodo.id}: ${dbTodo.status} → ${claudeTodo.status}`);
+
+                      const updateData: any = {
+                        todoId: dbTodo.id,
+                        status: claudeTodo.status,
+                      };
+
+                      // Add timing data
+                      if (claudeTodo.status === 'completed') {
+                        updateData.completedAt = Date.now();
+                      } else if (claudeTodo.status === 'in_progress' && !dbTodo.startedAt) {
+                        updateData.startedAt = Date.now();
+                      }
+
+                      await ipcRenderer.invoke('todos:update-status', updateData);
+
+                      // Update local todos.json file
+                      todosData.todos[i].status = claudeTodo.status;
+                      if (claudeTodo.status === 'completed' && !todosData.todos[i].completedAt) {
+                        todosData.todos[i].completedAt = Date.now();
+                      } else if (claudeTodo.status === 'in_progress' && !todosData.todos[i].startedAt) {
+                        todosData.todos[i].startedAt = Date.now();
                       }
                     }
-                  : msg
-              )
-            );
+                  }
 
-            // Update database with plan metadata
-            const updatedMessage = {
-              ...assistantMessage,
-              metadata: {
-                ...assistantMessage.metadata,
-                planResult: todoResult,
-                hasPendingPlan: true
+                  // Write updated todos back to file
+                  await ipcRenderer.invoke('workspace:write-file',
+                    workspacePathRef.current,
+                    '.circuit/todos.json',
+                    JSON.stringify(todosData, null, 2)
+                  );
+
+                  console.log('[WorkspaceChat] ✅ Todo status sync complete');
+                }
+              } catch (error) {
+                console.error('[WorkspaceChat] ❌ Failed to sync todo status:', error);
               }
-            };
+            } else {
+              // Normal/Think Mode: Display inline in chat (temporary)
+              console.log('[WorkspaceChat] 📋 TodoWrite Mode: Adding inline to chat');
 
-            console.log('[WorkspaceChat] 💾 Saving updated message with planResult');
-            console.log('[WorkspaceChat] 💾 Message ID:', updatedMessage.id);
-            console.log('[WorkspaceChat] 💾 Metadata keys:', Object.keys(updatedMessage.metadata || {}));
-            console.log('[WorkspaceChat] 💾 Has planResult:', !!updatedMessage.metadata?.planResult);
-            console.log('[WorkspaceChat] 💾 planResult todos count:', updatedMessage.metadata?.planResult?.todos?.length || 0);
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === assistantMessageId
+                    ? {
+                        ...msg,
+                        metadata: {
+                          ...msg.metadata,
+                          todoWriteResult: todoResult
+                        }
+                      }
+                    : msg
+                )
+              );
 
-            const saveResult2 = await ipcRenderer.invoke('message:save', updatedMessage);
-            console.log('[WorkspaceChat] 💾 Save result:', saveResult2);
+              const updatedMessage = {
+                ...assistantMessage,
+                metadata: {
+                  ...assistantMessage.metadata,
+                  todoWriteResult: todoResult
+                }
+              };
 
-            // Notify parent that a plan was added (to refresh TodoPanel)
-            onPlanAdded?.();
-
-            // Don't show modal - plan will be displayed inline in the message
+              console.log('[WorkspaceChat] 💾 Saving TodoWrite inline');
+              await ipcRenderer.invoke('message:save', updatedMessage);
+            }
           } else if (todoWriteData && todoWriteData.todos.length > 0) {
             // TodoWrite detected but not a new plan - this is a status update
             console.log('[WorkspaceChat] 🔄 TodoWrite detected: Syncing status updates to database');
@@ -678,7 +1113,7 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
             try {
               // Read current todos.json file
               const todosFileResult = await ipcRenderer.invoke('workspace:read-file',
-                workspace.path,
+                workspacePathRef.current,
                 '.circuit/todos.json'
               );
 
@@ -713,15 +1148,15 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
 
                 // Write updated todos back to file
                 await ipcRenderer.invoke('workspace:write-file',
-                  workspace.path,
+                  workspacePathRef.current,
                   '.circuit/todos.json',
                   JSON.stringify(todosData, null, 2)
                 );
 
                 console.log('[WorkspaceChat] ✅ Todo status sync complete');
 
-                // Notify parent to refresh TodoPanel
-                onPlanAdded?.();
+                // Note: No need to call onPlanAdded here
+                // TodoPanel auto-refresh will detect DB changes automatically
               }
             } catch (error) {
               console.error('[WorkspaceChat] ❌ Error syncing todo status:', error);
@@ -793,11 +1228,19 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
       });
 
       pendingUserMessageRef.current = null;
-      pendingAssistantMessageIdRef.current = null; // Clear ref
+      setPendingAssistantMessageId(null); // Clear pending message ID
       setIsSending(false);
   }, [parseFileChanges, onFileEdit]);
 
   const handleResponseError = useCallback(async (_event: any, error: any) => {
+      if (!isMountedRef.current) return; // Prevent setState on unmounted component
+
+      // Filter: only handle events for THIS component's session
+      const currentSessionId = sessionIdRef.current;
+      if (error.sessionId && currentSessionId && error.sessionId !== currentSessionId) {
+        return; // Silently ignore errors for other sessions
+      }
+
       console.error('[WorkspaceChat] Response error:', error);
 
       const pending = pendingUserMessageRef.current;
@@ -822,6 +1265,46 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
       pendingUserMessageRef.current = null;
       setIsSending(false);
   }, []);
+
+  const handleMessageCancelled = useCallback((_event: any, cancelledSessionId: string) => {
+    if (!isMountedRef.current) return; // Prevent setState on unmounted component
+
+    // Filter: only handle events for THIS component's session
+    const currentSessionId = sessionIdRef.current;
+    if (!currentSessionId || cancelledSessionId !== currentSessionId) {
+      return; // Silently ignore cancellations for other sessions
+    }
+
+    console.log('[WorkspaceChat] Message cancelled:', cancelledSessionId);
+
+    // Reset states
+    setIsSending(false);
+    setIsCancelling(false);
+    setThinkingSteps([]);
+
+    // Clear refs
+    pendingUserMessageRef.current = null;
+    setPendingAssistantMessageId(null);
+    thinkingStepsRef.current = [];
+
+    // Clear timer if running
+    if (thinkingTimerRef.current) {
+      clearInterval(thinkingTimerRef.current);
+      thinkingTimerRef.current = null;
+    }
+
+    // Optional: Add a system message indicating cancellation
+    const cancelMessage: Message = {
+      id: `msg-${Date.now()}`,
+      conversationId: conversationId!,
+      role: 'assistant',
+      content: '_Message cancelled by user_',
+      timestamp: Date.now(),
+      metadata: { cancelled: true }
+    };
+
+    setMessages((prev) => [...prev, cancelMessage]);
+  }, [conversationId]);
 
   // Handler for task execution trigger from TodoPanel
   const handleExecuteTasks = useCallback(async (_event: any, data: {
@@ -851,10 +1334,43 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
       }
 
       await ipcRenderer.invoke('workspace:write-file',
-        workspace.path,
+        workspacePathRef.current,
         '.circuit/todos.json',
         JSON.stringify(todosData, null, 2)
       )
+
+      // Save todos to database for real-time progress tracking
+      const now = Date.now()
+      const todosForDB = data.todos.map((draft: any, index: number) => ({
+        id: `todo-${data.messageId}-${index}`,
+        conversationId: data.conversationId,
+        messageId: data.messageId,
+        parentId: draft.parentId,
+        order: draft.order ?? index,
+        depth: draft.depth ?? 0,
+        content: draft.content,
+        description: draft.description,
+        activeForm: draft.activeForm,
+        status: 'pending' as const,
+        progress: 0,
+        priority: draft.priority,
+        complexity: draft.complexity,
+        thinkingStepIds: [],
+        blockIds: [],
+        estimatedDuration: draft.estimatedDuration,
+        actualDuration: undefined,
+        startedAt: undefined,
+        completedAt: undefined,
+        createdAt: now,
+        updatedAt: now,
+      }))
+
+      const dbSaveResult = await ipcRenderer.invoke('todos:save-multiple', todosForDB)
+      if (!dbSaveResult.success) {
+        console.error('[handleExecuteTasks] Failed to save todos to DB:', dbSaveResult.error)
+      } else {
+        console.log('[handleExecuteTasks] Successfully saved', todosForDB.length, 'todos to DB')
+      }
 
       // Prepare mode-specific prompt
       const modePrompts = {
@@ -915,16 +1431,61 @@ The plan is ready. What would you like to do?`,
     }
   }, [workspace, sessionId, conversationId, setMessages, setIsSending])
 
-  // Listen for thinking steps from Electron (separate useEffect to avoid re-registering listeners)
+  // Store handlers in refs to avoid re-registering IPC listeners
+  const handlersRef = useRef({
+    handleThinkingStart,
+    handleMilestone,
+    handleThinkingComplete,
+    handleResponseComplete,
+    handleResponseError,
+    handleMessageCancelled,
+    handleExecuteTasks
+  });
+
+  // Update refs when handlers change (but don't re-register listeners)
+  handlersRef.current = {
+    handleThinkingStart,
+    handleMilestone,
+    handleThinkingComplete,
+    handleResponseComplete,
+    handleResponseError,
+    handleMessageCancelled,
+    handleExecuteTasks
+  };
+
+  // Listen for thinking steps from Electron (register once, use refs for handlers)
   useEffect(() => {
-    ipcRenderer.on('claude:thinking-start', handleThinkingStart);
-    ipcRenderer.on('claude:milestone', handleMilestone);
-    ipcRenderer.on('claude:thinking-complete', handleThinkingComplete);
-    ipcRenderer.on('claude:response-complete', handleResponseComplete);
-    ipcRenderer.on('claude:response-error', handleResponseError);
-    ipcRenderer.on('todos:execute-tasks', handleExecuteTasks);
+    // CRITICAL: Reset mounted flag when listeners are registered
+    isMountedRef.current = true;
+    console.log('[WorkspaceChat] 🎧 Registering IPC listeners, sessionId:', sessionIdRef.current, 'isMounted:', isMountedRef.current);
+
+    // Wrap handlers to use refs (always call latest version)
+    const debugThinkingStart = (event: any, ...args: any[]) => {
+      console.log('[WorkspaceChat] 🎤 RAW thinking-start event received:', args, 'isMounted:', isMountedRef.current);
+      handlersRef.current.handleThinkingStart(event, ...args);
+    };
+
+    const wrappedMilestone = (event: any, ...args: any[]) => handlersRef.current.handleMilestone(event, ...args);
+    const wrappedThinkingComplete = (event: any, ...args: any[]) => handlersRef.current.handleThinkingComplete(event, ...args);
+    const wrappedResponseComplete = (event: any, ...args: any[]) => handlersRef.current.handleResponseComplete(event, ...args);
+    const wrappedResponseError = (event: any, ...args: any[]) => handlersRef.current.handleResponseError(event, ...args);
+    const wrappedMessageCancelled = (event: any, ...args: any[]) => handlersRef.current.handleMessageCancelled(event, ...args);
+    const wrappedExecuteTasks = (event: any, ...args: any[]) => handlersRef.current.handleExecuteTasks(event, ...args);
+
+    ipcRenderer.on('claude:thinking-start', debugThinkingStart);
+    ipcRenderer.on('claude:milestone', wrappedMilestone);
+    ipcRenderer.on('claude:thinking-complete', wrappedThinkingComplete);
+    ipcRenderer.on('claude:response-complete', wrappedResponseComplete);
+    ipcRenderer.on('claude:response-error', wrappedResponseError);
+    ipcRenderer.on('claude:message-cancelled', wrappedMessageCancelled);
+    ipcRenderer.on('todos:execute-tasks', wrappedExecuteTasks);
 
     return () => {
+      console.log('[WorkspaceChat] 🧹 Cleanup: Removing IPC listeners');
+
+      // Mark component as unmounted to prevent setState calls
+      isMountedRef.current = false;
+
       // Cleanup timer if component unmounts during thinking
       if (thinkingTimerRef.current) {
         clearInterval(thinkingTimerRef.current);
@@ -932,33 +1493,172 @@ The plan is ready. What would you like to do?`,
         console.log('[WorkspaceChat] 🧹 Timer cleaned up on unmount');
       }
 
-      ipcRenderer.removeListener('claude:thinking-start', handleThinkingStart);
-      ipcRenderer.removeListener('claude:milestone', handleMilestone);
-      ipcRenderer.removeListener('claude:thinking-complete', handleThinkingComplete);
-      ipcRenderer.removeListener('claude:response-complete', handleResponseComplete);
-      ipcRenderer.removeListener('claude:response-error', handleResponseError);
-      ipcRenderer.removeListener('todos:execute-tasks', handleExecuteTasks);
+      ipcRenderer.removeListener('claude:thinking-start', debugThinkingStart);
+      ipcRenderer.removeListener('claude:milestone', wrappedMilestone);
+      ipcRenderer.removeListener('claude:thinking-complete', wrappedThinkingComplete);
+      ipcRenderer.removeListener('claude:response-complete', wrappedResponseComplete);
+      ipcRenderer.removeListener('claude:response-error', wrappedResponseError);
+      ipcRenderer.removeListener('claude:message-cancelled', wrappedMessageCancelled);
+      ipcRenderer.removeListener('todos:execute-tasks', wrappedExecuteTasks);
     };
-  }, [handleThinkingStart, handleMilestone, handleThinkingComplete, handleResponseComplete, handleResponseError, handleExecuteTasks]);
+  }, []); // Empty deps - register once, use refs for latest handlers
+
+  // Cancel current message
+  const handleCancel = () => {
+    if (!isSending || !sessionId) return;
+
+    console.log('[ChatPanel] Cancelling message');
+    setIsCancelling(true);
+
+    // Send cancel request to backend
+    // @ts-ignore
+    ipcRenderer.send('claude:cancel-message', sessionId);
+  };
+
+  // Handle running agent for a task message
+  const handleRunAgentForMessage = useCallback(async (messageId: string) => {
+    // Find the message to get todoId from metadata
+    const message = messages.find(m => m.id === messageId);
+    if (!message) {
+      console.warn('[ChatPanel] No message found:', messageId);
+      return;
+    }
+
+    // Parse metadata to get todoId
+    let todoId: string | undefined;
+    try {
+      const metadata = typeof message.metadata === 'string'
+        ? JSON.parse(message.metadata)
+        : message.metadata;
+      todoId = metadata?.todoId;
+    } catch (error) {
+      console.error('[ChatPanel] Failed to parse metadata:', error);
+    }
+
+    if (!todoId) {
+      console.warn('[ChatPanel] No todoId found in message metadata:', messageId);
+      return;
+    }
+
+    try {
+      console.log('[ChatPanel] Starting agent for todo:', todoId, 'workspace:', workspace.id);
+      await startAgent(todoId, workspace.id);
+    } catch (error) {
+      console.error('[ChatPanel] Failed to start agent:', error);
+    }
+  }, [messages, startAgent, workspace.id]);
+
+  // Handle adding text as todo - creates a user message with todo
+  const handleAddTodo = useCallback(async (content: string) => {
+    if (!content.trim()) {
+      throw new Error('Task content cannot be empty');
+    }
+
+    try {
+      // Ensure we have a conversationId (create if needed)
+      let activeConversationId = conversationId;
+
+      if (!activeConversationId) {
+        console.log('[ChatPanel] No conversation ID, creating new conversation for task');
+        try {
+          const createResult = await ipcRenderer.invoke('conversation:create', workspace.id);
+          if (createResult.success && createResult.conversation) {
+            activeConversationId = createResult.conversation.id;
+            setConversationId(activeConversationId);
+            if (onConversationChange) {
+              onConversationChange(activeConversationId);
+            }
+          } else {
+            throw new Error('Failed to create conversation');
+          }
+        } catch (error) {
+          console.error('[ChatPanel] Error creating conversation:', error);
+          throw new Error('Failed to create conversation. Please try again.');
+        }
+      }
+
+      const timestamp = Date.now();
+      const messageId = `msg-${timestamp}`;
+      const todoId = `todo-${messageId}-0`;  // Pre-generate todoId
+
+      // Create user message (UI only - not saved to DB)
+      const userMessage: Message = {
+        id: messageId,
+        conversationId: activeConversationId,
+        role: 'user',
+        content: content.trim(),
+        timestamp,
+        metadata: JSON.stringify({
+          isTask: true,
+          todoId: todoId  // Store todoId in metadata
+        }),
+      };
+
+      // Add message to UI immediately
+      setMessages(prev => [...prev, userMessage]);
+
+      // Create todo linked to this message
+      console.log('[ChatPanel] Creating todo with ID:', todoId);
+      await createTodosFromDrafts(
+        activeConversationId,
+        messageId,
+        [
+          {
+            content: content.trim(),
+            activeForm: content.trim(),
+            order: todos.length,
+            depth: 0,
+          }
+        ]
+      );
+      console.log('[ChatPanel] Todo created successfully:', todoId);
+      console.log('[ChatPanel] Task added as message:', messageId, 'todoId:', todoId);
+    } catch (error) {
+      console.error('[ChatPanel] Failed to add todo:', error);
+      throw error; // Re-throw to show error toast in ChatInput
+    }
+  }, [conversationId, createTodosFromDrafts, todos.length, workspace.id, onConversationChange]);
 
   const handleSend = async (inputText: string, attachments: AttachedFile[], thinkingMode: import('./ChatInput').ThinkingMode) => {
     if (!inputText.trim() && attachments.length === 0) return;
     if (isSending || !sessionId) return;
 
+    // Build final input with code attachments prepended
+    let finalInput = inputText;
+    const codeAttachments = attachments.filter(a => a.type === 'code/selection' && a.code);
+
+    if (codeAttachments.length > 0) {
+      const codeBlocks = codeAttachments.map(a => {
+        if (!a.code) return '';
+        const lineInfo = a.code.lineEnd !== a.code.lineStart
+          ? `${a.code.lineStart}-${a.code.lineEnd}`
+          : `${a.code.lineStart}`;
+        return `Code from ${a.code.filePath}:${lineInfo}:\n\`\`\`\n${a.code.content}\n\`\`\``;
+      }).join('\n\n');
+
+      finalInput = `${codeBlocks}\n\n${inputText}`;
+
+      // Clear code attachment state
+      setCodeAttachment(null);
+    }
+
     // Plan mode: Let Claude generate detailed todos
     if (thinkingMode === 'plan') {
       console.log('[ChatPanel] Plan mode: Claude will generate todos');
-      await executePrompt(inputText, attachments, thinkingMode);
+      await executePrompt(finalInput, attachments, thinkingMode);
       return;
     }
 
     // Normal/Think modes: Execute directly without todo analysis
     // Todo analysis is ONLY for plan mode now
-    await executePrompt(inputText, attachments, thinkingMode);
+    await executePrompt(finalInput, attachments, thinkingMode);
   };
 
   const executePrompt = async (inputText: string, attachments: AttachedFile[], thinkingMode: import('./ChatInput').ThinkingMode) => {
     if (isSending || !sessionId) return;
+
+    // Track current thinking mode for plan detection
+    currentThinkingModeRef.current = thinkingMode;
 
     // Ensure we have a conversationId
     let activeConversationId = conversationId;
@@ -1002,7 +1702,15 @@ The plan is ready. What would you like to do?`,
     };
 
     // Optimistic UI update
-    setMessages([...messages, userMessage]);
+    setMessages((prev) => {
+      console.log('[ChatPanel] 📤 Adding user message:', {
+        messageId: userMessage.id,
+        prevLength: prev.length,
+        newLength: prev.length + 1,
+        timestamp: Date.now()
+      });
+      return [...prev, userMessage];
+    });
     const currentInput = inputText;
     setInput('');
     setIsSending(true);
@@ -1025,7 +1733,15 @@ The plan is ready. What would you like to do?`,
     pendingUserMessageRef.current = userMessage;
 
     // Send message (non-blocking) - response will arrive via event listeners
+    console.log('[ChatPanel] 📨 Sending message to Claude:', {
+      sessionId,
+      messageLength: currentInput.length,
+      attachmentsCount: attachments.length,
+      thinkingMode,
+      currentSessionIdRef: sessionIdRef.current
+    });
     ipcRenderer.send('claude:send-message', sessionId, currentInput, attachments, thinkingMode);
+    console.log('[ChatPanel] 📨 Message sent, waiting for IPC events...');
   };
 
   // Todo confirmation handlers
@@ -1157,278 +1873,194 @@ The plan is ready. What would you like to do?`,
     setTodoResult(null);
   };
 
+  // Memoize filtered blocks for each message to avoid expensive JSON parsing on every render
+  const messagesWithFilteredBlocks = useMemo(() => {
+    return messages.map(msg => {
+      // Skip if no blocks or no metadata requiring filtering
+      if (!msg.blocks || msg.blocks.length === 0 || (!msg.metadata?.planResult && !msg.metadata?.todoWriteResult)) {
+        return { ...msg, filteredBlocks: msg.blocks };
+      }
+
+      // Filter out plan/todoWrite JSON blocks
+      const filteredBlocks = msg.blocks.filter(block => {
+        if (block.type === 'code' && block.metadata?.language === 'json') {
+          try {
+            const parsed = JSON.parse(block.content);
+            // Remove blocks containing todos array (plan/todoWrite JSON)
+            if (parsed.todos && Array.isArray(parsed.todos)) {
+              return false;
+            }
+          } catch (e) {
+            // Not valid JSON, keep it
+          }
+        }
+        return true;
+      });
+
+      return { ...msg, filteredBlocks };
+    });
+  }, [messages]);
+
+  // Filter out empty assistant messages for display
+  const filteredMessages = useMemo(() => {
+    return messagesWithFilteredBlocks.filter((msg) => {
+      // Hide empty assistant messages UNLESS it's the pending message (in progress)
+      if (msg.role === 'assistant' && !msg.content && (!msg.blocks || msg.blocks.length === 0)) {
+        // Keep if it's the pending message currently being streamed
+        if (isSending && msg.id === pendingAssistantMessageId) {
+          return true;
+        }
+        return false;
+      }
+      return true;
+    });
+  }, [messagesWithFilteredBlocks, isSending, pendingAssistantMessageId]);
+
+  // Virtual scrolling setup
+  // Memoize getScrollElement to prevent virtualizer recreation
+  const getScrollElement = useCallback(() => scrollContainerRef.current, []);
+
+  // Memoize estimateSize to prevent virtualizer recreation
+  const estimateSize = useCallback(() => {
+    // Use single fixed height for all messages to avoid measurement issues
+    return 200;
+  }, []);
+
+  const virtualizer = useVirtualizer({
+    count: filteredMessages.length,
+    getScrollElement,
+    estimateSize,
+    overscan: 5, // Render 5 extra items outside viewport for smooth scrolling
+  });
+
+  // Track previous message count to detect new messages
+  const prevMessageCountRef = useRef(filteredMessages.length);
+
+  // Auto-scroll to bottom when new messages arrive (only if already at bottom)
+  useEffect(() => {
+    const isNewMessage = filteredMessages.length > prevMessageCountRef.current;
+    prevMessageCountRef.current = filteredMessages.length;
+
+    if (isAtBottom && isNewMessage && filteredMessages.length > 0) {
+      // Use requestAnimationFrame to ensure DOM has updated
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          // Scroll to bottom using virtualizer - use 'auto' instead of 'smooth'
+          // to avoid conflicts with virtual positioning
+          virtualizer.scrollToIndex(filteredMessages.length - 1, {
+            align: 'end',
+            behavior: 'auto', // Changed from 'smooth' to prevent animation conflicts
+          });
+        });
+      });
+    }
+  }, [filteredMessages.length, isAtBottom]); // Removed virtualizer from deps
+
+  // When reasoning accordion is toggled, the estimateSize function recalculates
+  // because openReasoningId is in its dependencies. This triggers virtualizer
+  // to remeasure all items automatically. No manual measure() call needed.
+
   return (
     <div className="h-full bg-card relative">
       {/* Messages Area - with space for floating input */}
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="h-full overflow-auto p-6 pb-[400px]"
+        className="h-full overflow-auto p-3 pb-[300px]"
       >
         {isLoadingConversation ? (
           <div className="space-y-5 max-w-4xl mx-auto">
             <ChatMessageSkeleton />
             <ChatMessageSkeleton />
           </div>
-        ) : messages.length > 0 ? (
-          <div className="space-y-5 max-w-4xl mx-auto">
-            {messages
-              .filter((msg) => {
-                // Hide empty assistant messages UNLESS it's the pending message (in progress)
-                if (msg.role === 'assistant' && !msg.content && (!msg.blocks || msg.blocks.length === 0)) {
-                  // Keep if it's the pending message currently being streamed
-                  if (isSending && msg.id === pendingAssistantMessageIdRef.current) {
-                    return true;  // Show in-progress message
-                  }
-                  return false;  // Hide other empty messages
-                }
-                return true;
-              })
-              .map((msg) => (
-              <div
-                key={msg.id}
-                data-message-id={msg.id}
-                className={`flex ${
-                  msg.role === 'user' ? 'justify-end' : 'justify-start'
-                } ${msg.role === 'assistant' ? 'mb-2' : ''}`}
-              >
+        ) : filteredMessages.length > 0 ? (
+          <div
+            style={{
+              height: `${virtualizer.getTotalSize()}px`,
+              width: '100%',
+              position: 'relative',
+            }}
+            data-virtualizer-total-size={virtualizer.getTotalSize()}
+          >
+            {virtualizer.getVirtualItems().map((virtualItem) => {
+              const msg = filteredMessages[virtualItem.index];
+
+              return (
                 <div
-                  className={`max-w-[75%] ${
-                    msg.role === 'user'
-                      ? 'bg-secondary p-4 rounded-xl border border-border'
-                      : ''
-                  }`}
+                  key={msg.id}
+                  data-index={virtualItem.index}
+                  data-message-id={msg.id}
+                  ref={virtualizer.measureElement}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    transform: `translateY(${virtualItem.start}px)`,
+                  }}
                 >
-                  {/* Attachment pills - Only for user messages with attachments */}
-                  {msg.role === 'user' && msg.metadata?.attachments && msg.metadata.attachments.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mb-3">
-                      {msg.metadata.attachments.map((file: any) => {
-                        // Extract file extension
-                        const extension = file.name.split('.').pop()?.toUpperCase() || 'FILE';
-                        const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
-
-                        return (
-                          <div
-                            key={file.id}
-                            className="group flex items-center gap-2 pl-2 pr-3 py-2 rounded-xl bg-card transition-all"
-                          >
-                            {/* Icon/Thumbnail - Vertical rectangle */}
-                            <div className="flex-shrink-0">
-                              {file.type.startsWith('image/') ? (
-                                <div className="w-6 h-[30px] rounded-md bg-black flex items-center justify-center">
-                                  <Paperclip className="w-3 h-3 text-muted-foreground" />
-                                </div>
-                              ) : (
-                                <div className="w-6 h-[30px] rounded-md bg-black flex items-center justify-center">
-                                  <Paperclip className="w-3 h-3 text-muted-foreground" />
-                                </div>
-                              )}
-                            </div>
-
-                            {/* File info - Vertical layout with spacing */}
-                            <div className="flex flex-col justify-center min-w-0 gap-1">
-                              <span className="text-sm font-light text-foreground max-w-[160px] truncate leading-tight">
-                                {nameWithoutExt}
-                              </span>
-                              <span className="text-[10px] text-muted-foreground font-medium leading-tight">
-                                {extension}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {/* Action bar (Copy + Reasoning) - Always show for assistant */}
-                  {msg.role === 'assistant' && (
-                    <div className="mb-3 flex items-center justify-between gap-2">
-                      {/* Reasoning button (left) - Show for in-progress or completed messages */}
-                      {(messageThinkingSteps[msg.id]?.steps?.length > 0 || (isSending && msg.id === pendingAssistantMessageIdRef.current)) && (
-                        <button
-                          onClick={() => setOpenReasoningId(openReasoningId === msg.id ? null : msg.id)}
-                          className="flex items-center gap-1 text-base text-muted-foreground/60 hover:text-foreground transition-all"
-                        >
-                          <span className="opacity-80 hover:opacity-100">
-                            {isSending && msg.id === pendingAssistantMessageIdRef.current
-                              ? `${currentDuration}s • ${summarizeToolUsage(messageThinkingSteps[msg.id]?.steps || [])}`
-                              : `${messageThinkingSteps[msg.id].duration}s • ${summarizeToolUsage(messageThinkingSteps[msg.id].steps)}`
-                            }
-                          </span>
-                          <ChevronDown className={`w-4 h-4 opacity-80 transition-transform ${openReasoningId === msg.id ? 'rotate-180' : ''}`} strokeWidth={1.5} />
-                        </button>
-                      )}
-
-                      {/* Spacer */}
-                      <div className="flex-1" />
-
-                      {/* Copy button (right) */}
-                      <button
-                        onClick={() => handleCopyMessage(msg.id, msg.content)}
-                        className="p-1 text-muted-foreground/60 hover:text-foreground rounded-md hover:bg-secondary/50 transition-all"
-                        title="Copy message"
-                      >
-                        {copiedMessageId === msg.id ? (
-                          <Check className="w-3 h-3 text-green-500" strokeWidth={1.5} />
-                        ) : (
-                          <Copy className="w-3 h-3 opacity-60 hover:opacity-100 transition-opacity" strokeWidth={1.5} />
-                        )}
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Reasoning content (collapsible) - Above message content */}
-                  {(() => {
-                    const shouldShowReasoning = msg.role === 'assistant' && 
-                      openReasoningId === msg.id && 
-                      (messageThinkingSteps[msg.id]?.steps?.length ?? 0) > 0;
-                    
-                    if (!shouldShowReasoning) return null;
-                    
-                    return (
-                      <AnimatePresence>
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: 'auto' }}
-                          exit={{ opacity: 0, height: 0 }}
-                          transition={{ duration: 0.2, ease: 'easeInOut' }}
-                          className="overflow-hidden"
-                        >
-                          <div className="mb-3 pl-1">
-                            <ReasoningAccordion
-                              steps={messageThinkingSteps[msg.id].steps}
-                            />
-                          </div>
-                        </motion.div>
-                      </AnimatePresence>
-                    );
-                  })()}
-
-                  {/* Plan Review moved to right sidebar TodoPanel */}
-
-                  {/* Block-based rendering with fallback */}
-                  {msg.blocks && msg.blocks.length > 0 ? (
-                    <BlockList
-                      blocks={
-                        // Filter out plan JSON blocks if this message has a planResult
-                        msg.metadata?.planResult
-                          ? msg.blocks.filter(block => {
-                              // Remove JSON code blocks that contain "todos" (plan blocks)
-                              if (block.type === 'code' && block.metadata?.language === 'json') {
-                                try {
-                                  const parsed = JSON.parse(block.content)
-                                  if (parsed.todos && Array.isArray(parsed.todos)) {
-                                    return false // Filter out plan JSON
-                                  }
-                                } catch (e) {
-                                  // Not valid JSON, keep it
-                                }
-                              }
-                              return true
-                            })
-                          : msg.blocks
-                      }
-                      onCopy={(content) => navigator.clipboard.writeText(content)}
-                      onExecute={async (command) => {
-                      try {
-                        const result = await ipcRenderer.invoke('command:execute', {
-                          command,
-                          workingDirectory: workspace.path,
-                          blockId: undefined
-                        });
-
-                        if (result.success) {
-                          console.log('[CommandBlock] Execution success:', result.output);
-
-                          // Add result as a new assistant message with output
-                          const resultMessage: Message = {
-                            id: `msg-${Date.now()}`,
-                            conversationId: conversationId!,
-                            role: 'assistant',
-                            content: `Command executed successfully (${result.duration}ms)\n\n\`\`\`\n${result.output}\n\`\`\`\n\nExit code: ${result.exitCode}`,
-                            timestamp: Date.now(),
-                          };
-
-                          setMessages((prev) => [...prev, resultMessage]);
-
-                          // Save to database with block parsing
-                          const saveResult = await ipcRenderer.invoke('message:save', resultMessage);
-                          if (saveResult.success && saveResult.blocks) {
-                            setMessages((prev) =>
-                              prev.map((msg) =>
-                                msg.id === resultMessage.id ? { ...msg, blocks: saveResult.blocks } : msg
-                              )
-                            );
-                          }
-                        } else {
-                          console.error('[CommandBlock] Execution failed:', result.error);
-
-                          // Add error as a new assistant message
-                          const errorMessage: Message = {
-                            id: `msg-${Date.now()}`,
-                            conversationId: conversationId!,
-                            role: 'assistant',
-                            content: `Command execution failed\n\n\`\`\`\n${result.error}\n${result.output || ''}\n\`\`\``,
-                            timestamp: Date.now(),
-                          };
-
-                          setMessages((prev) => [...prev, errorMessage]);
-
-                          const saveResult = await ipcRenderer.invoke('message:save', errorMessage);
-                          if (saveResult.success && saveResult.blocks) {
-                            setMessages((prev) =>
-                              prev.map((msg) =>
-                                msg.id === errorMessage.id ? { ...msg, blocks: saveResult.blocks } : msg
-                              )
-                            );
-                          }
-                        }
-                      } catch (error) {
-                        console.error('[CommandBlock] Execute error:', error);
-
-                        const errorMessage: Message = {
-                          id: `msg-${Date.now()}`,
-                          conversationId: conversationId!,
-                          role: 'assistant',
-                          content: `Failed to execute command: ${error}`,
-                          timestamp: Date.now(),
-                        };
-
-                        setMessages((prev) => [...prev, errorMessage]);
-                        await ipcRenderer.invoke('message:save', errorMessage);
-                      }
-                      }}
+                  <div className="max-w-4xl mx-auto px-0 mb-5">
+                    <MessageComponent
+                      msg={msg}
+                      isSending={isSending}
+                      pendingAssistantMessageId={pendingAssistantMessageId}
+                      messageThinkingSteps={messageThinkingSteps}
+                      openReasoningId={openReasoningId}
+                      copiedMessageId={copiedMessageId}
+                      currentDuration={currentDuration}
+                      onCopyMessage={handleCopyMessage}
+                      onToggleReasoning={handleToggleReasoning}
+                      onExecuteCommand={handleExecuteCommand}
+                      onFileReferenceClick={onFileReferenceClick}
+                      onRunAgent={handleRunAgentForMessage}
+                      agentStates={messageAgentStates}
                     />
-                  ) : (
-                    <div className="text-base font-normal text-foreground whitespace-pre-wrap leading-relaxed">
-                      {msg.content}
-                    </div>
-                  )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
             {isSending && thinkingSteps.length === 0 && (
-              <div className="flex justify-start my-3">
-                <div className="max-w-[75%] w-full">
-                  {/* Initial loading state with Shimmer */}
-                  <div className="space-y-2 pl-1">
-                    <Shimmer duration={2} className="text-sm text-muted-foreground">
-                      Analyzing your request...
-                    </Shimmer>
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  transform: `translateY(${virtualizer.getTotalSize()}px)`,
+                }}
+              >
+                <div className="max-w-4xl mx-auto px-0 mb-5">
+                  <div className="flex justify-start">
+                    <div className="max-w-[75%]">
+                      <div className="space-y-2 pl-1">
+                        <Shimmer duration={2} className="text-sm text-muted-foreground">
+                          Analyzing your request...
+                        </Shimmer>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
             )}
+            {/* Bottom spacer for better visibility when sending messages */}
+            <div
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                transform: `translateY(${virtualizer.getTotalSize()}px)`,
+                height: '600px',
+              }}
+            />
           </div>
         ) : (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-sm text-muted-foreground">No messages yet. Start a conversation!</div>
-          </div>
+          <ChatEmptyState />
         )}
       </div>
 
       {/* Gradient Fade to hide content behind floating input */}
-      <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-card via-card to-transparent pointer-events-none" />
+      <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-card from-20% via-card via-60% to-transparent pointer-events-none" />
 
       {/* Scroll to Bottom Button */}
       {!isAtBottom && messages.length > 0 && (
@@ -1444,8 +2076,8 @@ The plan is ready. What would you like to do?`,
       )}
 
       {/* Enhanced Chat Input - Floating */}
-      <div className="absolute bottom-0 left-0 right-0 p-4 pointer-events-none">
-        <div className="pointer-events-auto">
+      <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-0 bg-card pointer-events-none">
+        <div className="pointer-events-auto max-w-4xl mx-auto">
           <ChatInput
             value={input}
             onChange={setInput}
@@ -1453,6 +2085,13 @@ The plan is ready. What would you like to do?`,
             disabled={isSending || !sessionId || isLoadingConversation}
             placeholder="Ask, search, or make anything..."
             showControls={true}
+            isCancelling={isCancelling}
+            onCancel={handleCancel}
+            workspacePath={workspace.path}
+            projectPath={workspace.path.split('/.conductor/workspaces/')[0]}
+            onAddTodo={handleAddTodo}
+            codeAttachment={codeAttachment}
+            onCodeAttachmentRemove={() => setCodeAttachment(null)}
           />
         </div>
       </div>
@@ -1485,48 +2124,175 @@ interface EditorPanelProps {
   workspace: Workspace;
   openFiles: string[];
   selectedFile: string | null;
-  onToggleSplit?: () => void;
-  isSplitMode?: boolean;
+  onCloseFile?: (filePath: string) => void;
+  onUnsavedChange?: (filePath: string, hasChanges: boolean) => void;
+  fileCursorPosition?: {
+    filePath: string
+    lineStart: number
+    lineEnd: number
+  } | null;
+  onCodeSelectionAction?: (action: {
+    type: 'ask' | 'explain' | 'optimize' | 'add-tests'
+    code: string
+    filePath: string
+    lineStart: number
+    lineEnd: number
+  }) => void;
 }
 
 const EditorPanel: React.FC<EditorPanelProps> = ({
   workspace,
-  openFiles: _openFiles,
+  openFiles,
   selectedFile,
-  onToggleSplit,
-  isSplitMode = false,
+  onCloseFile,
+  onUnsavedChange,
+  fileCursorPosition,
+  onCodeSelectionAction,
 }) => {
-  const [fileContent, setFileContent] = useState<string>('');
+  const [activeFile, setActiveFile] = useState<string | null>(null);
+  const [fileContents, setFileContents] = useState<Map<string, string>>(new Map());
   const [isLoadingFile, setIsLoadingFile] = useState(false);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [unsavedChanges, setUnsavedChanges] = useState<Map<string, boolean>>(new Map());
   const [isSaving, setIsSaving] = useState(false);
+  const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit');
 
-  const activeFile = selectedFile;
+  // Monaco editor instance ref
+  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+
+  // Floating action bar state
+  const [floatingActionsVisible, setFloatingActionsVisible] = useState(false);
+  const [floatingActionsPosition, setFloatingActionsPosition] = useState({ top: 0, left: 0 });
+  const [currentSelection, setCurrentSelection] = useState<{
+    code: string
+    selection: monaco.Selection
+  } | null>(null);
+
+  // Handler: Ask about code
+  const handleAskAboutCode = useCallback((code: string, filePath: string, selection: monaco.Selection) => {
+    if (onCodeSelectionAction) {
+      onCodeSelectionAction({
+        type: 'ask',
+        code,
+        filePath,
+        lineStart: selection.startLineNumber,
+        lineEnd: selection.endLineNumber
+      });
+    }
+  }, [onCodeSelectionAction]);
+
+  // Handler: Explain code
+  const handleExplainCode = useCallback((code: string, filePath: string, selection: monaco.Selection) => {
+    if (onCodeSelectionAction) {
+      onCodeSelectionAction({
+        type: 'explain',
+        code,
+        filePath,
+        lineStart: selection.startLineNumber,
+        lineEnd: selection.endLineNumber
+      });
+    }
+  }, [onCodeSelectionAction]);
+
+  // Handler: Optimize code
+  const handleOptimizeCode = useCallback((code: string, filePath: string, selection: monaco.Selection) => {
+    if (onCodeSelectionAction) {
+      onCodeSelectionAction({
+        type: 'optimize',
+        code,
+        filePath,
+        lineStart: selection.startLineNumber,
+        lineEnd: selection.endLineNumber
+      });
+    }
+  }, [onCodeSelectionAction]);
+
+  // Handler: Add tests
+  const handleAddTests = useCallback((code: string, filePath: string, selection: monaco.Selection) => {
+    if (onCodeSelectionAction) {
+      onCodeSelectionAction({
+        type: 'add-tests',
+        code,
+        filePath,
+        lineStart: selection.startLineNumber,
+        lineEnd: selection.endLineNumber
+      });
+    }
+  }, [onCodeSelectionAction]);
+
+  // Floating action bar button handlers
+  const handleFloatingAsk = useCallback(() => {
+    if (currentSelection && activeFile) {
+      handleAskAboutCode(currentSelection.code, activeFile, currentSelection.selection);
+      setFloatingActionsVisible(false);
+    }
+  }, [currentSelection, activeFile, handleAskAboutCode]);
+
+  const handleFloatingExplain = useCallback(() => {
+    if (currentSelection && activeFile) {
+      handleExplainCode(currentSelection.code, activeFile, currentSelection.selection);
+      setFloatingActionsVisible(false);
+    }
+  }, [currentSelection, activeFile, handleExplainCode]);
+
+  const handleFloatingOptimize = useCallback(() => {
+    if (currentSelection && activeFile) {
+      handleOptimizeCode(currentSelection.code, activeFile, currentSelection.selection);
+      setFloatingActionsVisible(false);
+    }
+  }, [currentSelection, activeFile, handleOptimizeCode]);
+
+  const handleFloatingAddTests = useCallback(() => {
+    if (currentSelection && activeFile) {
+      handleAddTests(currentSelection.code, activeFile, currentSelection.selection);
+      setFloatingActionsVisible(false);
+    }
+  }, [currentSelection, activeFile, handleAddTests]);
+
+  // Set active file when selectedFile changes (from sidebar)
+  useEffect(() => {
+    if (selectedFile && selectedFile !== activeFile) {
+      setActiveFile(selectedFile);
+      setViewMode('edit'); // Reset to edit mode when switching files
+    }
+  }, [selectedFile]);
+
+  // Set initial active file when openFiles changes
+  useEffect(() => {
+    if (!activeFile && openFiles.length > 0) {
+      setActiveFile(openFiles[0]);
+    }
+  }, [openFiles.length]);
+
+  const fileContent = activeFile ? fileContents.get(activeFile) || '' : '';
+  const hasUnsavedChanges = activeFile ? unsavedChanges.get(activeFile) || false : false;
+  const isMarkdown = activeFile?.toLowerCase().endsWith('.md') || activeFile?.toLowerCase().endsWith('.markdown');
 
   // Load file contents when active file changes
   useEffect(() => {
     if (!activeFile) {
-      setFileContent('');
-      setHasUnsavedChanges(false);
+      return;
+    }
+
+    // If file content already loaded, skip
+    if (fileContents.has(activeFile)) {
       return;
     }
 
     const loadFileContent = async () => {
       setIsLoadingFile(true);
-      setHasUnsavedChanges(false);
       try {
         console.log('[EditorPanel] Loading file:', activeFile);
         const result = await ipcRenderer.invoke('workspace:read-file', workspace.path, activeFile);
 
         if (result.success) {
-          setFileContent(result.content);
+          setFileContents(prev => new Map(prev).set(activeFile, result.content));
         } else {
           console.error('[EditorPanel] Failed to load file:', result.error);
-          setFileContent(`// Error loading file: ${result.error}`);
+          setFileContents(prev => new Map(prev).set(activeFile, `// Error loading file: ${result.error}`));
         }
       } catch (error) {
         console.error('[EditorPanel] Error loading file:', error);
-        setFileContent(`// Error: ${error}`);
+        setFileContents(prev => new Map(prev).set(activeFile, `// Error: ${error}`));
       } finally {
         setIsLoadingFile(false);
       }
@@ -1542,11 +2308,15 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
     setIsSaving(true);
     try {
       console.log('[EditorPanel] Saving file:', activeFile);
-      const result = await ipcRenderer.invoke('workspace:write-file', workspace.path, activeFile, fileContent);
+      const content = fileContents.get(activeFile) || '';
+      const result = await ipcRenderer.invoke('workspace:write-file', workspace.path, activeFile, content);
 
       if (result.success) {
         console.log('[EditorPanel] File saved successfully');
-        setHasUnsavedChanges(false);
+        setUnsavedChanges(prev => new Map(prev).set(activeFile, false));
+
+        // Notify parent that file is saved (no unsaved changes)
+        onUnsavedChange?.(activeFile, false);
       } else {
         console.error('[EditorPanel] Failed to save file:', result.error);
         alert(`Failed to save file: ${result.error}`);
@@ -1556,6 +2326,20 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
       alert(`Error saving file: ${error}`);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // Handle content change
+  const handleContentChange = (value: string | undefined) => {
+    if (!activeFile || value === undefined) return;
+
+    const currentContent = fileContents.get(activeFile) || '';
+    if (value !== currentContent) {
+      setFileContents(prev => new Map(prev).set(activeFile, value));
+      setUnsavedChanges(prev => new Map(prev).set(activeFile, true));
+
+      // Notify parent about unsaved changes
+      onUnsavedChange?.(activeFile, true);
     }
   };
 
@@ -1572,136 +2356,246 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activeFile, hasUnsavedChanges, fileContent]);
 
+  // Handle Monaco editor mount
+  const handleEditorDidMount = (editor: monaco.editor.IStandaloneCodeEditor) => {
+    editorRef.current = editor;
+
+    // Listen for selection changes to show/hide floating actions
+    editor.onDidChangeCursorSelection((e) => {
+      const selection = e.selection;
+      const model = editor.getModel();
+
+      if (!model || selection.isEmpty()) {
+        // No selection or empty selection - hide floating actions
+        setFloatingActionsVisible(false);
+        setCurrentSelection(null);
+        return;
+      }
+
+      // Get selected text
+      const selectedText = model.getValueInRange(selection);
+
+      if (!selectedText.trim()) {
+        // Only whitespace selected - hide floating actions
+        setFloatingActionsVisible(false);
+        setCurrentSelection(null);
+        return;
+      }
+
+      // Store current selection
+      setCurrentSelection({
+        code: selectedText,
+        selection
+      });
+
+      // Calculate position for floating action bar
+      // Position it above the selection start
+      const position = editor.getScrolledVisiblePosition(selection.getStartPosition());
+
+      if (position) {
+        const editorDom = editor.getDomNode();
+        if (!editorDom) return;
+
+        const editorRect = editorDom.getBoundingClientRect();
+
+        // Position above the selection with some offset
+        const top = editorRect.top + position.top - 45; // 45px above selection
+        const left = editorRect.left + position.left;
+
+        setFloatingActionsPosition({ top, left });
+        setFloatingActionsVisible(true);
+      }
+    });
+
+    // Add context menu actions for Claude AI assistance
+    editor.addAction({
+      id: 'ask-claude-about-selection',
+      label: '💬 Ask Claude about this',
+      contextMenuGroupId: 'claude',
+      contextMenuOrder: 1,
+      keybindings: [
+        monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK
+      ],
+      run: (ed) => {
+        const selection = ed.getSelection();
+        const selectedText = ed.getModel()?.getValueInRange(selection);
+
+        if (selectedText && activeFile) {
+          handleAskAboutCode(selectedText, activeFile, selection);
+        }
+      }
+    });
+
+    editor.addAction({
+      id: 'explain-code',
+      label: '📖 Explain this code',
+      contextMenuGroupId: 'claude',
+      contextMenuOrder: 2,
+      run: (ed) => {
+        const selection = ed.getSelection();
+        const selectedText = ed.getModel()?.getValueInRange(selection);
+
+        if (selectedText && activeFile) {
+          handleExplainCode(selectedText, activeFile, selection);
+        }
+      }
+    });
+
+    editor.addAction({
+      id: 'optimize-code',
+      label: '⚡ Optimize this',
+      contextMenuGroupId: 'claude',
+      contextMenuOrder: 3,
+      run: (ed) => {
+        const selection = ed.getSelection();
+        const selectedText = ed.getModel()?.getValueInRange(selection);
+
+        if (selectedText && activeFile) {
+          handleOptimizeCode(selectedText, activeFile, selection);
+        }
+      }
+    });
+
+    editor.addAction({
+      id: 'add-tests',
+      label: '🧪 Add tests for this',
+      contextMenuGroupId: 'claude',
+      contextMenuOrder: 4,
+      run: (ed) => {
+        const selection = ed.getSelection();
+        const selectedText = ed.getModel()?.getValueInRange(selection);
+
+        if (selectedText && activeFile) {
+          handleAddTests(selectedText, activeFile, selection);
+        }
+      }
+    });
+  };
+
+  // Jump to line when fileCursorPosition changes
+  useEffect(() => {
+    if (!editorRef.current || !fileCursorPosition) return;
+    if (fileCursorPosition.filePath !== activeFile) return;
+
+    const editor = editorRef.current;
+    const { lineStart, lineEnd } = fileCursorPosition;
+
+    // Reveal line in center of editor
+    editor.revealLineInCenter(lineStart);
+
+    // Set cursor position
+    editor.setPosition({ lineNumber: lineStart, column: 1 });
+
+    // Highlight line range with animation
+    const decorations = editor.deltaDecorations([], [
+      {
+        range: new monaco.Range(lineStart, 1, lineEnd, 1),
+        options: {
+          isWholeLine: true,
+          className: 'highlighted-line-reference',
+          glyphMarginClassName: 'highlighted-line-glyph'
+        }
+      }
+    ]);
+
+    // Clear highlight after 2 seconds
+    const timeout = setTimeout(() => {
+      editor.deltaDecorations(decorations, []);
+    }, 2000);
+
+    // Focus editor
+    editor.focus();
+
+    return () => clearTimeout(timeout);
+  }, [fileCursorPosition, activeFile]);
+
   return (
     <div className="h-full flex flex-col">
-      {/* Editor Header */}
-      <div className="h-[50px] border-b border-border flex items-center justify-between px-4">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">Editor</span>
-          {activeFile && (
-            <>
-              <span className="text-xs text-muted-foreground">
-                {activeFile}
-              </span>
-              {hasUnsavedChanges && (
-                <span className="text-xs text-warning">• (unsaved)</span>
-              )}
-            </>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* Save Button */}
-          {hasUnsavedChanges && (
-            <button
-              onClick={handleSaveFile}
-              disabled={isSaving}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-success hover:bg-success/90 disabled:bg-secondary disabled:cursor-not-allowed text-white rounded transition-colors"
-              title="Save file (Cmd+S)"
-            >
-              <Save size={14} />
-              <span>{isSaving ? 'Saving...' : 'Save'}</span>
-            </button>
-          )}
-
-          {/* Split View Toggle Button */}
-          {onToggleSplit && (
-            <button
-              onClick={onToggleSplit}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-secondary rounded transition-colors"
-              title={isSplitMode ? "Hide chat" : "Show chat"}
-            >
-              {isSplitMode ? (
-                <>
-                  <Maximize2 size={14} />
-                  <span>Editor Only</span>
-                </>
-              ) : (
-                <>
-                  <Columns2 size={14} />
-                  <span>Show Chat</span>
-                </>
-              )}
-            </button>
-          )}
-        </div>
-      </div>
-
       {/* Editor Content */}
-      <div className="flex-1 flex items-center justify-center text-muted-foreground">
-        {!activeFile ? (
+      {!activeFile ? (
+        <div className="flex-1 flex items-center justify-center text-muted-foreground">
           <div className="text-center">
             <p>No files open</p>
             <p className="text-xs mt-2">Files will appear here when Claude edits them</p>
           </div>
-        ) : (
-          <div className="w-full h-full flex flex-col">
-            {isLoadingFile ? (
-              <div className="flex-1 flex items-center justify-center">
-                <div className="text-sm text-muted-foreground">Loading {activeFile}...</div>
+        </div>
+      ) : (
+        <div className="flex-1 relative min-h-0">
+          {/* Floating Code Actions (appears on selection) */}
+          <FloatingCodeActions
+            visible={floatingActionsVisible}
+            position={floatingActionsPosition}
+            onAsk={handleFloatingAsk}
+            onExplain={handleFloatingExplain}
+            onOptimize={handleFloatingOptimize}
+            onAddTests={handleFloatingAddTests}
+          />
+
+          {/* Floating Edit/Preview Toggle (only for markdown) */}
+          {isMarkdown && (
+            <div className="absolute top-3 right-3 z-10">
+              <div className="flex items-center gap-1 bg-secondary/95 backdrop-blur-sm rounded-md p-1 shadow-lg border border-border">
+                <button
+                  onClick={() => setViewMode('edit')}
+                  className={cn(
+                    'px-3 py-1 text-xs font-medium rounded transition-colors',
+                    viewMode === 'edit'
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => setViewMode('preview')}
+                  className={cn(
+                    'px-3 py-1 text-xs font-medium rounded transition-colors',
+                    viewMode === 'preview'
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  Preview
+                </button>
               </div>
-            ) : (
-              <Editor
-                height="100%"
-                defaultLanguage={getLanguageFromFilePath(activeFile || '')}
-                language={getLanguageFromFilePath(activeFile || '')}
-                value={fileContent}
-                onChange={(value) => {
-                  if (value !== undefined && value !== fileContent) {
-                    setFileContent(value);
-                    setHasUnsavedChanges(true);
-                  }
-                }}
-                theme="vs-dark"
-                options={{
-                  readOnly: false,
-                  minimap: { enabled: false },
-                  fontSize: 13,
-                  lineNumbers: 'on',
-                  scrollBeyondLastLine: false,
-                  automaticLayout: true,
-                  tabSize: 2,
-                  insertSpaces: true,
-                }}
-              />
-            )}
-          </div>
-        )}
-      </div>
+            </div>
+          )}
+
+          {isLoadingFile ? (
+            <div className="h-full flex items-center justify-center">
+              <div className="text-sm text-muted-foreground">Loading {activeFile}...</div>
+            </div>
+          ) : isMarkdown && viewMode === 'preview' ? (
+            <MarkdownPreview content={fileContent} />
+          ) : (
+            <Editor
+              height="100%"
+              key={activeFile} // Force remount on file change
+              defaultLanguage={getLanguageFromFilePath(activeFile || '')}
+              language={getLanguageFromFilePath(activeFile || '')}
+              value={fileContent}
+              onChange={handleContentChange}
+              onMount={handleEditorDidMount}
+              theme="vs-dark"
+              options={{
+                readOnly: false,
+                minimap: { enabled: false },
+                fontSize: 12,
+                fontFamily: 'ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Code", "Courier New", monospace',
+                fontWeight: '400',
+                fontLigatures: true,
+                lineHeight: 1.5,
+                lineNumbers: 'on',
+                scrollBeyondLastLine: false,
+                automaticLayout: true,
+                tabSize: 2,
+                insertSpaces: true,
+              }}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 };
 
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-function getLanguageFromFilePath(filePath: string): string {
-  const ext = filePath.split('.').pop()?.toLowerCase();
-
-  const languageMap: Record<string, string> = {
-    'js': 'javascript',
-    'jsx': 'javascript',
-    'ts': 'typescript',
-    'tsx': 'typescript',
-    'py': 'python',
-    'json': 'json',
-    'md': 'markdown',
-    'html': 'html',
-    'css': 'css',
-    'scss': 'scss',
-    'yaml': 'yaml',
-    'yml': 'yaml',
-    'sh': 'shell',
-    'bash': 'shell',
-    'go': 'go',
-    'rs': 'rust',
-    'java': 'java',
-    'c': 'c',
-    'cpp': 'cpp',
-    'h': 'c',
-    'hpp': 'cpp',
-  };
-
-  return languageMap[ext || ''] || 'plaintext';
-}

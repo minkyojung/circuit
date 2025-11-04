@@ -4,7 +4,8 @@ import { CommitDialog } from "@/components/workspace/CommitDialog"
 import { CommandPalette } from "@/components/CommandPalette"
 import { AppSidebar } from "@/components/AppSidebar"
 import { TodoPanel } from "@/components/TodoPanel"
-import { StatusBar } from "@/components/statusbar/StatusBar"
+import { GitTestPanel } from "@/components/git/GitTestPanel"
+import { WorkspaceEmptyState } from "@/components/workspace/WorkspaceEmptyState"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -13,7 +14,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
-import { ConversationTabs } from "@/components/conversation/ConversationTabs"
+import { UnifiedTabs, type OpenFile } from "@/components/workspace/UnifiedTabs"
 import { Separator } from "@/components/ui/separator"
 import {
   SidebarInset,
@@ -21,14 +22,17 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import type { Workspace } from "@/types/workspace"
-import { PanelLeft, PanelRight, FolderGit2 } from 'lucide-react'
+import { PanelLeft, PanelRight, FolderGit2, Columns2, Maximize2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import { SettingsProvider } from '@/contexts/SettingsContext'
+import { TerminalProvider } from '@/contexts/TerminalContext'
+import { AgentProvider } from '@/contexts/AgentContext'
 import { CompactBanner } from '@/components/CompactBanner'
 import { CompactUrgentModal } from '@/components/CompactUrgentModal'
 import { Toaster } from 'sonner'
+import { FEATURES } from '@/config/features'
 import './App.css'
 
 // Project Path Context
@@ -44,26 +48,6 @@ const ProjectPathContext = createContext<ProjectPathContextValue>({
 
 export const useProjectPath = () => useContext(ProjectPathContext)
 
-// Custom sidebar toggle button component
-function LeftSidebarToggle() {
-  const { state, toggleSidebar } = useSidebar()
-
-  return (
-    <button
-      onClick={toggleSidebar}
-      className={cn(
-        "flex h-7 w-7 items-center justify-center rounded-md transition-colors",
-        state === "expanded"
-          ? "text-foreground hover:bg-sidebar-hover"
-          : "text-muted-foreground hover:bg-sidebar-hover hover:text-foreground"
-      )}
-      title={state === "expanded" ? "Collapse sidebar" : "Expand sidebar"}
-    >
-      <PanelLeft size={16} />
-    </button>
-  )
-}
-
 function App() {
   const [projectPath, setProjectPath] = useState<string>('')
   const [isLoadingPath, setIsLoadingPath] = useState<boolean>(true)
@@ -76,9 +60,29 @@ function App() {
     const saved = localStorage.getItem('circuit-right-sidebar-state')
     return saved !== null ? JSON.parse(saved) : true // 기본값: 열림
   })
+  const [rightSidebarWidth, setRightSidebarWidth] = useState<number>(() => {
+    const saved = localStorage.getItem('circuit-right-sidebar-width')
+    return saved ? parseInt(saved) : 320 // 기본값: 320px (20rem)
+  })
+  const [isResizing, setIsResizing] = useState<boolean>(false)
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
-  const [todoPanelRefreshTrigger, setTodoPanelRefreshTrigger] = useState<number>(0)
   const [currentRepository, setCurrentRepository] = useState<any>(null)
+
+  // File cursor position for jumping to line
+  const [fileCursorPosition, setFileCursorPosition] = useState<{
+    filePath: string
+    lineStart: number
+    lineEnd: number
+  } | null>(null)
+
+  // File tabs state (lifted from WorkspaceChatEditor)
+  const [openFiles, setOpenFiles] = useState<string[]>([])
+  const [activeFilePath, setActiveFilePath] = useState<string | null>(null)
+  const [unsavedFiles, setUnsavedFiles] = useState<Set<string>>(new Set())
+
+  // View mode state
+  type ViewMode = 'chat' | 'editor' | 'split'
+  const [viewMode, setViewMode] = useState<ViewMode>('chat')
 
   // Workspace navigation refs (for keyboard shortcuts)
   const workspacesRef = useRef<Workspace[]>([])
@@ -94,6 +98,35 @@ function App() {
       return newState
     })
   }
+
+  // Handle right sidebar resize
+  const handleResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault()
+    setIsResizing(true)
+  }
+
+  useEffect(() => {
+    if (!isResizing) return
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const newWidth = window.innerWidth - e.clientX
+      const clampedWidth = Math.max(240, Math.min(600, newWidth)) // 15rem ~ 37.5rem
+      setRightSidebarWidth(clampedWidth)
+    }
+
+    const handleMouseUp = () => {
+      setIsResizing(false)
+      localStorage.setItem('circuit-right-sidebar-width', String(rightSidebarWidth))
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [isResizing, rightSidebarWidth])
 
   // Create workspace handler for Command Palette
   const handleCreateWorkspace = async () => {
@@ -155,15 +188,88 @@ function App() {
     return projectPath.split('/').filter(Boolean).pop() || 'Unknown Repository'
   }, [currentRepository, projectPath])
 
-  // Handle file selection from sidebar
-  const handleFileSelect = (filePath: string) => {
-    console.log('[App] File selected:', filePath)
+  // Handle file selection from sidebar or file reference pills
+  const handleFileSelect = (filePath: string, lineStart?: number, lineEnd?: number) => {
+    console.log('[App] File selected:', filePath, lineStart, lineEnd)
     setSelectedFile(filePath)
+    setActiveFilePath(filePath)
+
+    // Add to openFiles if not already there
+    if (!openFiles.includes(filePath)) {
+      setOpenFiles([...openFiles, filePath])
+    }
+
+    // Store line selection for Monaco to use
+    if (lineStart) {
+      setFileCursorPosition({
+        filePath,
+        lineStart,
+        lineEnd: lineEnd || lineStart
+      })
+    } else {
+      setFileCursorPosition(null)
+    }
+
+    // Switch to editor or split view when opening a file
+    if (viewMode === 'chat') {
+      setViewMode('split')
+    }
   }
 
-  // Reset selected file when workspace changes
+  // Handle file close from unified tabs
+  const handleCloseFile = (filePath: string) => {
+    setOpenFiles(openFiles.filter(f => f !== filePath))
+
+    // Remove from unsaved files
+    setUnsavedFiles(prev => {
+      const next = new Set(prev)
+      next.delete(filePath)
+      return next
+    })
+
+    // If closing active file, switch to another file
+    if (filePath === activeFilePath) {
+      const remainingFiles = openFiles.filter(f => f !== filePath)
+      if (remainingFiles.length > 0) {
+        setActiveFilePath(remainingFiles[0])
+        setSelectedFile(remainingFiles[0])
+      } else {
+        setActiveFilePath(null)
+        setSelectedFile(null)
+      }
+    }
+  }
+
+  // Handle unsaved changes notification from editor
+  const handleUnsavedChange = (filePath: string, hasChanges: boolean) => {
+    setUnsavedFiles(prev => {
+      const next = new Set(prev)
+      if (hasChanges) {
+        next.add(filePath)
+      } else {
+        next.delete(filePath)
+      }
+      return next
+    })
+  }
+
+  // Auto-switch view mode based on open files
+  useEffect(() => {
+    if (openFiles.length > 0 && viewMode === 'chat') {
+      setViewMode('editor')
+    } else if (openFiles.length === 0 && viewMode !== 'chat') {
+      setViewMode('chat')
+    }
+  }, [openFiles.length])
+
+  // Reset selected file, conversation, and file tabs when workspace changes
   useEffect(() => {
     setSelectedFile(null)
+    setActiveConversationId(null)
+    setOpenFiles([])
+    setActiveFilePath(null)
+    setUnsavedFiles(new Set())
+    setViewMode('chat')
   }, [selectedWorkspace?.id])
 
   // Keyboard shortcuts
@@ -221,14 +327,16 @@ function App() {
 
   return (
     <SettingsProvider>
-      <ProjectPathContext.Provider value={{ projectPath, isLoading: isLoadingPath }}>
-        <div
-        className="h-screen overflow-hidden backdrop-blur-xl flex"
-        style={{
-          backgroundColor: 'var(--window-glass)'
-        }}
-      >
-        <SidebarProvider className="flex-1">
+      <TerminalProvider>
+        <AgentProvider>
+          <ProjectPathContext.Provider value={{ projectPath, isLoading: isLoadingPath }}>
+          <div
+          className="h-screen overflow-hidden backdrop-blur-xl flex"
+          style={{
+            backgroundColor: 'var(--window-glass)'
+          }}
+        >
+          <SidebarProvider className="flex-1">
         <AppSidebar
           selectedWorkspaceId={selectedWorkspace?.id || null}
           selectedWorkspace={selectedWorkspace}
@@ -250,33 +358,77 @@ function App() {
 
           {/* Main Header with Breadcrumb */}
           <header
-            className="flex h-[44px] shrink-0 items-center gap-2 border-b border-border px-4"
+            className="flex h-[44px] shrink-0 items-center gap-2 border-b border-border px-3"
             style={{ WebkitAppRegion: 'drag' } as any}
           >
             <div
-              className="flex items-center gap-2"
-              style={{ WebkitAppRegion: 'no-drag' } as any}
+              className="grid items-center gap-2 min-w-0"
+              style={{
+                WebkitAppRegion: 'no-drag',
+                gridTemplateColumns: selectedWorkspace && openFiles.length > 0 ? 'auto 1fr' : '1fr'
+              } as any}
             >
-              <LeftSidebarToggle />
-              <Separator orientation="vertical" className="mr-2 h-4" />
-              {selectedWorkspace ? (
-                <ConversationTabs
-                  workspaceId={selectedWorkspace.id}
-                  workspaceName={selectedWorkspace.name}
-                  activeConversationId={activeConversationId}
-                  onConversationChange={setActiveConversationId}
-                />
-              ) : (
-                <Breadcrumb>
-                  <BreadcrumbList>
-                    <BreadcrumbItem>
-                      <BreadcrumbPage className="font-medium text-muted-foreground">
-                        {repositoryName}
-                      </BreadcrumbPage>
-                    </BreadcrumbItem>
-                  </BreadcrumbList>
-                </Breadcrumb>
+              {/* Column 1: View mode toggle button (auto width) */}
+              {selectedWorkspace && openFiles.length > 0 && (
+                <div className="flex items-center gap-2 shrink-0">
+                  {viewMode === 'editor' && (
+                    <button
+                      onClick={() => setViewMode('split')}
+                      className={cn(
+                        "flex h-7 w-7 items-center justify-center rounded-md transition-colors",
+                        "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+                      )}
+                      title="Show Chat"
+                    >
+                      <Columns2 size={16} />
+                    </button>
+                  )}
+                  {viewMode === 'split' && (
+                    <button
+                      onClick={() => setViewMode('editor')}
+                      className={cn(
+                        "flex h-7 w-7 items-center justify-center rounded-md transition-colors",
+                        "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+                      )}
+                      title="Editor Only"
+                    >
+                      <Maximize2 size={16} />
+                    </button>
+                  )}
+                  <Separator orientation="vertical" className="mr-2 h-4" />
+                </div>
               )}
+
+              {/* Column 2: Tabs container (flexible with overflow) */}
+              <div className="min-w-0 overflow-x-auto">
+                <div className="max-w-4xl mx-auto">
+                  {selectedWorkspace ? (
+                    <UnifiedTabs
+                      workspaceId={selectedWorkspace.id}
+                      workspaceName={selectedWorkspace.name}
+                      activeConversationId={activeConversationId}
+                      onConversationChange={setActiveConversationId}
+                      openFiles={openFiles.map(path => ({
+                        path,
+                        unsavedChanges: unsavedFiles.has(path)
+                      }))}
+                      activeFilePath={activeFilePath}
+                      onFileChange={setActiveFilePath}
+                      onCloseFile={handleCloseFile}
+                    />
+                  ) : (
+                    <Breadcrumb>
+                      <BreadcrumbList>
+                        <BreadcrumbItem>
+                          <BreadcrumbPage className="font-medium text-muted-foreground">
+                            {repositoryName}
+                          </BreadcrumbPage>
+                        </BreadcrumbItem>
+                      </BreadcrumbList>
+                    </Breadcrumb>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Spacer */}
@@ -296,7 +448,7 @@ function App() {
                       ? 'text-foreground hover:bg-sidebar-hover'
                       : 'text-muted-foreground hover:bg-sidebar-hover hover:text-foreground'
                   )}
-                  title="Toggle plans"
+                  title="Toggle right panel"
                 >
                   <PanelRight size={16} />
                 </button>
@@ -309,13 +461,19 @@ function App() {
             {selectedWorkspace ? (
               <>
                 <WorkspaceChatEditor
+                  key={selectedWorkspace.id}
                   workspace={selectedWorkspace}
                   selectedFile={selectedFile}
                   prefillMessage={chatPrefillMessage}
                   onPrefillCleared={() => setChatPrefillMessage(null)}
                   conversationId={activeConversationId}
                   onConversationChange={setActiveConversationId}
-                  onPlanAdded={() => setTodoPanelRefreshTrigger(prev => prev + 1)}
+                  viewMode={viewMode}
+                  onViewModeChange={setViewMode}
+                  openFiles={openFiles}
+                  onUnsavedChange={handleUnsavedChange}
+                  onFileReferenceClick={handleFileSelect}
+                  fileCursorPosition={fileCursorPosition}
                 />
 
                 {/* Commit Dialog */}
@@ -335,33 +493,39 @@ function App() {
                 )}
               </>
             ) : (
-              <div className="flex flex-1 items-center justify-center text-center p-8">
-                <div>
-                  <FolderGit2 size={48} className="mx-auto text-muted-foreground mb-4" />
-                  <h2 className="text-xl font-semibold text-foreground mb-2">No Workspace Selected</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Select a workspace from the sidebar to start coding
-                  </p>
-                </div>
-              </div>
+              <WorkspaceEmptyState
+                onSelectWorkspace={setSelectedWorkspace}
+                onCreateWorkspace={handleCreateWorkspace}
+              />
             )}
           </div>
-
-          {/* Status Bar - Bottom */}
-          <StatusBar selectedWorkspace={selectedWorkspace} />
         </SidebarInset>
       </SidebarProvider>
+
+      {/* Resize Handle - Overlapping main area border */}
+      {isRightSidebarOpen && (
+        <div
+          onMouseDown={handleResizeStart}
+          className={cn(
+            "h-full w-1 -ml-1 cursor-col-resize hover:bg-accent transition-colors z-50 flex-shrink-0",
+            isResizing && "bg-accent"
+          )}
+        />
+      )}
 
       {/* Right Sidebar - Todo Panel */}
       <div
         className={cn(
-          "h-full transition-all duration-300 ease-in-out overflow-hidden",
-          isRightSidebarOpen ? "w-[20rem]" : "w-0"
+          "h-full overflow-hidden",
+          isRightSidebarOpen ? "" : "w-0"
         )}
+        style={{
+          width: isRightSidebarOpen ? `${rightSidebarWidth}px` : 0,
+          transition: isResizing ? 'none' : 'width 0.3s ease-in-out'
+        }}
       >
         <TodoPanel
           conversationId={activeConversationId}
-          refreshTrigger={todoPanelRefreshTrigger}
           workspace={selectedWorkspace}
           onCommit={() => setShowCommitDialog(true)}
         />
@@ -392,8 +556,10 @@ function App() {
           },
         }}
       />
-      </div>
-      </ProjectPathContext.Provider>
+        </div>
+        </ProjectPathContext.Provider>
+        </AgentProvider>
+      </TerminalProvider>
     </SettingsProvider>
   )
 }

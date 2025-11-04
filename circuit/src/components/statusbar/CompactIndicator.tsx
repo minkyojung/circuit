@@ -10,16 +10,33 @@ import { AlertCircle, AlertTriangle, AlertOctagon } from 'lucide-react';
 import { useAutoCompact } from '@/hooks/useAutoCompact';
 import { cn } from '@/lib/utils';
 
+interface ContextMetrics {
+  current: number;
+  limit: number;
+  percentage: number;
+  lastCompact: string | null;
+  sessionStart: string;
+  prunableTokens: number;
+  shouldCompact: boolean;
+}
+
 interface CompactIndicatorProps {
   workspaceId?: string;
   workspacePath?: string;
+  context: ContextMetrics | null; // Required
 }
 
 export const CompactIndicator: React.FC<CompactIndicatorProps> = ({
   workspaceId,
   workspacePath,
+  context,
 }) => {
-  const { compactState, percentage } = useAutoCompact({ workspaceId, workspacePath });
+  // Don't show anything if no context
+  if (!context) {
+    return null;
+  }
+
+  const { compactState, percentage } = useAutoCompact({ workspaceId, workspacePath, context });
 
   // Don't show anything for normal level
   if (compactState.level === 'normal') {

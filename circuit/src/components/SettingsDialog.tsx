@@ -5,8 +5,8 @@
  * Following Dieter Rams' principles and Apple HIG
  */
 
-import React, { useState } from 'react';
-import { X, Settings as SettingsIcon, Cpu, Sparkles, Sliders, Archive } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Settings as SettingsIcon, Cpu, Sparkles, Sliders, Archive, Activity, Terminal as TerminalIcon } from 'lucide-react';
 import { useSettingsContext } from '@/contexts/SettingsContext';
 import {
   SettingSection,
@@ -17,14 +17,15 @@ import {
 } from './settings/SettingPrimitives';
 import { useTheme } from '@/hooks/useTheme';
 import { cn } from '@/lib/utils';
-import type { ClaudeModel, CompletionSound, SendKeyCombo, ThemeMode } from '@/types/settings';
+import type { ClaudeModel, CompletionSound, SendKeyCombo, ThemeMode, TerminalMode, TerminalRenderer } from '@/types/settings';
+import { MCPTimeline } from './mcp/MCPTimeline';
 
 interface SettingsDialogProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-type SettingsCategory = 'general' | 'model' | 'ai' | 'advanced' | 'archive';
+type SettingsCategory = 'general' | 'model' | 'ai' | 'terminal' | 'advanced' | 'mcp' | 'archive';
 
 interface NavItem {
   id: SettingsCategory;
@@ -36,7 +37,9 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'general', label: 'General', icon: SettingsIcon },
   { id: 'model', label: 'Model', icon: Cpu },
   { id: 'ai', label: 'AI', icon: Sparkles },
+  { id: 'terminal', label: 'Terminal', icon: TerminalIcon },
   { id: 'advanced', label: 'Advanced', icon: Sliders },
+  { id: 'mcp', label: 'MCP', icon: Activity },
   { id: 'archive', label: 'Archive', icon: Archive },
 ];
 
@@ -106,7 +109,9 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
                 {activeCategory === 'general' && <GeneralSettings theme={theme} setTheme={setTheme} settings={settings} updateSettings={updateSettings} />}
                 {activeCategory === 'model' && <ModelSettings settings={settings} updateSettings={updateSettings} />}
                 {activeCategory === 'ai' && <AISettings settings={settings} updateSettings={updateSettings} />}
+                {activeCategory === 'terminal' && <TerminalSettings settings={settings} updateSettings={updateSettings} />}
                 {activeCategory === 'advanced' && <AdvancedSettings settings={settings} updateSettings={updateSettings} />}
+                {activeCategory === 'mcp' && <MCPSettings />}
                 {activeCategory === 'archive' && <ArchiveSettings />}
               </div>
             </div>
@@ -161,6 +166,10 @@ const GeneralSettings: React.FC<SettingsPanelProps> = ({ theme, setTheme, settin
             { value: 'dark', label: 'Dark' },
             { value: 'green-light', label: 'Sage' },
             { value: 'green-dark', label: 'Forest' },
+            { value: 'warm-light', label: 'Amber' },
+            { value: 'warm-dark', label: 'Ember' },
+            { value: 'straw-light', label: 'Wheat' },
+            { value: 'slate-dark', label: 'Slate' },
             { value: 'system', label: 'System' },
           ]}
           onChange={(value) => setTheme!(value as ThemeMode)}
@@ -261,6 +270,147 @@ const AISettings: React.FC<SettingsPanelProps> = ({ settings, updateSettings }) 
         disabled={!settings.attachments.autoConvertLongText}
       />
     </SettingSection>
+  </>
+);
+
+const TerminalSettings: React.FC<SettingsPanelProps> = ({ settings, updateSettings }) => (
+  <>
+    <SettingSection
+      title="Terminal Mode"
+      description="Choose between classic xterm.js or modern Warp-style terminal"
+    >
+      <div className="flex items-center justify-between">
+        <label className="text-sm text-foreground">Mode</label>
+        <SegmentedControl
+          value={settings.terminal.mode}
+          options={[
+            { value: 'classic', label: 'Classic' },
+            { value: 'modern', label: 'Modern' },
+          ]}
+          onChange={(value) => updateSettings('terminal', { mode: value as TerminalMode })}
+        />
+      </div>
+
+      <div className="mt-2 p-3 bg-muted/30 rounded-md border border-border/50">
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          {settings.terminal.mode === 'classic' ? (
+            <>
+              <span className="font-medium text-foreground">Classic Mode:</span> Traditional terminal experience with xterm.js.
+              Familiar interface for those who prefer standard terminal behavior.
+            </>
+          ) : (
+            <>
+              <span className="font-medium text-foreground">Modern Mode:</span> Warp-inspired terminal with blocks,
+              enhanced input, and AI integration. Commands and outputs are grouped for easier navigation.
+            </>
+          )}
+        </p>
+      </div>
+    </SettingSection>
+
+    <SettingSection title="Rendering">
+      <SelectSetting
+        label="Renderer"
+        description="Choose rendering engine (Canvas recommended for transparency)"
+        value={settings.terminal.renderer}
+        options={[
+          { value: 'canvas', label: 'Canvas (Recommended)' },
+          { value: 'webgl', label: 'WebGL (Faster, no transparency)' },
+          { value: 'dom', label: 'DOM (Fallback)' },
+        ]}
+        onChange={(value) => updateSettings('terminal', { renderer: value as TerminalRenderer })}
+      />
+    </SettingSection>
+
+    {settings.terminal.mode === 'modern' && (
+      <>
+        <SettingSection title="Modern Features" description="Warp-style terminal enhancements (auto-configured)">
+          <ToggleSetting
+            label="Enable Blocks"
+            description="Group commands and outputs as separate blocks"
+            checked={settings.terminal.modernFeatures.enableBlocks}
+            onChange={(checked) => updateSettings('terminal', {
+              modernFeatures: { ...settings.terminal.modernFeatures, enableBlocks: checked }
+            })}
+          />
+
+        <ToggleSetting
+          label="Enhanced Input"
+          description="Monaco-based editor with autocomplete and syntax highlighting"
+          checked={settings.terminal.modernFeatures.enableEnhancedInput}
+          onChange={(checked) => updateSettings('terminal', {
+            modernFeatures: { ...settings.terminal.modernFeatures, enableEnhancedInput: checked }
+          })}
+        />
+
+        <ToggleSetting
+          label="Show Timestamps"
+          description="Display execution time for each command"
+          checked={settings.terminal.modernFeatures.showTimestamps}
+          onChange={(checked) => updateSettings('terminal', {
+            modernFeatures: { ...settings.terminal.modernFeatures, showTimestamps: checked }
+          })}
+        />
+
+        <ToggleSetting
+          label="Highlight Failed Commands"
+          description="Visually highlight blocks with non-zero exit codes"
+          checked={settings.terminal.modernFeatures.highlightFailedCommands}
+          onChange={(checked) => updateSettings('terminal', {
+            modernFeatures: { ...settings.terminal.modernFeatures, highlightFailedCommands: checked }
+          })}
+        />
+
+        <ToggleSetting
+          label="Enable Workflows"
+          description="Save and execute command sequences (Coming Soon)"
+          checked={settings.terminal.modernFeatures.enableWorkflows}
+          onChange={(checked) => updateSettings('terminal', {
+            modernFeatures: { ...settings.terminal.modernFeatures, enableWorkflows: checked }
+          })}
+          disabled={true}
+        />
+      </SettingSection>
+      </>
+    )}
+
+    {settings.terminal.mode === 'classic' && (
+      <SettingSection title="Classic Features" description="Traditional terminal settings">
+        <SliderSetting
+          label="Scrollback Lines"
+          description="Number of lines to keep in history"
+          value={settings.terminal.classicFeatures.scrollback}
+          min={100}
+          max={10000}
+          step={100}
+          onChange={(value) => updateSettings('terminal', {
+            classicFeatures: { ...settings.terminal.classicFeatures, scrollback: value }
+          })}
+          formatValue={(v) => `${v.toLocaleString()} lines`}
+        />
+
+        <ToggleSetting
+          label="Cursor Blink"
+          description="Enable blinking cursor"
+          checked={settings.terminal.classicFeatures.cursorBlink}
+          onChange={(checked) => updateSettings('terminal', {
+            classicFeatures: { ...settings.terminal.classicFeatures, cursorBlink: checked }
+          })}
+        />
+
+        <SliderSetting
+          label="Font Size"
+          value={settings.terminal.classicFeatures.fontSize}
+          min={8}
+          max={24}
+          step={1}
+          onChange={(value) => updateSettings('terminal', {
+            classicFeatures: { ...settings.terminal.classicFeatures, fontSize: value }
+          })}
+          formatValue={(v) => `${v}px`}
+        />
+      </SettingSection>
+    )}
   </>
 );
 
@@ -371,6 +521,19 @@ const AdvancedSettings: React.FC<SettingsPanelProps> = ({ settings, updateSettin
     />
   </SettingSection>
 );
+
+const MCPSettings: React.FC = () => {
+  return (
+    <SettingSection
+      title="MCP Call History"
+      description="Real-time timeline of MCP tool calls with performance metrics"
+    >
+      <div className="border border-border rounded-lg overflow-hidden" style={{ height: '500px' }}>
+        <MCPTimeline limit={100} refreshInterval={5000} />
+      </div>
+    </SettingSection>
+  );
+};
 
 const ArchiveSettings: React.FC = () => {
   const [workspaces, setWorkspaces] = React.useState<any[]>([])

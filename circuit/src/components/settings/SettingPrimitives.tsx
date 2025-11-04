@@ -103,7 +103,7 @@ export const ToggleSetting: React.FC<ToggleSettingProps> = ({
       >
         <span
           className={cn(
-            'inline-block h-4 w-4 transform rounded-full bg-background transition-transform',
+            'inline-block h-4 w-4 transform rounded-full bg-white dark:bg-white shadow-sm transition-transform',
             checked ? 'translate-x-6' : 'translate-x-1'
           )}
         />

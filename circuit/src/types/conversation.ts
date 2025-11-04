@@ -31,10 +31,12 @@ export interface Message {
       type: string
       size: number
     }>
-    planResult?: any  // TodoGenerationResult from Plan Mode
+    planResult?: any  // TodoGenerationResult from Plan Mode (displays in sidebar)
+    todoWriteResult?: any  // TodoGenerationResult from TodoWrite tool (displays inline)
     hasPendingPlan?: boolean
     planConfirmed?: boolean
     planCancelled?: boolean
+    cancelled?: boolean  // Message was cancelled by user
   }
   blocks?: Block[]  // New: Block-based message structure
 }
@@ -60,7 +62,8 @@ export type BlockType =
   | 'diagram'    // Mermaid diagram
   | 'link'       // URL reference
   | 'quote'      // Quote block
-  | 'list'       // Checklist
+  | 'list'       // List (generic)
+  | 'checklist'  // Checklist with checkboxes
   | 'table'      // Table data
   | 'tool'       // Tool invocation (AI SDK integration)
 
@@ -90,6 +93,8 @@ export interface BlockMetadata {
   // Error blocks
   errorType?: string
   stack?: string
+  suggestedFix?: string
+  errorCode?: string | number
 
   // Diagram blocks
   diagramType?: 'mermaid' | 'graphviz'
@@ -97,6 +102,14 @@ export interface BlockMetadata {
   // List blocks
   totalItems?: number
   completedItems?: number
+
+  // Link blocks
+  title?: string
+  description?: string
+
+  // Quote blocks
+  author?: string
+  source?: string
 
   // Bookmark
   isBookmarked?: boolean
@@ -110,6 +123,8 @@ export interface BlockMetadata {
   args?: Record<string, unknown>
   result?: unknown
   error?: unknown
+  duration?: number  // Execution duration in milliseconds
+  status?: 'pending' | 'running' | 'success' | 'error'
 }
 
 /**

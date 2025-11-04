@@ -12,9 +12,17 @@ interface TodoListProps {
   todos: TodoNode[]
   onStatusChange?: (todoId: string, status: TodoStatus) => void
   onDelete?: (todoId: string) => void
+  workspaceId?: string
+  onRunAgent?: (todoId: string) => void
 }
 
-export const TodoList: React.FC<TodoListProps> = ({ todos, onStatusChange, onDelete }) => {
+export const TodoList: React.FC<TodoListProps> = ({
+  todos,
+  onStatusChange,
+  onDelete,
+  workspaceId,
+  onRunAgent
+}) => {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
 
   const handleToggleExpand = (todoId: string) => {
@@ -51,6 +59,8 @@ export const TodoList: React.FC<TodoListProps> = ({ todos, onStatusChange, onDel
           onToggleExpand={handleToggleExpand}
           onStatusChange={onStatusChange}
           onDelete={onDelete}
+          workspaceId={workspaceId}
+          onRunAgent={onRunAgent}
         />
       ))}
     </div>

@@ -6,6 +6,7 @@
 
 import { ipcMain, IpcMainInvokeEvent, BrowserWindow } from 'electron'
 import type { ConversationStorage, Todo, TodoStatus } from './conversationStorage'
+import { EventBroadcaster } from './eventBroadcaster'
 
 export function registerTodoHandlers(storage: ConversationStorage) {
   /**
@@ -57,6 +58,9 @@ export function registerTodoHandlers(storage: ConversationStorage) {
     try {
       storage.saveTodo(todo)
 
+      // Broadcast event to all renderer processes
+      EventBroadcaster.broadcastTodosChanged(todo.conversationId, todo.messageId)
+
       return {
         success: true,
       }
@@ -75,6 +79,12 @@ export function registerTodoHandlers(storage: ConversationStorage) {
   ipcMain.handle('todos:save-multiple', async (_event: IpcMainInvokeEvent, todos: Todo[]) => {
     try {
       storage.saveTodos(todos)
+
+      // Broadcast event to all renderer processes
+      // All todos in a batch should have the same conversationId and messageId
+      if (todos.length > 0) {
+        EventBroadcaster.broadcastTodosChanged(todos[0].conversationId, todos[0].messageId)
+      }
 
       return {
         success: true,
@@ -103,7 +113,15 @@ export function registerTodoHandlers(storage: ConversationStorage) {
       }
     ) => {
       try {
+        // Fetch todo to get conversationId and messageId for event
+        const todo = storage.getTodo(data.todoId)
+
         storage.updateTodoStatus(data.todoId, data.status, data.progress, data.completedAt)
+
+        // Broadcast event if todo exists
+        if (todo) {
+          EventBroadcaster.broadcastTodosChanged(todo.conversationId, todo.messageId)
+        }
 
         return {
           success: true,
@@ -133,11 +151,19 @@ export function registerTodoHandlers(storage: ConversationStorage) {
       }
     ) => {
       try {
+        // Fetch todo to get conversationId and messageId for event
+        const todo = storage.getTodo(data.todoId)
+
         storage.updateTodoTiming(data.todoId, {
           startedAt: data.startedAt,
           completedAt: data.completedAt,
           actualDuration: data.actualDuration,
         })
+
+        // Broadcast event if todo exists
+        if (todo) {
+          EventBroadcaster.broadcastTodosChanged(todo.conversationId, todo.messageId)
+        }
 
         return {
           success: true,
@@ -157,7 +183,15 @@ export function registerTodoHandlers(storage: ConversationStorage) {
    */
   ipcMain.handle('todos:delete', async (_event: IpcMainInvokeEvent, todoId: string) => {
     try {
+      // Fetch todo before deletion to get conversationId and messageId for event
+      const todo = storage.getTodo(todoId)
+
       storage.deleteTodo(todoId)
+
+      // Broadcast delete event if todo exists
+      if (todo) {
+        EventBroadcaster.broadcastTodoDeleted(todoId, todo.conversationId, todo.messageId)
+      }
 
       return {
         success: true,

@@ -86,6 +86,43 @@ async function getWorkspaceContextTrackerInstance() {
   return tracker;
 }
 
+// Import Terminal Manager (ES Module)
+let terminalManagerPromise = null;
+
+async function getTerminalManagerInstance() {
+  console.log('[main.cjs] getTerminalManagerInstance called');
+  if (!terminalManagerPromise) {
+    console.log('[main.cjs] Creating new Terminal Manager instance...');
+    terminalManagerPromise = import('../dist-electron/terminalManager.js')
+      .then(module => {
+        console.log('[main.cjs] terminalManager.js imported successfully');
+        const manager = module.getTerminalManager();
+
+        // Set up event listeners for terminal data and exit
+        manager.on('data', (workspaceId, data) => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('terminal:data', workspaceId, data);
+          }
+        });
+
+        manager.on('exit', (workspaceId, exitCode) => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('terminal:exit', workspaceId, exitCode);
+          }
+        });
+
+        return manager;
+      })
+      .catch(error => {
+        console.error('[main.cjs] Failed to import terminalManager.js:', error);
+        throw error;
+      });
+  }
+  const manager = await terminalManagerPromise;
+  console.log('[main.cjs] Terminal Manager instance ready');
+  return manager;
+}
+
 /**
  * Install circuit-proxy to ~/.circuit/bin/
  * This proxy allows Claude Code to access all MCP servers via a single MCP interface
@@ -488,8 +525,14 @@ app.whenReady().then(async () => {
     console.log('[main.cjs] Storage initialized, registering handlers...');
     registerConversationHandlers();
     console.log('[main.cjs] ✅ Conversation handlers registered successfully');
+
+    // Register agent handlers (requires storage to be initialized)
+    console.log('[main.cjs] Registering agent handlers...');
+    const { registerAgentHandlers } = require('../dist-electron/agentHandlers.js');
+    registerAgentHandlers();
+    console.log('[main.cjs] ✅ Agent handlers registered successfully');
   } catch (error) {
-    console.error('[main.cjs] ❌ CRITICAL: Failed to register conversation handlers:', error);
+    console.error('[main.cjs] ❌ CRITICAL: Failed to register handlers:', error);
     console.error('[main.cjs] Error stack:', error.stack);
   }
 
@@ -1948,6 +1991,21 @@ ipcMain.handle('circuit:reload-claude-code', async (event, openVSCode = true) =>
   }
 })();
 
+// ============================================================================
+// Git Handlers
+// ============================================================================
+
+// Register git IPC handlers
+(async () => {
+  try {
+    const { registerGitHandlers } = await import('../dist-electron/gitHandlers.js');
+    registerGitHandlers();
+    console.log('[main.cjs] Git handlers registered');
+  } catch (error) {
+    console.error('[main.cjs] Failed to register git handlers:', error);
+  }
+})();
+
 // Cleanup on app quit
 app.on('before-quit', async () => {
   try {
@@ -1959,6 +2017,13 @@ app.on('before-quit', async () => {
     // Cleanup MCP manager
     const manager = await getMCPManagerInstance();
     await manager.cleanup();
+
+    // Cleanup terminal sessions
+    if (terminalManagerPromise) {
+      const terminalManager = await getTerminalManagerInstance();
+      terminalManager.destroyAllSessions();
+      console.log('Terminal sessions destroyed');
+    }
   } catch (error) {
     console.error('Cleanup error:', error);
   }
@@ -2636,7 +2701,9 @@ ipcMain.handle('claude:start-session', async (event, workspacePath) => {
     activeSessions.set(sessionId, {
       workspacePath,
       messages: [],
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      claudeProcess: null,  // Will be set when sending messages
+      isRunning: false      // Track if Claude is currently processing
     });
 
     return {
@@ -2691,9 +2758,11 @@ ipcMain.on('claude:send-message', async (event, sessionId, userMessage, attachme
       thinkingInstruction = `<thinking_instruction>
 # Plan Mode - Mandatory Planning Workflow
 
-You are in PLAN MODE. This mode REQUIRES you to create a detailed plan BEFORE starting work.
+⚠️ CRITICAL: You are in PLAN MODE. You MUST create a plan in JSON format. Failure to do so will result in an automatic retry.
 
-## Mandatory Steps:
+DO NOT proceed with any work until you have output a valid JSON plan.
+
+## ABSOLUTELY REQUIRED: JSON Plan Output
 
 ### 1. Comprehensive Analysis (Required)
 Read and analyze ALL relevant code:
@@ -2704,8 +2773,13 @@ Read and analyze ALL relevant code:
 
 Use Read, Glob, or Grep tools extensively to understand the full scope.
 
-### 2. Create Plan in JSON Format (REQUIRED)
+### 2. Create Plan in JSON Format (ABSOLUTELY REQUIRED - NO EXCEPTIONS)
+
+⚠️ THIS IS NOT OPTIONAL. YOUR FIRST OUTPUT MUST BE A JSON PLAN.
+
 After analyzing the codebase, you MUST output your plan in the following JSON format within a code block.
+
+The JSON plan MUST be your FIRST output, before any explanation.
 
 Plan structure:
 {
@@ -2760,7 +2834,17 @@ Example plan output (wrap in triple-backticks with 'json' language marker):
   ]
 }
 
-IMPORTANT: The JSON block MUST be wrapped in triple backticks (\`\`\`) with the "json" language identifier.
+⚠️ CRITICAL FORMAT REQUIREMENT ⚠️
+The JSON block MUST be wrapped in triple backticks (\`\`\`) with the "json" language identifier.
+
+Example:
+\`\`\`json
+{
+  "todos": [...]
+}
+\`\`\`
+
+If you fail to output JSON in this exact format, the system will automatically request a retry.
 
 ### 3. Present Plan to User
 After outputting the JSON plan, EXPLAIN the plan in natural language.
@@ -2934,6 +3018,10 @@ Plan Mode ensures structured, thoughtful development. Take your time to plan wel
       cwd: session.workspacePath,
       stdio: ['pipe', 'pipe', 'pipe']
     });
+
+    // Store process reference and set running state
+    session.claudeProcess = claude;
+    session.isRunning = true;
 
     // Send message with multimodal content
     const input = JSON.stringify({
@@ -3190,12 +3278,20 @@ Plan Mode ensures structured, thoughtful development. Take your time to plan wel
           cost: 0,
           duration: totalDuration
         });
+
+        // Cleanup session state
+        session.isRunning = false;
+        session.claudeProcess = null;
       } catch (parseError) {
         console.error('[Claude] Failed to process response:', parseError);
         event.sender.send('claude:response-error', {
           success: false,
           error: `Failed to process response: ${parseError.message}`
         });
+
+        // Cleanup session state on error
+        session.isRunning = false;
+        session.claudeProcess = null;
       }
     });
 
@@ -3207,6 +3303,10 @@ Plan Mode ensures structured, thoughtful development. Take your time to plan wel
           error: `Failed to spawn Claude CLI: ${error.message}`
         });
       }
+
+      // Cleanup session state on error
+      session.isRunning = false;
+      session.claudeProcess = null;
     });
   } catch (error) {
     console.error('[Claude] Send message error:', error);
@@ -3216,6 +3316,60 @@ Plan Mode ensures structured, thoughtful development. Take your time to plan wel
         error: error.message
       });
     }
+  }
+});
+
+/**
+ * Cancel an ongoing Claude message
+ */
+ipcMain.on('claude:cancel-message', (event, sessionId) => {
+  try {
+    const session = activeSessions.get(sessionId);
+
+    if (!session) {
+      console.warn('[Claude] Cancel requested but session not found:', sessionId);
+      return;
+    }
+
+    if (!session.isRunning || !session.claudeProcess) {
+      console.warn('[Claude] Cancel requested but no process running:', sessionId);
+      return;
+    }
+
+    console.log('[Claude] 🛑 Cancelling message for session:', sessionId);
+
+    // Kill the Claude process
+    try {
+      // Try graceful termination first
+      session.claudeProcess.kill('SIGTERM');
+
+      // Force kill after 3 seconds if still running
+      const killTimeout = setTimeout(() => {
+        if (session.claudeProcess && !session.claudeProcess.killed) {
+          console.log('[Claude] Force killing process (SIGKILL)');
+          session.claudeProcess.kill('SIGKILL');
+        }
+      }, 3000);
+
+      // Clear timeout if process exits gracefully
+      session.claudeProcess.once('exit', () => {
+        clearTimeout(killTimeout);
+      });
+
+    } catch (killError) {
+      console.error('[Claude] Error killing process:', killError);
+    }
+
+    // Update session state
+    session.isRunning = false;
+
+    // Notify frontend
+    if (event.sender && !event.sender.isDestroyed()) {
+      event.sender.send('claude:message-cancelled', sessionId);
+    }
+
+  } catch (error) {
+    console.error('[Claude] Cancel message error:', error);
   }
 });
 
@@ -3736,6 +3890,239 @@ ipcMain.handle('workspace:abort-merge', async (event, workspacePath) => {
     return { success: true };
   } catch (error) {
     console.error('[Workspace] Abort merge error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+/**
+ * Terminal: Create session for workspace
+ */
+ipcMain.handle('terminal:create-session', async (event, workspaceId, workspacePath) => {
+  try {
+    console.log('[Terminal] Creating session for workspace:', workspaceId, workspacePath);
+    const manager = await getTerminalManagerInstance();
+    await manager.createSession(workspaceId, workspacePath);
+    return { success: true };
+  } catch (error) {
+    console.error('[Terminal] Failed to create session:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+/**
+ * Terminal: Write data to session
+ */
+ipcMain.handle('terminal:write', async (event, workspaceId, data) => {
+  try {
+    console.log('[Terminal] Write request:', {
+      workspaceId,
+      data: data.replace(/\n/g, '\\n'),
+      dataLength: data.length
+    });
+    const manager = await getTerminalManagerInstance();
+    const hasSession = manager.hasSession(workspaceId);
+    console.log('[Terminal] Session exists:', hasSession);
+
+    if (!hasSession) {
+      console.error('[Terminal] No session found for workspace:', workspaceId);
+      return {
+        success: false,
+        error: `No terminal session found for workspace: ${workspaceId}`
+      };
+    }
+
+    manager.writeData(workspaceId, data);
+    console.log('[Terminal] Data written successfully');
+    return { success: true };
+  } catch (error) {
+    console.error('[Terminal] Failed to write data:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+/**
+ * Terminal: Resize terminal
+ */
+ipcMain.handle('terminal:resize', async (event, workspaceId, cols, rows) => {
+  try {
+    const manager = await getTerminalManagerInstance();
+    manager.resizeTerminal(workspaceId, cols, rows);
+    return { success: true };
+  } catch (error) {
+    console.error('[Terminal] Failed to resize:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+/**
+ * Terminal: Destroy session
+ */
+ipcMain.handle('terminal:destroy-session', async (event, workspaceId) => {
+  try {
+    console.log('[Terminal] Destroying session for workspace:', workspaceId);
+    const manager = await getTerminalManagerInstance();
+    manager.destroySession(workspaceId);
+    return { success: true };
+  } catch (error) {
+    console.error('[Terminal] Failed to destroy session:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+/**
+ * Terminal: Check if session exists
+ */
+ipcMain.handle('terminal:has-session', async (event, workspaceId) => {
+  try {
+    const manager = await getTerminalManagerInstance();
+    const exists = manager.hasSession(workspaceId);
+    return { success: true, exists };
+  } catch (error) {
+    console.error('[Terminal] Failed to check session:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+/**
+ * Terminal: Check shell hooks installation status
+ */
+ipcMain.handle('terminal:check-shell-hooks', async (event) => {
+  try {
+    const { ShellHookManager } = await import('../dist-electron/shellHookManager.js');
+    const manager = new ShellHookManager();
+
+    // Detect shell type
+    const shell = process.env.SHELL || '';
+    let shellType = 'unknown';
+    if (shell.includes('zsh')) {
+      shellType = 'zsh';
+    } else if (shell.includes('bash')) {
+      shellType = 'bash';
+    }
+
+    // Check if hooks are installed
+    let installed = false;
+    if (shellType !== 'unknown') {
+      installed = await manager.areHooksInstalled(shellType);
+    }
+
+    return {
+      installed,
+      shell: shellType
+    };
+  } catch (error) {
+    console.error('[Terminal] Failed to check shell hooks:', error);
+    return {
+      installed: false,
+      shell: 'unknown'
+    };
+  }
+});
+
+/**
+ * Terminal: Install shell hooks
+ */
+ipcMain.handle('terminal:install-shell-hooks', async (event, shellType) => {
+  try {
+    const { ShellHookManager } = await import('../dist-electron/shellHookManager.js');
+    const manager = new ShellHookManager();
+    const result = await manager.injectHooks(shellType);
+    return result;
+  } catch (error) {
+    console.error('[Terminal] Failed to install shell hooks:', error);
+    return {
+      success: false,
+      message: error.message
+    };
+  }
+});
+
+/**
+ * Terminal: Remove shell hooks
+ */
+ipcMain.handle('terminal:remove-shell-hooks', async (event, shellType) => {
+  try {
+    const { ShellHookManager } = await import('../dist-electron/shellHookManager.js');
+    const manager = new ShellHookManager();
+    const result = await manager.removeHooks(shellType);
+    return result;
+  } catch (error) {
+    console.error('[Terminal] Failed to remove shell hooks:', error);
+    return {
+      success: false,
+      message: error.message
+    };
+  }
+});
+
+/**
+ * Slash Commands: List available commands in workspace
+ */
+ipcMain.handle('slash-commands:list', async (event, workspacePath) => {
+  try {
+    const commandsPath = path.join(workspacePath, '.claude', 'commands');
+
+    // Check if directory exists
+    try {
+      await fs.access(commandsPath);
+    } catch {
+      // Directory doesn't exist, return empty list
+      return { success: true, commands: [] };
+    }
+
+    // Read all files in directory
+    const files = await fs.readdir(commandsPath);
+
+    // Filter for .md files and extract command names
+    const commands = files
+      .filter(file => file.endsWith('.md'))
+      .map(file => ({
+        name: file.replace(/\.md$/, ''), // Remove .md extension
+        fileName: file,
+      }));
+
+    return { success: true, commands };
+  } catch (error) {
+    console.error('[Slash Commands] Failed to list commands:', error);
+    return {
+      success: false,
+      error: error.message,
+      commands: []
+    };
+  }
+});
+
+/**
+ * Slash Commands: Get command content
+ */
+ipcMain.handle('slash-commands:get', async (event, workspacePath, commandName) => {
+  try {
+    const commandPath = path.join(workspacePath, '.claude', 'commands', `${commandName}.md`);
+
+    // Read file content
+    const content = await fs.readFile(commandPath, 'utf-8');
+
+    return { success: true, content };
+  } catch (error) {
+    console.error('[Slash Commands] Failed to read command:', error);
     return {
       success: false,
       error: error.message

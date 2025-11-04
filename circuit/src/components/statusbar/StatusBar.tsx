@@ -140,6 +140,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({ selectedWorkspace }) => {
         <CompactIndicator
           workspaceId={selectedWorkspace?.id}
           workspacePath={selectedWorkspace?.path}
+          context={context}
         />
 
         {/* Actions */}

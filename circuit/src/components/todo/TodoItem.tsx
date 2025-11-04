@@ -6,9 +6,10 @@
 
 import React, { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Check, Circle, X, ChevronRight, ChevronDown, Clock, AlertCircle } from 'lucide-react'
+import { Check, Circle, X, ChevronRight, ChevronDown, Clock, AlertCircle, Play, Loader2 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import type { TodoNode, TodoStatus } from '../../types/todo'
+import { useAgent } from '../../contexts/AgentContext'
 
 interface TodoItemProps {
   todo: TodoNode
@@ -17,6 +18,8 @@ interface TodoItemProps {
   onToggleExpand?: (todoId: string) => void
   onStatusChange?: (todoId: string, status: TodoStatus) => void
   onDelete?: (todoId: string) => void
+  workspaceId?: string
+  onRunAgent?: (todoId: string) => void
 }
 
 const STATUS_CONFIG: Record<
@@ -67,8 +70,11 @@ export const TodoItem: React.FC<TodoItemProps> = ({
   onToggleExpand,
   onStatusChange,
   onDelete,
+  workspaceId,
+  onRunAgent,
 }) => {
   const [isLocalExpanded, setIsLocalExpanded] = useState(false)
+  const { getAgentState } = useAgent()
 
   const isExpanded = controlledExpanded !== undefined ? controlledExpanded : isLocalExpanded
   const hasChildren = todo.children && todo.children.length > 0
@@ -83,6 +89,11 @@ export const TodoItem: React.FC<TodoItemProps> = ({
 
   const config = STATUS_CONFIG[todo.status]
   const StatusIcon = config.icon
+
+  // Check agent state
+  const agentState = getAgentState(todo.id)
+  const isAgentRunning = agentState?.state === 'running'
+  const agentFailed = agentState?.state === 'failed'
 
   // Calculate progress
   let effectiveProgress = todo.progress || 0
@@ -223,8 +234,42 @@ export const TodoItem: React.FC<TodoItemProps> = ({
 
         {/* Actions */}
         <div className="flex-shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          {/* Run Agent button - only show for pending todos */}
+          {todo.status === 'pending' && onRunAgent && !isAgentRunning && (
+            <button
+              onClick={() => onRunAgent(todo.id)}
+              className={cn(
+                'p-1 rounded hover:bg-primary/10',
+                'text-muted-foreground hover:text-primary',
+                'transition-colors'
+              )}
+              title="Run with Agent"
+            >
+              <Play className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {/* Agent running indicator - always visible when running */}
+          {isAgentRunning && (
+            <div className="flex items-center gap-1 px-2 py-1 rounded bg-info/10 opacity-100">
+              <Loader2 className="w-3.5 h-3.5 text-info animate-spin" />
+              <span className="text-[10px] text-info font-medium">Agent</span>
+            </div>
+          )}
+
+          {/* Agent failed indicator */}
+          {agentFailed && (
+            <div
+              className="flex items-center gap-1 px-2 py-1 rounded bg-destructive/10 opacity-100"
+              title={agentState?.error || 'Agent failed'}
+            >
+              <AlertCircle className="w-3.5 h-3.5 text-destructive" />
+              <span className="text-[10px] text-destructive font-medium">Failed</span>
+            </div>
+          )}
+
           {/* Status cycle button */}
-          {todo.status !== 'completed' && onStatusChange && (
+          {todo.status !== 'completed' && onStatusChange && !isAgentRunning && (
             <button
               onClick={() => {
                 const nextStatus: Record<TodoStatus, TodoStatus> = {
@@ -248,7 +293,7 @@ export const TodoItem: React.FC<TodoItemProps> = ({
           )}
 
           {/* Delete button */}
-          {onDelete && (
+          {onDelete && !isAgentRunning && (
             <button
               onClick={() => onDelete(todo.id)}
               className={cn(
@@ -281,6 +326,8 @@ export const TodoItem: React.FC<TodoItemProps> = ({
               onToggleExpand={onToggleExpand}
               onStatusChange={onStatusChange}
               onDelete={onDelete}
+              workspaceId={workspaceId}
+              onRunAgent={onRunAgent}
             />
           ))}
         </motion.div>

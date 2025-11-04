@@ -9,23 +9,45 @@ import { motion } from 'framer-motion'
 import { ListTodo, X } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useTodos } from '../../contexts/TodoContext'
+import { useAgent } from '../../contexts/AgentContext'
 import { TodoList } from './TodoList'
 import { TodoStats } from './TodoStats'
+import type { Workspace } from '../../types/workspace'
 
 interface TodoPanelProps {
   conversationId?: string
+  workspace?: Workspace | null
   className?: string
   onClose?: () => void
+  onCommit?: () => void
 }
 
 export const TodoPanel: React.FC<TodoPanelProps> = ({
   conversationId: _conversationId,
+  workspace,
   className,
   onClose,
 }) => {
   const { todos, stats, isLoading, error, getTodoTree, updateTodoStatus, deleteTodo } = useTodos()
+  const { startAgent } = useAgent()
 
   const todoTree = getTodoTree()
+
+  // Handle agent execution
+  const handleRunAgent = async (todoId: string) => {
+    if (!workspace) {
+      console.warn('[TodoPanel] No workspace selected, cannot run agent')
+      return
+    }
+
+    try {
+      console.log('[TodoPanel] Starting agent for todo:', todoId, 'workspace:', workspace.id)
+      await startAgent(todoId, workspace.id)
+    } catch (error) {
+      console.error('[TodoPanel] Failed to start agent:', error)
+      // TODO: Show error toast
+    }
+  }
 
   return (
     <motion.div
@@ -92,6 +114,8 @@ export const TodoPanel: React.FC<TodoPanelProps> = ({
                 todos={todoTree}
                 onStatusChange={updateTodoStatus}
                 onDelete={deleteTodo}
+                workspaceId={workspace?.id}
+                onRunAgent={handleRunAgent}
               />
             </div>
 
@@ -109,20 +133,6 @@ export const TodoPanel: React.FC<TodoPanelProps> = ({
         )}
       </div>
 
-      {/* Footer (optional - for future actions) */}
-      {/* <div className="flex-shrink-0 px-4 py-3 border-t border-border">
-        <button
-          className={cn(
-            'w-full flex items-center justify-center gap-2 px-3 py-2',
-            'rounded-lg border border-border',
-            'hover:bg-muted transition-colors',
-            'text-sm font-medium'
-          )}
-        >
-          <Plus className="w-4 h-4" />
-          Add Task
-        </button>
-      </div> */}
     </motion.div>
   )
 }
