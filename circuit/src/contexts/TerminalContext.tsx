@@ -4,6 +4,8 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
 import FontFaceObserver from 'fontfaceobserver'
+import { useBlock } from './BlockContext'
+import { useSettingsContext } from './SettingsContext'
 
 // @ts-ignore - Electron IPC
 const { ipcRenderer } = window.require('electron')
@@ -108,6 +110,10 @@ export function TerminalProvider({ children }: TerminalProviderProps) {
   // Keep track of sessions we've created
   const createdSessions = useRef<Set<string>>(new Set())
 
+  // Get block context and settings for Modern terminal mode
+  const { processData } = useBlock()
+  const { settings } = useSettingsContext()
+
   // Persist state changes
   useEffect(() => {
     savePersistedState({ isOpen, height })
@@ -119,6 +125,12 @@ export function TerminalProvider({ children }: TerminalProviderProps) {
       const terminalData = terminalsRef.current.get(workspaceId)
       if (terminalData) {
         terminalData.terminal.write(data)
+
+        // If Modern terminal mode with blocks enabled, also process for block system
+        if (settings.terminal.mode === 'modern' && settings.terminal.modernFeatures.enableBlocks) {
+          // TODO: Get actual CWD from workspace - for now use placeholder
+          processData(workspaceId, data, '~')
+        }
       }
     }
 

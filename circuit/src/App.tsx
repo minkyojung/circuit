@@ -28,6 +28,7 @@ import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import { SettingsProvider } from '@/contexts/SettingsContext'
 import { TerminalProvider } from '@/contexts/TerminalContext'
+import { BlockProvider } from '@/contexts/BlockContext'
 import { CompactBanner } from '@/components/CompactBanner'
 import { CompactUrgentModal } from '@/components/CompactUrgentModal'
 import { Toaster } from 'sonner'
@@ -303,8 +304,9 @@ function App() {
 
   return (
     <SettingsProvider>
-      <TerminalProvider>
-        <ProjectPathContext.Provider value={{ projectPath, isLoading: isLoadingPath }}>
+      <BlockProvider>
+        <TerminalProvider>
+          <ProjectPathContext.Provider value={{ projectPath, isLoading: isLoadingPath }}>
           <div
           className="h-screen overflow-hidden backdrop-blur-xl flex"
           style={{
@@ -528,7 +530,8 @@ function App() {
       />
         </div>
         </ProjectPathContext.Provider>
-      </TerminalProvider>
+        </TerminalProvider>
+      </BlockProvider>
     </SettingsProvider>
   )
 }

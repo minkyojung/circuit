@@ -1773,6 +1773,17 @@ The plan is ready. What would you like to do?`,
                 </div>
               </div>
             )}
+            {/* Bottom spacer for better visibility when sending messages */}
+            <div
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                transform: `translateY(${virtualizer.getTotalSize()}px)`,
+                height: '600px',
+              }}
+            />
           </div>
         ) : (
           <ChatEmptyState />

@@ -1,7 +1,8 @@
-import { useState, useMemo } from 'react'
+import { useEffect, useRef } from 'react'
 import type { Workspace } from '@/types/workspace'
-import type { TerminalBlock } from '@/types/terminal'
 import { useSettingsContext } from '@/contexts/SettingsContext'
+import { useBlock } from '@/contexts/BlockContext'
+import { useTerminal } from '@/contexts/TerminalContext'
 import { BlockList } from './BlockList'
 import { Terminal as TerminalIcon, Sparkles, Layers } from 'lucide-react'
 
@@ -11,91 +12,55 @@ interface ModernTerminalProps {
 
 export function ModernTerminal({ workspace }: ModernTerminalProps) {
   const { settings } = useSettingsContext()
+  const { getBlocks } = useBlock()
+  const { getOrCreateTerminal, createPtySession } = useTerminal()
 
-  // Demo mode with dummy blocks for testing
-  const [demoBlocks] = useState<TerminalBlock[]>(() => [
-    {
-      id: '1',
-      workspaceId: workspace.id,
-      command: 'ls -la',
-      output: `total 48
-drwxr-xr-x  12 user  staff   384 Jan  1 12:00 .
-drwxr-xr-x   8 user  staff   256 Jan  1 11:00 ..
--rw-r--r--   1 user  staff  1024 Jan  1 12:00 README.md
-drwxr-xr-x   5 user  staff   160 Jan  1 12:00 src
-drwxr-xr-x   3 user  staff    96 Jan  1 12:00 node_modules
--rw-r--r--   1 user  staff   512 Jan  1 12:00 package.json`,
-      exitCode: 0,
-      startTime: Date.now() - 5000,
-      endTime: Date.now() - 4800,
-      status: 'completed',
-      cwd: '~/',
-    },
-    {
-      id: '2',
-      workspaceId: workspace.id,
-      command: 'npm test',
-      output: `> test
-> jest
+  // Get real blocks from BlockContext
+  const blocks = getBlocks(workspace.id)
 
-PASS  src/components/Terminal.test.tsx
-  ✓ renders terminal (23 ms)
-  ✓ handles resize (12 ms)
+  const blocksEnabled = settings.terminal.modernFeatures.enableBlocks
 
-Test Suites: 1 passed, 1 total
-Tests:       2 passed, 2 total
-Snapshots:   0 total
-Time:        1.234 s`,
-      exitCode: 0,
-      startTime: Date.now() - 3000,
-      endTime: Date.now() - 1800,
-      status: 'completed',
-      cwd: '~/project',
-    },
-    {
-      id: '3',
-      workspaceId: workspace.id,
-      command: 'git status',
-      output: `On branch main
-Your branch is up to date with 'origin/main'.
+  // Initialize PTY session for this workspace
+  useEffect(() => {
+    let isMounted = true
 
-Changes not staged for commit:
-  (use "git add <file>..." to update what will be committed)
-  (use "git restore <file>..." to discard changes in working directory)
-        modified:   src/components/Terminal.tsx
-        modified:   src/types/settings.ts
+    const initPty = async () => {
+      if (!workspace || !blocksEnabled) return
 
-no changes added to commit (use "git add" and/or "git commit -a")`,
-      exitCode: 0,
-      startTime: Date.now() - 1000,
-      endTime: Date.now() - 900,
-      status: 'completed',
-      cwd: '~/project',
-    },
-    {
-      id: '4',
-      workspaceId: workspace.id,
-      command: 'npm run build',
-      output: `> build
-> tsc && vite build
+      console.log('[ModernTerminal] Initializing PTY for workspace:', workspace.id)
 
-Building for production...
-`,
-      exitCode: null,
-      startTime: Date.now(),
-      endTime: null,
-      status: 'running',
-      cwd: '~/project',
-    },
-  ]);
+      // Create terminal data (needed for PTY session)
+      const terminalData = await getOrCreateTerminal(workspace.id, workspace.path)
+      if (!terminalData || !isMounted) {
+        console.error('[ModernTerminal] Failed to get terminal data')
+        return
+      }
 
-  const blocksEnabled = settings.terminal.modernFeatures.enableBlocks;
+      // Create PTY session if not already created
+      if (!terminalData.hasInitialized) {
+        terminalData.hasInitialized = true
+        const success = await createPtySession(workspace.id, workspace.path)
+        if (!success) {
+          console.error('[ModernTerminal] Failed to create PTY session')
+        } else {
+          console.log('[ModernTerminal] PTY session created successfully')
+        }
+      }
+    }
+
+    initPty()
+
+    return () => {
+      isMounted = false
+    }
+  }, [workspace.id, workspace.path, blocksEnabled, getOrCreateTerminal, createPtySession])
 
   // Debug logging
   console.log('[ModernTerminal] Settings check:', {
     blocksEnabled,
+    blocksCount: blocks.length,
     fullSettings: settings.terminal.modernFeatures,
-  });
+  })
 
   if (!blocksEnabled) {
     // Show onboarding UI when blocks are disabled
@@ -133,7 +98,7 @@ Building for production...
     );
   }
 
-  // Show block list (using demo data for now)
+  // Show block list (using real data from BlockContext)
   return (
     <div className="w-full h-full flex flex-col bg-background">
       {/* Header */}
@@ -144,30 +109,43 @@ Building for production...
             {workspace.name}
           </span>
           <span className="text-xs text-muted-foreground">
-            • {demoBlocks.length} blocks
+            • {blocks.length} blocks
           </span>
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-blue-500/10 border border-blue-500/20">
-            <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-            <span className="text-xs font-medium text-blue-700 dark:text-blue-400">
-              Demo Mode
-            </span>
-          </div>
+          {blocks.length === 0 && (
+            <div className="text-xs text-muted-foreground">
+              Run commands to create blocks
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Block List */}
+      {/* Block List or Empty State */}
       <div className="flex-1 overflow-hidden">
-        <BlockList
-          blocks={demoBlocks}
-          workspaceId={workspace.id}
-          showTimestamps={settings.terminal.modernFeatures.showTimestamps}
-          highlightFailed={settings.terminal.modernFeatures.highlightFailedCommands}
-          autoScroll={true}
-        />
+        {blocks.length === 0 ? (
+          <div className="w-full h-full flex items-center justify-center">
+            <div className="text-center space-y-3 max-w-md px-8">
+              <div className="text-muted-foreground">
+                <TerminalIcon className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">No commands yet</p>
+                <p className="text-xs mt-1">
+                  Commands you run will appear as blocks here
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <BlockList
+            blocks={blocks}
+            workspaceId={workspace.id}
+            showTimestamps={settings.terminal.modernFeatures.showTimestamps}
+            highlightFailed={settings.terminal.modernFeatures.highlightFailedCommands}
+            autoScroll={true}
+          />
+        )}
       </div>
     </div>
-  );
+  )
 }

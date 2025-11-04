@@ -3979,6 +3979,78 @@ ipcMain.handle('terminal:has-session', async (event, workspaceId) => {
 });
 
 /**
+ * Terminal: Check shell hooks installation status
+ */
+ipcMain.handle('terminal:check-shell-hooks', async (event) => {
+  try {
+    const { ShellHookManager } = await import('../dist-electron/shellHookManager.js');
+    const manager = new ShellHookManager();
+
+    // Detect shell type
+    const shell = process.env.SHELL || '';
+    let shellType = 'unknown';
+    if (shell.includes('zsh')) {
+      shellType = 'zsh';
+    } else if (shell.includes('bash')) {
+      shellType = 'bash';
+    }
+
+    // Check if hooks are installed
+    let installed = false;
+    if (shellType !== 'unknown') {
+      installed = await manager.areHooksInstalled(shellType);
+    }
+
+    return {
+      installed,
+      shell: shellType
+    };
+  } catch (error) {
+    console.error('[Terminal] Failed to check shell hooks:', error);
+    return {
+      installed: false,
+      shell: 'unknown'
+    };
+  }
+});
+
+/**
+ * Terminal: Install shell hooks
+ */
+ipcMain.handle('terminal:install-shell-hooks', async (event, shellType) => {
+  try {
+    const { ShellHookManager } = await import('../dist-electron/shellHookManager.js');
+    const manager = new ShellHookManager();
+    const result = await manager.injectHooks(shellType);
+    return result;
+  } catch (error) {
+    console.error('[Terminal] Failed to install shell hooks:', error);
+    return {
+      success: false,
+      message: error.message
+    };
+  }
+});
+
+/**
+ * Terminal: Remove shell hooks
+ */
+ipcMain.handle('terminal:remove-shell-hooks', async (event, shellType) => {
+  try {
+    const { ShellHookManager } = await import('../dist-electron/shellHookManager.js');
+    const manager = new ShellHookManager();
+    const result = await manager.removeHooks(shellType);
+    return result;
+  } catch (error) {
+    console.error('[Terminal] Failed to remove shell hooks:', error);
+    return {
+      success: false,
+      message: error.message
+    };
+  }
+});
+
+/**
  * Slash Commands: List available commands in workspace
  */
 ipcMain.handle('slash-commands:list', async (event, workspacePath) => {
