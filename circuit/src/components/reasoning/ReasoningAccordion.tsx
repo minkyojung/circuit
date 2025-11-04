@@ -12,6 +12,8 @@ import { cn } from '@/lib/utils';
 interface ReasoningAccordionProps {
   steps: ThinkingStep[];
   className?: string;
+  isLive?: boolean;  // Whether thinking is currently in progress
+  duration?: number;  // Duration in seconds
 }
 
 // Get icon for individual step
@@ -121,11 +123,20 @@ function renderStepDetail(step: ThinkingStep) {
 export const ReasoningAccordion: React.FC<ReasoningAccordionProps> = ({
   steps,
   className,
+  isLive = false,
+  duration = 0,
 }) => {
   if (steps.length === 0) {
     return (
       <div className="text-sm py-2 font-light opacity-50 dark:opacity-35">
-        No reasoning steps recorded.
+        {isLive ? (
+          <div className="flex items-center gap-2">
+            <Brain className="w-3 h-3 animate-pulse" />
+            <span>Thinking{duration > 0 ? ` (${duration}s)` : '...'}</span>
+          </div>
+        ) : (
+          'No reasoning steps recorded.'
+        )}
       </div>
     );
   }

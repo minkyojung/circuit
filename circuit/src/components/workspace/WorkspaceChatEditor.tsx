@@ -575,6 +575,15 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
         // Auto-open reasoning dropdown for real-time visibility
         setOpenReasoningId(assistantMessageId);
 
+        // Initialize messageThinkingSteps for this message so accordion displays immediately
+        setMessageThinkingSteps((prevSteps) => ({
+          ...prevSteps,
+          [assistantMessageId]: {
+            steps: [],
+            duration: 0
+          }
+        }));
+
         console.log('[WorkspaceChat] ✅ Empty assistant message created:', assistantMessageId);
       }
 

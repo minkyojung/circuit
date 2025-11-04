@@ -109,9 +109,10 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
 
         {/* Reasoning content (collapsible) - Above message content */}
         {(() => {
+          // Show reasoning if accordion is open AND messageThinkingSteps exists (even if steps is empty initially)
           const shouldShowReasoning = msg.role === 'assistant' &&
             openReasoningId === msg.id &&
-            (messageThinkingSteps[msg.id]?.steps?.length ?? 0) > 0;
+            messageThinkingSteps[msg.id] !== undefined;
 
           if (!shouldShowReasoning) return null;
 
@@ -127,6 +128,8 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
                 <div className="mb-3 pl-1">
                   <ReasoningAccordion
                     steps={messageThinkingSteps[msg.id].steps}
+                    isLive={isSending && msg.id === pendingAssistantMessageId}
+                    duration={isSending && msg.id === pendingAssistantMessageId ? currentDuration : messageThinkingSteps[msg.id].duration}
                   />
                 </div>
               </motion.div>
