@@ -1,0 +1,385 @@
+CIRCUIT MAC APP CODEBASE ANALYSIS - DISTRIBUTION PLANNING SUMMARY
+===================================================================
+
+ANALYSIS COMPLETED: November 4, 2025
+Location: /Users/williamjung/conductor/circuit-1/.conductor/victoria/circuit/
+
+================================================================================
+1. PROJECT TYPE & STRUCTURE
+================================================================================
+
+PROJECT TYPE: Electron Desktop Application (macOS-first)
+- Framework: Electron 38.3.0
+- Frontend: React 19 + TypeScript + Vite 7
+- Architecture: Hybrid CommonJS/ESM
+- Target OS: macOS 12+
+- Primary Use: AI-powered test-fix loop with MCP integration
+
+KEY TECHNOLOGY STACK:
+- Bundler: Vite 7.1.7
+- UI Framework: React 19.1.1
+- Styling: Tailwind CSS
+- Terminal: xterm.js + node-pty
+- Database: better-sqlite3
+- Editor: Monaco Editor
+- Type Safety: TypeScript 5.9.3
+
+================================================================================
+2. BUILD CONFIGURATION SUMMARY
+================================================================================
+
+CURRENT BUILD SCRIPTS (package.json):
+1. npm run dev          - Development with hot reload
+2. npm run build        - Full production build (TS + Vite + Electron)
+3. npm run package      - Create .app bundle (electron-builder)
+4. npm run build:electron - Compile main process only
+
+BUILD PROCESS:
+Step 1: TypeScript Compilation
+  - tsc -b compiles all TypeScript projects
+  - tsc -p tsconfig.electron.json for main process
+  - Output: dist-electron/ (CommonJS, ES2022)
+
+Step 2: React Build
+  - vite build bundles React app
+  - Output: dist/ with optimized Monaco Editor
+
+Step 3: Packaging
+  - electron-builder creates .app
+  - Uses defaults (NO CONFIGURATION FILE)
+
+CONFIGURATION FILES:
+- vite.config.ts - Frontend bundling
+- tsconfig.electron.json - Main process compilation
+- tsconfig.app.json - React app compilation
+- tsconfig.json - Root references
+- MISSING: electron-builder.yml (CRITICAL)
+
+================================================================================
+3. DEPLOYMENT/DISTRIBUTION SETUP
+================================================================================
+
+CURRENT STATUS: MINIMAL/INCOMPLETE
+
+electron-builder Status:
+- INSTALLED: v26.0.12
+- CONFIGURED: NO (uses hardcoded defaults)
+- Configuration File: NONE
+- Build Command: npm run package
+
+What electron-builder Will Do (By Default):
+- Creates macOS .app bundle
+- Default location: ./dist/
+- Default naming: 'Circuit.app'
+- NO code signing
+- NO notarization
+- NO DMG creation
+- NO entitlements
+
+MISSING FOR DISTRIBUTION:
+- electron-builder.yml configuration file
+- Code signing certificate configuration
+- Notarization setup
+- App entitlements file
+- App icon (.icns format)
+- DMG/installer configuration
+- Version management
+- Secure IPC configuration
+
+================================================================================
+4. CODE SIGNING & NOTARIZATION
+================================================================================
+
+CURRENT STATUS: NOT CONFIGURED
+
+Code Signing:
+- Certificate: NOT OBTAINED
+- Signing Identity: NOT SET
+- Environment: contextIsolation: false, nodeIntegration: true
+- Result: App will be blocked by Gatekeeper on other Macs
+
+Notarization:
+- Apple ID: NOT SET UP
+- App-specific Password: NOT CREATED
+- Process: NOT CONFIGURED
+- Result: App won't run on macOS 10.15+
+
+Security Issues:
+1. nodeIntegration: true (insecure - should be false)
+2. contextIsolation: false (insecure - should be true)
+3. No preload script for secure IPC
+4. Sandbox disabled
+
+WHAT YOU NEED:
+1. Apple Developer ID Application certificate ($99/year Apple Developer)
+2. Apple ID for notarization
+3. Entitlements file defining app capabilities
+4. electron-builder.yml with signing configuration
+
+================================================================================
+5. KEY DEPENDENCIES (BUILD & DISTRIBUTION)
+================================================================================
+
+CORE BUILD DEPENDENCIES:
+- electron: 38.3.0 - Desktop framework
+- electron-builder: 26.0.12 - Packaging tool (UNCONFIGURED)
+- electron-rebuild: 3.2.9 - Rebuilds native modules
+- typescript: 5.9.3 - Type checking
+- vite: 7.1.7 - Frontend bundler
+- @vitejs/plugin-react: 5.0.4 - React support
+
+NATIVE MODULES (REQUIRE REBUILDING):
+- better-sqlite3: 12.4.1 - Database
+- node-pty: 1.0.0 - Terminal emulation
+- Auto-rebuilt via: npm postinstall hook
+
+OTHER RELEVANT:
+- concurrently: 9.2.1 - Run dev + Electron together
+- wait-on: 9.0.1 - Wait for Vite dev server
+- cross-env: 10.1.0 - Cross-platform env vars
+- tailwindcss: 3.4.18 - CSS framework
+- postcss: 8.5.6 - CSS processing
+
+================================================================================
+6. MAIN ENTRY POINTS
+================================================================================
+
+ELECTRON ENTRY:
+File: electron/main.cjs (~900 lines)
+Role: Main process, window management, IPC handlers
+Key Features:
+  - Creates BrowserWindow with macOS native styling
+  - Manages IPC for React ↔ Electron communication
+  - Runs MCP (Model Context Protocol) servers
+  - Handles terminal, conversations, memory, git
+  - Processes Vercel/GitHub webhooks
+  - Routes between Vite dev server (dev) or dist/ (prod)
+
+REACT ENTRY:
+File: src/main.tsx
+Role: React app entry point
+Loads: src/App.tsx (root component)
+
+HTML ENTRY:
+File: index.html
+Role: DOM entry, loads React script
+Connects to: /src/main.tsx
+
+PRODUCTION ENTRY:
+Main Process: dist-electron/main.js (compiled from main.cjs)
+Renderer: dist/index.html (bundled React app)
+
+================================================================================
+7. ENVIRONMENT & CONFIGURATION
+================================================================================
+
+ENVIRONMENT FILES:
+- .env.example - Template
+- .env.development - Dev settings
+- .env.production - Prod settings
+
+ENVIRONMENT VARIABLES:
+VITE_FEATURE_PLAN_MODE=false         # AI task planning toggle
+VITE_FEATURE_GIT_GRAPH=false         # Git graph vs MCP timeline
+VERCEL_TOKEN=                        # Optional: Vercel integration
+VERCEL_TEAM_ID=                      # Optional: Vercel team
+
+NPM CONFIGURATION:
+- .npmrc: Minimal, for electron native module handling
+- No special build variables configured
+
+VERSION:
+- Currently: 0.0.0 (needs updating)
+- Recommendation: Semantic versioning (e.g., 0.1.0)
+
+================================================================================
+8. BUNDLER & BUILD TOOLS ANALYSIS
+================================================================================
+
+VITE (Frontend):
+- Modern bundler for React
+- Optimizations: Code splitting, Monaco Editor pre-bundle
+- Output: Single-page app in dist/
+- Features: SVG import, JSX, fast HMR in dev
+
+TYPESCRIPT:
+- Compiler: TypeScript 5.9.3
+- Main Process Target: CommonJS, ES2022
+- React Target: ESNext with bundler resolution
+- Type Safety: Strict mode for app code
+
+electron-builder:
+- Packaging Tool: v26.0.12
+- Current Config: NONE (defaults only)
+- Missing: All distribution configuration
+- Needs: electron-builder.yml file
+
+================================================================================
+9. SECURITY CONSIDERATIONS
+================================================================================
+
+CURRENT SECURITY ISSUES:
+
+1. contextIsolation: false
+   Issue: Direct Node.js access from renderer
+   Fix: Set to true + add preload script
+   
+2. nodeIntegration: true
+   Issue: Electron APIs exposed to web content
+   Fix: Set to false + use IPC with preload
+   
+3. No Code Signing
+   Issue: macOS will block app
+   Fix: Obtain Developer ID certificate
+   
+4. No Notarization
+   Issue: Won't run on modern macOS
+   Fix: Setup Apple ID + notarization in electron-builder
+   
+5. No Entitlements
+   Issue: App can't access needed resources
+   Fix: Create entitlements.mac.plist
+
+RECOMMENDED PRODUCTION CONFIG:
+webPreferences: {
+  nodeIntegration: false,
+  contextIsolation: true,
+  enableRemoteModule: false,
+  preload: path.join(__dirname, 'preload.js'),
+  sandbox: true,
+}
+
+================================================================================
+10. COMPREHENSIVE SUMMARY TABLE
+================================================================================
+
+ASPECT                  | CURRENT STATUS      | NEEDED FOR DISTRIBUTION
+========================================================================
+electron-builder config| NOT CONFIGURED      | electron-builder.yml
+App ID                 | Not set             | com.circuitdev.circuit
+Code Signing           | NO                  | Developer ID cert + config
+Notarization           | NO                  | Apple ID + setup
+Entitlements           | NO                  | entitlements.mac.plist
+App Icon               | Missing             | .icns file (1024x1024)
+DMG Creation           | NO                  | Configuration
+Security Settings      | Insecure (dev-mode) | contextIsolation: true
+Preload Script         | MISSING             | electron/preload.js
+Version Number         | 0.0.0 (invalid)     | Semantic versioning
+Build Process          | Manual              | GitHub Actions
+Release Distribution   | NONE                | GitHub releases/DMG
+
+================================================================================
+DOCUMENTATION CREATED
+================================================================================
+
+Three comprehensive documents have been created in the project directory:
+
+1. MAC_DISTRIBUTION_ANALYSIS.md (407 lines)
+   - Complete technical analysis
+   - Detailed breakdown of all components
+   - Security considerations
+   - Next steps for distribution
+
+2. BUILD_DISTRIBUTION_QUICK_REFERENCE.md
+   - Quick lookup guide
+   - Command reference
+   - Checklist format
+   - File locations
+   - Common issues
+
+3. DISTRIBUTION_CONFIG_TEMPLATES.md
+   - Ready-to-use configuration templates
+   - electron-builder.yml
+   - entitlements.mac.plist
+   - preload.js
+   - GitHub Actions workflow
+   - Step-by-step setup instructions
+
+All files located at:
+/Users/williamjung/conductor/circuit-1/.conductor/victoria/circuit/
+
+================================================================================
+RECOMMENDED IMMEDIATE NEXT STEPS (Priority Order)
+================================================================================
+
+PHASE 1: BASIC PACKAGING (1-2 hours)
+[ ] Create electron-builder.yml in project root
+[ ] Set appId: com.circuitdev.circuit
+[ ] Configure output formats (DMG, ZIP)
+[ ] Generate .icns icon from PNG
+[ ] Test locally: npm run build && npm run package
+
+PHASE 2: CODE SIGNING (1-2 hours, requires Apple Developer account)
+[ ] Get Apple Developer ID Application certificate
+[ ] Export certificate as .p12
+[ ] Add signing config to electron-builder.yml
+[ ] Update CSC_LINK environment variable
+[ ] Build and test signed app
+
+PHASE 3: NOTARIZATION (1-2 hours)
+[ ] Create Apple ID for notarization
+[ ] Generate app-specific password
+[ ] Configure notarization in electron-builder.yml
+[ ] Add APPLEID/APPLEIDPASS env vars
+[ ] Submit for notarization
+
+PHASE 4: SECURITY HARDENING (2-3 hours)
+[ ] Create electron/preload.js
+[ ] Update main.cjs webPreferences (contextIsolation: true)
+[ ] Implement secure IPC bridge
+[ ] Create entitlements.mac.plist
+[ ] Test security settings
+
+PHASE 5: DEPLOYMENT (1 hour)
+[ ] Setup GitHub Actions workflow
+[ ] Create release process
+[ ] Generate signed/notarized DMG
+[ ] Publish to releases
+[ ] Document installation
+
+================================================================================
+FILE LOCATIONS
+================================================================================
+
+PROJECT ROOT:
+/Users/williamjung/conductor/circuit-1/.conductor/victoria/circuit/
+
+KEY FILES:
+- Main process: electron/main.cjs
+- React app: src/App.tsx
+- React entry: src/main.tsx
+- HTML template: index.html
+- Package config: package.json
+- Vite config: vite.config.ts
+- Electron build config: tsconfig.electron.json
+
+TO CREATE:
+- electron-builder.yml (project root)
+- build/entitlements.mac.plist
+- electron/preload.js
+
+TO MODIFY:
+- electron/main.cjs (update webPreferences)
+- package.json (update version, add build config)
+
+================================================================================
+CONCLUSION
+================================================================================
+
+CURRENT STATE: Development-ready, distribution NOT ready
+MAIN BLOCKER: No electron-builder configuration
+ESTIMATED TIME TO DISTRIBUTION: 6-8 hours with Apple Developer account
+
+The project is well-structured for Electron development but lacks the
+distribution configuration needed for macOS deployment. The main work
+involves:
+
+1. Creating electron-builder.yml (straightforward)
+2. Obtaining code signing certificate (requires paid Apple Developer)
+3. Setting up notarization (requires Apple ID)
+4. Security hardening (essential before distribution)
+
+All configuration templates and detailed instructions are provided in
+the documentation files created above.
+
+================================================================================

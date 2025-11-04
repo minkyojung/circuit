@@ -4,8 +4,6 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
 import FontFaceObserver from 'fontfaceobserver'
-import { useBlocks } from './BlockContext'
-import { useSettingsContext } from './SettingsContext'
 
 // @ts-ignore - Electron IPC
 const { ipcRenderer } = window.require('electron')
@@ -113,26 +111,12 @@ export function TerminalProvider({ children }: TerminalProviderProps) {
   // Keep track of sessions we've created
   const createdSessions = useRef<Set<string>>(new Set())
 
-  // Get block context and settings for Modern terminal mode
-  const { processData } = useBlocks()
-  const { settings } = useSettingsContext()
-
   // Persist state changes
   useEffect(() => {
     savePersistedState({ isOpen, height })
   }, [isOpen, height])
 
-  // Keep latest refs to avoid stale closures
-  const settingsRef = useRef(settings)
-  const processDataRef = useRef(processData)
-
-  useEffect(() => {
-    settingsRef.current = settings
-    processDataRef.current = processData
-  }, [settings, processData])
-
   // Set up IPC listeners for terminal data and exit events
-  // IMPORTANT: Don't add settings/processData to deps - use refs to avoid re-registering listeners
   useEffect(() => {
     console.log('[TerminalContext] Registering IPC listeners for terminal data')
 
@@ -140,14 +124,6 @@ export function TerminalProvider({ children }: TerminalProviderProps) {
       const terminalData = terminalsRef.current.get(workspaceId)
       if (terminalData) {
         terminalData.terminal.write(data)
-
-        // If Modern terminal mode with blocks enabled, also process for block system
-        // Use ref to get latest settings without re-registering listener
-        if (settingsRef.current.terminal.mode === 'modern' && settingsRef.current.terminal.modernFeatures.enableBlocks) {
-          console.log('[TerminalContext] Processing data for blocks:', { workspaceId, dataLength: data.length })
-          // TODO: Get actual CWD from workspace - for now use placeholder
-          processDataRef.current(workspaceId, data, '~')
-        }
       }
     }
 
