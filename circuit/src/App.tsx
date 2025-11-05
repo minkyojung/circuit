@@ -603,6 +603,71 @@ function App() {
     closeTab(tabId, groupId)
   }
 
+  // Handle closing the currently active tab (triggered by Cmd+W)
+  const handleCloseActiveTab = async () => {
+    const focusedGroupId = focusedGroupIdRef.current
+    const group = editorGroups.find((g) => g.id === focusedGroupId)
+    const activeTab = group?.tabs.find((t) => t.id === group.activeTabId)
+
+    if (!activeTab) {
+      console.log('[App] No active tab to close')
+      return
+    }
+
+    console.log('[App] Closing active tab:', activeTab.id, 'type:', activeTab.type)
+
+    // Handle file tabs
+    if (activeTab.type === 'file') {
+      // Check for unsaved changes
+      if (activeTab.data.unsavedChanges) {
+        const fileName = getFileName(activeTab.data.filePath)
+        const confirmed = window.confirm(
+          `'${fileName}'에 저장하지 않은 변경사항이 있습니다. 닫으시겠습니까?`
+        )
+        if (!confirmed) {
+          console.log('[App] User cancelled closing file with unsaved changes')
+          return
+        }
+      }
+
+      // Close the file tab
+      closeTab(activeTab.id, focusedGroupId)
+      return
+    }
+
+    // Handle conversation tabs
+    if (activeTab.type === 'conversation') {
+      // Check if this is the last conversation tab
+      const allConversationTabs = editorGroups.flatMap((g) =>
+        g.tabs.filter((t) => t.type === 'conversation')
+      )
+
+      if (allConversationTabs.length <= 1) {
+        console.log('[App] Cannot close last conversation tab')
+        alert('마지막 conversation은 닫을 수 없습니다.')
+        return
+      }
+
+      // Delete the conversation via IPC
+      try {
+        const conversationId = activeTab.data.conversationId
+        const result = await ipcRenderer.invoke('conversation:delete', conversationId)
+
+        if (result.success) {
+          // Close the tab
+          closeTab(activeTab.id, focusedGroupId)
+          console.log('[App] Conversation deleted and tab closed:', conversationId)
+        } else {
+          console.error('[App] Failed to delete conversation:', result.error)
+          alert(`Failed to delete conversation: ${result.error || 'Unknown error'}`)
+        }
+      } catch (error) {
+        console.error('[App] Error deleting conversation:', error)
+        alert(`Error deleting conversation: ${error}`)
+      }
+    }
+  }
+
   // Handle unsaved changes notification from editor
   const handleUnsavedChange = (filePath: string, hasChanges: boolean) => {
     // Find the file tab
@@ -732,8 +797,15 @@ function App() {
       description: 'New workspace',
     },
 
-    // Close current workspace (Cmd+W)
+    // Close active tab (Cmd+W)
     'cmd+w': {
+      handler: handleCloseActiveTab,
+      description: 'Close active tab',
+      enabled: !!selectedWorkspace,
+    },
+
+    // Close current workspace (Cmd+Shift+W)
+    'cmd+shift+w': {
       handler: () => handleWorkspaceSelect(null),
       description: 'Close workspace',
       enabled: !!selectedWorkspace,

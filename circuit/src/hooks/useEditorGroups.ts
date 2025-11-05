@@ -62,6 +62,7 @@ export function useEditorGroups(initialGroups?: EditorGroup[]) {
 
   /**
    * Close a tab in the specified group
+   * With type-priority: prefers to focus next tab of the same type
    */
   const closeTab = useCallback((tabId: string, groupId: string) => {
     setEditorGroups((prev) => {
@@ -91,9 +92,37 @@ export function useEditorGroups(initialGroups?: EditorGroup[]) {
         if (group.activeTabId === tabId) {
           const closedTabIndex = group.tabs.findIndex((t) => t.id === tabId)
           if (newTabs.length > 0) {
-            // Activate the tab to the right, or the one to the left if at the end
-            const nextIndex = Math.min(closedTabIndex, newTabs.length - 1)
-            newActiveTabId = newTabs[nextIndex]?.id || null
+            // Type-priority logic: prefer tabs of the same type
+            const closedTabType = tabToClose?.type
+
+            if (closedTabType) {
+              // Get tabs of the same type
+              const sameTypeTabs = newTabs.filter((t) => t.type === closedTabType)
+
+              if (sameTypeTabs.length > 0) {
+                // Find same-type tabs that come after the closed tab
+                const sameTypeTabsAfter = sameTypeTabs.filter((t) => {
+                  const tIndex = newTabs.indexOf(t)
+                  return tIndex >= closedTabIndex
+                })
+
+                if (sameTypeTabsAfter.length > 0) {
+                  // Focus the next same-type tab (to the right)
+                  newActiveTabId = sameTypeTabsAfter[0].id
+                } else {
+                  // No same-type tabs after, focus the previous same-type tab
+                  newActiveTabId = sameTypeTabs[sameTypeTabs.length - 1].id
+                }
+              } else {
+                // No same-type tabs remain, use physical order (original behavior)
+                const nextIndex = Math.min(closedTabIndex, newTabs.length - 1)
+                newActiveTabId = newTabs[nextIndex]?.id || null
+              }
+            } else {
+              // Fallback to physical order if type unknown
+              const nextIndex = Math.min(closedTabIndex, newTabs.length - 1)
+              newActiveTabId = newTabs[nextIndex]?.id || null
+            }
           } else {
             newActiveTabId = null
           }
