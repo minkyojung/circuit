@@ -451,16 +451,14 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
           style={{ WebkitAppRegion: 'drag' } as any}
         />
 
-        {/* Repository Switcher - Add left padding to avoid traffic lights */}
-        <div className="pl-[72px] pr-2">
-          <RepositorySwitcher
-            currentRepository={repository}
-            repositories={repositories.length > 0 ? repositories : [repository]}
-            onSelectRepository={switchRepository}
-            onCreateRepository={createRepository}
-            onCloneRepository={openCloneDialog}
-          />
-        </div>
+        {/* Repository Switcher */}
+        <RepositorySwitcher
+          currentRepository={repository}
+          repositories={repositories.length > 0 ? repositories : [repository]}
+          onSelectRepository={switchRepository}
+          onCreateRepository={createRepository}
+          onCloneRepository={openCloneDialog}
+        />
       </SidebarHeader>
 
       <SidebarContent>

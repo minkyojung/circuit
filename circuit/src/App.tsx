@@ -15,6 +15,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
 import { Separator } from "@/components/ui/separator"
+import { Button } from "@/components/ui/button"
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -27,7 +28,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import type { Workspace } from "@/types/workspace"
-import { PanelLeft, PanelRight, FolderGit2, Columns2 } from 'lucide-react'
+import { PanelLeft, PanelRight, FolderGit2, Columns2, GitBranch } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
@@ -85,41 +86,32 @@ function MainHeader({
   return (
     <header
       className={cn(
-        "flex h-[36px] shrink-0 items-center gap-2 border-b border-border pr-3",
+        "flex h-[36px] shrink-0 items-center gap-2 border-b border-border pr-3 relative",
         sidebarState === 'collapsed' ? 'pl-[72px]' : 'pl-3'
       )}
       style={{ WebkitAppRegion: 'drag' } as any}
     >
-      {/* Left side - Sidebar toggle + Workspace/Repository name */}
+      {/* Left side - Sidebar toggle */}
       <div
-        className="flex items-center gap-2 flex-1"
+        className="flex items-center gap-2"
         style={{ WebkitAppRegion: 'no-drag' } as any}
       >
         <SidebarTrigger />
-        <Separator orientation="vertical" className="h-4" />
-
-        {selectedWorkspace ? (
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbPage className="font-medium">
-                  {selectedWorkspace.name}
-                </BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-        ) : (
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbPage className="font-medium text-muted-foreground">
-                  {repositoryName}
-                </BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-        )}
       </div>
+
+      {/* Center - Branch name */}
+      {selectedWorkspace && (
+        <div
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-2 text-muted-foreground text-sm font-normal"
+          style={{ WebkitAppRegion: 'no-drag' } as any}
+        >
+          <GitBranch size={14} strokeWidth={1.5} />
+          <span>{selectedWorkspace.branch}</span>
+        </div>
+      )}
+
+      {/* Spacer */}
+      <div className="flex-1" />
 
       {/* Right side - Controls */}
       {selectedWorkspace && (
@@ -130,35 +122,39 @@ function MainHeader({
           {/* Split View Toggle */}
           {allTabs.length > 0 && (
             <>
-              <button
+              <Button
                 onClick={() => setViewMode(viewMode === 'split' ? 'chat' : 'split')}
+                variant="ghost"
+                size="icon"
                 className={cn(
-                  "flex h-7 w-7 items-center justify-center rounded-md transition-colors",
+                  "h-7 w-7",
                   viewMode === 'split'
                     ? 'bg-secondary text-secondary-foreground'
-                    : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
+                    : 'text-muted-foreground'
                 )}
                 title={viewMode === 'split' ? 'Single View' : 'Split View'}
               >
                 <Columns2 size={16} />
-              </button>
+              </Button>
               <Separator orientation="vertical" className="h-4" />
             </>
           )}
 
           {/* Toggle Right Panel */}
-          <button
+          <Button
             onClick={toggleRightSidebar}
+            variant="ghost"
+            size="icon"
             className={cn(
-              "flex h-7 w-7 items-center justify-center rounded-md transition-colors",
+              "h-7 w-7",
               isRightSidebarOpen
-                ? 'text-foreground hover:bg-sidebar-hover'
-                : 'text-muted-foreground hover:bg-sidebar-hover hover:text-foreground'
+                ? 'text-foreground'
+                : 'text-muted-foreground'
             )}
             title="Toggle right panel"
           >
             <PanelRight size={16} />
-          </button>
+          </Button>
         </div>
       )}
     </header>
@@ -305,11 +301,22 @@ function App() {
         prefillMessage={chatPrefillMessage}
         externalConversationId={conversationId}
         onPrefillCleared={() => setChatPrefillMessage(null)}
-        onConversationChange={(convId) => {
+        onConversationChange={async (convId) => {
           // Update the conversation tab when conversation changes
           if (convId && convId !== conversationId) {
-            const newTab = createConversationTab(convId, workspaceId, undefined, selectedWorkspace?.name)
-            openTab(newTab)
+            try {
+              // Fetch conversation to get title
+              const result = await ipcRenderer.invoke('conversation:get', convId)
+              const conversationTitle = result?.conversation?.title || 'Chat'
+
+              const newTab = createConversationTab(convId, workspaceId, conversationTitle, selectedWorkspace?.name)
+              openTab(newTab)
+            } catch (error) {
+              console.error('[App] Error fetching conversation title:', error)
+              // Fallback to workspace name
+              const newTab = createConversationTab(convId, workspaceId, undefined, selectedWorkspace?.name)
+              openTab(newTab)
+            }
           }
         }}
         onFileReferenceClick={handleFileSelect}
@@ -481,6 +488,84 @@ function App() {
     }
   }
 
+  // Handle tab click with workspace synchronization
+  const handleTabClick = (tabId: string, groupId: string) => {
+    setFocusedGroupId(groupId)
+    activateTab(tabId, groupId)
+
+    // Sync workspace: find the tab and update selectedWorkspace
+    const tab = getAllTabs().find(t => t.id === tabId)
+    if (tab && tab.type === 'conversation') {
+      const tabWorkspaceId = tab.data.workspaceId
+      const currentWorkspaceId = selectedWorkspace?.id
+
+      // Only update if workspace changed
+      if (tabWorkspaceId !== currentWorkspaceId) {
+        const workspace = workspacesRef.current.find(w => w.id === tabWorkspaceId)
+        if (workspace) {
+          setSelectedWorkspace(workspace)
+        }
+      }
+    }
+  }
+
+  // Handle workspace selection with tab synchronization
+  const handleWorkspaceSelect = async (workspace: Workspace | null) => {
+    if (!workspace) {
+      setSelectedWorkspace(null)
+      return
+    }
+
+    // Update workspace state
+    setSelectedWorkspace(workspace)
+
+    // Find existing conversation tab for this workspace
+    const allTabs = getAllTabs()
+    const workspaceTab = allTabs.find(tab =>
+      tab.type === 'conversation' && tab.data.workspaceId === workspace.id
+    )
+
+    if (workspaceTab) {
+      // Activate existing tab
+      const tabLocation = findTab(workspaceTab.id)
+      if (tabLocation) {
+        activateTab(workspaceTab.id, tabLocation.groupId)
+      }
+    } else {
+      // No tab exists - load or create conversation
+      try {
+        // Try to get active conversation for this workspace
+        const activeResult = await ipcRenderer.invoke('conversation:get-active', workspace.id)
+
+        if (activeResult.success && activeResult.conversation) {
+          // Create tab with conversation title
+          const tab = createConversationTab(
+            activeResult.conversation.id,
+            workspace.id,
+            activeResult.conversation.title,
+            workspace.name
+          )
+          openTab(tab, DEFAULT_GROUP_ID)
+        } else {
+          // No active conversation - create new one
+          const createResult = await ipcRenderer.invoke('conversation:create', workspace.id)
+
+          if (createResult.success && createResult.conversation) {
+            const tab = createConversationTab(
+              createResult.conversation.id,
+              workspace.id,
+              createResult.conversation.title,
+              workspace.name
+            )
+            openTab(tab, DEFAULT_GROUP_ID)
+          }
+        }
+      } catch (error) {
+        console.error('[App] Error loading conversation for workspace:', error)
+      }
+    }
+  }
+
   // Handle conversation selection
   const handleConversationSelect = (conversationId: string, workspaceId: string, title?: string) => {
     // Use ref to get latest focusedGroupId (avoid stale closure)
@@ -625,15 +710,15 @@ function App() {
     },
 
     // Workspace navigation (Cmd+1 through Cmd+9)
-    'cmd+1': { handler: () => workspacesRef.current[0] && setSelectedWorkspace(workspacesRef.current[0]), description: 'Switch to workspace 1' },
-    'cmd+2': { handler: () => workspacesRef.current[1] && setSelectedWorkspace(workspacesRef.current[1]), description: 'Switch to workspace 2' },
-    'cmd+3': { handler: () => workspacesRef.current[2] && setSelectedWorkspace(workspacesRef.current[2]), description: 'Switch to workspace 3' },
-    'cmd+4': { handler: () => workspacesRef.current[3] && setSelectedWorkspace(workspacesRef.current[3]), description: 'Switch to workspace 4' },
-    'cmd+5': { handler: () => workspacesRef.current[4] && setSelectedWorkspace(workspacesRef.current[4]), description: 'Switch to workspace 5' },
-    'cmd+6': { handler: () => workspacesRef.current[5] && setSelectedWorkspace(workspacesRef.current[5]), description: 'Switch to workspace 6' },
-    'cmd+7': { handler: () => workspacesRef.current[6] && setSelectedWorkspace(workspacesRef.current[6]), description: 'Switch to workspace 7' },
-    'cmd+8': { handler: () => workspacesRef.current[7] && setSelectedWorkspace(workspacesRef.current[7]), description: 'Switch to workspace 8' },
-    'cmd+9': { handler: () => workspacesRef.current[8] && setSelectedWorkspace(workspacesRef.current[8]), description: 'Switch to workspace 9' },
+    'cmd+1': { handler: () => workspacesRef.current[0] && handleWorkspaceSelect(workspacesRef.current[0]), description: 'Switch to workspace 1' },
+    'cmd+2': { handler: () => workspacesRef.current[1] && handleWorkspaceSelect(workspacesRef.current[1]), description: 'Switch to workspace 2' },
+    'cmd+3': { handler: () => workspacesRef.current[2] && handleWorkspaceSelect(workspacesRef.current[2]), description: 'Switch to workspace 3' },
+    'cmd+4': { handler: () => workspacesRef.current[3] && handleWorkspaceSelect(workspacesRef.current[3]), description: 'Switch to workspace 4' },
+    'cmd+5': { handler: () => workspacesRef.current[4] && handleWorkspaceSelect(workspacesRef.current[4]), description: 'Switch to workspace 5' },
+    'cmd+6': { handler: () => workspacesRef.current[5] && handleWorkspaceSelect(workspacesRef.current[5]), description: 'Switch to workspace 6' },
+    'cmd+7': { handler: () => workspacesRef.current[6] && handleWorkspaceSelect(workspacesRef.current[6]), description: 'Switch to workspace 7' },
+    'cmd+8': { handler: () => workspacesRef.current[7] && handleWorkspaceSelect(workspacesRef.current[7]), description: 'Switch to workspace 8' },
+    'cmd+9': { handler: () => workspacesRef.current[8] && handleWorkspaceSelect(workspacesRef.current[8]), description: 'Switch to workspace 9' },
 
     // New Workspace (Cmd+N)
     'cmd+n': {
@@ -643,7 +728,7 @@ function App() {
 
     // Close current workspace (Cmd+W)
     'cmd+w': {
-      handler: () => setSelectedWorkspace(null),
+      handler: () => handleWorkspaceSelect(null),
       description: 'Close workspace',
       enabled: !!selectedWorkspace,
     },
@@ -684,7 +769,7 @@ function App() {
         <AppSidebar
           selectedWorkspaceId={selectedWorkspace?.id || null}
           selectedWorkspace={selectedWorkspace}
-          onSelectWorkspace={setSelectedWorkspace}
+          onSelectWorkspace={handleWorkspaceSelect}
           selectedFile={null}
           onFileSelect={handleFileSelect}
           onWorkspacesLoaded={setWorkspacesForShortcuts}
@@ -723,10 +808,7 @@ function App() {
                         group={primaryGroup}
                         isFocused={focusedGroupId === DEFAULT_GROUP_ID}
                         onFocus={() => setFocusedGroupId(DEFAULT_GROUP_ID)}
-                        onTabClick={(tabId) => {
-                          setFocusedGroupId(DEFAULT_GROUP_ID)
-                          activateTab(tabId, DEFAULT_GROUP_ID)
-                        }}
+                        onTabClick={(tabId) => handleTabClick(tabId, DEFAULT_GROUP_ID)}
                         onTabClose={(tabId) => closeTab(tabId, DEFAULT_GROUP_ID)}
                         onTabDragStart={(tabId, sourceGroupId) => handleTabDragStart(tabId, sourceGroupId)}
                         onTabDragEnd={handleTabDragEnd}
@@ -741,10 +823,7 @@ function App() {
                         group={secondaryGroup}
                         isFocused={focusedGroupId === SECONDARY_GROUP_ID}
                         onFocus={() => setFocusedGroupId(SECONDARY_GROUP_ID)}
-                        onTabClick={(tabId) => {
-                          setFocusedGroupId(SECONDARY_GROUP_ID)
-                          activateTab(tabId, SECONDARY_GROUP_ID)
-                        }}
+                        onTabClick={(tabId) => handleTabClick(tabId, SECONDARY_GROUP_ID)}
                         onTabClose={(tabId) => closeTab(tabId, SECONDARY_GROUP_ID)}
                         onTabDragStart={(tabId, sourceGroupId) => handleTabDragStart(tabId, sourceGroupId)}
                         onTabDragEnd={handleTabDragEnd}
@@ -760,10 +839,7 @@ function App() {
                     group={primaryGroup}
                     isFocused={true}
                     onFocus={() => setFocusedGroupId(DEFAULT_GROUP_ID)}
-                    onTabClick={(tabId) => {
-                      setFocusedGroupId(DEFAULT_GROUP_ID)
-                      activateTab(tabId, DEFAULT_GROUP_ID)
-                    }}
+                    onTabClick={(tabId) => handleTabClick(tabId, DEFAULT_GROUP_ID)}
                     onTabClose={(tabId) => closeTab(tabId, DEFAULT_GROUP_ID)}
                     renderConversation={renderChatPanel}
                     renderFile={renderEditorPanel}
@@ -788,7 +864,7 @@ function App() {
               </>
             ) : (
               <WorkspaceEmptyState
-                onSelectWorkspace={setSelectedWorkspace}
+                onSelectWorkspace={handleWorkspaceSelect}
                 onCreateWorkspace={handleCreateWorkspace}
               />
             )}
@@ -830,7 +906,7 @@ function App() {
         open={showCommandPalette}
         onOpenChange={setShowCommandPalette}
         workspaces={workspacesRef.current}
-        onSelectWorkspace={setSelectedWorkspace}
+        onSelectWorkspace={handleWorkspaceSelect}
         onCreateWorkspace={handleCreateWorkspace}
       />
 

@@ -434,6 +434,13 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   // Load conversation when workspace or externalConversationId changes
   useEffect(() => {
     const loadConversation = async () => {
+      // Early return: Skip if we're already on the correct conversation
+      // Use ref to avoid circular dependency in useEffect
+      if (externalConversationId && conversationIdRef.current === externalConversationId) {
+        console.log('[ChatPanel] Already loaded conversation:', externalConversationId, '- skipping reload');
+        return;
+      }
+
       setIsLoadingConversation(true);
 
       try {
@@ -462,8 +469,9 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
         console.log('[ChatPanel] Loaded conversation:', conversation.id);
         setConversationId(conversation.id);
 
-        // Notify parent about conversation change
-        if (onConversationChange && conversation.id !== externalConversationId) {
+        // Notify parent about conversation change ONLY if we created/found a new one
+        // (i.e., when externalConversationId was not provided)
+        if (onConversationChange && !externalConversationId) {
           onConversationChange(conversation.id);
         }
 
@@ -503,7 +511,7 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
     };
 
     loadConversation();
-  }, [workspace.id, externalConversationId]);
+  }, [workspace.id, externalConversationId]);  // conversationId removed to prevent circular dependency
 
   // Sync refs with latest state (to avoid stale closures)
   useEffect(() => {
@@ -1927,20 +1935,21 @@ The plan is ready. What would you like to do?`,
       let wrappedErrorHandler: any;
 
       const cleanup = () => {
-        if (!isResolved) {
-          isResolved = true;
-          if (wrappedResponseCompleteHandler) {
-            ipcRenderer.removeListener('claude:response-complete', wrappedResponseCompleteHandler);
-          }
-          if (wrappedErrorHandler) {
-            ipcRenderer.removeListener('claude:response-error', wrappedErrorHandler);
-          }
+        // Always cleanup listeners regardless of isResolved state
+        if (wrappedResponseCompleteHandler) {
+          ipcRenderer.removeListener('claude:response-complete', wrappedResponseCompleteHandler);
+          console.log('[ChatPanel] Removed response-complete listener for queue item:', queueItem.id);
+        }
+        if (wrappedErrorHandler) {
+          ipcRenderer.removeListener('claude:response-error', wrappedErrorHandler);
+          console.log('[ChatPanel] Removed response-error listener for queue item:', queueItem.id);
         }
       };
 
       // Timeout after 5 minutes - prevent infinite hanging
       const timeout = setTimeout(() => {
         if (!isResolved) {
+          isResolved = true;
           cleanup();
           clearTimeout(timeout);
           console.error('[ChatPanel] Queue item timeout:', queueItem.id);
@@ -2082,6 +2091,10 @@ The plan is ready. What would you like to do?`,
   /**
    * Auto-start queue processing when new messages are added
    * This ensures the first message starts processing immediately
+   *
+   * IMPORTANT: processQueue is intentionally NOT in dependencies to prevent infinite loop
+   * - processQueue's dependencies include messageQueue
+   * - If we add processQueue to deps, changing messageQueue → new processQueue → useEffect → loop
    */
   useEffect(() => {
     // Only trigger if there are queued items and nothing is currently processing
@@ -2091,7 +2104,8 @@ The plan is ready. What would you like to do?`,
       console.log('[Queue] Auto-starting queue processing');
       processQueue();
     }
-  }, [messageQueue, isProcessingQueue, processQueue]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messageQueue, isProcessingQueue]);
 
   /**
    * Remove a specific message from the queue
