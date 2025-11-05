@@ -481,11 +481,6 @@ function App() {
     } else {
       setFileCursorPosition(null)
     }
-
-    // Switch to split view when opening a file (if in chat mode)
-    if (viewMode === 'chat') {
-      setViewMode('split')
-    }
   }
 
   // Handle tab click with workspace synchronization
