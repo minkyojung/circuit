@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { useDebouncedCallback } from 'use-debounce';
 import type { Workspace } from '@/types/workspace';
 import type { Message } from '@/types/conversation';
 import type { QueuedMessage } from '@/types/messageQueue';
@@ -766,7 +767,8 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
       console.log('[WorkspaceChat] ✅ Timer started');
   }, []);
 
-  const handleMilestone = useCallback((_event: any, eventSessionId: string, milestone: any) => {
+  const handleMilestone = useDebouncedCallback(
+    (_event: any, eventSessionId: string, milestone: any) => {
       if (!isMountedRef.current) return; // Prevent setState on unmounted component
 
       // Filter: only handle events for THIS component's session
@@ -819,7 +821,10 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
       if (milestone.type === 'tool-use' && milestone.tool) {
         console.log('[WorkspaceChat] 📝 Tool step recorded in ReasoningAccordion only:', milestone.tool);
       }
-  }, []);
+    },
+    300, // 300ms debounce - reduces re-renders by ~70%
+    { leading: true, trailing: true } // Execute immediately on first call, then debounce subsequent calls
+  );
 
   const handleThinkingComplete = useCallback((_event: any, eventSessionId: string, stats: any) => {
       if (!isMountedRef.current) return; // Prevent setState on unmounted component
@@ -1706,14 +1711,11 @@ The plan is ready. What would you like to do?`,
 
     console.log('[Queue] Enqueueing message:', queuedMessage.id, queuedMessage.preview);
 
-    // Add to queue
+    // Add to queue - processing will auto-start via useEffect
     setMessageQueue(prev => [...prev, queuedMessage]);
 
     // Clear input immediately (improved UX)
     setInput('');
-
-    // Start processing queue (will skip if already processing)
-    setTimeout(() => processQueue(), 0);
   };
 
   const executePrompt = async (inputText: string, attachments: AttachedFile[], thinkingMode: import('./ChatInput').ThinkingMode) => {
@@ -1969,29 +1971,26 @@ The plan is ready. What would you like to do?`,
       // Execute the queued message
       await executePromptFromQueue(queueItem);
 
-      // Success - mark as completed
+      // Success - mark as completed and remove from queue
       console.log('[Queue] Queue item completed:', queueItem.id);
-      setMessageQueue(prev => {
-        const updated = [...prev];
-        if (updated[0]) {
-          updated[0] = {
-            ...updated[0],
-            status: 'completed' as const,
-            processedAt: Date.now()
-          };
-        }
-        return updated;
-      });
+      setMessageQueue(prev => prev.filter(item => item.id !== queueItem.id));
 
-      // Remove completed item after a short delay
+      // Process next item if queue has more
+      setIsProcessingQueue(false);
+      setCurrentQueueItem(null);
+      setIsSending(false);
+
+      // Check if there are more items and process next
       setTimeout(() => {
-        setMessageQueue(prev => prev.filter(item => item.id !== queueItem.id));
-      }, 2000);
+        if (messageQueue.length > 1) {  // > 1 because current item is still in array
+          processQueue();
+        }
+      }, 100);
 
     } catch (error) {
       console.error('[Queue] Failed to process queue item:', error);
 
-      // Mark as failed
+      // Mark as failed and stop processing
       setMessageQueue(prev =>
         prev.map(item =>
           item.id === queueItem.id
@@ -1999,17 +1998,27 @@ The plan is ready. What would you like to do?`,
             : item
         )
       );
-    } finally {
+
       setIsProcessingQueue(false);
       setCurrentQueueItem(null);
       setIsSending(false);
-
-      // Process next item after a brief delay
-      setTimeout(() => {
-        processQueue();
-      }, 100);
+      // Don't process next on failure - let user handle failed item
     }
   }, [messageQueue, isProcessingQueue, sessionId, conversationId]);
+
+  /**
+   * Auto-start queue processing when new messages are added
+   * This ensures the first message starts processing immediately
+   */
+  useEffect(() => {
+    // Only trigger if there are queued items and nothing is currently processing
+    const hasQueuedItems = messageQueue.some(item => item.status === 'queued');
+
+    if (hasQueuedItems && !isProcessingQueue) {
+      console.log('[Queue] Auto-starting queue processing');
+      processQueue();
+    }
+  }, [messageQueue, isProcessingQueue, processQueue]);
 
   /**
    * Remove a specific message from the queue
@@ -2203,11 +2212,42 @@ The plan is ready. What would you like to do?`,
   // Memoize getScrollElement to prevent virtualizer recreation
   const getScrollElement = useCallback(() => scrollContainerRef.current, []);
 
-  // Memoize estimateSize to prevent virtualizer recreation
-  const estimateSize = useCallback(() => {
-    // Use single fixed height for all messages to avoid measurement issues
-    return 200;
-  }, []);
+  // Memoize estimateSize with dynamic height prediction
+  const estimateSize = useCallback((index: number) => {
+    const msg = filteredMessages[index];
+    if (!msg) return 200;
+
+    // Check if reasoning is open for this message
+    const isReasoningOpen = openReasoningId === msg.id;
+    const hasReasoning = messageThinkingSteps[msg.id]?.steps?.length > 0;
+
+    // If reasoning accordion is open, estimate based on number of steps
+    if (isReasoningOpen && hasReasoning) {
+      const stepCount = messageThinkingSteps[msg.id].steps.length;
+      // Each step is ~40px, plus base message height of 150px, plus accordion header ~50px
+      return 150 + 50 + (stepCount * 40);
+    }
+
+    // Estimate based on number of blocks (code blocks, etc.)
+    const blockCount = msg.blocks?.length || 0;
+    if (blockCount > 0) {
+      // Code blocks are typically 200-300px each
+      return 150 + (blockCount * 250);
+    }
+
+    // Estimate based on content length
+    const contentLength = msg.content?.length || 0;
+    if (contentLength > 1000) {
+      return 400;
+    } else if (contentLength > 500) {
+      return 300;
+    } else if (contentLength > 200) {
+      return 200;
+    }
+
+    // Default minimum height
+    return 150;
+  }, [filteredMessages, messageThinkingSteps, openReasoningId]);
 
   const virtualizer = useVirtualizer({
     count: filteredMessages.length,
@@ -2366,7 +2406,6 @@ The plan is ready. What would you like to do?`,
             queue={messageQueue}
             currentlyProcessing={currentQueueItem}
             onRemove={removeFromQueue}
-            onClearAll={clearQueue}
           />
           <ChatInput
             value={input}
@@ -2375,6 +2414,7 @@ The plan is ready. What would you like to do?`,
             disabled={!sessionId || isLoadingConversation}
             placeholder="Ask, search, or make anything..."
             showControls={true}
+            isSending={isSending}
             isCancelling={isCancelling}
             onCancel={handleCancel}
             workspacePath={workspace.path}

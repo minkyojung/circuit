@@ -442,23 +442,26 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
   return (
     <>
     <Sidebar variant="inset" {...props}>
-      <SidebarHeader className={cn(
-        state === "collapsed" && "pl-16"
-      )}>
+      <SidebarHeader>
         {/* Traffic Lights Area (Fully Draggable) */}
         <div
           className="h-[44px] -m-2 mb-0"
           style={{ WebkitAppRegion: 'drag' } as any}
         />
 
-        {/* Repository Switcher */}
-        <RepositorySwitcher
-          currentRepository={repository}
-          repositories={repositories.length > 0 ? repositories : [repository]}
-          onSelectRepository={switchRepository}
-          onCreateRepository={createRepository}
-          onCloneRepository={openCloneDialog}
-        />
+        {/* Repository Switcher with macOS traffic lights padding */}
+        <div className={cn(
+          "pl-20", // Always reserve space for macOS traffic lights
+          state === "collapsed" && "pl-16"
+        )}>
+          <RepositorySwitcher
+            currentRepository={repository}
+            repositories={repositories.length > 0 ? repositories : [repository]}
+            onSelectRepository={switchRepository}
+            onCreateRepository={createRepository}
+            onCloneRepository={openCloneDialog}
+          />
+        </div>
       </SidebarHeader>
 
       <SidebarContent>

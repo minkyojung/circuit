@@ -23,6 +23,7 @@ import {
 import {
   SidebarInset,
   SidebarProvider,
+  SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar"
 import type { Workspace } from "@/types/workspace"
@@ -601,11 +602,14 @@ function App() {
             className="flex h-[44px] shrink-0 items-center gap-2 border-b border-border px-3"
             style={{ WebkitAppRegion: 'drag' } as any}
           >
-            {/* Left side - Workspace/Repository name */}
+            {/* Left side - Sidebar toggle + Workspace/Repository name */}
             <div
-              className="flex-1"
+              className="flex items-center gap-2 flex-1"
               style={{ WebkitAppRegion: 'no-drag' } as any}
             >
+              <SidebarTrigger />
+              <Separator orientation="vertical" className="h-4" />
+
               {selectedWorkspace ? (
                 <Breadcrumb>
                   <BreadcrumbList>

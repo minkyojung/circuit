@@ -33,6 +33,7 @@ interface ChatInputProps {
   disabled?: boolean
   placeholder?: string
   showControls?: boolean
+  isSending?: boolean
   isCancelling?: boolean
   onCancel?: () => void
   workspacePath?: string
@@ -98,6 +99,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   disabled = false,
   placeholder = 'Ask, search, or make anything...',
   showControls = true,
+  isSending = false,
   isCancelling = false,
   onCancel,
   workspacePath,
@@ -823,7 +825,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   disabled={disabled}
                 />
               )}
-              {disabled && onCancel ? (
+              {isSending && onCancel ? (
               /* Cancel button when sending */
               <button
                 onClick={onCancel}
