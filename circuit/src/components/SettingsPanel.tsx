@@ -1,8 +1,7 @@
 /**
- * Settings Panel Component
+ * SettingsPanel - Tab Version of Settings (No Modal)
  *
- * macOS-style settings with sidebar navigation (Tab version)
- * Following Dieter Rams' principles and Apple HIG
+ * Same content as SettingsDialog but displayed as a tab instead of modal
  */
 
 import React, { useState } from 'react';
@@ -44,7 +43,7 @@ export const SettingsPanel: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>('general');
 
   return (
-    <div className="h-full flex flex-col bg-card">
+    <div className="h-full w-full flex flex-col bg-background">
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-3.5 border-b border-border flex-shrink-0">
         <h2 className="text-base font-semibold text-foreground">Settings</h2>
@@ -109,7 +108,7 @@ export const SettingsPanel: React.FC = () => {
 };
 
 // ============================================================================
-// Category Panels (same as SettingsDialog)
+// Category Panels
 // ============================================================================
 
 interface SettingsPanelProps {
