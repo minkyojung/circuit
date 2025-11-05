@@ -5,18 +5,10 @@
  */
 
 import { useState, useCallback } from 'react'
+import type { Conversation } from '@/types/conversation'
 
 // @ts-ignore
 const { ipcRenderer } = window.require('electron')
-
-interface Conversation {
-  id: string
-  workspaceId: string
-  title: string
-  createdAt: number
-  updatedAt: number
-  lastViewedAt?: number
-}
 
 interface UseConversationDeletionParams {
   workspaceId: string | null

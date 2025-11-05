@@ -8,9 +8,10 @@ export interface Conversation {
   id: string
   workspaceId: string
   title: string
-  createdAt: string
-  updatedAt: string
-  isActive: boolean
+  createdAt: number
+  updatedAt: number
+  lastViewedAt?: number
+  isActive?: boolean
 }
 
 export interface Message {

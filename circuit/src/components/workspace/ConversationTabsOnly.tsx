@@ -9,6 +9,7 @@ import { useState, useEffect } from 'react'
 import { Plus, X, Circle, CircleCheck } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useConversationDeletion } from '@/hooks/useConversationDeletion'
+import type { Conversation } from '@/types/conversation'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,15 +23,6 @@ import {
 
 // @ts-ignore
 const { ipcRenderer } = window.require('electron')
-
-interface Conversation {
-  id: string
-  workspaceId: string
-  title: string
-  createdAt: number
-  updatedAt: number
-  lastViewedAt?: number
-}
 
 interface ConversationTabsOnlyProps {
   workspaceId: string | null

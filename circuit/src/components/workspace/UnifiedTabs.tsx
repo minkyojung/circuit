@@ -10,6 +10,7 @@ import { Plus, X, Circle, CircleCheck } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Separator } from '@/components/ui/separator'
 import { useConversationDeletion } from '@/hooks/useConversationDeletion'
+import type { Conversation } from '@/types/conversation'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -65,15 +66,6 @@ const getFileIconComponent = (filename: string): React.ComponentType<React.SVGPr
   const iconName = getIconForFile(filename)
   if (!iconName) return DefaultIcon
   return iconComponentMap[iconName] || DefaultIcon
-}
-
-interface Conversation {
-  id: string
-  workspaceId: string
-  title: string
-  createdAt: number
-  updatedAt: number
-  lastViewedAt?: number
 }
 
 export interface OpenFile {
