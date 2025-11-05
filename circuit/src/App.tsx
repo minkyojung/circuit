@@ -597,45 +597,41 @@ function App() {
                   /* Split View: Two independent editor groups */
                   <ResizablePanelGroup direction="horizontal" className="h-full">
                     <ResizablePanel defaultSize={50} minSize={30}>
-                      <div
-                        className="h-full"
-                        onClick={() => setFocusedGroupId(DEFAULT_GROUP_ID)}
-                      >
-                        <EditorGroupPanel
-                          group={primaryGroup}
-                          onTabClick={(tabId) => {
-                            setFocusedGroupId(DEFAULT_GROUP_ID)
-                            activateTab(tabId, DEFAULT_GROUP_ID)
-                          }}
-                          onTabClose={(tabId) => closeTab(tabId, DEFAULT_GROUP_ID)}
-                          renderConversation={renderChatPanel}
-                          renderFile={renderEditorPanel}
-                        />
-                      </div>
+                      <EditorGroupPanel
+                        group={primaryGroup}
+                        isFocused={focusedGroupId === DEFAULT_GROUP_ID}
+                        onFocus={() => setFocusedGroupId(DEFAULT_GROUP_ID)}
+                        onTabClick={(tabId) => {
+                          setFocusedGroupId(DEFAULT_GROUP_ID)
+                          activateTab(tabId, DEFAULT_GROUP_ID)
+                        }}
+                        onTabClose={(tabId) => closeTab(tabId, DEFAULT_GROUP_ID)}
+                        renderConversation={renderChatPanel}
+                        renderFile={renderEditorPanel}
+                      />
                     </ResizablePanel>
                     <ResizableHandle />
                     <ResizablePanel defaultSize={50} minSize={30}>
-                      <div
-                        className="h-full"
-                        onClick={() => setFocusedGroupId(SECONDARY_GROUP_ID)}
-                      >
-                        <EditorGroupPanel
-                          group={secondaryGroup}
-                          onTabClick={(tabId) => {
-                            setFocusedGroupId(SECONDARY_GROUP_ID)
-                            activateTab(tabId, SECONDARY_GROUP_ID)
-                          }}
-                          onTabClose={(tabId) => closeTab(tabId, SECONDARY_GROUP_ID)}
-                          renderConversation={renderChatPanel}
-                          renderFile={renderEditorPanel}
-                        />
-                      </div>
+                      <EditorGroupPanel
+                        group={secondaryGroup}
+                        isFocused={focusedGroupId === SECONDARY_GROUP_ID}
+                        onFocus={() => setFocusedGroupId(SECONDARY_GROUP_ID)}
+                        onTabClick={(tabId) => {
+                          setFocusedGroupId(SECONDARY_GROUP_ID)
+                          activateTab(tabId, SECONDARY_GROUP_ID)
+                        }}
+                        onTabClose={(tabId) => closeTab(tabId, SECONDARY_GROUP_ID)}
+                        renderConversation={renderChatPanel}
+                        renderFile={renderEditorPanel}
+                      />
                     </ResizablePanel>
                   </ResizablePanelGroup>
                 ) : (
                   /* Single View: Show primary group with tabs */
                   <EditorGroupPanel
                     group={primaryGroup}
+                    isFocused={true}
+                    onFocus={() => setFocusedGroupId(DEFAULT_GROUP_ID)}
                     onTabClick={(tabId) => {
                       setFocusedGroupId(DEFAULT_GROUP_ID)
                       activateTab(tabId, DEFAULT_GROUP_ID)

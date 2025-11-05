@@ -15,6 +15,8 @@ import { cn } from '@/lib/utils'
 // Import content panels (will be passed as props to avoid circular dependencies)
 interface EditorGroupPanelProps {
   group: EditorGroup
+  isFocused?: boolean
+  onFocus?: () => void
   onTabClick: (tabId: string) => void
   onTabClose: (tabId: string) => void
   onTabDragStart?: (tabId: string, groupId: string) => void
@@ -32,6 +34,8 @@ interface EditorGroupPanelProps {
 
 export function EditorGroupPanel({
   group,
+  isFocused = true,
+  onFocus,
   onTabClick,
   onTabClose,
   onTabDragStart,
@@ -100,7 +104,14 @@ export function EditorGroupPanel({
   }
 
   return (
-    <div className={cn('h-full flex flex-col', className)}>
+    <div
+      className={cn(
+        'h-full flex flex-col transition-all',
+        isFocused && 'ring-2 ring-blue-500/50 ring-inset',
+        className
+      )}
+      onClick={onFocus}
+    >
       {/* Tab Bar */}
       <UniversalTabBar
         groupId={group.id}
