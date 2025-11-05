@@ -7,7 +7,7 @@
  * - Recent workspaces
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { FileText, Search, Clock, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -69,23 +69,27 @@ interface GlobalSearchBarProps {
 // Main Component
 // ============================================================================
 
-export function GlobalSearchBar({
-  workspacePath,
-  branchName,
-  onFileSelect,
-  onWorkspaceSelect
-}: GlobalSearchBarProps) {
-  const [query, setQuery] = useState('');
-  const [mode, setMode] = useState<SearchMode>('menu');
-  const [fileResults, setFileResults] = useState<FileResult[]>([]);
-  const [contentResults, setContentResults] = useState<ContentResult[]>([]);
-  const [recentWorkspaces, setRecentWorkspaces] = useState<RecentWorkspace[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const [isFocused, setIsFocused] = useState(false);
+export const GlobalSearchBar = forwardRef<HTMLInputElement, GlobalSearchBarProps>(
+  function GlobalSearchBar({
+    workspacePath,
+    branchName,
+    onFileSelect,
+    onWorkspaceSelect
+  }, ref) {
+    const [query, setQuery] = useState('');
+    const [mode, setMode] = useState<SearchMode>('menu');
+    const [fileResults, setFileResults] = useState<FileResult[]>([]);
+    const [contentResults, setContentResults] = useState<ContentResult[]>([]);
+    const [recentWorkspaces, setRecentWorkspaces] = useState<RecentWorkspace[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const [selectedIndex, setSelectedIndex] = useState(0);
+    const [isFocused, setIsFocused] = useState(false);
 
-  const inputRef = useRef<HTMLInputElement>(null);
-  const resultsRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
+    const resultsRef = useRef<HTMLDivElement>(null);
+
+    // Expose focus method to parent
+    useImperativeHandle(ref, () => inputRef.current as HTMLInputElement);
 
   // Search options menu
   const searchOptions: SearchOption[] = [
@@ -333,7 +337,12 @@ export function GlobalSearchBar({
     return `${branchName} - Quick Open`;
   };
 
-  const shouldShowDropdown = isFocused && (mode === 'menu' || isSearching || getCurrentResults().length > 0);
+  // Always show dropdown when focused, except when in menu mode with query
+  const shouldShowDropdown = isFocused && (
+    mode === 'menu' ||
+    mode === 'file' ||
+    mode === 'content'
+  );
 
   return (
     <div className="relative w-[400px]">
@@ -377,11 +386,7 @@ export function GlobalSearchBar({
               "z-50"
             )}
           >
-            {isSearching ? (
-              <div className="p-4 text-center text-sm text-muted-foreground">
-                Searching...
-              </div>
-            ) : mode === 'menu' && !cleanQuery ? (
+            {mode === 'menu' && !cleanQuery ? (
               // Show search options menu
               <div className="py-1">
                 {searchOptions.map((option, index) => (
@@ -411,86 +416,109 @@ export function GlobalSearchBar({
                   </button>
                 ))}
               </div>
-            ) : mode === 'file' && fileResults.length > 0 ? (
-              // File results
-              <div>
-                <div className="px-3 py-2 text-xs text-muted-foreground border-b border-border sticky top-0 bg-popover">
-                  {fileResults.length} file{fileResults.length !== 1 ? 's' : ''}
+            ) : mode === 'file' ? (
+              // File search mode
+              isSearching ? (
+                <div className="p-4 text-center text-sm text-muted-foreground">
+                  Searching files...
                 </div>
-                {fileResults.map((file, index) => (
-                  <button
-                    key={`${file.path}-${index}`}
-                    onClick={() => {
-                      onFileSelect(file.path);
-                      handleClose();
-                    }}
-                    onMouseEnter={() => setSelectedIndex(index)}
-                    className={cn(
-                      "w-full px-3 py-2 text-left transition-colors flex items-center gap-2",
-                      "border-b border-border last:border-b-0",
-                      selectedIndex === index
-                        ? 'bg-secondary/80'
-                        : 'bg-transparent hover:bg-secondary/50'
-                    )}
-                  >
-                    <FileText size={14} className="text-muted-foreground flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-foreground truncate">{file.name}</div>
-                      {file.dir && (
-                        <div className="text-xs text-muted-foreground truncate">{file.dir}</div>
+              ) : !cleanQuery.trim() ? (
+                <div className="p-4 text-center text-sm text-muted-foreground">
+                  Type to search files
+                </div>
+              ) : fileResults.length > 0 ? (
+                <div>
+                  <div className="px-3 py-2 text-xs text-muted-foreground border-b border-border sticky top-0 bg-popover">
+                    {fileResults.length} file{fileResults.length !== 1 ? 's' : ''}
+                  </div>
+                  {fileResults.map((file, index) => (
+                    <button
+                      key={`${file.path}-${index}`}
+                      onClick={() => {
+                        onFileSelect(file.path);
+                        handleClose();
+                      }}
+                      onMouseEnter={() => setSelectedIndex(index)}
+                      className={cn(
+                        "w-full px-3 py-2 text-left transition-colors flex items-center gap-2",
+                        "border-b border-border last:border-b-0",
+                        selectedIndex === index
+                          ? 'bg-secondary/80'
+                          : 'bg-transparent hover:bg-secondary/50'
                       )}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            ) : mode === 'content' && contentResults.length > 0 ? (
-              // Content results
-              <div>
-                <div className="px-3 py-2 text-xs text-muted-foreground border-b border-border sticky top-0 bg-popover">
-                  {contentResults.length} result{contentResults.length !== 1 ? 's' : ''}
+                    >
+                      <FileText size={14} className="text-muted-foreground flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-foreground truncate">{file.name}</div>
+                        {file.dir && (
+                          <div className="text-xs text-muted-foreground truncate">{file.dir}</div>
+                        )}
+                      </div>
+                    </button>
+                  ))}
                 </div>
-                {contentResults.map((result, index) => (
-                  <button
-                    key={`${result.path}-${result.lineNumber}-${index}`}
-                    onClick={() => {
-                      onFileSelect(result.path, result.lineNumber);
-                      handleClose();
-                    }}
-                    onMouseEnter={() => setSelectedIndex(index)}
-                    className={cn(
-                      "w-full px-3 py-2 text-left transition-colors",
-                      "border-b border-border last:border-b-0",
-                      selectedIndex === index
-                        ? 'bg-secondary/80'
-                        : 'bg-transparent hover:bg-secondary/50'
-                    )}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-medium text-foreground truncate">
-                        {result.path}
-                      </span>
-                      <span className="text-xs text-muted-foreground ml-2 flex-shrink-0">
-                        :{result.lineNumber}
-                      </span>
-                    </div>
-                    <div className="text-xs text-muted-foreground font-mono truncate">
-                      {highlightMatch(result.lineContent, result.matchStart, result.matchEnd)}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div className="p-4 text-center text-sm text-muted-foreground">
-                {mode === 'file' && 'No files found'}
-                {mode === 'content' && 'No results found'}
-              </div>
-            )}
+              ) : (
+                <div className="p-4 text-center text-sm text-muted-foreground">
+                  No files found
+                </div>
+              )
+            ) : mode === 'content' ? (
+              // Content search mode
+              isSearching ? (
+                <div className="p-4 text-center text-sm text-muted-foreground">
+                  Searching in files...
+                </div>
+              ) : !cleanQuery.trim() ? (
+                <div className="p-4 text-center text-sm text-muted-foreground">
+                  Type to search in file contents
+                </div>
+              ) : contentResults.length > 0 ? (
+                <div>
+                  <div className="px-3 py-2 text-xs text-muted-foreground border-b border-border sticky top-0 bg-popover">
+                    {contentResults.length} result{contentResults.length !== 1 ? 's' : ''}
+                  </div>
+                  {contentResults.map((result, index) => (
+                    <button
+                      key={`${result.path}-${result.lineNumber}-${index}`}
+                      onClick={() => {
+                        onFileSelect(result.path, result.lineNumber);
+                        handleClose();
+                      }}
+                      onMouseEnter={() => setSelectedIndex(index)}
+                      className={cn(
+                        "w-full px-3 py-2 text-left transition-colors",
+                        "border-b border-border last:border-b-0",
+                        selectedIndex === index
+                          ? 'bg-secondary/80'
+                          : 'bg-transparent hover:bg-secondary/50'
+                      )}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-medium text-foreground truncate">
+                          {result.path}
+                        </span>
+                        <span className="text-xs text-muted-foreground ml-2 flex-shrink-0">
+                          :{result.lineNumber}
+                        </span>
+                      </div>
+                      <div className="text-xs text-muted-foreground font-mono truncate">
+                        {highlightMatch(result.lineContent, result.matchStart, result.matchEnd)}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-4 text-center text-sm text-muted-foreground">
+                  No results found
+                </div>
+              )
+            ) : null}
           </motion.div>
         )}
       </AnimatePresence>
     </div>
   );
-}
+});
 
 // ============================================================================
 // Utilities

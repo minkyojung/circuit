@@ -74,7 +74,8 @@ function MainHeader({
   allTabs,
   toggleRightSidebar,
   isRightSidebarOpen,
-  onFileSelect
+  onFileSelect,
+  searchBarRef
 }: {
   selectedWorkspace: Workspace | null
   repositoryName: string
@@ -84,6 +85,7 @@ function MainHeader({
   toggleRightSidebar: () => void
   isRightSidebarOpen: boolean
   onFileSelect: (path: string, line: number) => void
+  searchBarRef: React.RefObject<HTMLInputElement>
 }) {
   const { state: sidebarState } = useSidebar()
 
@@ -110,6 +112,7 @@ function MainHeader({
           style={{ WebkitAppRegion: 'no-drag' } as any}
         >
           <GlobalSearchBar
+            ref={searchBarRef}
             workspacePath={selectedWorkspace.path}
             branchName={selectedWorkspace.branch}
             onFileSelect={onFileSelect}
@@ -179,6 +182,9 @@ function App() {
     return saved !== null ? JSON.parse(saved) : true // 기본값: 열림
   })
   const [currentRepository, setCurrentRepository] = useState<any>(null)
+
+  // Ref for search bar (to trigger focus from keyboard shortcut)
+  const searchBarRef = useRef<HTMLInputElement>(null)
 
   // Session ID for chat (one per workspace for now)
   const [sessionId, setSessionId] = useState<string | null>(null)
@@ -831,6 +837,13 @@ function App() {
 
   // Keyboard shortcuts
   useKeyboardShortcuts({
+    // Quick Open (Cmd+P) - Focus search bar
+    'cmd+p': {
+      handler: () => searchBarRef.current?.focus(),
+      description: 'Quick Open',
+      enabled: !!selectedWorkspace,
+    },
+
     // Workspace navigation (Cmd+1 through Cmd+9)
     'cmd+1': { handler: () => workspacesRef.current[0] && handleWorkspaceSelect(workspacesRef.current[0]), description: 'Switch to workspace 1' },
     'cmd+2': { handler: () => workspacesRef.current[1] && handleWorkspaceSelect(workspacesRef.current[1]), description: 'Switch to workspace 2' },
@@ -937,6 +950,7 @@ function App() {
             toggleRightSidebar={toggleRightSidebar}
             isRightSidebarOpen={isRightSidebarOpen}
             onFileSelect={handleFileSelect}
+            searchBarRef={searchBarRef}
           />
         </div>
 
