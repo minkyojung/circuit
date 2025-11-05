@@ -8,7 +8,7 @@
 // Tab Types
 // ============================================================================
 
-export type TabType = 'conversation' | 'file'
+export type TabType = 'conversation' | 'file' | 'settings'
 
 // Conversation-specific data
 export interface ConversationTabData {
@@ -25,6 +25,11 @@ export interface FileTabData {
   filePath: string
   unsavedChanges?: boolean
   language?: string
+}
+
+// Settings-specific data (empty for now)
+export interface SettingsTabData {
+  // No additional data needed for settings tab
 }
 
 // Base tab interface
@@ -46,8 +51,14 @@ export interface FileTab extends BaseTab {
   data: FileTabData
 }
 
+// Settings tab
+export interface SettingsTab extends BaseTab {
+  type: 'settings'
+  data: SettingsTabData
+}
+
 // Union type for all tabs
-export type Tab = ConversationTab | FileTab
+export type Tab = ConversationTab | FileTab | SettingsTab
 
 // ============================================================================
 // Editor Group Types
@@ -99,6 +110,10 @@ export function isFileTab(tab: Tab): tab is FileTab {
   return tab.type === 'file'
 }
 
+export function isSettingsTab(tab: Tab): tab is SettingsTab {
+  return tab.type === 'settings'
+}
+
 // ============================================================================
 // Tab Factory Functions
 // ============================================================================
@@ -139,6 +154,15 @@ export function createFileTab(
       filePath,
       unsavedChanges: unsavedChanges || false,
     },
+  }
+}
+
+export function createSettingsTab(): SettingsTab {
+  return {
+    id: 'settings',
+    type: 'settings',
+    title: 'Settings',
+    data: {},
   }
 }
 

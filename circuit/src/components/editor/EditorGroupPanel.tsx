@@ -8,7 +8,7 @@
 
 import { useMemo } from 'react'
 import type { EditorGroup, Tab } from '@/types/editor'
-import { isConversationTab, isFileTab } from '@/types/editor'
+import { isConversationTab, isFileTab, isSettingsTab } from '@/types/editor'
 import { UniversalTabBar } from './UniversalTabBar'
 import { cn } from '@/lib/utils'
 
@@ -28,6 +28,7 @@ interface EditorGroupPanelProps {
   // Content renderers
   renderConversation?: (conversationId: string, workspaceId: string) => React.ReactNode
   renderFile?: (filePath: string) => React.ReactNode
+  renderSettings?: () => React.ReactNode
   renderEmpty?: () => React.ReactNode
 
   // Optional styling
@@ -47,6 +48,7 @@ export function EditorGroupPanel({
   onCreateConversation,
   renderConversation,
   renderFile,
+  renderSettings,
   renderEmpty,
   className,
 }: EditorGroupPanelProps) {
@@ -67,6 +69,9 @@ export function EditorGroupPanel({
     return group.tabs.filter((tab) => {
       // File tabs are always visible (shared across workspaces)
       if (isFileTab(tab)) return true
+
+      // Settings tabs are always visible (global)
+      if (isSettingsTab(tab)) return true
 
       // Conversation tabs: only show those belonging to current workspace
       if (isConversationTab(tab)) {
@@ -125,6 +130,18 @@ export function EditorGroupPanel({
         )
       }
       return renderFile(activeTab.data.filePath)
+    }
+
+    // Settings tab
+    if (isSettingsTab(activeTab)) {
+      if (!renderSettings) {
+        return (
+          <div className="flex-1 flex items-center justify-center text-muted-foreground">
+            <p>Settings renderer not provided</p>
+          </div>
+        )
+      }
+      return renderSettings()
     }
 
     // Unknown tab type (should never reach here)
