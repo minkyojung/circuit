@@ -15,10 +15,10 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
   showLabel = true
 }) => {
   const getColor = () => {
-    if (percentage >= 95) return 'bg-red-500/80';
-    if (percentage >= 85) return 'bg-yellow-500/80';
-    if (percentage >= 70) return 'bg-orange-500/80';
-    return 'bg-green-500/80';
+    if (percentage >= 95) return 'bg-[var(--statusbar-progress-red)]';
+    if (percentage >= 85) return 'bg-[var(--statusbar-progress-yellow)]';
+    if (percentage >= 70) return 'bg-[var(--statusbar-progress-orange)]';
+    return 'bg-[var(--statusbar-progress-green)]';
   };
 
   return (

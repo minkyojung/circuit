@@ -161,7 +161,7 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ block, onCopy }) => {
             title="Copy code"
           >
             {copied ? (
-              <Check className="h-3 w-3 text-green-500" />
+              <Check className="h-3 w-3 text-success" />
             ) : (
               <Copy className="h-3 w-3 text-muted-foreground" />
             )}
@@ -174,7 +174,7 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ block, onCopy }) => {
             title={bookmarked ? 'Bookmarked' : 'Bookmark'}
           >
             {bookmarked ? (
-              <BookmarkCheck className="h-3 w-3 text-yellow-500" />
+              <BookmarkCheck className="h-3 w-3 text-warning" />
             ) : (
               <Bookmark className="h-3 w-3 text-muted-foreground" />
             )}

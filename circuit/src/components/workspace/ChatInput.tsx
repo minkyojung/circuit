@@ -156,7 +156,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   }, [codeAttachment]) // Removed attachedFiles from deps!
 
   // Slash commands state
-  const [availableCommands, setAvailableCommands] = useState<Array<{ name: string; fileName: string }>>([])
+  const [availableCommands, setAvailableCommands] = useState<Array<{ name: string; fileName: string; description?: string }>>([])
   const [showCommandMenu, setShowCommandMenu] = useState(false)
   const [selectedCommandIndex, setSelectedCommandIndex] = useState(0)
   const commandMenuRef = useRef<HTMLDivElement>(null)
@@ -554,48 +554,42 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
   return (
     <div className={INPUT_STYLES.container.maxWidth}>
-      {/* Slash Command Menu */}
-      <AnimatePresence>
-        {showCommandMenu && filteredCommands.length > 0 && (
-          <motion.div
-            ref={commandMenuRef}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-            transition={{ duration: 0.15 }}
-            className="absolute bottom-full left-0 right-0 mb-2 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-50"
-          >
-            <div className="p-2 border-b border-border">
-              <p className="text-xs text-muted-foreground">Slash Commands</p>
-            </div>
-            <div className="max-h-64 overflow-y-auto">
-              {filteredCommands.map((command, index) => (
-                <button
-                  key={command.name}
-                  onClick={() => executeCommand(command.name)}
-                  className={`w-full px-3 py-2 text-left transition-colors ${
-                    index === selectedCommandIndex
-                      ? 'bg-primary/10 text-primary'
-                      : 'hover:bg-secondary/50'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-mono">/{command.name}</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-            <div className="p-2 border-t border-border">
-              <p className="text-[10px] text-muted-foreground">
-                ↑↓ navigate • Enter select • Esc close
-              </p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* Input Card - Floating */}
       <div className="relative w-full flex flex-col border-[0.5px] border-border rounded-2xl bg-muted shadow-lg">
+        {/* Slash Command Menu */}
+        <AnimatePresence>
+          {showCommandMenu && filteredCommands.length > 0 && (
+            <motion.div
+              ref={commandMenuRef}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 10 }}
+              transition={{ duration: 0.15 }}
+              className="absolute bottom-full left-0 mb-2 w-1/2 min-w-[400px] bg-card border border-border rounded-xl shadow-lg overflow-hidden z-50"
+            >
+              <div className="p-1 max-h-64 overflow-y-auto">
+                {filteredCommands.map((command, index) => (
+                  <button
+                    key={command.name}
+                    onClick={() => executeCommand(command.name)}
+                    className={`w-full py-2 px-3 text-left cursor-pointer hover:bg-secondary/50 focus:bg-secondary/50 transition-colors rounded-md ${
+                      index === selectedCommandIndex ? 'bg-secondary' : ''
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-light flex-shrink-0">/{command.name}</span>
+                      {command.description && (
+                        <span className="text-xs text-muted-foreground/60 flex-1 truncate">
+                          {command.description}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
           {/* Attachments - Only appears when files exist */}
           <AnimatePresence>
             {attachedFiles.length > 0 && (

@@ -74,7 +74,7 @@ export const CommandBlock: React.FC<CommandBlockProps> = ({ block, onCopy, onExe
       {/* Command content */}
       <div className="p-4">
         <pre
-          className="font-mono text-sm text-purple-100"
+          className="font-mono text-sm text-[var(--command-accent)]"
           style={{
             fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", "Source Code Pro", "SF Mono", Menlo, Consolas, Monaco, "Courier New", monospace',
           }}
@@ -85,21 +85,21 @@ export const CommandBlock: React.FC<CommandBlockProps> = ({ block, onCopy, onExe
 
       {/* Execution status (if executed before) */}
       {hasExecuted && (
-        <div className="border-t border-purple-500/20 bg-purple-500/5 px-4 py-2 text-xs">
+        <div className="border-t border-[var(--command-border)] bg-[var(--command-bg)] px-4 py-2 text-xs">
           <div className="flex items-center gap-2">
             {exitCode === 0 ? (
               <>
-                <Check className="h-3 w-3 text-green-500" />
-                <span className="text-green-400">Executed successfully</span>
+                <Check className="h-3 w-3 text-success" />
+                <span className="text-success">Executed successfully</span>
               </>
             ) : (
               <>
-                <AlertCircle className="h-3 w-3 text-red-500" />
-                <span className="text-red-400">Exit code: {exitCode}</span>
+                <AlertCircle className="h-3 w-3 text-destructive" />
+                <span className="text-destructive">Exit code: {exitCode}</span>
               </>
             )}
             {executedAt && (
-              <span className="text-purple-400/70">
+              <span className="text-muted-foreground">
                 • {new Date(executedAt).toLocaleTimeString()}
               </span>
             )}
@@ -126,9 +126,9 @@ export const CommandBlock: React.FC<CommandBlockProps> = ({ block, onCopy, onExe
             title="Run command"
           >
             {executing ? (
-              <Loader2 className="h-3 w-3 animate-spin text-purple-400" />
+              <Loader2 className="h-3 w-3 animate-spin text-primary" />
             ) : (
-              <Play className="h-3 w-3 text-purple-400 fill-purple-400" />
+              <Play className="h-3 w-3 text-primary fill-primary" />
             )}
           </button>
 
@@ -140,7 +140,7 @@ export const CommandBlock: React.FC<CommandBlockProps> = ({ block, onCopy, onExe
             title="Copy command"
           >
             {copied ? (
-              <Check className="h-3 w-3 text-green-500" />
+              <Check className="h-3 w-3 text-success" />
             ) : (
               <Copy className="h-3 w-3 text-muted-foreground" />
             )}
@@ -154,7 +154,7 @@ export const CommandBlock: React.FC<CommandBlockProps> = ({ block, onCopy, onExe
             title={bookmarked ? 'Bookmarked' : 'Bookmark'}
           >
             {bookmarked ? (
-              <BookmarkCheck className="h-3 w-3 text-yellow-500" />
+              <BookmarkCheck className="h-3 w-3 text-warning" />
             ) : (
               <Bookmark className="h-3 w-3 text-muted-foreground" />
             )}

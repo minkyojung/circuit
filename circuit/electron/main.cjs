@@ -1334,6 +1334,397 @@ ipcMain.handle('workspace:search-in-files', async (event, workspacePath, query, 
   }
 });
 
+/**
+ * Search file names in workspace (for Quick Open / Cmd+P)
+ * Fast file path search with fuzzy matching
+ */
+ipcMain.handle('workspace:search-files', async (event, workspacePath, query, options = {}) => {
+  try {
+    const {
+      maxResults = 50,
+      fuzzy = true,
+    } = options;
+
+    const results = [];
+    const { readdir, stat } = fs;
+
+    // Recursively collect all files
+    async function collectFiles(dirPath, relativePath = '') {
+      if (results.length >= maxResults * 10) return; // Collect more than needed for fuzzy ranking
+
+      try {
+        const entries = await readdir(dirPath, { withFileTypes: true });
+
+        for (const entry of entries) {
+          const fullPath = path.join(dirPath, entry.name);
+          const relPath = path.join(relativePath, entry.name);
+
+          // Skip common ignore patterns
+          if (entry.name === 'node_modules' ||
+              entry.name === '.git' ||
+              entry.name === 'dist' ||
+              entry.name === 'dist-electron' ||
+              entry.name === 'build' ||
+              entry.name === '.next' ||
+              entry.name === '.conductor' ||
+              entry.name === 'coverage' ||
+              entry.name === '.cache') {
+            continue;
+          }
+
+          if (entry.isDirectory()) {
+            await collectFiles(fullPath, relPath);
+          } else if (entry.isFile()) {
+            results.push({
+              path: relPath,
+              fullPath: fullPath,
+              name: entry.name,
+              dir: relativePath
+            });
+          }
+        }
+      } catch (error) {
+        // Skip directories we can't read
+        console.warn('[Search Files] Cannot read directory:', dirPath, error.message);
+      }
+    }
+
+    // Collect all files
+    await collectFiles(workspacePath);
+
+    // If no query, return most recent files (TODO: add recent files tracking)
+    if (!query || query.trim() === '') {
+      return {
+        success: true,
+        files: results.slice(0, maxResults),
+        totalFiles: results.length,
+      };
+    }
+
+    // Fuzzy search using simple scoring
+    // We'll use a basic implementation here since we want to avoid adding dependencies
+    const scored = results.map(file => {
+      const score = calculateFuzzyScore(file.path, query);
+      return { ...file, score };
+    }).filter(file => file.score > 0);
+
+    // Sort by score (descending)
+    scored.sort((a, b) => b.score - a.score);
+
+    return {
+      success: true,
+      files: scored.slice(0, maxResults).map(f => ({
+        path: f.path,
+        fullPath: f.fullPath,
+        name: f.name,
+        dir: f.dir,
+        score: f.score
+      })),
+      totalFiles: scored.length,
+    };
+  } catch (error) {
+    console.error('[Search Files] Error:', error);
+    return {
+      success: false,
+      error: error.message,
+      files: []
+    };
+  }
+});
+
+/**
+ * Simple fuzzy matching scorer
+ * Returns score > 0 if match found, 0 otherwise
+ * Higher score = better match
+ */
+function calculateFuzzyScore(text, query) {
+  text = text.toLowerCase();
+  query = query.toLowerCase();
+
+  // Exact match gets highest score
+  if (text === query) return 1000;
+  if (text.includes(query)) return 500;
+
+  // Fuzzy matching: all characters must appear in order
+  let textIndex = 0;
+  let queryIndex = 0;
+  let score = 0;
+  let consecutiveMatches = 0;
+
+  while (textIndex < text.length && queryIndex < query.length) {
+    if (text[textIndex] === query[queryIndex]) {
+      queryIndex++;
+      consecutiveMatches++;
+      // Bonus for consecutive matches
+      score += 10 + (consecutiveMatches * 2);
+    } else {
+      consecutiveMatches = 0;
+      // Penalty for gaps
+      score -= 1;
+    }
+    textIndex++;
+  }
+
+  // If we didn't match all query characters, no match
+  if (queryIndex < query.length) return 0;
+
+  // Bonus for matching file name vs full path
+  const fileName = text.split('/').pop() || '';
+  if (fileName.includes(query)) {
+    score += 100;
+  }
+
+  // Bonus for shorter paths (prefer files closer to root)
+  const pathDepth = text.split('/').length;
+  score -= pathDepth * 2;
+
+  return Math.max(score, 1); // Minimum score of 1 if matched
+}
+
+/**
+ * Get TypeScript diagnostics for workspace
+ * Returns all TypeScript errors and warnings
+ */
+ipcMain.handle('typescript:get-diagnostics', async (event, workspacePath) => {
+  try {
+    const ts = require('typescript');
+
+    // Find tsconfig.json
+    const configPath = path.join(workspacePath, 'tsconfig.json');
+
+    // Check if tsconfig exists
+    try {
+      await fs.access(configPath);
+    } catch {
+      return {
+        success: false,
+        error: 'tsconfig.json not found',
+        diagnostics: [],
+        totalErrors: 0,
+        totalWarnings: 0,
+      };
+    }
+
+    // Read and parse tsconfig
+    const configFile = ts.readConfigFile(configPath, ts.sys.readFile);
+
+    if (configFile.error) {
+      return {
+        success: false,
+        error: `Failed to read tsconfig.json: ${configFile.error.messageText}`,
+        diagnostics: [],
+        totalErrors: 0,
+        totalWarnings: 0,
+      };
+    }
+
+    const parsedConfig = ts.parseJsonConfigFileContent(
+      configFile.config,
+      ts.sys,
+      workspacePath
+    );
+
+    // Create TypeScript program
+    const program = ts.createProgram({
+      rootNames: parsedConfig.fileNames,
+      options: parsedConfig.options,
+    });
+
+    const diagnostics = [];
+
+    // Get all diagnostics
+    const allDiagnostics = [
+      ...program.getSemanticDiagnostics(),
+      ...program.getSyntacticDiagnostics(),
+      ...program.getDeclarationDiagnostics(),
+    ];
+
+    // Process diagnostics
+    for (const diagnostic of allDiagnostics) {
+      if (diagnostic.file) {
+        // Skip node_modules
+        if (diagnostic.file.fileName.includes('node_modules')) {
+          continue;
+        }
+
+        const { line, character } = diagnostic.file.getLineAndCharacterOfPosition(
+          diagnostic.start || 0
+        );
+
+        // Determine severity
+        let severity = 'error';
+        if (diagnostic.category === ts.DiagnosticCategory.Warning) {
+          severity = 'warning';
+        } else if (diagnostic.category === ts.DiagnosticCategory.Message) {
+          severity = 'info';
+        } else if (diagnostic.category === ts.DiagnosticCategory.Suggestion) {
+          severity = 'hint';
+        }
+
+        diagnostics.push({
+          severity,
+          message: ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'),
+          file: path.relative(workspacePath, diagnostic.file.fileName),
+          line: line + 1,
+          character: character + 1,
+          code: diagnostic.code,
+        });
+      }
+    }
+
+    const totalErrors = diagnostics.filter(d => d.severity === 'error').length;
+    const totalWarnings = diagnostics.filter(d => d.severity === 'warning').length;
+
+    return {
+      success: true,
+      diagnostics,
+      totalErrors,
+      totalWarnings,
+    };
+  } catch (error) {
+    console.error('[TypeScript] Diagnostics error:', error);
+    return {
+      success: false,
+      error: error.message,
+      diagnostics: [],
+      totalErrors: 0,
+      totalWarnings: 0,
+    };
+  }
+});
+
+/**
+ * Get TypeScript outline/symbols for a file
+ * Returns structure of functions, classes, interfaces, etc.
+ */
+ipcMain.handle('typescript:get-outline', async (event, filePath) => {
+  try {
+    const ts = require('typescript');
+    const fsSync = require('fs');
+
+    // Read file
+    const sourceCode = fsSync.readFileSync(filePath, 'utf8');
+    const sourceFile = ts.createSourceFile(
+      path.basename(filePath),
+      sourceCode,
+      ts.ScriptTarget.Latest,
+      true
+    );
+
+    const symbols = [];
+
+    // Recursively visit AST nodes
+    function visit(node, parent = null) {
+      let symbol = null;
+
+      // Function Declaration
+      if (ts.isFunctionDeclaration(node) && node.name) {
+        symbol = {
+          name: node.name.text,
+          kind: 'function',
+          line: sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1,
+          children: [],
+        };
+      }
+      // Arrow Function with variable
+      else if (ts.isVariableDeclaration(node) && node.initializer &&
+               (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer)) &&
+               ts.isIdentifier(node.name)) {
+        symbol = {
+          name: node.name.text,
+          kind: 'function',
+          line: sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1,
+          children: [],
+        };
+      }
+      // Class Declaration
+      else if (ts.isClassDeclaration(node) && node.name) {
+        symbol = {
+          name: node.name.text,
+          kind: 'class',
+          line: sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1,
+          children: [],
+        };
+      }
+      // Interface Declaration
+      else if (ts.isInterfaceDeclaration(node)) {
+        symbol = {
+          name: node.name.text,
+          kind: 'interface',
+          line: sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1,
+          children: [],
+        };
+      }
+      // Type Alias
+      else if (ts.isTypeAliasDeclaration(node)) {
+        symbol = {
+          name: node.name.text,
+          kind: 'type',
+          line: sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1,
+          children: [],
+        };
+      }
+      // Method Declaration
+      else if (ts.isMethodDeclaration(node) && node.name) {
+        const name = ts.isIdentifier(node.name) ? node.name.text : node.name.getText(sourceFile);
+        symbol = {
+          name,
+          kind: 'method',
+          line: sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1,
+          children: [],
+        };
+      }
+      // Property Declaration
+      else if (ts.isPropertyDeclaration(node) && node.name) {
+        const name = ts.isIdentifier(node.name) ? node.name.text : node.name.getText(sourceFile);
+        symbol = {
+          name,
+          kind: 'property',
+          line: sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1,
+          children: [],
+        };
+      }
+      // Enum Declaration
+      else if (ts.isEnumDeclaration(node)) {
+        symbol = {
+          name: node.name.text,
+          kind: 'enum',
+          line: sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1,
+          children: [],
+        };
+      }
+
+      if (symbol) {
+        if (parent) {
+          parent.children.push(symbol);
+        } else {
+          symbols.push(symbol);
+        }
+
+        // Visit children with this symbol as parent
+        ts.forEachChild(node, child => visit(child, symbol));
+      } else {
+        // Continue visiting children
+        ts.forEachChild(node, child => visit(child, parent));
+      }
+    }
+
+    visit(sourceFile);
+
+    return {
+      success: true,
+      symbols,
+    };
+  } catch (error) {
+    console.error('[TypeScript] Outline error:', error);
+    return {
+      success: false,
+      error: error.message,
+      symbols: [],
+    };
+  }
+});
+
 // ============================================================================
 // Circuit Test-Fix Loop - Phase 2
 // ============================================================================

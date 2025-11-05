@@ -118,16 +118,16 @@
 
     /* ===== APPLE-STYLE SEMANTIC COLOR SYSTEM ===== */
 
-    /* Background Hierarchy (Light Mode) */
-    --background-primary: oklch(0.88 0 0);           /* #E0E0E0 - Main window background */
+    /* Background Hierarchy (Light Mode) - Apple HIG */
+    --background-primary: oklch(0.945 0 0);          /* #F0F0F0 - Window background (Apple standard) */
     --background-secondary: oklch(1 0 0);            /* #FFFFFF - Elevated cards/panels */
-    --background-tertiary: oklch(0.965 0 0);         /* #F5F5F5 - Nested elevated surfaces */
+    --background-tertiary: oklch(0.965 0 0);         /* #F6F6F6 - Nested elevated surfaces */
 
-    /* Label Hierarchy (Light Mode) - Apple semantic naming */
-    --label-primary: rgba(0, 0, 0, 1.0);             /* 100% - Main text */
-    --label-secondary: rgba(0, 0, 0, 0.95);          /* 95% - Supporting text (darker) */
-    --label-tertiary: rgba(0, 0, 0, 0.60);           /* 60% - Subtle text/placeholders (WCAG AA: 4.8:1) */
-    --label-quaternary: rgba(0, 0, 0, 0.25);         /* 25% - Very subtle decorative elements (not for text) */
+    /* Label Hierarchy (Light Mode) - Apple System Colors */
+    --label-primary: rgba(0, 0, 0, 0.85);            /* 85% - labelColor (Apple standard) */
+    --label-secondary: rgba(0, 0, 0, 0.50);          /* 50% - secondaryLabelColor (Apple standard) */
+    --label-tertiary: rgba(0, 0, 0, 0.25);           /* 25% - tertiaryLabelColor (Apple standard) */
+    --label-quaternary: rgba(0, 0, 0, 0.10);         /* 10% - quaternaryLabelColor (Apple standard) */
 
     /* Fill Hierarchy (Light Mode) - Interactive elements */
     --fill-primary: rgba(120, 120, 128, 0.36);       /* Buttons, controls - level 1 */
@@ -139,11 +139,11 @@
     --separator-opaque: rgba(0, 0, 0, 0.1);          /* Solid dividers */
     --separator-translucent: rgba(0, 0, 0, 0.05);    /* Subtle dividers */
 
-    /* Materials - Glassmorphism Hierarchy (Light Mode) */
-    --material-thin: rgba(233, 233, 233, 0.5);       /* Subtle glass effect */
-    --material-regular: rgba(233, 233, 233, 0.7);    /* Standard glass effect */
-    --material-thick: rgba(233, 233, 233, 0.85);     /* Strong glass effect */
-    --material-ultra-thick: rgba(233, 233, 233, 0.95); /* Maximum glass effect */
+    /* Materials - Glassmorphism Hierarchy (Light Mode) - Apple style */
+    --material-thin: rgba(245, 245, 245, 0.60);      /* Subtle glass effect */
+    --material-regular: rgba(245, 245, 245, 0.80);   /* Standard glass effect (Apple vibrancy) */
+    --material-thick: rgba(245, 245, 245, 0.90);     /* Strong glass effect */
+    --material-ultra-thick: rgba(245, 245, 245, 0.97); /* Maximum glass effect */
 
     /* ===== LEGACY TOKENS (mapped to new system) ===== */
     --background: var(--background-primary);
@@ -165,8 +165,8 @@
     --secondary-foreground: oklch(0.24 0 0);         /* #383838 */
 
     /* Muted/subtle colors */
-    --muted: oklch(0.84 0 0);                        /* #D2D2D2 - Sidebar bg */
-    --muted-foreground: oklch(0.30 0 0);             /* Darker gray - improved contrast */
+    --muted: oklch(0.96 0 0);                        /* #F5F5F5 - Subtle backgrounds */
+    --muted-foreground: rgba(0, 0, 0, 0.50);         /* 50% - Apple secondaryLabelColor */
 
     --accent: oklch(0.92 0.02 40);                   /* Very light orange tint */
     --accent-foreground: oklch(0.58 0.10 40);        /* Muted orange */
@@ -199,11 +199,11 @@
     /* Window glassmorphism */
     --window-glass: var(--material-regular);         /* Standard glass effect for window */
 
-    /* Sidebar colors */
-    --sidebar: oklch(0.915 0 0);                     /* #E9E9E9 */
+    /* Sidebar colors - Apple HIG hierarchy */
+    --sidebar: oklch(0.925 0 0);                     /* #E8E8E8 - Sidebar (darker than window) */
     --sidebar-glass: var(--material-regular);        /* Glassmorphism backdrop */
-    --sidebar-foreground: rgba(0, 0, 0, 0.95);       /* 95% black - darker for better contrast */
-    --sidebar-foreground-muted: rgba(0, 0, 0, 0.65); /* 65% black - darker secondary text */
+    --sidebar-foreground: rgba(0, 0, 0, 0.85);       /* 85% - Apple labelColor */
+    --sidebar-foreground-muted: rgba(0, 0, 0, 0.50); /* 50% - Apple secondaryLabelColor */
     --sidebar-primary: oklch(0.58 0.15 250);         /* Muted blue */
     --sidebar-primary-foreground: oklch(1 0 0);
     --sidebar-accent: rgba(0, 0, 0, 0.04);           /* Selected: 4% black overlay on glass (matches hover) */
@@ -492,16 +492,16 @@
 
   /* ===== GREEN LIGHT MODE (SAGE) ===== */
   .green-light {
-    /* Background Hierarchy - Green-tinted light backgrounds */
-    --background-primary: oklch(0.88 0.02 150);           /* Sage gray - Main window */
-    --background-secondary: oklch(0.98 0.01 150);         /* Very light sage - Cards */
-    --background-tertiary: oklch(0.945 0.015 150);        /* Light sage - Nested */
+    /* Background Hierarchy - Apple HIG with sage tint */
+    --background-primary: oklch(0.945 0.015 150);         /* Sage window background */
+    --background-secondary: oklch(1 0 0);                 /* Pure white - Cards */
+    --background-tertiary: oklch(0.965 0.012 150);        /* Light sage - Nested */
 
-    /* Label Hierarchy - Same as light mode */
-    --label-primary: rgba(0, 0, 0, 1.0);
-    --label-secondary: rgba(0, 0, 0, 0.95);
-    --label-tertiary: rgba(0, 0, 0, 0.60);
-    --label-quaternary: rgba(0, 0, 0, 0.25);
+    /* Label Hierarchy - Apple System Colors */
+    --label-primary: rgba(0, 0, 0, 0.85);
+    --label-secondary: rgba(0, 0, 0, 0.50);
+    --label-tertiary: rgba(0, 0, 0, 0.25);
+    --label-quaternary: rgba(0, 0, 0, 0.10);
 
     /* Fill Hierarchy - Green-tinted fills */
     --fill-primary: rgba(100, 140, 115, 0.36);
@@ -572,11 +572,11 @@
     /* Window glassmorphism */
     --window-glass: var(--material-regular);
 
-    /* Sidebar colors - sage theme */
-    --sidebar: oklch(0.915 0.015 150);                    /* Sage sidebar */
+    /* Sidebar colors - sage theme (Apple HIG hierarchy) */
+    --sidebar: oklch(0.925 0.018 150);                    /* Sage sidebar (darker than window) */
     --sidebar-glass: var(--material-regular);
-    --sidebar-foreground: rgba(0, 0, 0, 0.95);
-    --sidebar-foreground-muted: rgba(0, 0, 0, 0.65);
+    --sidebar-foreground: rgba(0, 0, 0, 0.85);
+    --sidebar-foreground-muted: rgba(0, 0, 0, 0.50);
     --sidebar-primary: oklch(0.55 0.12 150);              /* Sage green */
     --sidebar-primary-foreground: oklch(1 0 0);
     --sidebar-accent: rgba(100, 140, 115, 0.08);          /* Green-tinted accent */
@@ -862,16 +862,16 @@
 
   /* ===== WARM LIGHT MODE (AMBER - Arc/Dia Inspired) ===== */
   .warm-light {
-    /* Background Hierarchy - Refined beige-gray backgrounds (Arc style) */
-    --background-primary: oklch(0.955 0.008 70);          /* #F5F3F0 Neutral warm beige */
-    --background-secondary: oklch(0.992 0.004 70);        /* #FDFCFB Almost white cards */
-    --background-tertiary: oklch(0.970 0.006 70);         /* #FAF8F6 Subtle nested */
+    /* Background Hierarchy - Apple HIG with warm tint */
+    --background-primary: oklch(0.945 0.010 70);          /* Warm window background */
+    --background-secondary: oklch(1 0 0);                 /* Pure white cards */
+    --background-tertiary: oklch(0.965 0.008 70);         /* Subtle warm nested */
 
-    /* Label Hierarchy - Sophisticated dark grays */
-    --label-primary: rgba(42, 40, 38, 1.0);               /* #2a2826 Rich charcoal - 100% */
-    --label-secondary: rgba(72, 68, 64, 0.95);            /* Warm gray - 95% */
-    --label-tertiary: rgba(102, 96, 90, 0.60);            /* Medium gray - 60% */
-    --label-quaternary: rgba(146, 138, 130, 0.25);        /* Light gray - 25% */
+    /* Label Hierarchy - Apple System Colors with warm base */
+    --label-primary: rgba(42, 40, 38, 0.90);              /* 90% warm charcoal (slightly lighter than pure black) */
+    --label-secondary: rgba(42, 40, 38, 0.55);            /* 55% warm gray */
+    --label-tertiary: rgba(42, 40, 38, 0.28);             /* 28% warm gray */
+    --label-quaternary: rgba(102, 96, 90, 0.12);          /* 12% light gray */
 
     /* Fill Hierarchy - Muted terracotta fills */
     --fill-primary: rgba(185, 117, 87, 0.12);             /* Burnt sienna tint */
@@ -942,11 +942,11 @@
     /* Window glassmorphism */
     --window-glass: var(--material-regular);
 
-    /* Sidebar colors - refined warm theme */
-    --sidebar: oklch(0.945 0.008 70);                     /* Refined sidebar */
+    /* Sidebar colors - refined warm theme (Apple HIG hierarchy) */
+    --sidebar: oklch(0.925 0.012 70);                     /* Warm sidebar (darker than window) */
     --sidebar-glass: var(--material-regular);
-    --sidebar-foreground: rgba(42, 40, 38, 0.95);
-    --sidebar-foreground-muted: rgba(102, 96, 90, 0.65);
+    --sidebar-foreground: rgba(42, 40, 38, 0.90);
+    --sidebar-foreground-muted: rgba(42, 40, 38, 0.55);
     --sidebar-primary: oklch(0.58 0.10 45);               /* Terracotta */
     --sidebar-primary-foreground: oklch(0.98 0 0);
     --sidebar-accent: rgba(185, 117, 87, 0.10);           /* Terracotta-tinted accent */
@@ -1232,16 +1232,16 @@
 
   /* ===== STRAW LIGHT MODE (WHEAT INSPIRED) ===== */
   .straw-light {
-    /* Background Hierarchy - Warm wheat/straw tones */
-    --background-primary: oklch(0.87 0.08 80);            /* #EFD395 Straw Yellow - Main window */
-    --background-secondary: oklch(0.96 0.03 80);          /* Very light wheat - Cards */
-    --background-tertiary: oklch(0.91 0.05 80);           /* Light wheat - Nested */
+    /* Background Hierarchy - Apple HIG with wheat tint */
+    --background-primary: oklch(0.945 0.035 80);          /* Warm wheat window */
+    --background-secondary: oklch(0.99 0.015 80);         /* Very light wheat - Cards */
+    --background-tertiary: oklch(0.965 0.025 80);         /* Light wheat - Nested */
 
-    /* Label Hierarchy - Dark grays from palette */
-    --label-primary: oklch(0.17 0.005 30);                /* #262625 Nero - Main text */
-    --label-secondary: oklch(0.32 0.008 40);              /* #4B4A48 Private Black - Supporting text */
-    --label-tertiary: oklch(0.50 0.005 40);               /* #777674 Steel Wool - Subtle text */
-    --label-quaternary: oklch(0.68 0 0);                  /* #A4A4A4 Rainy Grey - Very subtle */
+    /* Label Hierarchy - Apple System Colors (using dark base) */
+    --label-primary: rgba(38, 38, 37, 0.90);              /* 90% Nero for readability */
+    --label-secondary: rgba(38, 38, 37, 0.55);            /* 55% */
+    --label-tertiary: rgba(75, 74, 72, 0.35);             /* 35% */
+    --label-quaternary: rgba(119, 118, 116, 0.15);        /* 15% */
 
     /* Fill Hierarchy - Warm wheat fills */
     --fill-primary: rgba(239, 211, 149, 0.36);
@@ -1312,11 +1312,11 @@
     /* Window glassmorphism */
     --window-glass: var(--material-regular);
 
-    /* Sidebar colors - straw theme */
-    --sidebar: oklch(0.85 0.08 80);
+    /* Sidebar colors - straw theme (Apple HIG hierarchy) */
+    --sidebar: oklch(0.925 0.040 80);                     /* Straw sidebar (darker than window) */
     --sidebar-glass: var(--material-regular);
-    --sidebar-foreground: oklch(0.17 0.005 30);
-    --sidebar-foreground-muted: oklch(0.50 0.005 40);
+    --sidebar-foreground: rgba(38, 38, 37, 0.90);
+    --sidebar-foreground-muted: rgba(38, 38, 37, 0.55);
     --sidebar-primary: oklch(0.65 0.12 75);
     --sidebar-primary-foreground: oklch(0.17 0.005 30);
     --sidebar-accent: rgba(239, 211, 149, 0.25);

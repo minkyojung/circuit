@@ -275,6 +275,7 @@ function App() {
     activateTab,
     moveTab,
     updateTab,
+    reorderTabs,
     getActiveTab,
     findTab,
     getAllTabs,
@@ -601,6 +602,50 @@ function App() {
   const handleTabClose = (tabId: string, groupId: string) => {
     console.log('[App] Closing tab:', tabId, 'from group:', groupId)
     closeTab(tabId, groupId)
+  }
+
+  // Handle moving the active tab left or right
+  const handleMoveActiveTab = (direction: 'left' | 'right') => {
+    const focusedGroupId = focusedGroupIdRef.current
+    const group = editorGroups.find((g) => g.id === focusedGroupId)
+    const activeTab = group?.tabs.find((t) => t.id === group.activeTabId)
+
+    if (!activeTab || !group) {
+      console.log('[App] No active tab to move')
+      return
+    }
+
+    const currentIndex = group.tabs.findIndex((t) => t.id === activeTab.id)
+
+    if (currentIndex === -1) {
+      console.log('[App] Could not find active tab index')
+      return
+    }
+
+    // Calculate new index
+    let newIndex = currentIndex
+    if (direction === 'left') {
+      newIndex = Math.max(0, currentIndex - 1)
+    } else {
+      newIndex = Math.min(group.tabs.length - 1, currentIndex + 1)
+    }
+
+    // If index didn't change (already at edge), do nothing
+    if (newIndex === currentIndex) {
+      console.log('[App] Tab already at', direction, 'edge')
+      return
+    }
+
+    // Create new tab order
+    const newTabOrder = [...group.tabs]
+    const [movedTab] = newTabOrder.splice(currentIndex, 1)
+    newTabOrder.splice(newIndex, 0, movedTab)
+
+    // Apply reordering
+    const newTabIds = newTabOrder.map((t) => t.id)
+    reorderTabs(focusedGroupId, newTabIds)
+
+    console.log('[App] Moved tab', activeTab.id, direction, 'from index', currentIndex, 'to', newIndex)
   }
 
   // Handle closing the currently active tab (triggered by Cmd+W)
@@ -967,6 +1012,7 @@ function App() {
             conversationId={activeConversationId}
             workspace={selectedWorkspace}
             onCommit={() => setShowCommitDialog(true)}
+            onFileSelect={handleFileSelect}
           />
         </Sidebar>
       )}
