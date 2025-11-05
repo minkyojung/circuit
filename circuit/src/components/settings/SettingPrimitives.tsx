@@ -38,7 +38,7 @@ export const SettingSection: React.FC<SettingSectionProps> = ({
       {/* Apple-style grouped card */}
       <div className="bg-card border border-border rounded-lg overflow-hidden divide-y divide-border/50">
         {childrenArray.map((child, index) => (
-          <div key={index} className="px-4 py-3">
+          <div key={index} className="px-4 py-2.5">
             {child}
           </div>
         ))}
@@ -65,14 +65,14 @@ export const SettingRow: React.FC<SettingRowProps> = ({
   className,
 }) => {
   return (
-    <div className={cn('flex items-center justify-between gap-4', className)}>
+    <div className={cn('flex items-start justify-between gap-4', className)}>
       <div className="flex-1 min-w-0">
-        <label className="text-sm font-medium text-foreground">{label}</label>
+        <label className="text-sm font-medium text-foreground leading-6">{label}</label>
         {description && (
-          <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
+          <p className="text-xs text-muted-foreground mt-0.5 leading-tight">{description}</p>
         )}
       </div>
-      <div className="flex-shrink-0">{children}</div>
+      <div className="flex-shrink-0 h-6 flex items-center">{children}</div>
     </div>
   );
 };
