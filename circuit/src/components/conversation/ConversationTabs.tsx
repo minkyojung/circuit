@@ -48,6 +48,7 @@ export function ConversationTabs({
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState('')
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
     if (!workspaceId) {
@@ -88,8 +89,9 @@ export function ConversationTabs({
   }
 
   const confirmDelete = async () => {
-    if (!deletingId) return
+    if (!deletingId || isDeleting) return
 
+    setIsDeleting(true)
     try {
       // If this is the last conversation, create a new one first
       if (conversations.length === 1) {
@@ -97,13 +99,20 @@ export function ConversationTabs({
         const createResult = await ipcRenderer.invoke('conversation:create', workspaceId)
 
         if (createResult.success && createResult.conversation) {
-          // Switch to the new conversation
-          onConversationChange(createResult.conversation.id)
+          const newConversationId = createResult.conversation.id
+
+          // Switch to the new conversation immediately (fast UX)
+          onConversationChange(newConversationId)
 
           // Now delete the old one
           const deleteResult = await ipcRenderer.invoke('conversation:delete', deletingId)
           if (!deleteResult.success) {
-            console.error('[ConversationTabs] Failed to delete:', deleteResult.error)
+            console.error('[ConversationTabs] Failed to delete old conversation, rolling back')
+
+            // Rollback: delete the newly created conversation and switch back
+            await ipcRenderer.invoke('conversation:delete', newConversationId)
+            onConversationChange(deletingId)
+
             alert(`Failed to delete conversation: ${deleteResult.error || 'Unknown error'}`)
           }
 
@@ -135,6 +144,7 @@ export function ConversationTabs({
       alert(`Error deleting conversation: ${error}`)
     } finally {
       setDeletingId(null)
+      setIsDeleting(false)
     }
   }
 
