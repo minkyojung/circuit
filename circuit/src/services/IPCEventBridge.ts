@@ -633,12 +633,12 @@ The plan is ready. What would you like to do?`,
   registerListeners() {
     console.log('[IPCEventBridge] Registering IPC listeners');
 
-    ipcRenderer.on('thinking-start', this.handleThinkingStart);
-    ipcRenderer.on('milestone', this.handleMilestone);
-    ipcRenderer.on('thinking-complete', this.handleThinkingComplete);
-    ipcRenderer.on('response-complete', this.handleResponseComplete);
-    ipcRenderer.on('response-error', this.handleResponseError);
-    ipcRenderer.on('message-cancelled', this.handleMessageCancelled);
+    ipcRenderer.on('claude:thinking-start', this.handleThinkingStart);
+    ipcRenderer.on('claude:milestone', this.handleMilestone);
+    ipcRenderer.on('claude:thinking-complete', this.handleThinkingComplete);
+    ipcRenderer.on('claude:response-complete', this.handleResponseComplete);
+    ipcRenderer.on('claude:response-error', this.handleResponseError);
+    ipcRenderer.on('claude:message-cancelled', this.handleMessageCancelled);
     ipcRenderer.on('execute-tasks', this.handleExecuteTasks);
 
     console.log('[IPCEventBridge] ✅ All listeners registered');
@@ -651,12 +651,12 @@ The plan is ready. What would you like to do?`,
   unregisterListeners() {
     console.log('[IPCEventBridge] Unregistering IPC listeners');
 
-    ipcRenderer.removeListener('thinking-start', this.handleThinkingStart);
-    ipcRenderer.removeListener('milestone', this.handleMilestone);
-    ipcRenderer.removeListener('thinking-complete', this.handleThinkingComplete);
-    ipcRenderer.removeListener('response-complete', this.handleResponseComplete);
-    ipcRenderer.removeListener('response-error', this.handleResponseError);
-    ipcRenderer.removeListener('message-cancelled', this.handleMessageCancelled);
+    ipcRenderer.removeListener('claude:thinking-start', this.handleThinkingStart);
+    ipcRenderer.removeListener('claude:milestone', this.handleMilestone);
+    ipcRenderer.removeListener('claude:thinking-complete', this.handleThinkingComplete);
+    ipcRenderer.removeListener('claude:response-complete', this.handleResponseComplete);
+    ipcRenderer.removeListener('claude:response-error', this.handleResponseError);
+    ipcRenderer.removeListener('claude:message-cancelled', this.handleMessageCancelled);
     ipcRenderer.removeListener('execute-tasks', this.handleExecuteTasks);
 
     console.log('[IPCEventBridge] ✅ All listeners unregistered');
