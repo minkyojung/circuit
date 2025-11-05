@@ -3,7 +3,6 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useDebouncedCallback } from 'use-debounce';
 import type { Workspace } from '@/types/workspace';
 import type { Message } from '@/types/conversation';
-import type { QueuedMessage } from '@/types/messageQueue';
 import Editor, { loader } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
 import { ChevronDown } from 'lucide-react';
@@ -18,7 +17,6 @@ import { ChatInput, type AttachedFile } from './ChatInput';
 import { ChatMessageSkeleton } from '@/components/ui/skeleton';
 import { Shimmer } from '@/components/ai-elements/shimmer';
 import { ReasoningAccordion } from '@/components/reasoning/ReasoningAccordion';
-import { QueueIndicator } from './QueueIndicator';
 import type { ThinkingStep } from '@/types/thinking';
 import { summarizeToolUsage } from '@/lib/thinkingUtils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -330,11 +328,6 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   const [thinkingSteps, setThinkingSteps] = useState<ThinkingStep[]>([]);
   const [messageThinkingSteps, setMessageThinkingSteps] = useState<Record<string, { steps: ThinkingStep[], duration: number }>>({});
 
-  // Message Queue State
-  const [messageQueue, setMessageQueue] = useState<QueuedMessage[]>([]);
-  const [isProcessingQueue, setIsProcessingQueue] = useState(false);
-  const [currentQueueItem, setCurrentQueueItem] = useState<QueuedMessage | null>(null);
-
   // Todo context
   const { createTodosFromDrafts, todos } = useTodos();
 
@@ -367,7 +360,6 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   // Refs to hold latest state values (to avoid stale closures in IPC handlers)
   const sessionIdRef = useRef<string | null>(sessionId);
   const pendingAssistantMessageIdRef = useRef<string | null>(null);
-  const isProcessingQueuedMessageRef = useRef<boolean>(false);
   const conversationIdRef = useRef<string | null>(conversationId);
   const messagesRef = useRef<Message[]>(messages);
   const thinkingStepsRef = useRef<ThinkingStep[]>(thinkingSteps);
@@ -1298,15 +1290,10 @@ Wrap the JSON in triple backticks with 'json' language marker. This is REQUIRED.
       const editedFiles = parseFileChanges(result.message);
       console.log('[WorkspaceChat] Detected file changes:', editedFiles);
 
-      // Only auto-open files if NOT processing a queued message
-      // (Prevents excessive file switching when processing multiple queued messages)
-      if (!isProcessingQueuedMessageRef.current) {
-        editedFiles.forEach((file) => {
-          onFileEdit(file);
-        });
-      } else {
-        console.log('[Queue] Skipping auto file open for queued message (detected', editedFiles.length, 'files)');
-      }
+      // Auto-open edited files
+      editedFiles.forEach((file) => {
+        onFileEdit(file);
+      });
 
       pendingUserMessageRef.current = null;
       setPendingAssistantMessageId(null); // Clear pending message ID
@@ -1702,8 +1689,6 @@ The plan is ready. What would you like to do?`,
 
   const handleSend = async (inputText: string, attachments: AttachedFile[], thinkingMode: import('./ChatInput').ThinkingMode) => {
     if (!inputText.trim() && attachments.length === 0) return;
-    // ❌ OLD: if (isSending || !sessionId) return;
-    // ✅ NEW: Only check sessionId, allow sending while processing
     if (!sessionId) return;
 
     // Build final input with code attachments prepended
@@ -1725,24 +1710,11 @@ The plan is ready. What would you like to do?`,
       setCodeAttachment(null);
     }
 
-    // Create queued message
-    const queuedMessage: QueuedMessage = {
-      id: `queue-${Date.now()}-${Math.random().toString(36).substring(7)}`,
-      queuedAt: Date.now(),
-      content: finalInput,
-      attachments,
-      thinkingMode,
-      status: 'queued',
-      preview: finalInput.slice(0, 50) + (finalInput.length > 50 ? '...' : '')
-    };
-
-    console.log('[Queue] Enqueueing message:', queuedMessage.id, queuedMessage.preview);
-
-    // Add to queue - processing will auto-start via useEffect
-    setMessageQueue(prev => [...prev, queuedMessage]);
-
     // Clear input immediately (improved UX)
     setInput('');
+
+    // Execute prompt directly
+    await executePrompt(finalInput, attachments, thinkingMode);
   };
 
   const executePrompt = async (inputText: string, attachments: AttachedFile[], thinkingMode: import('./ChatInput').ThinkingMode) => {
@@ -1834,294 +1806,6 @@ The plan is ready. What would you like to do?`,
     ipcRenderer.send('claude:send-message', sessionId, currentInput, attachments, thinkingMode);
     console.log('[ChatPanel] 📨 Message sent, waiting for IPC events...');
   };
-
-  /**
-   * Execute a message from the queue
-   * This is similar to executePrompt but works with QueuedMessage
-   */
-  const executePromptFromQueue = async (queueItem: QueuedMessage): Promise<void> => {
-    const { content, attachments, thinkingMode } = queueItem;
-
-    if (!sessionId) {
-      throw new Error('No session ID available');
-    }
-
-    // Mark that we're processing a queued message (prevent auto file opening)
-    isProcessingQueuedMessageRef.current = true;
-
-    // Track current thinking mode
-    currentThinkingModeRef.current = thinkingMode;
-
-    // Ensure we have a conversationId
-    let activeConversationId = conversationId;
-
-    if (!activeConversationId) {
-      console.warn('[ChatPanel] No conversation ID, creating new conversation');
-      try {
-        const createResult = await ipcRenderer.invoke('conversation:create', workspace.id);
-        if (createResult.success && createResult.conversation) {
-          activeConversationId = createResult.conversation.id;
-          setConversationId(activeConversationId);
-        } else {
-          throw new Error(`Failed to create conversation: ${createResult.error}`);
-        }
-      } catch (error) {
-        console.error('[ChatPanel] Error creating conversation:', error);
-        throw error;
-      }
-    }
-
-    // Create user message
-    const userMessage: Message = {
-      id: `msg-${Date.now()}`,
-      conversationId: activeConversationId!,
-      role: 'user',
-      content,
-      timestamp: Date.now(),
-      metadata: {
-        attachments: attachments.map(f => ({
-          id: f.id,
-          name: f.name,
-          type: f.type,
-          size: f.size,
-        })),
-        queueItemId: queueItem.id, // Link to queue item
-      },
-    };
-
-    // Optimistic UI update
-    setMessages((prev) => {
-      console.log('[ChatPanel] 📤 Adding user message from queue:', {
-        messageId: userMessage.id,
-        queueItemId: queueItem.id,
-        prevLength: prev.length,
-        newLength: prev.length + 1,
-      });
-      return [...prev, userMessage];
-    });
-
-    setIsSending(true);
-
-    // Save user message to database
-    try {
-      const result = await ipcRenderer.invoke('message:save', userMessage);
-      if (result.success && result.blocks) {
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === userMessage.id ? { ...msg, blocks: result.blocks } : msg
-          )
-        );
-      }
-    } catch (err) {
-      console.error('[ChatPanel] Failed to save user message:', err);
-    }
-
-    // Store pending user message for response handlers
-    pendingUserMessageRef.current = userMessage;
-
-    // Send message to Claude
-    console.log('[ChatPanel] 📨 Sending queued message to Claude:', {
-      sessionId,
-      queueItemId: queueItem.id,
-      messageLength: content.length,
-      attachmentsCount: attachments.length,
-      thinkingMode,
-    });
-
-    // Return a promise that resolves when the response is complete
-    return new Promise<void>((resolve, reject) => {
-      let isResolved = false;
-      let wrappedResponseCompleteHandler: any;
-      let wrappedErrorHandler: any;
-
-      const cleanup = () => {
-        // Always cleanup listeners regardless of isResolved state
-        if (wrappedResponseCompleteHandler) {
-          ipcRenderer.removeListener('claude:response-complete', wrappedResponseCompleteHandler);
-          console.log('[ChatPanel] Removed response-complete listener for queue item:', queueItem.id);
-        }
-        if (wrappedErrorHandler) {
-          ipcRenderer.removeListener('claude:response-error', wrappedErrorHandler);
-          console.log('[ChatPanel] Removed response-error listener for queue item:', queueItem.id);
-        }
-      };
-
-      // Timeout after 5 minutes - prevent infinite hanging
-      const timeout = setTimeout(() => {
-        if (!isResolved) {
-          isResolved = true;
-          cleanup();
-          clearTimeout(timeout);
-          console.error('[ChatPanel] Queue item timeout:', queueItem.id);
-          reject(new Error('Response timeout after 5 minutes'));
-        }
-      }, 5 * 60 * 1000);
-
-      // Wrap resolve/reject to ensure cleanup
-      const safeResolve = () => {
-        cleanup();
-        clearTimeout(timeout);
-        isProcessingQueuedMessageRef.current = false;
-        resolve();
-      };
-
-      const safeReject = (error: Error) => {
-        cleanup();
-        clearTimeout(timeout);
-        isProcessingQueuedMessageRef.current = false;
-        reject(error);
-      };
-
-      // Update handlers to use safe resolve/reject
-      wrappedResponseCompleteHandler = (_event: any, result: any) => {
-        console.log('[ChatPanel] Response complete event received:', {
-          queueItemId: queueItem.id,
-          resultSessionId: result.sessionId,
-          currentSessionId: sessionId,
-          matches: result.sessionId === sessionId
-        });
-
-        if (result.sessionId === sessionId && !isResolved) {
-          isResolved = true;
-          console.log('[ChatPanel] Queue item response complete:', queueItem.id);
-
-          if (result.success) {
-            queueItem.userMessageId = userMessage.id;
-            queueItem.assistantMessageId = pendingAssistantMessageIdRef.current || undefined;
-            safeResolve();
-          } else {
-            safeReject(new Error(result.error || 'Unknown error'));
-          }
-        }
-      };
-
-      wrappedErrorHandler = (_event: any, error: any) => {
-        console.log('[ChatPanel] Response error event received:', {
-          queueItemId: queueItem.id,
-          errorSessionId: error.sessionId,
-          currentSessionId: sessionId
-        });
-
-        if (error.sessionId === sessionId && !isResolved) {
-          isResolved = true;
-          console.error('[ChatPanel] Queue item response error:', queueItem.id, error);
-          safeReject(new Error(error.error || error.message || 'Unknown error'));
-        }
-      };
-
-      // Use 'on' instead of 'once' to prevent event consumption without resolution
-      ipcRenderer.on('claude:response-complete', wrappedResponseCompleteHandler);
-      ipcRenderer.on('claude:response-error', wrappedErrorHandler);
-
-      // Send the message
-      console.log('[ChatPanel] Sending queued message IPC:', {
-        queueItemId: queueItem.id,
-        sessionId
-      });
-      ipcRenderer.send('claude:send-message', sessionId, content, attachments, thinkingMode);
-    });
-  };
-
-  /**
-   * Process the message queue sequentially
-   */
-  const processQueue = useCallback(async () => {
-    // Already processing or queue is empty
-    if (isProcessingQueue) {
-      console.log('[Queue] Already processing, skipping');
-      return;
-    }
-
-    if (messageQueue.length === 0) {
-      console.log('[Queue] Queue is empty');
-      setIsProcessingQueue(false);
-      setCurrentQueueItem(null);
-      setIsSending(false);
-      return;
-    }
-
-    // Start processing
-    setIsProcessingQueue(true);
-
-    // Get first item from queue
-    const queueItem = messageQueue[0];
-    setCurrentQueueItem(queueItem);
-    console.log('[Queue] Processing queue item:', queueItem.id, queueItem.preview);
-
-    // Update status to 'processing'
-    setMessageQueue(prev =>
-      prev.map((item, idx) =>
-        idx === 0 ? { ...item, status: 'processing' as const } : item
-      )
-    );
-
-    try {
-      // Execute the queued message
-      await executePromptFromQueue(queueItem);
-
-      // Success - mark as completed and remove from queue
-      console.log('[Queue] Queue item completed:', queueItem.id);
-      setMessageQueue(prev => prev.filter(item => item.id !== queueItem.id));
-
-      // Reset processing flags - useEffect will auto-trigger next item
-      setIsProcessingQueue(false);
-      setCurrentQueueItem(null);
-      setIsSending(false);
-      // Note: No manual processQueue() call - useEffect will handle it
-
-    } catch (error) {
-      console.error('[Queue] Failed to process queue item:', error);
-
-      // Mark as failed and stop processing
-      setMessageQueue(prev =>
-        prev.map(item =>
-          item.id === queueItem.id
-            ? { ...item, status: 'failed' as const, error: String(error) }
-            : item
-        )
-      );
-
-      setIsProcessingQueue(false);
-      setCurrentQueueItem(null);
-      setIsSending(false);
-      // Don't process next on failure - let user handle failed item
-    }
-  }, [messageQueue, isProcessingQueue, sessionId, conversationId]);
-
-  /**
-   * Auto-start queue processing when new messages are added
-   * This ensures the first message starts processing immediately
-   *
-   * IMPORTANT: processQueue is intentionally NOT in dependencies to prevent infinite loop
-   * - processQueue's dependencies include messageQueue
-   * - If we add processQueue to deps, changing messageQueue → new processQueue → useEffect → loop
-   */
-  useEffect(() => {
-    // Only trigger if there are queued items and nothing is currently processing
-    const hasQueuedItems = messageQueue.some(item => item.status === 'queued');
-
-    if (hasQueuedItems && !isProcessingQueue) {
-      console.log('[Queue] Auto-starting queue processing');
-      processQueue();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messageQueue, isProcessingQueue]);
-
-  /**
-   * Remove a specific message from the queue
-   */
-  const removeFromQueue = useCallback((queueId: string) => {
-    console.log('[Queue] Removing item:', queueId);
-    setMessageQueue(prev => prev.filter(item => item.id !== queueId));
-  }, []);
-
-  /**
-   * Clear all queued messages (not including processing ones)
-   */
-  const clearQueue = useCallback(() => {
-    console.log('[Queue] Clearing all queued messages');
-    setMessageQueue(prev => prev.filter(item => item.status === 'processing'));
-  }, []);
 
   // Todo confirmation handlers
   const handleTodoConfirm = async (todos: TodoDraft[], mode: ExecutionMode) => {
@@ -2488,12 +2172,6 @@ The plan is ready. What would you like to do?`,
       {/* Enhanced Chat Input - Floating */}
       <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-0 bg-card pointer-events-none">
         <div className="pointer-events-auto max-w-4xl mx-auto">
-          {/* Queue Indicator */}
-          <QueueIndicator
-            queue={messageQueue}
-            currentlyProcessing={currentQueueItem}
-            onRemove={removeFromQueue}
-          />
           <ChatInput
             value={input}
             onChange={setInput}

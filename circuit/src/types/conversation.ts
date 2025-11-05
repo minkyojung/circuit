@@ -37,7 +37,6 @@ export interface Message {
     planConfirmed?: boolean
     planCancelled?: boolean
     cancelled?: boolean  // Message was cancelled by user
-    queueItemId?: string  // Reference to queue item if message was queued
   }
   blocks?: Block[]  // New: Block-based message structure
 }
