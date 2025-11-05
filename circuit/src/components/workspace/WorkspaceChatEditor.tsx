@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { Workspace } from '@/types/workspace';
 import type { Message } from '@/types/conversation';
+import type { QueuedMessage } from '@/types/messageQueue';
 import Editor, { loader } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
 import { ChevronDown } from 'lucide-react';
@@ -16,6 +17,7 @@ import { ChatInput, type AttachedFile } from './ChatInput';
 import { ChatMessageSkeleton } from '@/components/ui/skeleton';
 import { Shimmer } from '@/components/ai-elements/shimmer';
 import { ReasoningAccordion } from '@/components/reasoning/ReasoningAccordion';
+import { QueueIndicator } from './QueueIndicator';
 import type { ThinkingStep } from '@/types/thinking';
 import { summarizeToolUsage } from '@/lib/thinkingUtils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -26,6 +28,8 @@ import { MessageComponent } from './MessageComponent';
 import { ChatEmptyState } from './ChatEmptyState';
 import { MarkdownPreview } from './MarkdownPreview';
 import { FloatingCodeActions } from './FloatingCodeActions';
+import { ConversationTabsOnly } from './ConversationTabsOnly';
+import { FileTabsOnly } from './FileTabsOnly';
 import {
   extractTodoWriteFromBlocks,
   extractPlanFromText,
@@ -71,6 +75,14 @@ interface WorkspaceChatEditorProps {
     lineStart: number
     lineEnd: number
   } | null;
+
+  // Active file path for editor tabs
+  activeFilePath?: string | null;
+  onFileChange?: (filePath: string) => void;
+  onCloseFile?: (filePath: string) => void;
+
+  // Unsaved files state
+  unsavedFiles?: Set<string>;
 }
 
 type ViewMode = 'chat' | 'editor' | 'split';
@@ -87,7 +99,11 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
   openFiles: externalOpenFiles = [],
   onUnsavedChange,
   onFileReferenceClick,
-  fileCursorPosition
+  fileCursorPosition,
+  activeFilePath,
+  onFileChange,
+  onCloseFile,
+  unsavedFiles = new Set()
 }) => {
   const [sessionId, setSessionId] = useState<string | null>(null);
 
@@ -193,33 +209,60 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
       )}
 
       {viewMode === 'split' && (
-        /* Split View - Chat and Editor side by side */
+        /* Split View - Chat and Editor side by side with independent tabs */
         <ResizablePanelGroup direction="horizontal" className="h-full">
           <ResizablePanel defaultSize={50} minSize={30}>
-            <ChatPanel
-              workspace={workspace}
-              sessionId={sessionId}
-              onFileEdit={handleFileEdit}
-              prefillMessage={prefillMessage}
-              externalConversationId={externalConversationId}
-              onPrefillCleared={onPrefillCleared}
-              onConversationChange={onConversationChange}
-              onFileReferenceClick={onFileReferenceClick}
-              codeSelectionAction={codeSelectionAction}
-              onCodeSelectionHandled={() => setCodeSelectionAction(null)}
-            />
+            <div className="h-full flex flex-col">
+              {/* Conversation Tabs for ChatPanel */}
+              <ConversationTabsOnly
+                workspaceId={workspace.id}
+                workspaceName={workspace.name}
+                activeConversationId={externalConversationId}
+                onConversationChange={onConversationChange || (() => {})}
+              />
+              {/* Chat Content */}
+              <div className="flex-1 min-h-0">
+                <ChatPanel
+                  workspace={workspace}
+                  sessionId={sessionId}
+                  onFileEdit={handleFileEdit}
+                  prefillMessage={prefillMessage}
+                  externalConversationId={externalConversationId}
+                  onPrefillCleared={onPrefillCleared}
+                  onConversationChange={onConversationChange}
+                  onFileReferenceClick={onFileReferenceClick}
+                  codeSelectionAction={codeSelectionAction}
+                  onCodeSelectionHandled={() => setCodeSelectionAction(null)}
+                />
+              </div>
+            </div>
           </ResizablePanel>
           <ResizableHandle />
           <ResizablePanel defaultSize={50} minSize={30}>
-            <EditorPanel
-              workspace={workspace}
-              openFiles={openFiles}
-              selectedFile={selectedFile}
-              onCloseFile={handleCloseFile}
-              onUnsavedChange={onUnsavedChange}
-              fileCursorPosition={fileCursorPosition}
-              onCodeSelectionAction={handleCodeSelectionAction}
-            />
+            <div className="h-full flex flex-col">
+              {/* File Tabs for EditorPanel */}
+              <FileTabsOnly
+                openFiles={openFiles.map(path => ({
+                  path,
+                  unsavedChanges: unsavedFiles.has(path)
+                }))}
+                activeFilePath={activeFilePath || selectedFile}
+                onFileChange={onFileChange || (() => {})}
+                onCloseFile={onCloseFile || handleCloseFile}
+              />
+              {/* Editor Content */}
+              <div className="flex-1 min-h-0">
+                <EditorPanel
+                  workspace={workspace}
+                  openFiles={openFiles}
+                  selectedFile={activeFilePath || selectedFile}
+                  onCloseFile={onCloseFile || handleCloseFile}
+                  onUnsavedChange={onUnsavedChange}
+                  fileCursorPosition={fileCursorPosition}
+                  onCodeSelectionAction={handleCodeSelectionAction}
+                />
+              </div>
+            </div>
           </ResizablePanel>
         </ResizablePanelGroup>
       )}
@@ -272,6 +315,11 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   const [isLoadingConversation, setIsLoadingConversation] = useState(true);
   const [thinkingSteps, setThinkingSteps] = useState<ThinkingStep[]>([]);
   const [messageThinkingSteps, setMessageThinkingSteps] = useState<Record<string, { steps: ThinkingStep[], duration: number }>>({});
+
+  // Message Queue State
+  const [messageQueue, setMessageQueue] = useState<QueuedMessage[]>([]);
+  const [isProcessingQueue, setIsProcessingQueue] = useState(false);
+  const [currentQueueItem, setCurrentQueueItem] = useState<QueuedMessage | null>(null);
 
   // Todo context
   const { createTodosFromDrafts, todos } = useTodos();
@@ -1621,7 +1669,9 @@ The plan is ready. What would you like to do?`,
 
   const handleSend = async (inputText: string, attachments: AttachedFile[], thinkingMode: import('./ChatInput').ThinkingMode) => {
     if (!inputText.trim() && attachments.length === 0) return;
-    if (isSending || !sessionId) return;
+    // ❌ OLD: if (isSending || !sessionId) return;
+    // ✅ NEW: Only check sessionId, allow sending while processing
+    if (!sessionId) return;
 
     // Build final input with code attachments prepended
     let finalInput = inputText;
@@ -1642,16 +1692,27 @@ The plan is ready. What would you like to do?`,
       setCodeAttachment(null);
     }
 
-    // Plan mode: Let Claude generate detailed todos
-    if (thinkingMode === 'plan') {
-      console.log('[ChatPanel] Plan mode: Claude will generate todos');
-      await executePrompt(finalInput, attachments, thinkingMode);
-      return;
-    }
+    // Create queued message
+    const queuedMessage: QueuedMessage = {
+      id: `queue-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+      queuedAt: Date.now(),
+      content: finalInput,
+      attachments,
+      thinkingMode,
+      status: 'queued',
+      preview: finalInput.slice(0, 50) + (finalInput.length > 50 ? '...' : '')
+    };
 
-    // Normal/Think modes: Execute directly without todo analysis
-    // Todo analysis is ONLY for plan mode now
-    await executePrompt(finalInput, attachments, thinkingMode);
+    console.log('[Queue] Enqueueing message:', queuedMessage.id, queuedMessage.preview);
+
+    // Add to queue
+    setMessageQueue(prev => [...prev, queuedMessage]);
+
+    // Clear input immediately (improved UX)
+    setInput('');
+
+    // Start processing queue (will skip if already processing)
+    setTimeout(() => processQueue(), 0);
   };
 
   const executePrompt = async (inputText: string, attachments: AttachedFile[], thinkingMode: import('./ChatInput').ThinkingMode) => {
@@ -1743,6 +1804,227 @@ The plan is ready. What would you like to do?`,
     ipcRenderer.send('claude:send-message', sessionId, currentInput, attachments, thinkingMode);
     console.log('[ChatPanel] 📨 Message sent, waiting for IPC events...');
   };
+
+  /**
+   * Execute a message from the queue
+   * This is similar to executePrompt but works with QueuedMessage
+   */
+  const executePromptFromQueue = async (queueItem: QueuedMessage): Promise<void> => {
+    const { content, attachments, thinkingMode } = queueItem;
+
+    if (!sessionId) {
+      throw new Error('No session ID available');
+    }
+
+    // Track current thinking mode
+    currentThinkingModeRef.current = thinkingMode;
+
+    // Ensure we have a conversationId
+    let activeConversationId = conversationId;
+
+    if (!activeConversationId) {
+      console.warn('[ChatPanel] No conversation ID, creating new conversation');
+      try {
+        const createResult = await ipcRenderer.invoke('conversation:create', workspace.id);
+        if (createResult.success && createResult.conversation) {
+          activeConversationId = createResult.conversation.id;
+          setConversationId(activeConversationId);
+        } else {
+          throw new Error(`Failed to create conversation: ${createResult.error}`);
+        }
+      } catch (error) {
+        console.error('[ChatPanel] Error creating conversation:', error);
+        throw error;
+      }
+    }
+
+    // Create user message
+    const userMessage: Message = {
+      id: `msg-${Date.now()}`,
+      conversationId: activeConversationId!,
+      role: 'user',
+      content,
+      timestamp: Date.now(),
+      metadata: {
+        attachments: attachments.map(f => ({
+          id: f.id,
+          name: f.name,
+          type: f.type,
+          size: f.size,
+        })),
+        queueItemId: queueItem.id, // Link to queue item
+      },
+    };
+
+    // Optimistic UI update
+    setMessages((prev) => {
+      console.log('[ChatPanel] 📤 Adding user message from queue:', {
+        messageId: userMessage.id,
+        queueItemId: queueItem.id,
+        prevLength: prev.length,
+        newLength: prev.length + 1,
+      });
+      return [...prev, userMessage];
+    });
+
+    setIsSending(true);
+
+    // Save user message to database
+    try {
+      const result = await ipcRenderer.invoke('message:save', userMessage);
+      if (result.success && result.blocks) {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === userMessage.id ? { ...msg, blocks: result.blocks } : msg
+          )
+        );
+      }
+    } catch (err) {
+      console.error('[ChatPanel] Failed to save user message:', err);
+    }
+
+    // Store pending user message for response handlers
+    pendingUserMessageRef.current = userMessage;
+
+    // Send message to Claude
+    console.log('[ChatPanel] 📨 Sending queued message to Claude:', {
+      sessionId,
+      queueItemId: queueItem.id,
+      messageLength: content.length,
+      attachmentsCount: attachments.length,
+      thinkingMode,
+    });
+
+    // Return a promise that resolves when the response is complete
+    return new Promise<void>((resolve, reject) => {
+      const responseCompleteHandler = (_event: any, result: any) => {
+        if (result.sessionId === sessionId) {
+          console.log('[ChatPanel] Queue item response complete:', queueItem.id);
+          ipcRenderer.removeListener('claude:response-complete', responseCompleteHandler);
+          ipcRenderer.removeListener('claude:response-error', errorHandler);
+
+          if (result.success) {
+            // Store message IDs in queue item
+            queueItem.userMessageId = userMessage.id;
+            queueItem.assistantMessageId = pendingAssistantMessageIdRef.current || undefined;
+            resolve();
+          } else {
+            reject(new Error(result.error || 'Unknown error'));
+          }
+        }
+      };
+
+      const errorHandler = (_event: any, error: any) => {
+        if (error.sessionId === sessionId) {
+          console.error('[ChatPanel] Queue item response error:', queueItem.id, error);
+          ipcRenderer.removeListener('claude:response-complete', responseCompleteHandler);
+          ipcRenderer.removeListener('claude:response-error', errorHandler);
+          reject(new Error(error.error || error.message || 'Unknown error'));
+        }
+      };
+
+      ipcRenderer.once('claude:response-complete', responseCompleteHandler);
+      ipcRenderer.once('claude:response-error', errorHandler);
+
+      // Send the message
+      ipcRenderer.send('claude:send-message', sessionId, content, attachments, thinkingMode);
+    });
+  };
+
+  /**
+   * Process the message queue sequentially
+   */
+  const processQueue = useCallback(async () => {
+    // Already processing or queue is empty
+    if (isProcessingQueue) {
+      console.log('[Queue] Already processing, skipping');
+      return;
+    }
+
+    if (messageQueue.length === 0) {
+      console.log('[Queue] Queue is empty');
+      setIsProcessingQueue(false);
+      setCurrentQueueItem(null);
+      setIsSending(false);
+      return;
+    }
+
+    // Start processing
+    setIsProcessingQueue(true);
+
+    // Get first item from queue
+    const queueItem = messageQueue[0];
+    setCurrentQueueItem(queueItem);
+    console.log('[Queue] Processing queue item:', queueItem.id, queueItem.preview);
+
+    // Update status to 'processing'
+    setMessageQueue(prev =>
+      prev.map((item, idx) =>
+        idx === 0 ? { ...item, status: 'processing' as const } : item
+      )
+    );
+
+    try {
+      // Execute the queued message
+      await executePromptFromQueue(queueItem);
+
+      // Success - mark as completed
+      console.log('[Queue] Queue item completed:', queueItem.id);
+      setMessageQueue(prev => {
+        const updated = [...prev];
+        if (updated[0]) {
+          updated[0] = {
+            ...updated[0],
+            status: 'completed' as const,
+            processedAt: Date.now()
+          };
+        }
+        return updated;
+      });
+
+      // Remove completed item after a short delay
+      setTimeout(() => {
+        setMessageQueue(prev => prev.filter(item => item.id !== queueItem.id));
+      }, 2000);
+
+    } catch (error) {
+      console.error('[Queue] Failed to process queue item:', error);
+
+      // Mark as failed
+      setMessageQueue(prev =>
+        prev.map(item =>
+          item.id === queueItem.id
+            ? { ...item, status: 'failed' as const, error: String(error) }
+            : item
+        )
+      );
+    } finally {
+      setIsProcessingQueue(false);
+      setCurrentQueueItem(null);
+      setIsSending(false);
+
+      // Process next item after a brief delay
+      setTimeout(() => {
+        processQueue();
+      }, 100);
+    }
+  }, [messageQueue, isProcessingQueue, sessionId, conversationId]);
+
+  /**
+   * Remove a specific message from the queue
+   */
+  const removeFromQueue = useCallback((queueId: string) => {
+    console.log('[Queue] Removing item:', queueId);
+    setMessageQueue(prev => prev.filter(item => item.id !== queueId));
+  }, []);
+
+  /**
+   * Clear all queued messages (not including processing ones)
+   */
+  const clearQueue = useCallback(() => {
+    console.log('[Queue] Clearing all queued messages');
+    setMessageQueue(prev => prev.filter(item => item.status === 'processing'));
+  }, []);
 
   // Todo confirmation handlers
   const handleTodoConfirm = async (todos: TodoDraft[], mode: ExecutionMode) => {
@@ -2078,11 +2360,18 @@ The plan is ready. What would you like to do?`,
       {/* Enhanced Chat Input - Floating */}
       <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-0 bg-card pointer-events-none">
         <div className="pointer-events-auto max-w-4xl mx-auto">
+          {/* Queue Indicator */}
+          <QueueIndicator
+            queue={messageQueue}
+            currentlyProcessing={currentQueueItem}
+            onRemove={removeFromQueue}
+            onClearAll={clearQueue}
+          />
           <ChatInput
             value={input}
             onChange={setInput}
             onSubmit={handleSend}
-            disabled={isSending || !sessionId || isLoadingConversation}
+            disabled={!sessionId || isLoadingConversation}
             placeholder="Ask, search, or make anything..."
             showControls={true}
             isCancelling={isCancelling}
@@ -2599,3 +2888,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
   );
 };
 
+
+
+// Export ChatPanel and EditorPanel for direct use in unified editor system
+export { ChatPanel, EditorPanel };

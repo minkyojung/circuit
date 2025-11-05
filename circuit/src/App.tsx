@@ -1,11 +1,11 @@
 import { useState, useEffect, createContext, useContext, useMemo, useRef } from 'react'
-import { WorkspaceChatEditor } from "@/components/workspace"
 import { CommitDialog } from "@/components/workspace/CommitDialog"
 import { CommandPalette } from "@/components/CommandPalette"
 import { AppSidebar } from "@/components/AppSidebar"
 import { TodoPanel } from "@/components/TodoPanel"
 import { GitTestPanel } from "@/components/git/GitTestPanel"
 import { WorkspaceEmptyState } from "@/components/workspace/WorkspaceEmptyState"
+import { ChatPanel, EditorPanel } from "@/components/workspace/WorkspaceChatEditor"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -14,8 +14,12 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
-import { UnifiedTabs, type OpenFile } from "@/components/workspace/UnifiedTabs"
 import { Separator } from "@/components/ui/separator"
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from '@/components/ui/resizable'
 import {
   SidebarInset,
   SidebarProvider,
@@ -33,6 +37,12 @@ import { CompactBanner } from '@/components/CompactBanner'
 import { CompactUrgentModal } from '@/components/CompactUrgentModal'
 import { Toaster } from 'sonner'
 import { FEATURES } from '@/config/features'
+import { useEditorGroups } from '@/hooks/useEditorGroups'
+import { createConversationTab, createFileTab } from '@/types/editor'
+import type { Tab } from '@/types/editor'
+import { getFileName } from '@/lib/fileUtils'
+import { EditorGroupPanel } from '@/components/editor'
+import { DEFAULT_GROUP_ID, SECONDARY_GROUP_ID } from '@/types/editor'
 import './App.css'
 
 // Project Path Context
@@ -52,7 +62,6 @@ function App() {
   const [projectPath, setProjectPath] = useState<string>('')
   const [isLoadingPath, setIsLoadingPath] = useState<boolean>(true)
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null)
-  const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [showCommitDialog, setShowCommitDialog] = useState<boolean>(false)
   const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false)
   const [chatPrefillMessage, setChatPrefillMessage] = useState<string | null>(null)
@@ -65,8 +74,10 @@ function App() {
     return saved ? parseInt(saved) : 320 // 기본값: 320px (20rem)
   })
   const [isResizing, setIsResizing] = useState<boolean>(false)
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
   const [currentRepository, setCurrentRepository] = useState<any>(null)
+
+  // Session ID for chat (one per workspace for now)
+  const [sessionId, setSessionId] = useState<string | null>(null)
 
   // File cursor position for jumping to line
   const [fileCursorPosition, setFileCursorPosition] = useState<{
@@ -75,14 +86,104 @@ function App() {
     lineEnd: number
   } | null>(null)
 
-  // File tabs state (lifted from WorkspaceChatEditor)
-  const [openFiles, setOpenFiles] = useState<string[]>([])
-  const [activeFilePath, setActiveFilePath] = useState<string | null>(null)
-  const [unsavedFiles, setUnsavedFiles] = useState<Set<string>>(new Set())
+  // Code selection action for editor
+  const [codeSelectionAction, setCodeSelectionAction] = useState<{
+    type: 'ask' | 'explain' | 'optimize' | 'add-tests'
+    code: string
+    filePath: string
+    lineStart: number
+    lineEnd: number
+  } | null>(null)
 
   // View mode state
   type ViewMode = 'chat' | 'editor' | 'split'
   const [viewMode, setViewMode] = useState<ViewMode>('chat')
+
+  // ============================================================================
+  // NEW: Unified Editor Groups System
+  // ============================================================================
+
+  const {
+    editorGroups,
+    openTab,
+    closeTab,
+    activateTab,
+    moveTab,
+    updateTab,
+    getActiveTab,
+    findTab,
+    getAllTabs,
+    addGroup,
+    removeGroup,
+  } = useEditorGroups([
+    { id: DEFAULT_GROUP_ID, tabs: [], activeTabId: null },
+    { id: SECONDARY_GROUP_ID, tabs: [], activeTabId: null },
+  ])
+
+  // Get specific groups for rendering
+  const primaryGroup = editorGroups.find(g => g.id === DEFAULT_GROUP_ID) || editorGroups[0]
+  const secondaryGroup = editorGroups.find(g => g.id === SECONDARY_GROUP_ID) || editorGroups[1]
+
+  // Get active conversation ID for TodoPanel (from primary group's active conversation tab)
+  const activeConversationId = useMemo(() => {
+    const activeTab = getActiveTab(DEFAULT_GROUP_ID)
+    if (activeTab && activeTab.type === 'conversation') {
+      return activeTab.data.conversationId
+    }
+    return null
+  }, [primaryGroup.activeTabId, getActiveTab])
+
+  // Render functions for panels
+  const renderChatPanel = (conversationId: string, workspaceId: string) => {
+    if (!selectedWorkspace) return null
+
+    return (
+      <ChatPanel
+        workspace={selectedWorkspace}
+        sessionId={sessionId}
+        onFileEdit={handleFileSelect}
+        prefillMessage={chatPrefillMessage}
+        externalConversationId={conversationId}
+        onPrefillCleared={() => setChatPrefillMessage(null)}
+        onConversationChange={(convId) => {
+          // Update the conversation tab when conversation changes
+          if (convId && convId !== conversationId) {
+            const newTab = createConversationTab(convId, workspaceId, undefined, selectedWorkspace?.name)
+            openTab(newTab)
+          }
+        }}
+        onFileReferenceClick={handleFileSelect}
+        codeSelectionAction={codeSelectionAction}
+        onCodeSelectionHandled={() => setCodeSelectionAction(null)}
+      />
+    )
+  }
+
+  const renderEditorPanel = (filePath: string) => {
+    if (!selectedWorkspace) return null
+
+    // Get all file tabs for openFiles list
+    const fileTabs = getAllTabs().filter(t => t.type === 'file')
+    const openFilePaths = fileTabs.map(t => (t as any).data.filePath)
+
+    return (
+      <EditorPanel
+        workspace={selectedWorkspace}
+        openFiles={openFilePaths}
+        selectedFile={filePath}
+        onCloseFile={(path) => {
+          // Find and close the file tab
+          const result = findTab(`file-${path}`)
+          if (result) {
+            closeTab(result.tab.id, result.groupId)
+          }
+        }}
+        onUnsavedChange={handleUnsavedChange}
+        fileCursorPosition={fileCursorPosition}
+        onCodeSelectionAction={setCodeSelectionAction}
+      />
+    )
+  }
 
   // Workspace navigation refs (for keyboard shortcuts)
   const workspacesRef = useRef<Workspace[]>([])
@@ -188,16 +289,17 @@ function App() {
     return projectPath.split('/').filter(Boolean).pop() || 'Unknown Repository'
   }, [currentRepository, projectPath])
 
+  // ============================================================================
+  // NEW: File/Conversation Handlers (Unified Tab System)
+  // ============================================================================
+
   // Handle file selection from sidebar or file reference pills
   const handleFileSelect = (filePath: string, lineStart?: number, lineEnd?: number) => {
     console.log('[App] File selected:', filePath, lineStart, lineEnd)
-    setSelectedFile(filePath)
-    setActiveFilePath(filePath)
 
-    // Add to openFiles if not already there
-    if (!openFiles.includes(filePath)) {
-      setOpenFiles([...openFiles, filePath])
-    }
+    // Create or activate file tab
+    const tab = createFileTab(filePath, getFileName(filePath))
+    openTab(tab) // Opens in default group or activates if already open
 
     // Store line selection for Monaco to use
     if (lineStart) {
@@ -216,60 +318,81 @@ function App() {
     }
   }
 
-  // Handle file close from unified tabs
-  const handleCloseFile = (filePath: string) => {
-    setOpenFiles(openFiles.filter(f => f !== filePath))
+  // Handle conversation selection
+  const handleConversationSelect = (conversationId: string, workspaceId: string, title?: string) => {
+    console.log('[App] Conversation selected:', conversationId)
 
-    // Remove from unsaved files
-    setUnsavedFiles(prev => {
-      const next = new Set(prev)
-      next.delete(filePath)
-      return next
-    })
+    // Create or activate conversation tab
+    const tab = createConversationTab(
+      conversationId,
+      workspaceId,
+      title,
+      selectedWorkspace?.name
+    )
+    openTab(tab)
+  }
 
-    // If closing active file, switch to another file
-    if (filePath === activeFilePath) {
-      const remainingFiles = openFiles.filter(f => f !== filePath)
-      if (remainingFiles.length > 0) {
-        setActiveFilePath(remainingFiles[0])
-        setSelectedFile(remainingFiles[0])
-      } else {
-        setActiveFilePath(null)
-        setSelectedFile(null)
-      }
-    }
+  // Handle tab close (works for both files and conversations)
+  const handleTabClose = (tabId: string, groupId: string) => {
+    console.log('[App] Closing tab:', tabId, 'from group:', groupId)
+    closeTab(tabId, groupId)
   }
 
   // Handle unsaved changes notification from editor
   const handleUnsavedChange = (filePath: string, hasChanges: boolean) => {
-    setUnsavedFiles(prev => {
-      const next = new Set(prev)
-      if (hasChanges) {
-        next.add(filePath)
-      } else {
-        next.delete(filePath)
-      }
-      return next
-    })
+    // Find the file tab
+    const result = findTab(`file-${filePath}`)
+    if (result) {
+      updateTab(result.tab.id, result.groupId, {
+        data: {
+          ...result.tab.data,
+          unsavedChanges: hasChanges
+        }
+      } as any)
+    }
   }
 
-  // Auto-switch view mode based on open files
+  // Auto-switch view mode based on open tabs
+  const allTabs = getAllTabs()
   useEffect(() => {
-    if (openFiles.length > 0 && viewMode === 'chat') {
-      setViewMode('editor')
-    } else if (openFiles.length === 0 && viewMode !== 'chat') {
+    if (allTabs.length > 0 && viewMode === 'chat') {
+      setViewMode('split')
+    } else if (allTabs.length === 0 && viewMode !== 'chat') {
       setViewMode('chat')
     }
-  }, [openFiles.length])
+  }, [allTabs.length, viewMode])
 
-  // Reset selected file, conversation, and file tabs when workspace changes
+  // DEBUG: Add test tabs on mount
   useEffect(() => {
-    setSelectedFile(null)
-    setActiveConversationId(null)
-    setOpenFiles([])
-    setActiveFilePath(null)
-    setUnsavedFiles(new Set())
+    if (selectedWorkspace) {
+      // Add a test conversation tab
+      const conversationTab = createConversationTab(
+        'test-conv-1',
+        selectedWorkspace.id,
+        'Test Conversation',
+        selectedWorkspace.name
+      )
+      openTab(conversationTab, DEFAULT_GROUP_ID)
+
+      // Add a test file tab
+      const fileTab = createFileTab(
+        '/Users/test/example.ts',
+        'example.ts'
+      )
+      openTab(fileTab, SECONDARY_GROUP_ID)
+    }
+  }, [selectedWorkspace?.id])
+
+  // Reset tabs when workspace changes
+  useEffect(() => {
+    // Clear all tabs when switching workspaces
+    editorGroups.forEach(group => {
+      group.tabs.forEach(tab => {
+        closeTab(tab.id, group.id)
+      })
+    })
     setViewMode('chat')
+    setFileCursorPosition(null)
   }, [selectedWorkspace?.id])
 
   // Keyboard shortcuts
@@ -341,7 +464,7 @@ function App() {
           selectedWorkspaceId={selectedWorkspace?.id || null}
           selectedWorkspace={selectedWorkspace}
           onSelectWorkspace={setSelectedWorkspace}
-          selectedFile={selectedFile}
+          selectedFile={null}
           onFileSelect={handleFileSelect}
           onWorkspacesLoaded={setWorkspacesForShortcuts}
           onRepositoryChange={setCurrentRepository}
@@ -365,11 +488,11 @@ function App() {
               className="grid items-center gap-2 min-w-0"
               style={{
                 WebkitAppRegion: 'no-drag',
-                gridTemplateColumns: selectedWorkspace && openFiles.length > 0 ? 'auto 1fr' : '1fr'
+                gridTemplateColumns: selectedWorkspace && allTabs.length > 0 ? 'auto 1fr' : '1fr'
               } as any}
             >
               {/* Column 1: View mode toggle button (auto width) */}
-              {selectedWorkspace && openFiles.length > 0 && (
+              {selectedWorkspace && allTabs.length > 0 && (
                 <div className="flex items-center gap-2 shrink-0">
                   {viewMode === 'editor' && (
                     <button
@@ -399,35 +522,17 @@ function App() {
                 </div>
               )}
 
-              {/* Column 2: Tabs container (flexible with overflow) */}
-              <div className="min-w-0 overflow-x-auto">
-                <div className="max-w-4xl mx-auto">
-                  {selectedWorkspace ? (
-                    <UnifiedTabs
-                      workspaceId={selectedWorkspace.id}
-                      workspaceName={selectedWorkspace.name}
-                      activeConversationId={activeConversationId}
-                      onConversationChange={setActiveConversationId}
-                      openFiles={openFiles.map(path => ({
-                        path,
-                        unsavedChanges: unsavedFiles.has(path)
-                      }))}
-                      activeFilePath={activeFilePath}
-                      onFileChange={setActiveFilePath}
-                      onCloseFile={handleCloseFile}
-                    />
-                  ) : (
-                    <Breadcrumb>
-                      <BreadcrumbList>
-                        <BreadcrumbItem>
-                          <BreadcrumbPage className="font-medium text-muted-foreground">
-                            {repositoryName}
-                          </BreadcrumbPage>
-                        </BreadcrumbItem>
-                      </BreadcrumbList>
-                    </Breadcrumb>
-                  )}
-                </div>
+              {/* Column 2: Workspace/Repository name */}
+              <div className="min-w-0">
+                <Breadcrumb>
+                  <BreadcrumbList>
+                    <BreadcrumbItem>
+                      <BreadcrumbPage className="font-medium text-muted-foreground">
+                        {selectedWorkspace?.name || repositoryName}
+                      </BreadcrumbPage>
+                    </BreadcrumbItem>
+                  </BreadcrumbList>
+                </Breadcrumb>
               </div>
             </div>
 
@@ -460,21 +565,52 @@ function App() {
           <div className="flex flex-1 flex-col overflow-hidden">
             {selectedWorkspace ? (
               <>
-                <WorkspaceChatEditor
-                  key={selectedWorkspace.id}
-                  workspace={selectedWorkspace}
-                  selectedFile={selectedFile}
-                  prefillMessage={chatPrefillMessage}
-                  onPrefillCleared={() => setChatPrefillMessage(null)}
-                  conversationId={activeConversationId}
-                  onConversationChange={setActiveConversationId}
-                  viewMode={viewMode}
-                  onViewModeChange={setViewMode}
-                  openFiles={openFiles}
-                  onUnsavedChange={handleUnsavedChange}
-                  onFileReferenceClick={handleFileSelect}
-                  fileCursorPosition={fileCursorPosition}
-                />
+                {/* NEW: Unified Editor Group System */}
+                {viewMode === 'split' ? (
+                  /* Split View: Two editor groups side by side */
+                  <ResizablePanelGroup direction="horizontal" className="h-full">
+                    <ResizablePanel defaultSize={50} minSize={30}>
+                      <EditorGroupPanel
+                        group={primaryGroup}
+                        onTabClick={(tabId) => activateTab(tabId, DEFAULT_GROUP_ID)}
+                        onTabClose={(tabId) => handleTabClose(tabId, DEFAULT_GROUP_ID)}
+                        onTabDrop={(tabId, targetIndex) => {
+                          // Handle tab reorder within same group
+                          // TODO: implement reorder logic
+                        }}
+                        renderConversation={renderChatPanel}
+                        renderFile={renderEditorPanel}
+                      />
+                    </ResizablePanel>
+                    <ResizableHandle />
+                    <ResizablePanel defaultSize={50} minSize={30}>
+                      <EditorGroupPanel
+                        group={secondaryGroup}
+                        onTabClick={(tabId) => activateTab(tabId, SECONDARY_GROUP_ID)}
+                        onTabClose={(tabId) => handleTabClose(tabId, SECONDARY_GROUP_ID)}
+                        onTabDrop={(tabId, targetIndex) => {
+                          // Handle tab reorder within same group
+                          // TODO: implement reorder logic
+                        }}
+                        renderConversation={renderChatPanel}
+                        renderFile={renderEditorPanel}
+                      />
+                    </ResizablePanel>
+                  </ResizablePanelGroup>
+                ) : (
+                  /* Single View: One editor group */
+                  <EditorGroupPanel
+                    group={primaryGroup}
+                    onTabClick={(tabId) => activateTab(tabId, DEFAULT_GROUP_ID)}
+                    onTabClose={(tabId) => handleTabClose(tabId, DEFAULT_GROUP_ID)}
+                    onTabDrop={(tabId, targetIndex) => {
+                      // Handle tab reorder within same group
+                      // TODO: implement reorder logic
+                    }}
+                    renderConversation={renderChatPanel}
+                    renderFile={renderEditorPanel}
+                  />
+                )}
 
                 {/* Commit Dialog */}
                 {showCommitDialog && (
