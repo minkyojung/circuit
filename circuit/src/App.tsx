@@ -5,7 +5,7 @@ import { TodoPanel } from "@/components/TodoPanel"
 import { GitTestPanel } from "@/components/git/GitTestPanel"
 import { WorkspaceEmptyState } from "@/components/workspace/WorkspaceEmptyState"
 import { ChatPanel, EditorPanel } from "@/components/workspace/WorkspaceChatEditor"
-import { GlobalSearchBar } from "@/components/GlobalSearchBar"
+import { QuickOpenSearch } from "@/components/QuickOpenSearch"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -111,7 +111,7 @@ function MainHeader({
           className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
           style={{ WebkitAppRegion: 'no-drag' } as any}
         >
-          <GlobalSearchBar
+          <QuickOpenSearch
             ref={searchBarRef}
             workspacePath={selectedWorkspace.path}
             branchName={selectedWorkspace.branch}
