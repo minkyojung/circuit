@@ -602,48 +602,37 @@ function App() {
     closeTab(tabId, groupId)
   }
 
-  // Handle moving the active tab left or right
+  // Handle navigating to left or right tab (focus switch)
   const handleMoveActiveTab = (direction: 'left' | 'right') => {
     const focusedGroupId = focusedGroupIdRef.current
     const group = editorGroups.find((g) => g.id === focusedGroupId)
-    const activeTab = group?.tabs.find((t) => t.id === group.activeTabId)
 
-    if (!activeTab || !group) {
-      console.log('[App] No active tab to move')
+    if (!group || group.tabs.length === 0) {
+      console.log('[App] No tabs to navigate')
       return
     }
 
-    const currentIndex = group.tabs.findIndex((t) => t.id === activeTab.id)
+    const currentIndex = group.tabs.findIndex((t) => t.id === group.activeTabId)
 
     if (currentIndex === -1) {
       console.log('[App] Could not find active tab index')
       return
     }
 
-    // Calculate new index
-    let newIndex = currentIndex
+    // Calculate new index with wrapping
+    let newIndex: number
     if (direction === 'left') {
-      newIndex = Math.max(0, currentIndex - 1)
+      newIndex = currentIndex === 0 ? group.tabs.length - 1 : currentIndex - 1
     } else {
-      newIndex = Math.min(group.tabs.length - 1, currentIndex + 1)
+      newIndex = currentIndex === group.tabs.length - 1 ? 0 : currentIndex + 1
     }
 
-    // If index didn't change (already at edge), do nothing
-    if (newIndex === currentIndex) {
-      console.log('[App] Tab already at', direction, 'edge')
-      return
+    // Activate the tab at new index
+    const targetTab = group.tabs[newIndex]
+    if (targetTab) {
+      activateTab(targetTab.id, focusedGroupId)
+      console.log('[App] Navigated', direction, 'to tab:', targetTab.id)
     }
-
-    // Create new tab order
-    const newTabOrder = [...group.tabs]
-    const [movedTab] = newTabOrder.splice(currentIndex, 1)
-    newTabOrder.splice(newIndex, 0, movedTab)
-
-    // Apply reordering
-    const newTabIds = newTabOrder.map((t) => t.id)
-    reorderTabs(focusedGroupId, newTabIds)
-
-    console.log('[App] Moved tab', activeTab.id, direction, 'from index', currentIndex, 'to', newIndex)
   }
 
   // Handle closing the currently active tab (triggered by Cmd+W)
