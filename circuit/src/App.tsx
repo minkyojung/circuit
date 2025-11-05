@@ -75,6 +75,7 @@ function MainHeader({
   toggleRightSidebar,
   isRightSidebarOpen,
   onFileSelect,
+  onWorkspaceSelect,
   searchBarRef
 }: {
   selectedWorkspace: Workspace | null
@@ -84,7 +85,8 @@ function MainHeader({
   allTabs: Tab[]
   toggleRightSidebar: () => void
   isRightSidebarOpen: boolean
-  onFileSelect: (path: string, line: number) => void
+  onFileSelect: (path: string, line?: number) => void
+  onWorkspaceSelect: (workspaceId: string) => void
   searchBarRef: React.RefObject<HTMLInputElement>
 }) {
   const { state: sidebarState } = useSidebar()
@@ -116,6 +118,7 @@ function MainHeader({
             workspacePath={selectedWorkspace.path}
             branchName={selectedWorkspace.branch}
             onFileSelect={onFileSelect}
+            onWorkspaceSelect={onWorkspaceSelect}
           />
         </div>
       )}
@@ -574,6 +577,14 @@ function App() {
     }
   }
 
+  // Handle workspace selection by ID (for QuickOpenSearch)
+  const handleWorkspaceSelectById = (workspaceId: string) => {
+    const workspace = workspacesRef.current.find(w => w.id === workspaceId)
+    if (workspace) {
+      handleWorkspaceSelect(workspace)
+    }
+  }
+
   // Handle conversation selection
   const handleConversationSelect = (conversationId: string, workspaceId: string, title?: string) => {
     // Use ref to get latest focusedGroupId (avoid stale closure)
@@ -950,6 +961,7 @@ function App() {
             toggleRightSidebar={toggleRightSidebar}
             isRightSidebarOpen={isRightSidebarOpen}
             onFileSelect={handleFileSelect}
+            onWorkspaceSelect={handleWorkspaceSelectById}
             searchBarRef={searchBarRef}
           />
         </div>

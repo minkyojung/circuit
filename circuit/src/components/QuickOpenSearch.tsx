@@ -4,10 +4,11 @@
  * Simple and reliable file/content search
  * - Default: File name search
  * - % prefix: Content search
+ * - @ prefix: Recent workspaces
  */
 
 import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { FileText, Search } from 'lucide-react';
+import { FileText, Clock, Folder } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // @ts-ignore
@@ -32,10 +33,19 @@ interface ContentResult {
   matchEnd: number;
 }
 
+interface RecentWorkspace {
+  id: string;
+  name: string;
+  path: string;
+  branch: string;
+  lastAccessed: number;
+}
+
 interface QuickOpenSearchProps {
   workspacePath: string;
   branchName: string;
   onFileSelect: (path: string, line?: number) => void;
+  onWorkspaceSelect?: (workspaceId: string) => void;
 }
 
 // ============================================================================
@@ -43,10 +53,11 @@ interface QuickOpenSearchProps {
 // ============================================================================
 
 export const QuickOpenSearch = forwardRef<HTMLInputElement, QuickOpenSearchProps>(
-  function QuickOpenSearch({ workspacePath, branchName, onFileSelect }, ref) {
+  function QuickOpenSearch({ workspacePath, branchName, onFileSelect, onWorkspaceSelect }, ref) {
     const [query, setQuery] = useState('');
     const [fileResults, setFileResults] = useState<FileResult[]>([]);
     const [contentResults, setContentResults] = useState<ContentResult[]>([]);
+    const [recentWorkspaces, setRecentWorkspaces] = useState<RecentWorkspace[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [showResults, setShowResults] = useState(false);
@@ -58,12 +69,47 @@ export const QuickOpenSearch = forwardRef<HTMLInputElement, QuickOpenSearchProps
     useImperativeHandle(ref, () => inputRef.current as HTMLInputElement);
 
     // Determine search mode
+    const isWorkspaceSearch = query.startsWith('@');
     const isContentSearch = query.startsWith('%');
-    const searchQuery = isContentSearch ? query.slice(1).trim() : query.trim();
+    const searchQuery = isWorkspaceSearch || isContentSearch ? query.slice(1).trim() : query.trim();
+
+    // Load recent workspaces
+    useEffect(() => {
+      if (!isWorkspaceSearch) {
+        setRecentWorkspaces([]);
+        return;
+      }
+
+      try {
+        const stored = localStorage.getItem('circuit-recent-workspaces');
+        if (stored) {
+          const workspaces: RecentWorkspace[] = JSON.parse(stored);
+          const sorted = workspaces
+            .sort((a, b) => b.lastAccessed - a.lastAccessed)
+            .slice(0, 10);
+
+          // Filter by search query if provided
+          if (searchQuery) {
+            const filtered = sorted.filter(w =>
+              w.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+              w.branch.toLowerCase().includes(searchQuery.toLowerCase())
+            );
+            setRecentWorkspaces(filtered);
+          } else {
+            setRecentWorkspaces(sorted);
+          }
+        } else {
+          setRecentWorkspaces([]);
+        }
+      } catch (error) {
+        console.error('[QuickOpen] Failed to load recent workspaces:', error);
+        setRecentWorkspaces([]);
+      }
+    }, [isWorkspaceSearch, searchQuery]);
 
     // File search
     useEffect(() => {
-      if (isContentSearch || !searchQuery) {
+      if (isContentSearch || isWorkspaceSearch || !searchQuery) {
         setFileResults([]);
         return;
       }
@@ -128,7 +174,9 @@ export const QuickOpenSearch = forwardRef<HTMLInputElement, QuickOpenSearchProps
     }, [isContentSearch, searchQuery, workspacePath]);
 
     // Get current results
-    const currentResults = isContentSearch ? contentResults : fileResults;
+    const currentResults = isWorkspaceSearch
+      ? recentWorkspaces
+      : (isContentSearch ? contentResults : fileResults);
 
     // Keyboard navigation
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -142,7 +190,13 @@ export const QuickOpenSearch = forwardRef<HTMLInputElement, QuickOpenSearchProps
         e.preventDefault();
         const result = currentResults[selectedIndex];
         if (result) {
-          if (isContentSearch) {
+          if (isWorkspaceSearch) {
+            const workspace = result as RecentWorkspace;
+            if (onWorkspaceSelect) {
+              onWorkspaceSelect(workspace.id);
+              handleClose();
+            }
+          } else if (isContentSearch) {
             const r = result as ContentResult;
             onFileSelect(r.path, r.lineNumber);
           } else {
@@ -216,7 +270,7 @@ export const QuickOpenSearch = forwardRef<HTMLInputElement, QuickOpenSearchProps
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             onFocus={() => setShowResults(query.length > 0)}
-            placeholder={`${branchName} - Quick Open (% for content search)`}
+            placeholder={`${branchName} - Quick Open (% content, @ workspaces)`}
             className={cn(
               "w-full px-3 py-1 text-sm transition-all rounded-md",
               "border-0 outline-none",
@@ -245,17 +299,48 @@ export const QuickOpenSearch = forwardRef<HTMLInputElement, QuickOpenSearchProps
               </div>
             ) : currentResults.length === 0 ? (
               <div className="p-4 text-center text-sm text-muted-foreground">
-                No {isContentSearch ? 'results' : 'files'} found
+                {isWorkspaceSearch ? 'No recent workspaces found' : `No ${isContentSearch ? 'results' : 'files'} found`}
               </div>
             ) : (
               <div>
                 {/* Results Header */}
                 <div className="px-3 py-2 text-xs text-muted-foreground border-b border-border bg-popover sticky top-0">
-                  {currentResults.length} {isContentSearch ? 'result' : 'file'}{currentResults.length !== 1 ? 's' : ''}
+                  {currentResults.length} {isWorkspaceSearch ? 'workspace' : (isContentSearch ? 'result' : 'file')}{currentResults.length !== 1 ? 's' : ''}
                 </div>
 
                 {/* Results List */}
-                {isContentSearch ? (
+                {isWorkspaceSearch ? (
+                  // Workspace results
+                  recentWorkspaces.map((workspace, index) => (
+                    <button
+                      key={workspace.id}
+                      data-result-item
+                      onClick={() => {
+                        if (onWorkspaceSelect) {
+                          onWorkspaceSelect(workspace.id);
+                          handleClose();
+                        }
+                      }}
+                      onMouseEnter={() => setSelectedIndex(index)}
+                      className={cn(
+                        "w-full px-3 py-2 text-left transition-colors flex items-start gap-2",
+                        "border-b border-border last:border-b-0",
+                        selectedIndex === index ? 'bg-secondary/80' : 'hover:bg-secondary/50'
+                      )}
+                    >
+                      <Folder size={14} className="text-muted-foreground flex-shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-foreground truncate">
+                          {workspace.name}
+                        </div>
+                        <div className="text-xs text-muted-foreground truncate">
+                          {workspace.branch}
+                        </div>
+                      </div>
+                      <Clock size={12} className="text-muted-foreground flex-shrink-0 mt-1" />
+                    </button>
+                  ))
+                ) : isContentSearch ? (
                   // Content results
                   contentResults.map((result, index) => (
                     <button
