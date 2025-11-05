@@ -76,6 +76,7 @@ function MainHeader({
   isRightSidebarOpen,
   onFileSelect,
   onWorkspaceSelect,
+  activeFilePath,
   searchBarRef
 }: {
   selectedWorkspace: Workspace | null
@@ -87,6 +88,7 @@ function MainHeader({
   isRightSidebarOpen: boolean
   onFileSelect: (path: string, line?: number) => void
   onWorkspaceSelect: (workspaceId: string) => void
+  activeFilePath: string | null
   searchBarRef: React.RefObject<HTMLInputElement>
 }) {
   const { state: sidebarState } = useSidebar()
@@ -119,6 +121,7 @@ function MainHeader({
             branchName={selectedWorkspace.branch}
             onFileSelect={onFileSelect}
             onWorkspaceSelect={onWorkspaceSelect}
+            activeFilePath={activeFilePath}
           />
         </div>
       )}
@@ -302,6 +305,15 @@ function App() {
     const activeTab = getActiveTab(DEFAULT_GROUP_ID)
     if (activeTab && activeTab.type === 'conversation') {
       return activeTab.data.conversationId
+    }
+    return null
+  }, [primaryGroup.activeTabId, getActiveTab])
+
+  // Get active file path for symbol search
+  const activeFilePath = useMemo(() => {
+    const activeTab = getActiveTab(DEFAULT_GROUP_ID)
+    if (activeTab && activeTab.type === 'file') {
+      return activeTab.data.filePath
     }
     return null
   }, [primaryGroup.activeTabId, getActiveTab])
@@ -962,6 +974,7 @@ function App() {
             isRightSidebarOpen={isRightSidebarOpen}
             onFileSelect={handleFileSelect}
             onWorkspaceSelect={handleWorkspaceSelectById}
+            activeFilePath={activeFilePath}
             searchBarRef={searchBarRef}
           />
         </div>

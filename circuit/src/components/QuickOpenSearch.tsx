@@ -5,10 +5,11 @@
  * - Default: File name search
  * - % prefix: Content search
  * - @ prefix: Recent workspaces
+ * - # prefix: Go to Symbol (current file)
  */
 
 import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
-import { FileText, Clock, Folder } from 'lucide-react';
+import { FileText, Clock, Folder, Braces, Box, Type, Hash } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // @ts-ignore
@@ -41,11 +42,18 @@ interface RecentWorkspace {
   lastAccessed: number;
 }
 
+interface SymbolInfo {
+  name: string;
+  kind: 'function' | 'class' | 'interface' | 'type' | 'enum' | 'variable' | 'const';
+  line: number;
+}
+
 interface QuickOpenSearchProps {
   workspacePath: string;
   branchName: string;
   onFileSelect: (path: string, line?: number) => void;
   onWorkspaceSelect?: (workspaceId: string) => void;
+  activeFilePath?: string | null;
 }
 
 // ============================================================================
@@ -53,11 +61,12 @@ interface QuickOpenSearchProps {
 // ============================================================================
 
 export const QuickOpenSearch = forwardRef<HTMLInputElement, QuickOpenSearchProps>(
-  function QuickOpenSearch({ workspacePath, branchName, onFileSelect, onWorkspaceSelect }, ref) {
+  function QuickOpenSearch({ workspacePath, branchName, onFileSelect, onWorkspaceSelect, activeFilePath }, ref) {
     const [query, setQuery] = useState('');
     const [fileResults, setFileResults] = useState<FileResult[]>([]);
     const [contentResults, setContentResults] = useState<ContentResult[]>([]);
     const [recentWorkspaces, setRecentWorkspaces] = useState<RecentWorkspace[]>([]);
+    const [symbols, setSymbols] = useState<SymbolInfo[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [showResults, setShowResults] = useState(false);
@@ -69,9 +78,10 @@ export const QuickOpenSearch = forwardRef<HTMLInputElement, QuickOpenSearchProps
     useImperativeHandle(ref, () => inputRef.current as HTMLInputElement);
 
     // Determine search mode
+    const isSymbolSearch = query.startsWith('#');
     const isWorkspaceSearch = query.startsWith('@');
     const isContentSearch = query.startsWith('%');
-    const searchQuery = isWorkspaceSearch || isContentSearch ? query.slice(1).trim() : query.trim();
+    const searchQuery = (isSymbolSearch || isWorkspaceSearch || isContentSearch) ? query.slice(1).trim() : query.trim();
 
     // Load recent workspaces
     useEffect(() => {
@@ -107,9 +117,59 @@ export const QuickOpenSearch = forwardRef<HTMLInputElement, QuickOpenSearchProps
       }
     }, [isWorkspaceSearch, searchQuery]);
 
+    // Load symbols from current file
+    useEffect(() => {
+      if (!isSymbolSearch || !activeFilePath) {
+        setSymbols([]);
+        return;
+      }
+
+      const loadSymbols = async () => {
+        try {
+          const result = await ipcRenderer.invoke('typescript:get-outline', activeFilePath);
+          if (result.success && result.outline) {
+            const flatSymbols: SymbolInfo[] = [];
+
+            // Flatten nested outline structure
+            const flatten = (items: any[]) => {
+              for (const item of items) {
+                flatSymbols.push({
+                  name: item.name,
+                  kind: item.kind,
+                  line: item.line
+                });
+                if (item.children && item.children.length > 0) {
+                  flatten(item.children);
+                }
+              }
+            };
+
+            flatten(result.outline);
+
+            // Filter by search query if provided
+            if (searchQuery) {
+              const filtered = flatSymbols.filter(s =>
+                s.name.toLowerCase().includes(searchQuery.toLowerCase())
+              );
+              setSymbols(filtered);
+            } else {
+              setSymbols(flatSymbols);
+            }
+          } else {
+            setSymbols([]);
+          }
+        } catch (error) {
+          console.error('[QuickOpen] Failed to load symbols:', error);
+          setSymbols([]);
+        }
+      };
+
+      loadSymbols();
+    }, [isSymbolSearch, activeFilePath, searchQuery]);
+
     // File search
     useEffect(() => {
-      if (isContentSearch || isWorkspaceSearch || !searchQuery) {
+      if (isContentSearch || isWorkspaceSearch || isSymbolSearch || !searchQuery) {
         setFileResults([]);
         return;
       }
@@ -174,9 +234,11 @@ export const QuickOpenSearch = forwardRef<HTMLInputElement, QuickOpenSearchProps
     }, [isContentSearch, searchQuery, workspacePath]);
 
     // Get current results
-    const currentResults = isWorkspaceSearch
-      ? recentWorkspaces
-      : (isContentSearch ? contentResults : fileResults);
+    const currentResults = isSymbolSearch
+      ? symbols
+      : (isWorkspaceSearch
+        ? recentWorkspaces
+        : (isContentSearch ? contentResults : fileResults));
 
     // Keyboard navigation
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -190,7 +252,13 @@ export const QuickOpenSearch = forwardRef<HTMLInputElement, QuickOpenSearchProps
         e.preventDefault();
         const result = currentResults[selectedIndex];
         if (result) {
-          if (isWorkspaceSearch) {
+          if (isSymbolSearch) {
+            const symbol = result as SymbolInfo;
+            if (activeFilePath) {
+              onFileSelect(activeFilePath, symbol.line);
+              handleClose();
+            }
+          } else if (isWorkspaceSearch) {
             const workspace = result as RecentWorkspace;
             if (onWorkspaceSelect) {
               onWorkspaceSelect(workspace.id);
@@ -270,7 +338,7 @@ export const QuickOpenSearch = forwardRef<HTMLInputElement, QuickOpenSearchProps
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             onFocus={() => setShowResults(query.length > 0)}
-            placeholder={`${branchName} - Quick Open (% content, @ workspaces)`}
+            placeholder={`${branchName} - Quick Open (% content, @ workspaces, # symbols)`}
             className={cn(
               "w-full px-3 py-1 text-sm transition-all rounded-md",
               "border-0 outline-none",
@@ -299,17 +367,49 @@ export const QuickOpenSearch = forwardRef<HTMLInputElement, QuickOpenSearchProps
               </div>
             ) : currentResults.length === 0 ? (
               <div className="p-4 text-center text-sm text-muted-foreground">
-                {isWorkspaceSearch ? 'No recent workspaces found' : `No ${isContentSearch ? 'results' : 'files'} found`}
+                {isSymbolSearch
+                  ? (activeFilePath ? 'No symbols found' : 'No file open')
+                  : (isWorkspaceSearch ? 'No recent workspaces found' : `No ${isContentSearch ? 'results' : 'files'} found`)}
               </div>
             ) : (
               <div>
                 {/* Results Header */}
                 <div className="px-3 py-2 text-xs text-muted-foreground border-b border-border bg-popover sticky top-0">
-                  {currentResults.length} {isWorkspaceSearch ? 'workspace' : (isContentSearch ? 'result' : 'file')}{currentResults.length !== 1 ? 's' : ''}
+                  {currentResults.length} {isSymbolSearch ? 'symbol' : (isWorkspaceSearch ? 'workspace' : (isContentSearch ? 'result' : 'file'))}{currentResults.length !== 1 ? 's' : ''}
                 </div>
 
                 {/* Results List */}
-                {isWorkspaceSearch ? (
+                {isSymbolSearch ? (
+                  // Symbol results
+                  symbols.map((symbol, index) => (
+                    <button
+                      key={`${symbol.name}-${symbol.line}`}
+                      data-result-item
+                      onClick={() => {
+                        if (activeFilePath) {
+                          onFileSelect(activeFilePath, symbol.line);
+                          handleClose();
+                        }
+                      }}
+                      onMouseEnter={() => setSelectedIndex(index)}
+                      className={cn(
+                        "w-full px-3 py-2 text-left transition-colors flex items-start gap-2",
+                        "border-b border-border last:border-b-0",
+                        selectedIndex === index ? 'bg-secondary/80' : 'hover:bg-secondary/50'
+                      )}
+                    >
+                      {getSymbolIcon(symbol.kind)}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-foreground truncate">
+                          {symbol.name}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {symbol.kind} • Line {symbol.line}
+                        </div>
+                      </div>
+                    </button>
+                  ))
+                ) : isWorkspaceSearch ? (
                   // Workspace results
                   recentWorkspaces.map((workspace, index) => (
                     <button
@@ -424,4 +524,26 @@ function highlightMatch(text: string, start: number, end: number) {
       {text.substring(end)}
     </>
   );
+}
+
+function getSymbolIcon(kind: string) {
+  const iconProps = { size: 14, className: "flex-shrink-0 mt-0.5" };
+
+  switch (kind) {
+    case 'function':
+      return <Braces {...iconProps} className={cn(iconProps.className, "text-purple-500")} />;
+    case 'class':
+      return <Box {...iconProps} className={cn(iconProps.className, "text-orange-500")} />;
+    case 'interface':
+      return <Type {...iconProps} className={cn(iconProps.className, "text-blue-500")} />;
+    case 'type':
+      return <Type {...iconProps} className={cn(iconProps.className, "text-cyan-500")} />;
+    case 'enum':
+      return <Hash {...iconProps} className={cn(iconProps.className, "text-yellow-500")} />;
+    case 'variable':
+    case 'const':
+      return <Hash {...iconProps} className={cn(iconProps.className, "text-green-500")} />;
+    default:
+      return <Hash {...iconProps} className={cn(iconProps.className, "text-muted-foreground")} />;
+  }
 }
