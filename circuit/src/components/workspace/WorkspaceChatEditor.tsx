@@ -662,6 +662,7 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   // ============================================================================
 
   // Create callbacks for IPCEventBridge
+  // Note: useMemo with empty deps because all setters are stable
   const ipcCallbacks: IPCEventCallbacks = useMemo(() => ({
     // Message state
     onMessagesUpdate: setMessages,
@@ -684,7 +685,7 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
 
     // File operations
     onFileEdit: onFileEdit,
-  }), [onFileEdit]);
+  }), []);
 
   // Register IPC event listeners
   useIPCEvents({

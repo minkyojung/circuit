@@ -109,6 +109,8 @@ export function useIPCEvents(params: UseIPCEventsParams): void {
   );
 
   // Create dependencies object
+  // Note: Refs are stable and don't need to be in deps array
+  // Note: thinkingSteps is available via thinkingStepsRef, no need for direct value
   const dependencies: IPCEventDependencies = useMemo(
     () => ({
       sessionId,
@@ -128,7 +130,7 @@ export function useIPCEvents(params: UseIPCEventsParams): void {
       currentThinkingModeRef,
       messageThinkingStepsRef,
       pendingAssistantMessageId,
-      thinkingSteps,
+      thinkingSteps: thinkingStepsRef.current, // Use ref value instead
     }),
     [
       sessionId,
@@ -136,19 +138,8 @@ export function useIPCEvents(params: UseIPCEventsParams): void {
       workspacePath,
       workspaceId,
       pendingAssistantMessageId,
-      thinkingSteps,
-      isMountedRef,
-      sessionIdRef,
-      conversationIdRef,
-      workspacePathRef,
-      pendingUserMessageRef,
-      pendingAssistantMessageIdRef,
-      thinkingStartTimeRef,
-      currentStepMessageRef,
-      thinkingStepsRef,
-      thinkingTimerRef,
-      currentThinkingModeRef,
-      messageThinkingStepsRef,
+      // thinkingSteps removed - using ref instead
+      // Refs are intentionally NOT in deps - they're stable references
     ]
   );
 
@@ -161,12 +152,13 @@ export function useIPCEvents(params: UseIPCEventsParams): void {
     console.log('[useIPCEvents] ✅ IPCEventBridge created');
   }
 
-  // Update dependencies when they change
+  // Update dependencies only when critical values change
+  // Note: Don't update on every dependencies change to avoid infinite loops
   useEffect(() => {
     if (bridgeRef.current) {
       bridgeRef.current.updateDependencies(dependencies);
     }
-  }, [dependencies]);
+  }, [sessionId, conversationId, workspacePath, workspaceId]); // Only update on these key changes
 
   // Register/unregister listeners when sessionId changes
   useEffect(() => {
