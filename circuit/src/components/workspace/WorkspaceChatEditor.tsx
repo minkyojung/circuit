@@ -537,9 +537,11 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   }, [prefillMessage, onPrefillCleared]);
 
   // Notify parent when conversationId changes
+  // Note: onConversationChange is intentionally NOT in deps to avoid infinite loop
+  // (it's an inline function in App.tsx that gets recreated on every render)
   useEffect(() => {
     onConversationChange?.(conversationId);
-  }, [conversationId, onConversationChange]);
+  }, [conversationId]);
 
   // parseFileChanges removed - now handled by FileChangeDetector service
 
