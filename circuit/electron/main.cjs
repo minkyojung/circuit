@@ -1488,41 +1488,98 @@ function calculateFuzzyScore(text, query) {
 ipcMain.handle('typescript:get-diagnostics', async (event, workspacePath) => {
   try {
     const ts = require('typescript');
+    const fsSync = require('fs');
 
     // Find tsconfig.json
     const configPath = path.join(workspacePath, 'tsconfig.json');
 
+    let parsedConfig;
+    let hasTsConfig = false;
+
     // Check if tsconfig exists
     try {
       await fs.access(configPath);
+      hasTsConfig = true;
     } catch {
-      return {
-        success: false,
-        error: 'tsconfig.json not found',
-        diagnostics: [],
-        totalErrors: 0,
-        totalWarnings: 0,
-      };
+      // tsconfig.json not found - use fallback
+      hasTsConfig = false;
     }
 
-    // Read and parse tsconfig
-    const configFile = ts.readConfigFile(configPath, ts.sys.readFile);
+    if (hasTsConfig) {
+      // Read and parse tsconfig
+      const configFile = ts.readConfigFile(configPath, ts.sys.readFile);
 
-    if (configFile.error) {
-      return {
-        success: false,
-        error: `Failed to read tsconfig.json: ${configFile.error.messageText}`,
-        diagnostics: [],
-        totalErrors: 0,
-        totalWarnings: 0,
+      if (configFile.error) {
+        return {
+          success: false,
+          error: `Failed to read tsconfig.json: ${configFile.error.messageText}`,
+          diagnostics: [],
+          totalErrors: 0,
+          totalWarnings: 0,
+        };
+      }
+
+      parsedConfig = ts.parseJsonConfigFileContent(
+        configFile.config,
+        ts.sys,
+        workspacePath
+      );
+    } else {
+      // Fallback: scan for TypeScript and JavaScript files
+      const fileExtensions = ['.ts', '.tsx', '.js', '.jsx'];
+      const filesToCheck = [];
+
+      // Recursively find files
+      function findFiles(dir) {
+        try {
+          const entries = fsSync.readdirSync(dir, { withFileTypes: true });
+
+          for (const entry of entries) {
+            // Skip common ignore patterns
+            if (entry.name === 'node_modules' ||
+                entry.name === '.git' ||
+                entry.name === 'dist' ||
+                entry.name === 'dist-electron' ||
+                entry.name === 'build' ||
+                entry.name === '.next' ||
+                entry.name === '.conductor' ||
+                entry.name === 'coverage') {
+              continue;
+            }
+
+            const fullPath = path.join(dir, entry.name);
+
+            if (entry.isDirectory()) {
+              findFiles(fullPath);
+            } else if (entry.isFile()) {
+              const ext = path.extname(entry.name);
+              if (fileExtensions.includes(ext)) {
+                filesToCheck.push(fullPath);
+              }
+            }
+          }
+        } catch (error) {
+          // Skip directories we can't read
+        }
+      }
+
+      findFiles(workspacePath);
+
+      // Create default config
+      parsedConfig = {
+        fileNames: filesToCheck,
+        options: {
+          allowJs: true,
+          checkJs: false, // Don't check JS files by default
+          jsx: ts.JsxEmit.React,
+          target: ts.ScriptTarget.ES2020,
+          module: ts.ModuleKind.ESNext,
+          moduleResolution: ts.ModuleResolutionKind.NodeJs,
+          skipLibCheck: true,
+          noEmit: true,
+        },
       };
     }
-
-    const parsedConfig = ts.parseJsonConfigFileContent(
-      configFile.config,
-      ts.sys,
-      workspacePath
-    );
 
     // Create TypeScript program
     const program = ts.createProgram({

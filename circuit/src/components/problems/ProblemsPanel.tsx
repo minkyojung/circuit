@@ -153,9 +153,13 @@ export function ProblemsPanel({ workspacePath, onFileClick }: ProblemsPanelProps
       {/* Error State */}
       {error && (
         <div className="flex flex-col items-center justify-center flex-1 p-4 text-center">
-          <AlertCircle size={32} className="text-destructive mb-2" />
-          <p className="text-sm text-destructive font-medium mb-1">Failed to load diagnostics</p>
-          <p className="text-xs text-muted-foreground">{error}</p>
+          <AlertCircle size={32} className="text-muted-foreground mb-2" />
+          <p className="text-sm font-medium mb-1">TypeScript diagnostics unavailable</p>
+          <p className="text-xs text-muted-foreground max-w-[300px]">
+            {error === 'tsconfig.json not found'
+              ? 'This project doesn\'t have a tsconfig.json. TypeScript diagnostics work best with a TypeScript project.'
+              : error}
+          </p>
           <button
             onClick={loadDiagnostics}
             className="mt-4 px-3 py-1 text-xs bg-secondary hover:bg-secondary/80 rounded-md transition-colors"
