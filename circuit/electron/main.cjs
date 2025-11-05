@@ -3465,6 +3465,98 @@ Response in Korean if applicable. Be concise.`;
 });
 
 /**
+ * AI Completion - Intelligent code completion
+ * Uses Claude Code for context-aware suggestions
+ */
+ipcMain.handle('claude:ai-completion', async (event, data) => {
+  try {
+    const {
+      prefix,           // Code before cursor
+      suffix,           // Code after cursor
+      context,          // Surrounding code
+      language = 'typescript',
+      aiMode = 'fast',
+      maxTokens = 150
+    } = data;
+
+    const { spawn } = require('child_process');
+
+    // Build prompt for completion
+    const prompt = `Complete the following ${language} code. Return ONLY the completion text (no explanations):
+
+Context:
+\`\`\`${language}
+${context}
+\`\`\`
+
+Code to complete:
+\`\`\`${language}
+${prefix}<CURSOR>${suffix}
+\`\`\`
+
+Provide a concise, single-line or multi-line completion for <CURSOR>.`;
+
+    // Configure based on AI mode
+    const config = {
+      fast: { tokens: Math.min(maxTokens, 100), temperature: 0.2, timeout: 1500 },
+      balanced: { tokens: Math.min(maxTokens, 150), temperature: 0.3, timeout: 2500 },
+      accurate: { tokens: maxTokens, temperature: 0.4, timeout: 4000 }
+    }[aiMode] || { tokens: 100, temperature: 0.2, timeout: 1500 };
+
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        resolve({ success: false, error: 'Timeout' });
+      }, config.timeout);
+
+      const claudeProcess = spawn('claude-code', [
+        '--no-streaming',
+        '--max-tokens', config.tokens.toString(),
+        '--temperature', config.temperature.toString()
+      ], {
+        cwd: process.cwd()
+      });
+
+      let output = '';
+      let errorOutput = '';
+
+      claudeProcess.stdout.on('data', (data) => {
+        output += data.toString();
+      });
+
+      claudeProcess.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
+
+      claudeProcess.on('close', (code) => {
+        clearTimeout(timeout);
+        if (code === 0 && output) {
+          // Extract completion from output (remove markdown code blocks if present)
+          let completion = output.trim();
+          completion = completion.replace(/^```[\w]*\n/, '').replace(/\n```$/, '');
+
+          resolve({
+            success: true,
+            completion: completion
+          });
+        } else {
+          resolve({
+            success: false,
+            error: errorOutput || 'Failed to get completion'
+          });
+        }
+      });
+
+      // Send prompt to stdin
+      claudeProcess.stdin.write(prompt);
+      claudeProcess.stdin.end();
+    });
+  } catch (error) {
+    console.error('[Claude] AI completion error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
  * Read file contents from a workspace
  */
 ipcMain.handle('workspace:read-file', async (event, workspacePath, filePath) => {

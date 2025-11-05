@@ -145,8 +145,16 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
     lineEnd: number
   }) => {
     console.log('[WorkspaceChatEditor] Code selection action:', action.type);
+
+    // Auto-convert to split view if currently in editor-only mode
+    if (viewMode === 'editor' && onViewModeChange) {
+      console.log('[WorkspaceChatEditor] Auto-converting from editor to split view');
+      onViewModeChange('split');
+    }
+
+    // Store action for ChatPanel to handle
     setCodeSelectionAction(action);
-  }, []);
+  }, [viewMode, onViewModeChange]);
 
   // Start Claude session when workspace changes
   useEffect(() => {
@@ -2923,6 +2931,131 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
 
     return () => disposable.dispose();
   }, [settings.monaco.enableHover, settings.monaco.aiMode, sessionId]);
+
+  // Register AI Completion Provider
+  useEffect(() => {
+    if (!settings.monaco.enableAutocompletion || !sessionId) return;
+
+    // Simple cache for completions (cleared every 5 minutes)
+    const completionCache = new Map<string, { completion: string, timestamp: number }>();
+    const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+    const disposable = monaco.languages.registerCompletionItemProvider(
+      ['typescript', 'javascript', 'python', 'java', 'go', 'rust'],
+      {
+        triggerCharacters: ['.', '(', '<', '{', ' '],
+        provideCompletionItems: async (model, position) => {
+          try {
+            // Get code context
+            const currentLine = model.getLineContent(position.lineNumber);
+            const prefix = model.getValueInRange({
+              startLineNumber: Math.max(1, position.lineNumber - 10),
+              startColumn: 1,
+              endLineNumber: position.lineNumber,
+              endColumn: position.column
+            });
+
+            const suffix = model.getValueInRange({
+              startLineNumber: position.lineNumber,
+              startColumn: position.column,
+              endLineNumber: Math.min(model.getLineCount(), position.lineNumber + 5),
+              endColumn: model.getLineMaxColumn(Math.min(model.getLineCount(), position.lineNumber + 5))
+            });
+
+            // Build context (20 lines around cursor)
+            const startLine = Math.max(1, position.lineNumber - 10);
+            const endLine = Math.min(model.getLineCount(), position.lineNumber + 10);
+            const context = model.getValueInRange({
+              startLineNumber: startLine,
+              startColumn: 1,
+              endLineNumber: endLine,
+              endColumn: model.getLineMaxColumn(endLine)
+            });
+
+            const language = model.getLanguageId();
+
+            // Check cache if enabled
+            const cacheKey = `${prefix}|${suffix}|${language}`;
+            if (settings.monaco.cacheCompletions) {
+              const cached = completionCache.get(cacheKey);
+              if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+                return {
+                  suggestions: [{
+                    label: '⚡ AI Suggestion',
+                    kind: monaco.languages.CompletionItemKind.Snippet,
+                    insertText: cached.completion,
+                    detail: 'Claude AI (cached)',
+                    documentation: 'AI-powered code completion',
+                    range: new monaco.Range(
+                      position.lineNumber,
+                      position.column,
+                      position.lineNumber,
+                      position.column
+                    )
+                  }]
+                };
+              }
+            }
+
+            // Debounce: Wait for completion delay
+            await new Promise(resolve => setTimeout(resolve, settings.monaco.completionDelay || 300));
+
+            // Request AI completion
+            const result = await ipcRenderer.invoke('claude:ai-completion', {
+              prefix,
+              suffix,
+              context,
+              language,
+              aiMode: settings.monaco.aiMode,
+              maxTokens: settings.monaco.maxTokens || 150
+            });
+
+            if (!result.success || !result.completion) {
+              return { suggestions: [] };
+            }
+
+            // Cache the result
+            if (settings.monaco.cacheCompletions) {
+              completionCache.set(cacheKey, {
+                completion: result.completion,
+                timestamp: Date.now()
+              });
+            }
+
+            // Return completion suggestion
+            return {
+              suggestions: [{
+                label: '⚡ AI Suggestion',
+                kind: monaco.languages.CompletionItemKind.Snippet,
+                insertText: result.completion,
+                detail: `Claude AI (${settings.monaco.aiMode})`,
+                documentation: 'AI-powered code completion',
+                range: new monaco.Range(
+                  position.lineNumber,
+                  position.column,
+                  position.lineNumber,
+                  position.column
+                ),
+                sortText: '0' // Prioritize AI suggestions
+              }]
+            };
+          } catch (error) {
+            console.error('[Monaco Completion] Error:', error);
+            return { suggestions: [] };
+          }
+        }
+      }
+    );
+
+    return () => disposable.dispose();
+  }, [
+    settings.monaco.enableAutocompletion,
+    settings.monaco.aiMode,
+    settings.monaco.completionDelay,
+    settings.monaco.maxTokens,
+    settings.monaco.cacheCompletions,
+    sessionId
+  ]);
 
   // Jump to line when fileCursorPosition changes
   useEffect(() => {
