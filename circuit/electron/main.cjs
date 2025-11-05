@@ -3391,6 +3391,80 @@ ipcMain.handle('claude:stop-session', async (event, sessionId) => {
 });
 
 /**
+ * Quick explain - Fast hover explanation (optimized for speed)
+ * Uses a one-shot Claude Code invocation for faster response
+ */
+ipcMain.handle('claude:quick-explain', async (event, data) => {
+  try {
+    const { word, context, language = 'typescript', aiMode = 'fast' } = data;
+    const { spawn } = require('child_process');
+
+    // Build concise prompt for fast response
+    const prompt = `Briefly explain "${word}" in this code context (1-2 sentences max):
+
+\`\`\`${language}
+${context}
+\`\`\`
+
+Response in Korean if applicable. Be concise.`;
+
+    // Configure based on AI mode
+    const config = {
+      fast: { maxTokens: 100, temperature: 0.3 },
+      balanced: { maxTokens: 150, temperature: 0.5 },
+      accurate: { maxTokens: 200, temperature: 0.7 }
+    }[aiMode] || { maxTokens: 100, temperature: 0.3 };
+
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        resolve({ success: false, error: 'Timeout' });
+      }, aiMode === 'fast' ? 2000 : aiMode === 'balanced' ? 3000 : 5000);
+
+      const claudeProcess = spawn('claude-code', [
+        '--no-streaming',
+        '--max-tokens', config.maxTokens.toString(),
+        '--temperature', config.temperature.toString()
+      ], {
+        cwd: process.cwd()
+      });
+
+      let output = '';
+      let errorOutput = '';
+
+      claudeProcess.stdout.on('data', (data) => {
+        output += data.toString();
+      });
+
+      claudeProcess.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
+
+      claudeProcess.on('close', (code) => {
+        clearTimeout(timeout);
+        if (code === 0 && output) {
+          resolve({
+            success: true,
+            explanation: output.trim()
+          });
+        } else {
+          resolve({
+            success: false,
+            error: errorOutput || 'Failed to get explanation'
+          });
+        }
+      });
+
+      // Send prompt to stdin
+      claudeProcess.stdin.write(prompt);
+      claudeProcess.stdin.end();
+    });
+  } catch (error) {
+    console.error('[Claude] Quick explain error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
  * Read file contents from a workspace
  */
 ipcMain.handle('workspace:read-file', async (event, workspacePath, filePath) => {

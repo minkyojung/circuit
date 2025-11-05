@@ -24,6 +24,7 @@ import { summarizeToolUsage } from '@/lib/thinkingUtils';
 import { motion, AnimatePresence } from 'motion/react';
 import { TodoProvider, useTodos } from '@/contexts/TodoContext';
 import { useAgent } from '@/contexts/AgentContext';
+import { useSettingsContext } from '@/contexts/SettingsContext';
 import { TodoConfirmationDialog } from '@/components/todo';
 import { MessageComponent } from './MessageComponent';
 import { ChatEmptyState } from './ChatEmptyState';
@@ -108,6 +109,7 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
   unsavedFiles = new Set()
 }) => {
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const { settings } = useSettingsContext();
 
   // Use external viewMode if provided, otherwise use local state
   const viewMode = externalViewMode || 'chat';
@@ -2801,6 +2803,64 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
       }
     });
   };
+
+  // Register Monaco Hover Provider for AI explanations
+  useEffect(() => {
+    if (!settings.monaco.enableHover || !sessionId) return;
+
+    const disposable = monaco.languages.registerHoverProvider(['typescript', 'javascript', 'python', 'java', 'go', 'rust'], {
+      provideHover: async (model, position) => {
+        const word = model.getWordAtPosition(position);
+        if (!word) return null;
+
+        // Get surrounding context (3 lines before and after)
+        const startLine = Math.max(1, position.lineNumber - 3);
+        const endLine = Math.min(model.getLineCount(), position.lineNumber + 3);
+        const context = model.getValueInRange({
+          startLineNumber: startLine,
+          startColumn: 1,
+          endLineNumber: endLine,
+          endColumn: model.getLineMaxColumn(endLine)
+        });
+
+        const language = model.getLanguageId();
+
+        try {
+          // Call IPC handler for quick explanation
+          const result = await ipcRenderer.invoke('claude:quick-explain', {
+            word: word.word,
+            context,
+            language,
+            aiMode: settings.monaco.aiMode
+          });
+
+          if (!result.success) return null;
+
+          return {
+            range: new monaco.Range(
+              position.lineNumber,
+              word.startColumn,
+              position.lineNumber,
+              word.endColumn
+            ),
+            contents: [
+              { value: `**${word.word}**` },
+              { value: result.explanation },
+              {
+                value: '[더 자세히 알아보기 →](command:circuit.explainInChat)',
+                isTrusted: true
+              }
+            ]
+          };
+        } catch (error) {
+          console.error('[Monaco Hover] Error:', error);
+          return null;
+        }
+      }
+    });
+
+    return () => disposable.dispose();
+  }, [settings.monaco.enableHover, settings.monaco.aiMode, sessionId]);
 
   // Jump to line when fileCursorPosition changes
   useEffect(() => {
