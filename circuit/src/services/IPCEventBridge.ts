@@ -484,9 +484,142 @@ export class IPCEventBridge {
     // No mount check or session filtering for this handler
     console.log('[IPCEventBridge] Execute tasks:', data);
 
-    // TODO (Step 12): Implement full task execution logic
-    // For now, this is a placeholder
-    console.warn('[IPCEventBridge] handleExecuteTasks - not yet implemented');
+    try {
+      // ========================================================================
+      // Step 1: Write todos to .circuit/todos.json file
+      // ========================================================================
+
+      const todosData = {
+        conversationId: data.conversationId,
+        messageId: data.messageId,
+        mode: data.mode,
+        todos: data.todos.map((draft: any, index: number) => ({
+          id: `todo-${data.messageId}-${index}`,
+          content: draft.content,
+          description: draft.description,
+          activeForm: draft.activeForm,
+          status: 'pending',
+          priority: draft.priority,
+          complexity: draft.complexity,
+          estimatedDuration: draft.estimatedDuration,
+          order: draft.order || index,
+          depth: draft.depth || 0,
+        })),
+      };
+
+      await ipcRenderer.invoke(
+        'workspace:write-file',
+        this.deps.workspacePathRef.current,
+        '.circuit/todos.json',
+        JSON.stringify(todosData, null, 2)
+      );
+
+      console.log('[IPCEventBridge] ✅ Wrote todos to .circuit/todos.json');
+
+      // ========================================================================
+      // Step 2: Save todos to database for real-time progress tracking
+      // ========================================================================
+
+      const now = Date.now();
+      const todosForDB = data.todos.map((draft: any, index: number) => ({
+        id: `todo-${data.messageId}-${index}`,
+        conversationId: data.conversationId,
+        messageId: data.messageId,
+        parentId: draft.parentId,
+        order: draft.order ?? index,
+        depth: draft.depth ?? 0,
+        content: draft.content,
+        description: draft.description,
+        activeForm: draft.activeForm,
+        status: 'pending' as const,
+        progress: 0,
+        priority: draft.priority,
+        complexity: draft.complexity,
+        thinkingStepIds: [],
+        blockIds: [],
+        estimatedDuration: draft.estimatedDuration,
+        actualDuration: undefined,
+        startedAt: undefined,
+        completedAt: undefined,
+        createdAt: now,
+        updatedAt: now,
+      }));
+
+      const dbSaveResult = await ipcRenderer.invoke('todos:save-multiple', todosForDB);
+      if (!dbSaveResult.success) {
+        console.error('[IPCEventBridge] Failed to save todos to DB:', dbSaveResult.error);
+      } else {
+        console.log('[IPCEventBridge] ✅ Saved', todosForDB.length, 'todos to DB');
+      }
+
+      // ========================================================================
+      // Step 3: Prepare mode-specific prompt
+      // ========================================================================
+
+      const modePrompts = {
+        auto: `I've created a task plan in .circuit/todos.json with ${data.todos.length} task${data.todos.length === 1 ? '' : 's'}.
+
+Please execute ALL tasks in order automatically. Use the TodoWrite tool to update task status as you progress. Show progress for each task.`,
+
+        manual: `I've created a task plan in .circuit/todos.json with ${data.todos.length} task${data.todos.length === 1 ? '' : 's'}.
+
+I'll control execution manually. Respond to commands like:
+- "next" or "continue" - Execute next pending task
+- "run all" - Execute all remaining tasks
+- "execute task N" - Execute specific task by number
+- "skip task N" - Skip a task
+
+The plan is ready. What would you like to do?`,
+      };
+
+      const executionPrompt = modePrompts[data.mode];
+
+      // ========================================================================
+      // Step 4: Validate session and conversation
+      // ========================================================================
+
+      if (!this.deps.sessionId || !this.deps.conversationId) {
+        console.error('[IPCEventBridge] No session or conversation ID');
+        return;
+      }
+
+      // ========================================================================
+      // Step 5: Create and save user message
+      // ========================================================================
+
+      const userMessage: import('@/types/conversation').Message = {
+        id: `msg-${Date.now()}`,
+        conversationId: this.deps.conversationId,
+        role: 'user',
+        content: executionPrompt,
+        timestamp: Date.now(),
+      };
+
+      // Add to UI
+      this.callbacks.onMessageAdd(userMessage);
+
+      // Save to DB
+      const saveResult = await ipcRenderer.invoke('message:save', userMessage);
+      if (saveResult.success && saveResult.blocks) {
+        this.callbacks.onMessageUpdate(userMessage.id, { blocks: saveResult.blocks });
+      }
+
+      console.log('[IPCEventBridge] ✅ Created and saved user message');
+
+      // ========================================================================
+      // Step 6: Set pending state and send to Claude
+      // ========================================================================
+
+      this.deps.pendingUserMessageRef.current = userMessage;
+      this.callbacks.onIsSendingUpdate(true);
+
+      // Send to Claude
+      ipcRenderer.send('claude:send-message', this.deps.sessionId, executionPrompt, [], 'normal');
+
+      console.log('[IPCEventBridge] ✅ Sent execution prompt to Claude');
+    } catch (error) {
+      console.error('[IPCEventBridge] Error executing tasks:', error);
+    }
   };
 
   // ==========================================================================
