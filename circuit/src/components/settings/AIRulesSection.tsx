@@ -15,7 +15,7 @@ import {
   reorderAIRules,
   importCursorRules,
   exportCursorRules,
-} from '@/services/projectConfig';
+} from '@/services/projectConfigLocal';
 import { cn } from '@/lib/utils';
 
 interface AIRulesSectionProps {
@@ -30,15 +30,18 @@ export const AIRulesSection: React.FC<AIRulesSectionProps> = ({ workspacePath })
   const [newRuleContent, setNewRuleContent] = useState('');
   const [showNewRule, setShowNewRule] = useState(false);
 
+  // Use fallback workspace path if not provided
+  const effectiveWorkspacePath = workspacePath || 'default-workspace';
+
   // Load rules on mount
   useEffect(() => {
     loadRules();
-  }, [workspacePath]);
+  }, [effectiveWorkspacePath]);
 
   const loadRules = async () => {
     setLoading(true);
     try {
-      const loadedRules = await getAIRules(workspacePath);
+      const loadedRules = await getAIRules(effectiveWorkspacePath);
       setRules(loadedRules);
     } catch (error) {
       console.error('Failed to load AI rules:', error);
@@ -51,7 +54,7 @@ export const AIRulesSection: React.FC<AIRulesSectionProps> = ({ workspacePath })
     if (!newRuleContent.trim()) return;
 
     try {
-      const newRule = await addAIRule(workspacePath, {
+      const newRule = await addAIRule(effectiveWorkspacePath, {
         content: newRuleContent.trim(),
         enabled: true,
         category: 'general',
@@ -71,7 +74,7 @@ export const AIRulesSection: React.FC<AIRulesSectionProps> = ({ workspacePath })
     if (!editContent.trim()) return;
 
     try {
-      const success = await updateAIRule(workspacePath, ruleId, {
+      const success = await updateAIRule(effectiveWorkspacePath, ruleId, {
         content: editContent.trim(),
       });
 
@@ -87,7 +90,7 @@ export const AIRulesSection: React.FC<AIRulesSectionProps> = ({ workspacePath })
 
   const handleToggleRule = async (ruleId: string, enabled: boolean) => {
     try {
-      await updateAIRule(workspacePath, ruleId, { enabled });
+      await updateAIRule(effectiveWorkspacePath, ruleId, { enabled });
       setRules(rules.map((r) => (r.id === ruleId ? { ...r, enabled } : r)));
     } catch (error) {
       console.error('Failed to toggle rule:', error);
@@ -96,7 +99,7 @@ export const AIRulesSection: React.FC<AIRulesSectionProps> = ({ workspacePath })
 
   const handleDeleteRule = async (ruleId: string) => {
     try {
-      const success = await deleteAIRule(workspacePath, ruleId);
+      const success = await deleteAIRule(effectiveWorkspacePath, ruleId);
       if (success) {
         setRules(rules.filter((r) => r.id !== ruleId));
       }
@@ -107,7 +110,7 @@ export const AIRulesSection: React.FC<AIRulesSectionProps> = ({ workspacePath })
 
   const handleImportCursorRules = async () => {
     try {
-      const count = await importCursorRules(workspacePath);
+      const count = await importCursorRules(effectiveWorkspacePath);
       if (count > 0) {
         alert(`Successfully imported ${count} rules from .cursorrules`);
         loadRules();
@@ -122,7 +125,7 @@ export const AIRulesSection: React.FC<AIRulesSectionProps> = ({ workspacePath })
 
   const handleExportCursorRules = async () => {
     try {
-      const success = await exportCursorRules(workspacePath);
+      const success = await exportCursorRules(effectiveWorkspacePath);
       if (success) {
         alert('Successfully exported rules to .cursorrules');
       } else {

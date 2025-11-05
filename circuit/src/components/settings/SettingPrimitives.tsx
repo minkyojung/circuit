@@ -7,6 +7,7 @@
 import React, { type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import type { LucideIcon } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 
 // ============================================================================
 // SettingSection - Section header with icon and description
@@ -98,26 +99,11 @@ export const ToggleSetting: React.FC<ToggleSettingProps> = ({
 }) => {
   return (
     <SettingRow label={label} description={description}>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
+      <Switch
+        checked={checked}
+        onCheckedChange={onChange}
         disabled={disabled}
-        onClick={() => onChange(!checked)}
-        className={cn(
-          'relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-          checked ? 'bg-foreground' : 'bg-input',
-          disabled && 'opacity-50 cursor-not-allowed'
-        )}
-      >
-        <span
-          className={cn(
-            'inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform',
-            checked ? 'translate-x-6' : 'translate-x-1'
-          )}
-        />
-      </button>
+      />
     </SettingRow>
   );
 };
