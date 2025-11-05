@@ -357,6 +357,7 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   // Refs to hold latest state values (to avoid stale closures in IPC handlers)
   const sessionIdRef = useRef<string | null>(sessionId);
   const pendingAssistantMessageIdRef = useRef<string | null>(null);
+  const isProcessingQueuedMessageRef = useRef<boolean>(false);
   const conversationIdRef = useRef<string | null>(conversationId);
   const messagesRef = useRef<Message[]>(messages);
   const thinkingStepsRef = useRef<ThinkingStep[]>(thinkingSteps);
@@ -1279,9 +1280,15 @@ Wrap the JSON in triple backticks with 'json' language marker. This is REQUIRED.
       const editedFiles = parseFileChanges(result.message);
       console.log('[WorkspaceChat] Detected file changes:', editedFiles);
 
-      editedFiles.forEach((file) => {
-        onFileEdit(file);
-      });
+      // Only auto-open files if NOT processing a queued message
+      // (Prevents excessive file switching when processing multiple queued messages)
+      if (!isProcessingQueuedMessageRef.current) {
+        editedFiles.forEach((file) => {
+          onFileEdit(file);
+        });
+      } else {
+        console.log('[Queue] Skipping auto file open for queued message (detected', editedFiles.length, 'files)');
+      }
 
       pendingUserMessageRef.current = null;
       setPendingAssistantMessageId(null); // Clear pending message ID
@@ -1821,6 +1828,9 @@ The plan is ready. What would you like to do?`,
       throw new Error('No session ID available');
     }
 
+    // Mark that we're processing a queued message (prevent auto file opening)
+    isProcessingQueuedMessageRef.current = true;
+
     // Track current thinking mode
     currentThinkingModeRef.current = thinkingMode;
 
@@ -1902,36 +1912,93 @@ The plan is ready. What would you like to do?`,
 
     // Return a promise that resolves when the response is complete
     return new Promise<void>((resolve, reject) => {
-      const responseCompleteHandler = (_event: any, result: any) => {
-        if (result.sessionId === sessionId) {
-          console.log('[ChatPanel] Queue item response complete:', queueItem.id);
-          ipcRenderer.removeListener('claude:response-complete', responseCompleteHandler);
-          ipcRenderer.removeListener('claude:response-error', errorHandler);
+      let isResolved = false;
+      let wrappedResponseCompleteHandler: any;
+      let wrappedErrorHandler: any;
 
-          if (result.success) {
-            // Store message IDs in queue item
-            queueItem.userMessageId = userMessage.id;
-            queueItem.assistantMessageId = pendingAssistantMessageIdRef.current || undefined;
-            resolve();
-          } else {
-            reject(new Error(result.error || 'Unknown error'));
+      const cleanup = () => {
+        if (!isResolved) {
+          isResolved = true;
+          if (wrappedResponseCompleteHandler) {
+            ipcRenderer.removeListener('claude:response-complete', wrappedResponseCompleteHandler);
+          }
+          if (wrappedErrorHandler) {
+            ipcRenderer.removeListener('claude:response-error', wrappedErrorHandler);
           }
         }
       };
 
-      const errorHandler = (_event: any, error: any) => {
-        if (error.sessionId === sessionId) {
-          console.error('[ChatPanel] Queue item response error:', queueItem.id, error);
-          ipcRenderer.removeListener('claude:response-complete', responseCompleteHandler);
-          ipcRenderer.removeListener('claude:response-error', errorHandler);
-          reject(new Error(error.error || error.message || 'Unknown error'));
+      // Timeout after 5 minutes - prevent infinite hanging
+      const timeout = setTimeout(() => {
+        if (!isResolved) {
+          cleanup();
+          clearTimeout(timeout);
+          console.error('[ChatPanel] Queue item timeout:', queueItem.id);
+          reject(new Error('Response timeout after 5 minutes'));
+        }
+      }, 5 * 60 * 1000);
+
+      // Wrap resolve/reject to ensure cleanup
+      const safeResolve = () => {
+        cleanup();
+        clearTimeout(timeout);
+        isProcessingQueuedMessageRef.current = false;
+        resolve();
+      };
+
+      const safeReject = (error: Error) => {
+        cleanup();
+        clearTimeout(timeout);
+        isProcessingQueuedMessageRef.current = false;
+        reject(error);
+      };
+
+      // Update handlers to use safe resolve/reject
+      wrappedResponseCompleteHandler = (_event: any, result: any) => {
+        console.log('[ChatPanel] Response complete event received:', {
+          queueItemId: queueItem.id,
+          resultSessionId: result.sessionId,
+          currentSessionId: sessionId,
+          matches: result.sessionId === sessionId
+        });
+
+        if (result.sessionId === sessionId && !isResolved) {
+          isResolved = true;
+          console.log('[ChatPanel] Queue item response complete:', queueItem.id);
+
+          if (result.success) {
+            queueItem.userMessageId = userMessage.id;
+            queueItem.assistantMessageId = pendingAssistantMessageIdRef.current || undefined;
+            safeResolve();
+          } else {
+            safeReject(new Error(result.error || 'Unknown error'));
+          }
         }
       };
 
-      ipcRenderer.once('claude:response-complete', responseCompleteHandler);
-      ipcRenderer.once('claude:response-error', errorHandler);
+      wrappedErrorHandler = (_event: any, error: any) => {
+        console.log('[ChatPanel] Response error event received:', {
+          queueItemId: queueItem.id,
+          errorSessionId: error.sessionId,
+          currentSessionId: sessionId
+        });
+
+        if (error.sessionId === sessionId && !isResolved) {
+          isResolved = true;
+          console.error('[ChatPanel] Queue item response error:', queueItem.id, error);
+          safeReject(new Error(error.error || error.message || 'Unknown error'));
+        }
+      };
+
+      // Use 'on' instead of 'once' to prevent event consumption without resolution
+      ipcRenderer.on('claude:response-complete', wrappedResponseCompleteHandler);
+      ipcRenderer.on('claude:response-error', wrappedErrorHandler);
 
       // Send the message
+      console.log('[ChatPanel] Sending queued message IPC:', {
+        queueItemId: queueItem.id,
+        sessionId
+      });
       ipcRenderer.send('claude:send-message', sessionId, content, attachments, thinkingMode);
     });
   };
@@ -1977,17 +2044,11 @@ The plan is ready. What would you like to do?`,
       console.log('[Queue] Queue item completed:', queueItem.id);
       setMessageQueue(prev => prev.filter(item => item.id !== queueItem.id));
 
-      // Process next item if queue has more
+      // Reset processing flags - useEffect will auto-trigger next item
       setIsProcessingQueue(false);
       setCurrentQueueItem(null);
       setIsSending(false);
-
-      // Check if there are more items and process next
-      setTimeout(() => {
-        if (messageQueue.length > 1) {  // > 1 because current item is still in array
-          processQueue();
-        }
-      }, 100);
+      // Note: No manual processQueue() call - useEffect will handle it
 
     } catch (error) {
       console.error('[Queue] Failed to process queue item:', error);
@@ -2481,6 +2542,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
   fileCursorPosition,
   onCodeSelectionAction,
 }) => {
+  const { settings } = useSettingsContext();
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [fileContents, setFileContents] = useState<Map<string, string>>(new Map());
   const [isLoadingFile, setIsLoadingFile] = useState(false);
