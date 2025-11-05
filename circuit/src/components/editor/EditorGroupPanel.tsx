@@ -46,6 +46,15 @@ export function EditorGroupPanel({
   renderEmpty,
   className,
 }: EditorGroupPanelProps) {
+  // Wrap onTabDragStart to include groupId
+  const handleTabDragStart = (tabId: string) => {
+    onTabDragStart?.(tabId, group.id)
+  }
+
+  // Wrap onTabDrop to include groupId
+  const handleTabDrop = (tabId: string, targetIndex?: number) => {
+    onTabDrop?.(tabId, targetIndex)
+  }
   // Get active tab
   const activeTab = useMemo(() => {
     if (!group.activeTabId) return null
@@ -107,22 +116,23 @@ export function EditorGroupPanel({
     <div
       className={cn(
         'h-full flex flex-col transition-all',
-        isFocused && 'ring-2 ring-blue-500/50 ring-inset',
         className
       )}
       onClick={onFocus}
     >
-      {/* Tab Bar */}
-      <UniversalTabBar
-        groupId={group.id}
-        tabs={group.tabs}
-        activeTabId={group.activeTabId}
-        onTabClick={onTabClick}
-        onTabClose={onTabClose}
-        onTabDragStart={onTabDragStart}
-        onTabDragEnd={onTabDragEnd}
-        onTabDrop={onTabDrop}
-      />
+      {/* Tab Bar with focus-based opacity */}
+      <div className={cn('transition-opacity', !isFocused && 'opacity-40')}>
+        <UniversalTabBar
+          groupId={group.id}
+          tabs={group.tabs}
+          activeTabId={group.activeTabId}
+          onTabClick={onTabClick}
+          onTabClose={onTabClose}
+          onTabDragStart={handleTabDragStart}
+          onTabDragEnd={onTabDragEnd}
+          onTabDrop={handleTabDrop}
+        />
+      </div>
 
       {/* Content Area */}
       <div className="flex-1 min-h-0">

@@ -102,6 +102,9 @@ function App() {
   // Panel focus state (which group is currently focused)
   const [focusedGroupId, setFocusedGroupId] = useState<string>(DEFAULT_GROUP_ID)
 
+  // Drag state for tab dragging between panels
+  const [draggedTab, setDraggedTab] = useState<{ tabId: string; sourceGroupId: string } | null>(null)
+
   // ============================================================================
   // NEW: Unified Editor Groups System
   // ============================================================================
@@ -298,8 +301,6 @@ function App() {
 
   // Handle file selection from sidebar or file reference pills
   const handleFileSelect = (filePath: string, lineStart?: number, lineEnd?: number) => {
-    console.log('[App] File selected:', filePath, lineStart, lineEnd)
-
     // Create or activate file tab
     const tab = createFileTab(filePath, getFileName(filePath))
 
@@ -368,6 +369,34 @@ function App() {
         }
       } as any)
     }
+  }
+
+  // Drag and drop handlers
+  const handleTabDragStart = (tabId: string, groupId: string) => {
+    setDraggedTab({ tabId, sourceGroupId: groupId })
+  }
+
+  const handleTabDragEnd = () => {
+    setDraggedTab(null)
+  }
+
+  const handleTabDrop = (targetGroupId: string, targetIndex?: number) => {
+    if (!draggedTab) return
+
+    const { tabId, sourceGroupId } = draggedTab
+
+    // If dropping on the same group, ignore (let tab reordering handle it)
+    if (sourceGroupId === targetGroupId) {
+      setDraggedTab(null)
+      return
+    }
+
+    // Move tab between groups
+    moveTab(tabId, sourceGroupId, targetGroupId, targetIndex)
+    setDraggedTab(null)
+
+    // Focus the target group
+    setFocusedGroupId(targetGroupId)
   }
 
   // Get all tabs for header controls
@@ -606,6 +635,9 @@ function App() {
                           activateTab(tabId, DEFAULT_GROUP_ID)
                         }}
                         onTabClose={(tabId) => closeTab(tabId, DEFAULT_GROUP_ID)}
+                        onTabDragStart={(tabId, sourceGroupId) => handleTabDragStart(tabId, sourceGroupId)}
+                        onTabDragEnd={handleTabDragEnd}
+                        onTabDrop={(tabId, targetIndex) => handleTabDrop(DEFAULT_GROUP_ID, targetIndex)}
                         renderConversation={renderChatPanel}
                         renderFile={renderEditorPanel}
                       />
@@ -621,6 +653,9 @@ function App() {
                           activateTab(tabId, SECONDARY_GROUP_ID)
                         }}
                         onTabClose={(tabId) => closeTab(tabId, SECONDARY_GROUP_ID)}
+                        onTabDragStart={(tabId, sourceGroupId) => handleTabDragStart(tabId, sourceGroupId)}
+                        onTabDragEnd={handleTabDragEnd}
+                        onTabDrop={(tabId, targetIndex) => handleTabDrop(SECONDARY_GROUP_ID, targetIndex)}
                         renderConversation={renderChatPanel}
                         renderFile={renderEditorPanel}
                       />
