@@ -158,7 +158,7 @@ export function ConversationTabsOnly({
 
   return (
     <>
-      <div className="flex items-center gap-0.5 overflow-x-auto scrollbar-thin border-b border-border bg-card px-2 py-1">
+      <div className="flex items-center gap-1 overflow-x-auto scrollbar-thin border-b border-border bg-card px-2 py-1">
         {/* Conversation Tabs */}
         {conversations.map((conversation) => {
           const isActive = conversation.id === activeConversationId

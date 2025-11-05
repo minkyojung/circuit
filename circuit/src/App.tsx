@@ -6,6 +6,7 @@ import { TodoPanel } from "@/components/TodoPanel"
 import { GitTestPanel } from "@/components/git/GitTestPanel"
 import { WorkspaceEmptyState } from "@/components/workspace/WorkspaceEmptyState"
 import { ChatPanel, EditorPanel } from "@/components/workspace/WorkspaceChatEditor"
+import { GlobalSearchBar } from "@/components/GlobalSearchBar"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -73,7 +74,8 @@ function MainHeader({
   setViewMode,
   allTabs,
   toggleRightSidebar,
-  isRightSidebarOpen
+  isRightSidebarOpen,
+  onFileSelect
 }: {
   selectedWorkspace: Workspace | null
   repositoryName: string
@@ -82,6 +84,7 @@ function MainHeader({
   allTabs: Tab[]
   toggleRightSidebar: () => void
   isRightSidebarOpen: boolean
+  onFileSelect: (path: string, line: number) => void
 }) {
   const { state: sidebarState } = useSidebar()
 
@@ -101,14 +104,17 @@ function MainHeader({
         <SidebarTrigger />
       </div>
 
-      {/* Center - Branch name */}
+      {/* Center - Global Search / Branch name */}
       {selectedWorkspace && (
         <div
-          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-2 text-muted-foreground text-sm font-normal"
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
           style={{ WebkitAppRegion: 'no-drag' } as any}
         >
-          <GitBranch size={14} strokeWidth={1.5} />
-          <span>{selectedWorkspace.branch}</span>
+          <GlobalSearchBar
+            workspacePath={selectedWorkspace.path}
+            branchName={selectedWorkspace.branch}
+            onFileSelect={onFileSelect}
+          />
         </div>
       )}
 
@@ -795,6 +801,7 @@ function App() {
             allTabs={allTabs}
             toggleRightSidebar={toggleRightSidebar}
             isRightSidebarOpen={isRightSidebarOpen}
+            onFileSelect={handleFileSelect}
           />
         </div>
 

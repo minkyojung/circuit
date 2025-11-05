@@ -1183,6 +1183,157 @@ ipcMain.handle('workspace:context-stop', async (event, workspaceId) => {
   }
 });
 
+/**
+ * Search in files across workspace
+ * Uses ripgrep if available, falls back to Node.js fs
+ */
+ipcMain.handle('workspace:search-in-files', async (event, workspacePath, query, options = {}) => {
+  try {
+    const {
+      maxResults = 100,
+      maxColumns = 200,
+      contextLines = 1,
+      ignoreCase = true,
+    } = options;
+
+    // Try using ripgrep first (faster)
+    try {
+      const rgArgs = [
+        '--json',
+        '--max-count', String(maxResults),
+        '--max-columns', String(maxColumns),
+        '--context', String(contextLines),
+      ];
+
+      if (ignoreCase) {
+        rgArgs.push('--ignore-case');
+      }
+
+      rgArgs.push(query, workspacePath);
+
+      const { stdout } = await execAsync(`rg ${rgArgs.join(' ')}`, {
+        maxBuffer: 10 * 1024 * 1024, // 10MB buffer
+      });
+
+      // Parse ripgrep JSON output
+      const lines = stdout.trim().split('\n');
+      const results = [];
+
+      for (const line of lines) {
+        try {
+          const parsed = JSON.parse(line);
+          if (parsed.type === 'match') {
+            results.push({
+              path: parsed.data.path.text,
+              lineNumber: parsed.data.line_number,
+              lineContent: parsed.data.lines.text.trim(),
+              matchStart: parsed.data.submatches[0].start,
+              matchEnd: parsed.data.submatches[0].end,
+            });
+          }
+        } catch (parseError) {
+          // Skip invalid JSON lines
+          continue;
+        }
+      }
+
+      return {
+        success: true,
+        results,
+        totalMatches: results.length,
+        method: 'ripgrep'
+      };
+    } catch (rgError) {
+      // Ripgrep not available or failed, use Node.js fallback
+      console.log('[Search] Ripgrep unavailable, using Node.js fallback');
+
+      const results = [];
+      const { readdir, stat, readFile } = fs;
+
+      // Recursive file search
+      async function searchDirectory(dirPath) {
+        if (results.length >= maxResults) return;
+
+        const entries = await readdir(dirPath, { withFileTypes: true });
+
+        for (const entry of entries) {
+          if (results.length >= maxResults) break;
+
+          const fullPath = path.join(dirPath, entry.name);
+
+          // Skip common ignore patterns
+          if (entry.name === 'node_modules' ||
+              entry.name === '.git' ||
+              entry.name === 'dist' ||
+              entry.name === 'build' ||
+              entry.name === '.next') {
+            continue;
+          }
+
+          if (entry.isDirectory()) {
+            await searchDirectory(fullPath);
+          } else if (entry.isFile()) {
+            // Only search text files (basic check)
+            const ext = path.extname(entry.name).toLowerCase();
+            const textExtensions = [
+              '.ts', '.tsx', '.js', '.jsx', '.py', '.rb', '.go', '.rs',
+              '.java', '.c', '.cpp', '.h', '.hpp', '.css', '.scss', '.html',
+              '.json', '.yaml', '.yml', '.md', '.txt', '.sh', '.bash'
+            ];
+
+            if (textExtensions.includes(ext)) {
+              try {
+                const content = await readFile(fullPath, 'utf-8');
+                const lines = content.split('\n');
+
+                for (let i = 0; i < lines.length; i++) {
+                  if (results.length >= maxResults) break;
+
+                  const line = lines[i];
+                  const searchRegex = new RegExp(
+                    query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+                    ignoreCase ? 'gi' : 'g'
+                  );
+                  const match = searchRegex.exec(line);
+
+                  if (match) {
+                    results.push({
+                      path: path.relative(workspacePath, fullPath),
+                      lineNumber: i + 1,
+                      lineContent: line.trim(),
+                      matchStart: match.index,
+                      matchEnd: match.index + match[0].length,
+                    });
+                  }
+                }
+              } catch (fileError) {
+                // Skip files that can't be read
+                continue;
+              }
+            }
+          }
+        }
+      }
+
+      await searchDirectory(workspacePath);
+
+      return {
+        success: true,
+        results,
+        totalMatches: results.length,
+        method: 'nodejs'
+      };
+    }
+  } catch (error) {
+    console.error('[Search] Error:', error);
+    return {
+      success: false,
+      error: error.message,
+      results: []
+    };
+  }
+});
+
 // ============================================================================
 // Circuit Test-Fix Loop - Phase 2
 // ============================================================================
@@ -4257,13 +4408,44 @@ ipcMain.handle('slash-commands:list', async (event, workspacePath) => {
     // Read all files in directory
     const files = await fs.readdir(commandsPath);
 
-    // Filter for .md files and extract command names
-    const commands = files
-      .filter(file => file.endsWith('.md'))
-      .map(file => ({
-        name: file.replace(/\.md$/, ''), // Remove .md extension
-        fileName: file,
-      }));
+    // Filter for .md files and extract command names with descriptions
+    const commands = await Promise.all(
+      files
+        .filter(file => file.endsWith('.md'))
+        .map(async file => {
+          const name = file.replace(/\.md$/, '');
+          let description = '';
+
+          try {
+            // Read file content to extract description
+            const filePath = path.join(commandsPath, file);
+            const content = await fs.readFile(filePath, 'utf-8');
+
+            // Extract first non-empty, non-heading line as description
+            const lines = content.split('\n');
+            for (const line of lines) {
+              const trimmed = line.trim();
+              // Skip empty lines, markdown headings, and frontmatter
+              if (trimmed && !trimmed.startsWith('#') && !trimmed.startsWith('---')) {
+                description = trimmed;
+                // Limit description length
+                if (description.length > 100) {
+                  description = description.substring(0, 100) + '...';
+                }
+                break;
+              }
+            }
+          } catch (err) {
+            console.warn(`[Slash Commands] Could not read description for ${file}:`, err);
+          }
+
+          return {
+            name,
+            fileName: file,
+            description,
+          };
+        })
+    );
 
     return { success: true, commands };
   } catch (error) {
