@@ -210,6 +210,7 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
         <div className="h-full">
           <EditorPanel
             workspace={workspace}
+            sessionId={sessionId}
             openFiles={openFiles}
             selectedFile={selectedFile}
             onCloseFile={handleCloseFile}
@@ -266,6 +267,7 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
               <div className="flex-1 min-h-0">
                 <EditorPanel
                   workspace={workspace}
+                  sessionId={sessionId}
                   openFiles={openFiles}
                   selectedFile={activeFilePath || selectedFile}
                   onCloseFile={onCloseFile || handleCloseFile}
@@ -2523,6 +2525,7 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
 
 interface EditorPanelProps {
   workspace: Workspace;
+  sessionId: string | null;  // Claude session ID for AI features
   openFiles: string[];
   selectedFile: string | null;
   onCloseFile?: (filePath: string) => void;
@@ -2543,6 +2546,7 @@ interface EditorPanelProps {
 
 const EditorPanel: React.FC<EditorPanelProps> = ({
   workspace,
+  sessionId,
   openFiles,
   selectedFile,
   onCloseFile,

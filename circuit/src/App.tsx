@@ -62,7 +62,8 @@ const ProjectPathContext = createContext<ProjectPathContextValue>({
 
 export const useProjectPath = () => useContext(ProjectPathContext)
 
-function App() {
+function AppContent() {
+  const { state: sidebarState } = useSidebar()
   const [projectPath, setProjectPath] = useState<string>('')
   const [isLoadingPath, setIsLoadingPath] = useState<boolean>(true)
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null)
@@ -599,7 +600,10 @@ function App() {
 
           {/* Main Header with Breadcrumb */}
           <header
-            className="flex h-[44px] shrink-0 items-center gap-2 border-b border-border px-3"
+            className={cn(
+              "flex h-[44px] shrink-0 items-center gap-2 border-b border-border pr-3",
+              sidebarState === 'collapsed' ? 'pl-[72px]' : 'pl-3'
+            )}
             style={{ WebkitAppRegion: 'drag' } as any}
           >
             {/* Left side - Sidebar toggle + Workspace/Repository name */}
