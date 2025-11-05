@@ -303,15 +303,6 @@ function App() {
     return null
   }, [primaryGroup.activeTabId, getActiveTab])
 
-  // Get active file path for OutlinePanel (from primary group's active file tab)
-  const activeFilePath = useMemo(() => {
-    const activeTab = getActiveTab(DEFAULT_GROUP_ID)
-    if (activeTab && activeTab.type === 'file') {
-      return activeTab.data.filePath
-    }
-    return null
-  }, [primaryGroup.activeTabId, getActiveTab])
-
   // Render functions for panels
   const renderChatPanel = (conversationId: string, workspaceId: string) => {
     if (!selectedWorkspace) return null
@@ -1054,7 +1045,6 @@ function App() {
             workspace={selectedWorkspace}
             onCommit={() => setShowCommitDialog(true)}
             onFileSelect={handleFileSelect}
-            currentFilePath={activeFilePath}
           />
         </Sidebar>
       )}

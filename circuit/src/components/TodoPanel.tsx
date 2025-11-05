@@ -1,22 +1,20 @@
 /**
- * TodoPanel - Right Sidebar with Problems, Outline, and Terminal
+ * TodoPanel - Right Sidebar with Problems and Terminal
  *
  * Contains:
  * - Settings, Theme, Feedback buttons
  * - Commit & PR button
  * - Problems Panel (TypeScript diagnostics)
- * - Outline Panel (File structure)
  * - Terminal
  */
 
 import { useState } from 'react'
-import { Settings, Terminal as TerminalIcon, MessageSquare, AlertCircle, FileText } from 'lucide-react'
+import { Settings, Terminal as TerminalIcon, MessageSquare, AlertCircle } from 'lucide-react'
 import type { Workspace } from '@/types/workspace'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { SettingsDialog } from '@/components/SettingsDialog'
 import { Terminal } from '@/components/Terminal'
 import { ProblemsPanel } from '@/components/problems/ProblemsPanel'
-import { OutlinePanel } from '@/components/outline/OutlinePanel'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import {
   SidebarHeader,
@@ -28,10 +26,9 @@ interface TodoPanelProps {
   workspace?: Workspace | null
   onCommit?: () => void
   onFileSelect?: (path: string, line: number) => void
-  currentFilePath?: string | null
 }
 
-export function TodoPanel({ workspace, onCommit, onFileSelect, currentFilePath }: TodoPanelProps) {
+export function TodoPanel({ workspace, onCommit, onFileSelect }: TodoPanelProps) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false)
   const [activeTab, setActiveTab] = useState('terminal')
@@ -82,14 +79,10 @@ export function TodoPanel({ workspace, onCommit, onFileSelect, currentFilePath }
       <SidebarContent className="flex flex-col overflow-hidden p-0">
         {workspace ? (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-            <TabsList className="w-full grid grid-cols-3 rounded-none border-b">
+            <TabsList className="w-full grid grid-cols-2 rounded-none border-b">
               <TabsTrigger value="problems" className="gap-2 data-[state=active]:bg-secondary">
                 <AlertCircle size={14} />
                 Problems
-              </TabsTrigger>
-              <TabsTrigger value="outline" className="gap-2 data-[state=active]:bg-secondary">
-                <FileText size={14} />
-                Outline
               </TabsTrigger>
               <TabsTrigger value="terminal" className="gap-2 data-[state=active]:bg-secondary">
                 <TerminalIcon size={14} />
@@ -103,17 +96,6 @@ export function TodoPanel({ workspace, onCommit, onFileSelect, currentFilePath }
                 onFileClick={(path, line) => {
                   if (onFileSelect) {
                     onFileSelect(path, line);
-                  }
-                }}
-              />
-            </TabsContent>
-
-            <TabsContent value="outline" className="flex-1 overflow-hidden m-0">
-              <OutlinePanel
-                filePath={currentFilePath || null}
-                onSymbolClick={(line) => {
-                  if (onFileSelect && currentFilePath) {
-                    onFileSelect(currentFilePath, line);
                   }
                 }}
               />
