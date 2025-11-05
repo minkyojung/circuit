@@ -777,6 +777,15 @@ function App() {
         console.error('[App] Error deleting conversation:', error)
         alert(`Error deleting conversation: ${error}`)
       }
+      return
+    }
+
+    // Handle settings tabs
+    if (activeTab.type === 'settings') {
+      // Simply close the settings tab
+      closeTab(activeTab.id, focusedGroupId)
+      console.log('[App] Settings tab closed')
+      return
     }
   }
 
