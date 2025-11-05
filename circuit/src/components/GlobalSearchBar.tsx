@@ -114,15 +114,16 @@ export function GlobalSearchBar({
     }
   ];
 
-  // Detect mode from query prefix
+  // Detect mode from query prefix - only auto-switch for special prefixes
   useEffect(() => {
     if (query.startsWith('%')) {
+      // Content search mode
       setMode('content');
-    } else if (query === '' && isFocused) {
+    } else if (!query.trim() && !isFocused) {
+      // Return to menu when unfocused and empty
       setMode('menu');
-    } else {
-      setMode('file');
     }
+    // Don't auto-switch to file mode - let explicit selection handle it
     setSelectedIndex(0);
   }, [query, isFocused]);
 
@@ -257,12 +258,20 @@ export function GlobalSearchBar({
       const option = searchOptions[selectedIndex];
       if (option) {
         if (option.id === 'recent') {
-          // Show recent workspaces
-          setQuery('');
-          setMode('menu');
+          // Show recent workspaces (not implemented yet)
+          return;
         } else {
-          setQuery(option.shortcut === '%' ? '% ' : '');
+          // Switch to selected mode
           setMode(option.mode);
+          if (option.shortcut === '%') {
+            setQuery('% ');
+          } else {
+            setQuery('');
+          }
+          // Keep input focused
+          setTimeout(() => {
+            inputRef.current?.focus();
+          }, 0);
         }
       }
     } else if (mode === 'file') {
