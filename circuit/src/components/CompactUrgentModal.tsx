@@ -10,15 +10,18 @@ import React from 'react';
 import { AlertOctagon, Copy, ExternalLink } from 'lucide-react';
 import { useAutoCompact } from '@/hooks/useAutoCompact';
 import { toast } from 'sonner';
+import type { ContextMetrics } from '@/types/metrics';
 
 interface CompactUrgentModalProps {
   workspaceId?: string;
   workspacePath?: string;
+  context: ContextMetrics | null;
 }
 
 export const CompactUrgentModal: React.FC<CompactUrgentModalProps> = ({
   workspaceId,
   workspacePath,
+  context,
 }) => {
   const {
     shouldShowModal,
@@ -26,7 +29,7 @@ export const CompactUrgentModal: React.FC<CompactUrgentModalProps> = ({
     dismissWarning,
     openClaudeCode,
     copyCompactCommand,
-  } = useAutoCompact({ workspaceId, workspacePath });
+  } = useAutoCompact({ workspaceId, workspacePath, context });
 
   if (!shouldShowModal) {
     return null;

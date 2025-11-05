@@ -22,6 +22,7 @@ import {
   ResizableHandle,
 } from '@/components/ui/resizable'
 import {
+  Sidebar,
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
@@ -40,6 +41,7 @@ import { CompactUrgentModal } from '@/components/CompactUrgentModal'
 import { Toaster } from 'sonner'
 import { FEATURES } from '@/config/features'
 import { useEditorGroups } from '@/hooks/useEditorGroups'
+import { useWorkspaceContext } from '@/hooks/useWorkspaceContext'
 import { createConversationTab, createFileTab } from '@/types/editor'
 import type { Tab } from '@/types/editor'
 import { getFileName } from '@/lib/fileUtils'
@@ -172,11 +174,6 @@ function App() {
     const saved = localStorage.getItem('circuit-right-sidebar-state')
     return saved !== null ? JSON.parse(saved) : true // 기본값: 열림
   })
-  const [rightSidebarWidth, setRightSidebarWidth] = useState<number>(() => {
-    const saved = localStorage.getItem('circuit-right-sidebar-width')
-    return saved ? parseInt(saved) : 320 // 기본값: 320px (20rem)
-  })
-  const [isResizing, setIsResizing] = useState<boolean>(false)
   const [currentRepository, setCurrentRepository] = useState<any>(null)
 
   // Session ID for chat (one per workspace for now)
@@ -251,6 +248,12 @@ function App() {
   useEffect(() => {
     focusedGroupIdRef.current = focusedGroupId
   }, [focusedGroupId])
+
+  // Context tracking for auto-compact
+  const { context: workspaceContext } = useWorkspaceContext(
+    selectedWorkspace?.id,
+    selectedWorkspace?.path
+  )
 
   // Drag state for tab dragging between panels
   const [draggedTab, setDraggedTab] = useState<{ tabId: string; sourceGroupId: string } | null>(null)
@@ -336,6 +339,7 @@ function App() {
     return (
       <EditorPanel
         workspace={selectedWorkspace}
+        sessionId={sessionId}
         openFiles={openFilePaths}
         selectedFile={filePath}
         onCloseFile={(path) => {
@@ -366,35 +370,6 @@ function App() {
       return newState
     })
   }
-
-  // Handle right sidebar resize
-  const handleResizeStart = (e: React.MouseEvent) => {
-    e.preventDefault()
-    setIsResizing(true)
-  }
-
-  useEffect(() => {
-    if (!isResizing) return
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const newWidth = window.innerWidth - e.clientX
-      const clampedWidth = Math.max(240, Math.min(600, newWidth)) // 15rem ~ 37.5rem
-      setRightSidebarWidth(clampedWidth)
-    }
-
-    const handleMouseUp = () => {
-      setIsResizing(false)
-      localStorage.setItem('circuit-right-sidebar-width', String(rightSidebarWidth))
-    }
-
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
-    }
-  }, [isResizing, rightSidebarWidth])
 
   // Create workspace handler for Command Palette
   const handleCreateWorkspace = async () => {
@@ -543,7 +518,9 @@ function App() {
           openTab(tab, DEFAULT_GROUP_ID)
         } else {
           // No active conversation - create new one
-          const createResult = await ipcRenderer.invoke('conversation:create', workspace.id)
+          const createResult = await ipcRenderer.invoke('conversation:create', workspace.id, {
+            workspaceName: workspace.name
+          })
 
           if (createResult.success && createResult.conversation) {
             const tab = createConversationTab(
@@ -573,6 +550,32 @@ function App() {
       selectedWorkspace?.name
     )
     openTab(tab, currentFocusedGroup)
+  }
+
+  // Handle new conversation creation
+  const handleCreateConversation = async () => {
+    if (!selectedWorkspace) return
+
+    try {
+      const createResult = await ipcRenderer.invoke('conversation:create', selectedWorkspace.id, {
+        workspaceName: selectedWorkspace.name
+      })
+
+      if (createResult.success && createResult.conversation) {
+        const tab = createConversationTab(
+          createResult.conversation.id,
+          selectedWorkspace.id,
+          createResult.conversation.title,
+          selectedWorkspace.name
+        )
+        // Open in currently focused group
+        openTab(tab, focusedGroupIdRef.current)
+      } else {
+        console.error('[App] Failed to create conversation:', createResult.error)
+      }
+    } catch (error) {
+      console.error('[App] Error creating conversation:', error)
+    }
   }
 
   // VS Code style: Duplicate active tab when switching to split view
@@ -667,7 +670,9 @@ function App() {
           openTab(conversationTab, DEFAULT_GROUP_ID)
         } else {
           // No conversations exist, create a new one
-          const createResult = await ipcRenderer.invoke('conversation:create', selectedWorkspace.id)
+          const createResult = await ipcRenderer.invoke('conversation:create', selectedWorkspace.id, {
+            workspaceName: selectedWorkspace.name
+          })
 
           if (createResult.success && createResult.conversation) {
             const conversationTab = createConversationTab(
@@ -760,7 +765,7 @@ function App() {
             backgroundColor: 'var(--window-glass)'
           }}
         >
-          <SidebarProvider className="flex-1">
+          <SidebarProvider>
         <AppSidebar
           selectedWorkspaceId={selectedWorkspace?.id || null}
           selectedWorkspace={selectedWorkspace}
@@ -770,14 +775,15 @@ function App() {
           onWorkspacesLoaded={setWorkspacesForShortcuts}
           onRepositoryChange={setCurrentRepository}
         />
-        <SidebarInset className={cn(
-          "bg-card transition-[border-radius] duration-300",
-          isRightSidebarOpen && "rounded-r-xl"
-        )}>
+
+      <SidebarInset className="flex-1 flex flex-col overflow-hidden bg-card">
+        {/* Header - Fixed Height */}
+        <div className="shrink-0">
           {/* Compact Warning Banner */}
           <CompactBanner
             workspaceId={selectedWorkspace?.id}
             workspacePath={selectedWorkspace?.path}
+            context={workspaceContext}
           />
 
           {/* Main Header with Breadcrumb */}
@@ -790,9 +796,11 @@ function App() {
             toggleRightSidebar={toggleRightSidebar}
             isRightSidebarOpen={isRightSidebarOpen}
           />
+        </div>
 
-          {/* Main Content Area */}
-          <div className="flex flex-1 flex-col overflow-hidden">
+        {/* Main Content Area - Flex 1 */}
+        <div className="flex-1 overflow-hidden">
+          <div className="h-full flex flex-col overflow-hidden">
             {selectedWorkspace ? (
               <>
                 {viewMode === 'split' ? (
@@ -801,6 +809,7 @@ function App() {
                     <ResizablePanel defaultSize={50} minSize={30}>
                       <EditorGroupPanel
                         group={primaryGroup}
+                        currentWorkspaceId={selectedWorkspace?.id}
                         isFocused={focusedGroupId === DEFAULT_GROUP_ID}
                         onFocus={() => setFocusedGroupId(DEFAULT_GROUP_ID)}
                         onTabClick={(tabId) => handleTabClick(tabId, DEFAULT_GROUP_ID)}
@@ -808,6 +817,7 @@ function App() {
                         onTabDragStart={(tabId, sourceGroupId) => handleTabDragStart(tabId, sourceGroupId)}
                         onTabDragEnd={handleTabDragEnd}
                         onTabDrop={(tabId, targetIndex) => handleTabDrop(DEFAULT_GROUP_ID, targetIndex)}
+                        onCreateConversation={handleCreateConversation}
                         renderConversation={renderChatPanel}
                         renderFile={renderEditorPanel}
                       />
@@ -816,6 +826,7 @@ function App() {
                     <ResizablePanel defaultSize={50} minSize={30}>
                       <EditorGroupPanel
                         group={secondaryGroup}
+                        currentWorkspaceId={selectedWorkspace?.id}
                         isFocused={focusedGroupId === SECONDARY_GROUP_ID}
                         onFocus={() => setFocusedGroupId(SECONDARY_GROUP_ID)}
                         onTabClick={(tabId) => handleTabClick(tabId, SECONDARY_GROUP_ID)}
@@ -823,6 +834,7 @@ function App() {
                         onTabDragStart={(tabId, sourceGroupId) => handleTabDragStart(tabId, sourceGroupId)}
                         onTabDragEnd={handleTabDragEnd}
                         onTabDrop={(tabId, targetIndex) => handleTabDrop(SECONDARY_GROUP_ID, targetIndex)}
+                        onCreateConversation={handleCreateConversation}
                         renderConversation={renderChatPanel}
                         renderFile={renderEditorPanel}
                       />
@@ -832,10 +844,12 @@ function App() {
                   /* Single View: Show primary group with tabs */
                   <EditorGroupPanel
                     group={primaryGroup}
+                    currentWorkspaceId={selectedWorkspace?.id}
                     isFocused={true}
                     onFocus={() => setFocusedGroupId(DEFAULT_GROUP_ID)}
                     onTabClick={(tabId) => handleTabClick(tabId, DEFAULT_GROUP_ID)}
                     onTabClose={(tabId) => closeTab(tabId, DEFAULT_GROUP_ID)}
+                    onCreateConversation={handleCreateConversation}
                     renderConversation={renderChatPanel}
                     renderFile={renderEditorPanel}
                   />
@@ -864,37 +878,20 @@ function App() {
               />
             )}
           </div>
-        </SidebarInset>
-      </SidebarProvider>
+        </div>
+      </SidebarInset>
 
-      {/* Resize Handle - Overlapping main area border */}
+      {/* Right Sidebar - Same structure as left sidebar */}
       {isRightSidebarOpen && (
-        <div
-          onMouseDown={handleResizeStart}
-          className={cn(
-            "h-full w-1 -ml-1 cursor-col-resize hover:bg-accent transition-colors z-50 flex-shrink-0",
-            isResizing && "bg-accent"
-          )}
-        />
+        <Sidebar side="right" variant="inset" collapsible="none" className="w-[400px]">
+          <TodoPanel
+            conversationId={activeConversationId}
+            workspace={selectedWorkspace}
+            onCommit={() => setShowCommitDialog(true)}
+          />
+        </Sidebar>
       )}
-
-      {/* Right Sidebar - Todo Panel */}
-      <div
-        className={cn(
-          "h-full overflow-hidden",
-          isRightSidebarOpen ? "" : "w-0"
-        )}
-        style={{
-          width: isRightSidebarOpen ? `${rightSidebarWidth}px` : 0,
-          transition: isResizing ? 'none' : 'width 0.3s ease-in-out'
-        }}
-      >
-        <TodoPanel
-          conversationId={activeConversationId}
-          workspace={selectedWorkspace}
-          onCommit={() => setShowCommitDialog(true)}
-        />
-      </div>
+      </SidebarProvider>
 
       {/* Command Palette */}
       <CommandPalette
@@ -909,6 +906,7 @@ function App() {
       <CompactUrgentModal
         workspaceId={selectedWorkspace?.id}
         workspacePath={selectedWorkspace?.path}
+        context={workspaceContext}
       />
 
       {/* Toast Notifications */}

@@ -6,7 +6,7 @@
  */
 
 import { useState } from 'react'
-import { X, Circle, MessageCircle } from 'lucide-react'
+import { X, Circle, MessageCircle, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Tab, ConversationTab, FileTab } from '@/types/editor'
 import { isConversationTab, isFileTab } from '@/types/editor'
@@ -66,6 +66,8 @@ interface UniversalTabBarProps {
   onTabDragStart?: (tabId: string, groupId: string) => void
   onTabDragEnd?: () => void
   onTabDrop?: (tabId: string, targetGroupId: string, targetIndex?: number) => void
+  onCreateConversation?: () => void
+  showCreateButton?: boolean
 }
 
 // ============================================================================
@@ -81,6 +83,8 @@ export function UniversalTabBar({
   onTabDragStart,
   onTabDragEnd,
   onTabDrop,
+  onCreateConversation,
+  showCreateButton = false,
 }: UniversalTabBarProps) {
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
 
@@ -107,7 +111,7 @@ export function UniversalTabBar({
     const tabId = e.dataTransfer.getData('tabId')
 
     if (tabId) {
-      onTabDrop?.(tabId, targetIndex)
+      onTabDrop?.(tabId, groupId, targetIndex)
     }
 
     setDragOverIndex(null)
@@ -147,6 +151,23 @@ export function UniversalTabBar({
           showDropIndicator={dragOverIndex === index}
         />
       ))}
+
+      {/* New Conversation Button */}
+      {showCreateButton && onCreateConversation && (
+        <button
+          onClick={onCreateConversation}
+          className={cn(
+            "ml-1 flex items-center justify-center",
+            "w-7 h-7 rounded-md transition-all flex-shrink-0",
+            "text-muted-foreground hover:text-foreground",
+            "hover:bg-secondary/50",
+            "group"
+          )}
+          title="New conversation (Cmd+T)"
+        >
+          <Plus size={16} className="group-hover:scale-110 transition-transform" />
+        </button>
+      )}
     </div>
   )
 }

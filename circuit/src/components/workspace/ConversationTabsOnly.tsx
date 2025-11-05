@@ -90,7 +90,9 @@ export function ConversationTabsOnly({
     if (!workspaceId || !workspaceName) return
 
     try {
-      const result = await ipcRenderer.invoke('conversation:create', workspaceId)
+      const result = await ipcRenderer.invoke('conversation:create', workspaceId, {
+        workspaceName
+      })
 
       if (result.success && result.conversation) {
         await loadConversations()

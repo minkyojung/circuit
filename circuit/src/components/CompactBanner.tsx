@@ -12,15 +12,18 @@ import { X, ExternalLink, Copy, AlertCircle, AlertTriangle, AlertOctagon } from 
 import { useAutoCompact } from '@/hooks/useAutoCompact';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import type { ContextMetrics } from '@/types/metrics';
 
 interface CompactBannerProps {
   workspaceId?: string;
   workspacePath?: string;
+  context: ContextMetrics | null;
 }
 
 export const CompactBanner: React.FC<CompactBannerProps> = ({
   workspaceId,
   workspacePath,
+  context,
 }) => {
   const {
     shouldShowBanner,
@@ -29,7 +32,7 @@ export const CompactBanner: React.FC<CompactBannerProps> = ({
     dismissWarning,
     openClaudeCode,
     copyCompactCommand,
-  } = useAutoCompact({ workspaceId, workspacePath });
+  } = useAutoCompact({ workspaceId, workspacePath, context });
 
   if (!shouldShowBanner || compactState.level === 'normal') {
     return null;

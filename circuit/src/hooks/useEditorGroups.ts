@@ -195,7 +195,7 @@ export function useEditorGroups(initialGroups?: EditorGroup[]) {
           return {
             ...group,
             tabs: group.tabs.map((tab) =>
-              tab.id === tabId ? { ...tab, ...updates } : tab
+              tab.id === tabId ? { ...tab, ...updates } as Tab : tab
             ),
           }
         })

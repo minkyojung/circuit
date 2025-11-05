@@ -92,8 +92,10 @@ export function ConversationTabs({
     if (!workspaceId || !workspaceName) return
 
     try {
-      // Create conversation with auto-generated name
-      const result = await ipcRenderer.invoke('conversation:create', workspaceId)
+      // Create conversation with workspace name + date
+      const result = await ipcRenderer.invoke('conversation:create', workspaceId, {
+        workspaceName
+      })
 
       if (result.success && result.conversation) {
         console.log('[ConversationTabs] Created conversation:', result.conversation.id)

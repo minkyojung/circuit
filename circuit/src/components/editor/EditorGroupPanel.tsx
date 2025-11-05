@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils'
 // Import content panels (will be passed as props to avoid circular dependencies)
 interface EditorGroupPanelProps {
   group: EditorGroup
+  currentWorkspaceId?: string | null
   isFocused?: boolean
   onFocus?: () => void
   onTabClick: (tabId: string) => void
@@ -22,6 +23,7 @@ interface EditorGroupPanelProps {
   onTabDragStart?: (tabId: string, groupId: string) => void
   onTabDragEnd?: () => void
   onTabDrop?: (tabId: string, targetIndex?: number) => void
+  onCreateConversation?: () => void
 
   // Content renderers
   renderConversation?: (conversationId: string, workspaceId: string) => React.ReactNode
@@ -34,6 +36,7 @@ interface EditorGroupPanelProps {
 
 export function EditorGroupPanel({
   group,
+  currentWorkspaceId,
   isFocused = true,
   onFocus,
   onTabClick,
@@ -41,6 +44,7 @@ export function EditorGroupPanel({
   onTabDragStart,
   onTabDragEnd,
   onTabDrop,
+  onCreateConversation,
   renderConversation,
   renderFile,
   renderEmpty,
@@ -51,15 +55,34 @@ export function EditorGroupPanel({
     onTabDragStart?.(tabId, group.id)
   }
 
-  // Wrap onTabDrop to include groupId
-  const handleTabDrop = (tabId: string, targetIndex?: number) => {
+  // Wrap onTabDrop - groupId is already included by UniversalTabBar
+  const handleTabDrop = (tabId: string, targetGroupId: string, targetIndex?: number) => {
     onTabDrop?.(tabId, targetIndex)
   }
-  // Get active tab
+
+  // Filter tabs to show only current workspace's conversation tabs
+  const visibleTabs = useMemo(() => {
+    if (!currentWorkspaceId) return group.tabs
+
+    return group.tabs.filter((tab) => {
+      // File tabs are always visible (shared across workspaces)
+      if (isFileTab(tab)) return true
+
+      // Conversation tabs: only show those belonging to current workspace
+      if (isConversationTab(tab)) {
+        return tab.data.workspaceId === currentWorkspaceId
+      }
+
+      // Default: show tab
+      return true
+    })
+  }, [group.tabs, currentWorkspaceId])
+
+  // Get active tab from visible tabs
   const activeTab = useMemo(() => {
     if (!group.activeTabId) return null
-    return group.tabs.find((t) => t.id === group.activeTabId) || null
-  }, [group.tabs, group.activeTabId])
+    return visibleTabs.find((t) => t.id === group.activeTabId) || null
+  }, [visibleTabs, group.activeTabId])
 
   // Render content based on active tab type
   const renderContent = () => {
@@ -104,10 +127,10 @@ export function EditorGroupPanel({
       return renderFile(activeTab.data.filePath)
     }
 
-    // Unknown tab type
+    // Unknown tab type (should never reach here)
     return (
       <div className="flex-1 flex items-center justify-center text-muted-foreground">
-        <p>Unknown tab type: {activeTab.type}</p>
+        <p>Unknown tab type</p>
       </div>
     )
   }
@@ -115,7 +138,7 @@ export function EditorGroupPanel({
   return (
     <div
       className={cn(
-        'h-full flex flex-col transition-all',
+        'h-full w-full flex flex-col transition-all overflow-hidden',
         className
       )}
       onClick={() => onFocus?.()}
@@ -124,13 +147,15 @@ export function EditorGroupPanel({
       <div className={cn('transition-opacity', !isFocused && 'opacity-40')}>
         <UniversalTabBar
           groupId={group.id}
-          tabs={group.tabs}
+          tabs={visibleTabs}
           activeTabId={group.activeTabId}
           onTabClick={onTabClick}
           onTabClose={onTabClose}
           onTabDragStart={handleTabDragStart}
           onTabDragEnd={onTabDragEnd}
           onTabDrop={handleTabDrop}
+          onCreateConversation={onCreateConversation}
+          showCreateButton={!!currentWorkspaceId}
         />
       </div>
 

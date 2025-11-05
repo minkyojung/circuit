@@ -96,12 +96,38 @@ export function registerConversationHandlers(): void {
 
   /**
    * Create a new conversation
+   * @param workspaceId - Workspace ID
+   * @param options - { workspaceName?: string, title?: string }
    */
   ipcMain.handle(
     'conversation:create',
-    async (_event: IpcMainInvokeEvent, workspaceId: string, title?: string) => {
+    async (_event: IpcMainInvokeEvent, workspaceId: string, options?: { workspaceName?: string; title?: string } | string) => {
       try {
         if (!storage) throw new Error('Storage not initialized')
+
+        // Handle legacy API: second parameter might be a string (title)
+        let workspaceName: string | undefined
+        let title: string | undefined
+
+        if (typeof options === 'string') {
+          // Legacy: conversation:create(workspaceId, title)
+          title = options
+        } else if (options) {
+          // New: conversation:create(workspaceId, { workspaceName, title })
+          workspaceName = options.workspaceName
+          title = options.title
+        }
+
+        // Generate title if not provided
+        if (!title && workspaceName) {
+          const now = new Date()
+          const dateStr = now.toLocaleDateString('ko-KR', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+          }).replace(/\. /g, '-').replace('.', '')  // "2025-01-15"
+          title = `${workspaceName} ${dateStr}`
+        }
 
         const conversation = storage.create(workspaceId, title)
 
