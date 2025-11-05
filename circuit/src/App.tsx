@@ -62,8 +62,110 @@ const ProjectPathContext = createContext<ProjectPathContextValue>({
 
 export const useProjectPath = () => useContext(ProjectPathContext)
 
-function AppContent() {
+// Header component that uses sidebar state
+function MainHeader({
+  selectedWorkspace,
+  repositoryName,
+  viewMode,
+  setViewMode,
+  allTabs,
+  toggleRightSidebar,
+  isRightSidebarOpen
+}: {
+  selectedWorkspace: Workspace | null
+  repositoryName: string
+  viewMode: 'chat' | 'editor' | 'split'
+  setViewMode: (mode: 'chat' | 'editor' | 'split') => void
+  allTabs: Tab[]
+  toggleRightSidebar: () => void
+  isRightSidebarOpen: boolean
+}) {
   const { state: sidebarState } = useSidebar()
+
+  return (
+    <header
+      className={cn(
+        "flex h-[36px] shrink-0 items-center gap-2 border-b border-border pr-3",
+        sidebarState === 'collapsed' ? 'pl-[72px]' : 'pl-3'
+      )}
+      style={{ WebkitAppRegion: 'drag' } as any}
+    >
+      {/* Left side - Sidebar toggle + Workspace/Repository name */}
+      <div
+        className="flex items-center gap-2 flex-1"
+        style={{ WebkitAppRegion: 'no-drag' } as any}
+      >
+        <SidebarTrigger />
+        <Separator orientation="vertical" className="h-4" />
+
+        {selectedWorkspace ? (
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbPage className="font-medium">
+                  {selectedWorkspace.name}
+                </BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+        ) : (
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbPage className="font-medium text-muted-foreground">
+                  {repositoryName}
+                </BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+        )}
+      </div>
+
+      {/* Right side - Controls */}
+      {selectedWorkspace && (
+        <div
+          className="flex items-center gap-2"
+          style={{ WebkitAppRegion: 'no-drag' } as any}
+        >
+          {/* Split View Toggle */}
+          {allTabs.length > 0 && (
+            <>
+              <button
+                onClick={() => setViewMode(viewMode === 'split' ? 'chat' : 'split')}
+                className={cn(
+                  "flex h-7 w-7 items-center justify-center rounded-md transition-colors",
+                  viewMode === 'split'
+                    ? 'bg-secondary text-secondary-foreground'
+                    : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
+                )}
+                title={viewMode === 'split' ? 'Single View' : 'Split View'}
+              >
+                <Columns2 size={16} />
+              </button>
+              <Separator orientation="vertical" className="h-4" />
+            </>
+          )}
+
+          {/* Toggle Right Panel */}
+          <button
+            onClick={toggleRightSidebar}
+            className={cn(
+              "flex h-7 w-7 items-center justify-center rounded-md transition-colors",
+              isRightSidebarOpen
+                ? 'text-foreground hover:bg-sidebar-hover'
+                : 'text-muted-foreground hover:bg-sidebar-hover hover:text-foreground'
+            )}
+            title="Toggle right panel"
+          >
+            <PanelRight size={16} />
+          </button>
+        </div>
+      )}
+    </header>
+  )
+}
+
+function App() {
   const [projectPath, setProjectPath] = useState<string>('')
   const [isLoadingPath, setIsLoadingPath] = useState<boolean>(true)
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null)
@@ -599,85 +701,15 @@ function AppContent() {
           />
 
           {/* Main Header with Breadcrumb */}
-          <header
-            className={cn(
-              "flex h-[44px] shrink-0 items-center gap-2 border-b border-border pr-3",
-              sidebarState === 'collapsed' ? 'pl-[72px]' : 'pl-3'
-            )}
-            style={{ WebkitAppRegion: 'drag' } as any}
-          >
-            {/* Left side - Sidebar toggle + Workspace/Repository name */}
-            <div
-              className="flex items-center gap-2 flex-1"
-              style={{ WebkitAppRegion: 'no-drag' } as any}
-            >
-              <SidebarTrigger />
-              <Separator orientation="vertical" className="h-4" />
-
-              {selectedWorkspace ? (
-                <Breadcrumb>
-                  <BreadcrumbList>
-                    <BreadcrumbItem>
-                      <BreadcrumbPage className="font-medium">
-                        {selectedWorkspace.name}
-                      </BreadcrumbPage>
-                    </BreadcrumbItem>
-                  </BreadcrumbList>
-                </Breadcrumb>
-              ) : (
-                <Breadcrumb>
-                  <BreadcrumbList>
-                    <BreadcrumbItem>
-                      <BreadcrumbPage className="font-medium text-muted-foreground">
-                        {repositoryName}
-                      </BreadcrumbPage>
-                    </BreadcrumbItem>
-                  </BreadcrumbList>
-                </Breadcrumb>
-              )}
-            </div>
-
-            {/* Right side - Controls */}
-            {selectedWorkspace && (
-              <div
-                className="flex items-center gap-2"
-                style={{ WebkitAppRegion: 'no-drag' } as any}
-              >
-                {/* Split View Toggle */}
-                {allTabs.length > 0 && (
-                  <>
-                    <button
-                      onClick={() => setViewMode(viewMode === 'split' ? 'chat' : 'split')}
-                      className={cn(
-                        "flex h-7 w-7 items-center justify-center rounded-md transition-colors",
-                        viewMode === 'split'
-                          ? 'bg-secondary text-secondary-foreground'
-                          : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
-                      )}
-                      title={viewMode === 'split' ? 'Single View' : 'Split View'}
-                    >
-                      <Columns2 size={16} />
-                    </button>
-                    <Separator orientation="vertical" className="h-4" />
-                  </>
-                )}
-
-                {/* Toggle Right Panel */}
-                <button
-                  onClick={toggleRightSidebar}
-                  className={cn(
-                    "flex h-7 w-7 items-center justify-center rounded-md transition-colors",
-                    isRightSidebarOpen
-                      ? 'text-foreground hover:bg-sidebar-hover'
-                      : 'text-muted-foreground hover:bg-sidebar-hover hover:text-foreground'
-                  )}
-                  title="Toggle right panel"
-                >
-                  <PanelRight size={16} />
-                </button>
-              </div>
-            )}
-          </header>
+          <MainHeader
+            selectedWorkspace={selectedWorkspace}
+            repositoryName={repositoryName}
+            viewMode={viewMode}
+            setViewMode={setViewMode}
+            allTabs={allTabs}
+            toggleRightSidebar={toggleRightSidebar}
+            isRightSidebarOpen={isRightSidebarOpen}
+          />
 
           {/* Main Content Area */}
           <div className="flex flex-1 flex-col overflow-hidden">

@@ -447,7 +447,7 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
       )}>
         {/* Traffic Lights Area (Fully Draggable) */}
         <div
-          className="h-[44px] -m-2 mb-0 -ml-2"
+          className="h-[36px] -m-2 mb-0 -ml-2"
           style={{ WebkitAppRegion: 'drag' } as any}
         />
 
