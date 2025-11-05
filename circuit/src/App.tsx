@@ -299,7 +299,11 @@ function App() {
 
     // Create or activate file tab
     const tab = createFileTab(filePath, getFileName(filePath))
-    openTab(tab) // Opens in default group or activates if already open
+
+    // In split view, open files in secondary group (right side)
+    // In single view, open in primary group
+    const targetGroupId = viewMode === 'split' ? SECONDARY_GROUP_ID : DEFAULT_GROUP_ID
+    openTab(tab, targetGroupId)
 
     // Store line selection for Monaco to use
     if (lineStart) {
@@ -312,7 +316,7 @@ function App() {
       setFileCursorPosition(null)
     }
 
-    // Switch to editor or split view when opening a file
+    // Switch to split view when opening a file (if in chat mode)
     if (viewMode === 'chat') {
       setViewMode('split')
     }
@@ -322,15 +326,36 @@ function App() {
   const handleConversationSelect = (conversationId: string, workspaceId: string, title?: string) => {
     console.log('[App] Conversation selected:', conversationId)
 
-    // Create or activate conversation tab
+    // Create or activate conversation tab (always in primary group)
     const tab = createConversationTab(
       conversationId,
       workspaceId,
       title,
       selectedWorkspace?.name
     )
-    openTab(tab)
+    openTab(tab, DEFAULT_GROUP_ID)
   }
+
+  // Reorganize tabs when switching to split view
+  useEffect(() => {
+    if (viewMode === 'split') {
+      // Move all conversation tabs to primary group
+      conversationTabs.forEach(tab => {
+        const result = findTab(tab.id)
+        if (result && result.groupId !== DEFAULT_GROUP_ID) {
+          moveTab(tab.id, result.groupId, DEFAULT_GROUP_ID)
+        }
+      })
+
+      // Move all file tabs to secondary group
+      fileTabs.forEach(tab => {
+        const result = findTab(tab.id)
+        if (result && result.groupId !== SECONDARY_GROUP_ID) {
+          moveTab(tab.id, result.groupId, SECONDARY_GROUP_ID)
+        }
+      })
+    }
+  }, [viewMode])
 
   // Handle tab close (works for both files and conversations)
   const handleTabClose = (tabId: string, groupId: string) => {
@@ -359,9 +384,15 @@ function App() {
   const conversationTabs = allTabs.filter(t => t.type === 'conversation')
   const fileTabs = allTabs.filter(t => t.type === 'file')
 
-  // Get active conversation and file
+  // Get active conversation (from primary group)
   const activeConversationTab = conversationTabs.find(t => t.id === primaryGroup.activeTabId)
-  const activeFileTab = fileTabs.find(t => t.id === primaryGroup.activeTabId || t.id === secondaryGroup.activeTabId)
+
+  // Get active file (from secondary group in split view, or from primary in single view)
+  const activeFileTab = fileTabs.find(t =>
+    viewMode === 'split'
+      ? t.id === secondaryGroup.activeTabId
+      : t.id === primaryGroup.activeTabId
+  )
 
   // Auto-load or create default conversation when workspace is selected
   useEffect(() => {
@@ -523,8 +554,23 @@ function App() {
                     <UniversalTabBar
                       groupId={DEFAULT_GROUP_ID}
                       tabs={allTabs}
-                      activeTabId={primaryGroup.activeTabId}
-                      onTabClick={(tabId) => activateTab(tabId, DEFAULT_GROUP_ID)}
+                      activeTabId={viewMode === 'split' ? (activeConversationTab?.id || activeFileTab?.id) : primaryGroup.activeTabId}
+                      onTabClick={(tabId) => {
+                        const tab = allTabs.find(t => t.id === tabId)
+                        if (!tab) return
+
+                        // In split view, activate based on tab type
+                        if (viewMode === 'split') {
+                          if (tab.type === 'conversation') {
+                            activateTab(tabId, DEFAULT_GROUP_ID)
+                          } else if (tab.type === 'file') {
+                            activateTab(tabId, SECONDARY_GROUP_ID)
+                          }
+                        } else {
+                          // In single view, always activate in primary group
+                          activateTab(tabId, DEFAULT_GROUP_ID)
+                        }
+                      }}
                       onTabClose={(tabId) => {
                         const result = findTab(tabId)
                         if (result) {
