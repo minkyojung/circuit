@@ -1,6 +1,5 @@
 import { useState, useEffect, createContext, useContext, useMemo, useRef } from 'react'
 import { CommitDialog } from "@/components/workspace/CommitDialog"
-import { CommandPalette } from "@/components/CommandPalette"
 import { AppSidebar } from "@/components/AppSidebar"
 import { TodoPanel } from "@/components/TodoPanel"
 import { GitTestPanel } from "@/components/git/GitTestPanel"
@@ -104,7 +103,7 @@ function MainHeader({
         <SidebarTrigger />
       </div>
 
-      {/* Center - Global Search / Branch name */}
+      {/* Center - Global Search Bar */}
       {selectedWorkspace && (
         <div
           className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
@@ -174,7 +173,6 @@ function App() {
   const [isLoadingPath, setIsLoadingPath] = useState<boolean>(true)
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null)
   const [showCommitDialog, setShowCommitDialog] = useState<boolean>(false)
-  const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false)
   const [chatPrefillMessage, setChatPrefillMessage] = useState<string | null>(null)
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState<boolean>(() => {
     const saved = localStorage.getItem('circuit-right-sidebar-state')
@@ -819,12 +817,6 @@ function App() {
 
   // Keyboard shortcuts
   useKeyboardShortcuts({
-    // Command Palette (Cmd+K)
-    'cmd+k': {
-      handler: () => setShowCommandPalette(true),
-      description: 'Open command palette',
-    },
-
     // Workspace navigation (Cmd+1 through Cmd+9)
     'cmd+1': { handler: () => workspacesRef.current[0] && handleWorkspaceSelect(workspacesRef.current[0]), description: 'Switch to workspace 1' },
     'cmd+2': { handler: () => workspacesRef.current[1] && handleWorkspaceSelect(workspacesRef.current[1]), description: 'Switch to workspace 2' },
@@ -849,6 +841,20 @@ function App() {
       enabled: !!selectedWorkspace,
     },
 
+    // Move active tab left (Cmd+Shift+[)
+    'cmd+shift+[': {
+      handler: () => handleMoveActiveTab('left'),
+      description: 'Move tab left',
+      enabled: !!selectedWorkspace,
+    },
+
+    // Move active tab right (Cmd+Shift+])
+    'cmd+shift+]': {
+      handler: () => handleMoveActiveTab('right'),
+      description: 'Move tab right',
+      enabled: !!selectedWorkspace,
+    },
+
     // Close current workspace (Cmd+Shift+W)
     'cmd+shift+w': {
       handler: () => handleWorkspaceSelect(null),
@@ -866,14 +872,12 @@ function App() {
     // Close dialogs with Escape
     'escape': {
       handler: () => {
-        if (showCommandPalette) {
-          setShowCommandPalette(false)
-        } else if (showCommitDialog) {
+        if (showCommitDialog) {
           setShowCommitDialog(false)
         }
       },
       description: 'Close dialog',
-      enabled: showCommandPalette || showCommitDialog,
+      enabled: showCommitDialog,
     },
   })
 
@@ -1017,15 +1021,6 @@ function App() {
         </Sidebar>
       )}
       </SidebarProvider>
-
-      {/* Command Palette */}
-      <CommandPalette
-        open={showCommandPalette}
-        onOpenChange={setShowCommandPalette}
-        workspaces={workspacesRef.current}
-        onSelectWorkspace={handleWorkspaceSelect}
-        onCreateWorkspace={handleCreateWorkspace}
-      />
 
       {/* Compact Urgent Modal */}
       <CompactUrgentModal
