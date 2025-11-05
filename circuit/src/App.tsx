@@ -494,6 +494,31 @@ function App() {
     // Update workspace state
     setSelectedWorkspace(workspace)
 
+    // Track recent workspace access
+    try {
+      const stored = localStorage.getItem('circuit-recent-workspaces')
+      const recentWorkspaces = stored ? JSON.parse(stored) : []
+
+      // Remove existing entry for this workspace
+      const filtered = recentWorkspaces.filter((w: any) => w.id !== workspace.id)
+
+      // Add to front with current timestamp
+      const updated = [
+        {
+          id: workspace.id,
+          name: workspace.name,
+          path: workspace.path,
+          branch: workspace.branch,
+          lastAccessed: Date.now()
+        },
+        ...filtered
+      ].slice(0, 20) // Keep max 20 recent workspaces
+
+      localStorage.setItem('circuit-recent-workspaces', JSON.stringify(updated))
+    } catch (error) {
+      console.error('[App] Failed to update recent workspaces:', error)
+    }
+
     // Find existing conversation tab for this workspace
     const allTabs = getAllTabs()
     const workspaceTab = allTabs.find(tab =>
