@@ -24,6 +24,9 @@ export const SettingSection: React.FC<SettingSectionProps> = ({
   description,
   children,
 }) => {
+  // Convert children to array to add dividers
+  const childrenArray = React.Children.toArray(children);
+
   return (
     <div className="space-y-3">
       <div>
@@ -32,7 +35,20 @@ export const SettingSection: React.FC<SettingSectionProps> = ({
           <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
         )}
       </div>
-      <div className="space-y-2.5">{children}</div>
+      {/* Apple-style grouped card */}
+      <div className="bg-card border border-border rounded-lg overflow-hidden">
+        {childrenArray.map((child, index) => (
+          <React.Fragment key={index}>
+            <div className="px-4 py-3">
+              {child}
+            </div>
+            {/* Divider between items (except last) */}
+            {index < childrenArray.length - 1 && (
+              <div className="border-b border-border/50 mx-4" />
+            )}
+          </React.Fragment>
+        ))}
+      </div>
     </div>
   );
 };
