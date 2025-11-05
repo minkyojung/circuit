@@ -41,7 +41,7 @@ import { useEditorGroups } from '@/hooks/useEditorGroups'
 import { createConversationTab, createFileTab } from '@/types/editor'
 import type { Tab } from '@/types/editor'
 import { getFileName } from '@/lib/fileUtils'
-import { EditorGroupPanel, UniversalTabBar } from '@/components/editor'
+import { EditorGroupPanel } from '@/components/editor'
 import { DEFAULT_GROUP_ID, SECONDARY_GROUP_ID } from '@/types/editor'
 import './App.css'
 
@@ -98,6 +98,9 @@ function App() {
   // View mode state
   type ViewMode = 'chat' | 'editor' | 'split'
   const [viewMode, setViewMode] = useState<ViewMode>('chat')
+
+  // Panel focus state (which group is currently focused)
+  const [focusedGroupId, setFocusedGroupId] = useState<string>(DEFAULT_GROUP_ID)
 
   // ============================================================================
   // NEW: Unified Editor Groups System
@@ -300,10 +303,8 @@ function App() {
     // Create or activate file tab
     const tab = createFileTab(filePath, getFileName(filePath))
 
-    // In split view, open files in secondary group (right side)
-    // In single view, open in primary group
-    const targetGroupId = viewMode === 'split' ? SECONDARY_GROUP_ID : DEFAULT_GROUP_ID
-    openTab(tab, targetGroupId)
+    // Open in currently focused group
+    openTab(tab, focusedGroupId)
 
     // Store line selection for Monaco to use
     if (lineStart) {
@@ -326,34 +327,26 @@ function App() {
   const handleConversationSelect = (conversationId: string, workspaceId: string, title?: string) => {
     console.log('[App] Conversation selected:', conversationId)
 
-    // Create or activate conversation tab (always in primary group)
+    // Create or activate conversation tab in focused group
     const tab = createConversationTab(
       conversationId,
       workspaceId,
       title,
       selectedWorkspace?.name
     )
-    openTab(tab, DEFAULT_GROUP_ID)
+    openTab(tab, focusedGroupId)
   }
 
-  // Reorganize tabs when switching to split view
+  // VS Code style: Duplicate active tab when switching to split view
   useEffect(() => {
     if (viewMode === 'split') {
-      // Move all conversation tabs to primary group
-      conversationTabs.forEach(tab => {
-        const result = findTab(tab.id)
-        if (result && result.groupId !== DEFAULT_GROUP_ID) {
-          moveTab(tab.id, result.groupId, DEFAULT_GROUP_ID)
-        }
-      })
+      // Get the currently active tab from primary group
+      const activeTab = primaryGroup.tabs.find(t => t.id === primaryGroup.activeTabId)
 
-      // Move all file tabs to secondary group
-      fileTabs.forEach(tab => {
-        const result = findTab(tab.id)
-        if (result && result.groupId !== SECONDARY_GROUP_ID) {
-          moveTab(tab.id, result.groupId, SECONDARY_GROUP_ID)
-        }
-      })
+      // If there's an active tab, duplicate it to secondary group
+      if (activeTab && secondaryGroup.tabs.length === 0) {
+        openTab(activeTab, SECONDARY_GROUP_ID)
+      }
     }
   }, [viewMode])
 
@@ -377,22 +370,8 @@ function App() {
     }
   }
 
-  // Get all tabs for UnifiedTabs
+  // Get all tabs for header controls
   const allTabs = getAllTabs()
-
-  // Extract conversation and file tabs
-  const conversationTabs = allTabs.filter(t => t.type === 'conversation')
-  const fileTabs = allTabs.filter(t => t.type === 'file')
-
-  // Get active conversation (from primary group)
-  const activeConversationTab = conversationTabs.find(t => t.id === primaryGroup.activeTabId)
-
-  // Get active file (from secondary group in split view, or from primary in single view)
-  const activeFileTab = fileTabs.find(t =>
-    viewMode === 'split'
-      ? t.id === secondaryGroup.activeTabId
-      : t.id === primaryGroup.activeTabId
-  )
 
   // Auto-load or create default conversation when workspace is selected
   useEffect(() => {
@@ -540,87 +519,60 @@ function App() {
             className="flex h-[44px] shrink-0 items-center gap-2 border-b border-border px-3"
             style={{ WebkitAppRegion: 'drag' } as any}
           >
+            {/* Left side - Workspace/Repository name */}
             <div
-              className="grid items-center gap-2 min-w-0"
-              style={{
-                WebkitAppRegion: 'no-drag',
-                gridTemplateColumns: selectedWorkspace && allTabs.length > 0 ? '1fr auto' : '1fr'
-              } as any}
+              className="flex-1"
+              style={{ WebkitAppRegion: 'no-drag' } as any}
             >
-              {/* Column 1: Tabs container (flexible with overflow) */}
-              <div className="min-w-0 overflow-x-auto flex-1">
-                <div className="max-w-4xl mx-auto">
-                  {selectedWorkspace ? (
-                    <UniversalTabBar
-                      groupId={DEFAULT_GROUP_ID}
-                      tabs={allTabs}
-                      activeTabId={viewMode === 'split' ? (activeConversationTab?.id || activeFileTab?.id) : primaryGroup.activeTabId}
-                      onTabClick={(tabId) => {
-                        const tab = allTabs.find(t => t.id === tabId)
-                        if (!tab) return
-
-                        // In split view, activate based on tab type
-                        if (viewMode === 'split') {
-                          if (tab.type === 'conversation') {
-                            activateTab(tabId, DEFAULT_GROUP_ID)
-                          } else if (tab.type === 'file') {
-                            activateTab(tabId, SECONDARY_GROUP_ID)
-                          }
-                        } else {
-                          // In single view, always activate in primary group
-                          activateTab(tabId, DEFAULT_GROUP_ID)
-                        }
-                      }}
-                      onTabClose={(tabId) => {
-                        const result = findTab(tabId)
-                        if (result) {
-                          closeTab(tabId, result.groupId)
-                        }
-                      }}
-                    />
-                  ) : (
-                    <Breadcrumb>
-                      <BreadcrumbList>
-                        <BreadcrumbItem>
-                          <BreadcrumbPage className="font-medium text-muted-foreground">
-                            {repositoryName}
-                          </BreadcrumbPage>
-                        </BreadcrumbItem>
-                      </BreadcrumbList>
-                    </Breadcrumb>
-                  )}
-                </div>
-              </div>
-
-              {/* Column 3: Split View Toggle Button */}
-              {selectedWorkspace && allTabs.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setViewMode(viewMode === 'split' ? 'chat' : 'split')}
-                    className={cn(
-                      "flex h-7 w-7 items-center justify-center rounded-md transition-colors",
-                      viewMode === 'split'
-                        ? 'bg-secondary text-secondary-foreground'
-                        : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
-                    )}
-                    title={viewMode === 'split' ? 'Single View' : 'Split View'}
-                  >
-                    <Columns2 size={16} />
-                  </button>
-                  <Separator orientation="vertical" className="h-4" />
-                </div>
+              {selectedWorkspace ? (
+                <Breadcrumb>
+                  <BreadcrumbList>
+                    <BreadcrumbItem>
+                      <BreadcrumbPage className="font-medium">
+                        {selectedWorkspace.name}
+                      </BreadcrumbPage>
+                    </BreadcrumbItem>
+                  </BreadcrumbList>
+                </Breadcrumb>
+              ) : (
+                <Breadcrumb>
+                  <BreadcrumbList>
+                    <BreadcrumbItem>
+                      <BreadcrumbPage className="font-medium text-muted-foreground">
+                        {repositoryName}
+                      </BreadcrumbPage>
+                    </BreadcrumbItem>
+                  </BreadcrumbList>
+                </Breadcrumb>
               )}
             </div>
 
-            {/* Spacer */}
-            <div className="flex-1" />
-
-            {/* Right side - Toggle plans button (when workspace selected) */}
+            {/* Right side - Controls */}
             {selectedWorkspace && (
               <div
                 className="flex items-center gap-2"
                 style={{ WebkitAppRegion: 'no-drag' } as any}
               >
+                {/* Split View Toggle */}
+                {allTabs.length > 0 && (
+                  <>
+                    <button
+                      onClick={() => setViewMode(viewMode === 'split' ? 'chat' : 'split')}
+                      className={cn(
+                        "flex h-7 w-7 items-center justify-center rounded-md transition-colors",
+                        viewMode === 'split'
+                          ? 'bg-secondary text-secondary-foreground'
+                          : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
+                      )}
+                      title={viewMode === 'split' ? 'Single View' : 'Split View'}
+                    >
+                      <Columns2 size={16} />
+                    </button>
+                    <Separator orientation="vertical" className="h-4" />
+                  </>
+                )}
+
+                {/* Toggle Right Panel */}
                 <button
                   onClick={toggleRightSidebar}
                   className={cn(
@@ -642,63 +594,56 @@ function App() {
             {selectedWorkspace ? (
               <>
                 {viewMode === 'split' ? (
-                  /* Split View: Chat (left) + Editor (right) */
+                  /* Split View: Two independent editor groups */
                   <ResizablePanelGroup direction="horizontal" className="h-full">
                     <ResizablePanel defaultSize={50} minSize={30}>
-                      {activeConversationTab ? (
-                        renderChatPanel(
-                          activeConversationTab.data.conversationId,
-                          activeConversationTab.data.workspaceId
-                        )
-                      ) : (
-                        <div className="h-full flex items-center justify-center text-muted-foreground">
-                          <div className="text-center">
-                            <p>No conversation selected</p>
-                            <p className="text-xs mt-2">Create or select a conversation to get started</p>
-                          </div>
-                        </div>
-                      )}
+                      <div
+                        className="h-full"
+                        onClick={() => setFocusedGroupId(DEFAULT_GROUP_ID)}
+                      >
+                        <EditorGroupPanel
+                          group={primaryGroup}
+                          onTabClick={(tabId) => {
+                            setFocusedGroupId(DEFAULT_GROUP_ID)
+                            activateTab(tabId, DEFAULT_GROUP_ID)
+                          }}
+                          onTabClose={(tabId) => closeTab(tabId, DEFAULT_GROUP_ID)}
+                          renderConversation={renderChatPanel}
+                          renderFile={renderEditorPanel}
+                        />
+                      </div>
                     </ResizablePanel>
                     <ResizableHandle />
                     <ResizablePanel defaultSize={50} minSize={30}>
-                      {activeFileTab ? (
-                        renderEditorPanel(activeFileTab.data.filePath)
-                      ) : (
-                        <div className="h-full flex items-center justify-center text-muted-foreground">
-                          <div className="text-center">
-                            <p>No file open</p>
-                            <p className="text-xs mt-2">Open a file from the sidebar to get started</p>
-                          </div>
-                        </div>
-                      )}
+                      <div
+                        className="h-full"
+                        onClick={() => setFocusedGroupId(SECONDARY_GROUP_ID)}
+                      >
+                        <EditorGroupPanel
+                          group={secondaryGroup}
+                          onTabClick={(tabId) => {
+                            setFocusedGroupId(SECONDARY_GROUP_ID)
+                            activateTab(tabId, SECONDARY_GROUP_ID)
+                          }}
+                          onTabClose={(tabId) => closeTab(tabId, SECONDARY_GROUP_ID)}
+                          renderConversation={renderChatPanel}
+                          renderFile={renderEditorPanel}
+                        />
+                      </div>
                     </ResizablePanel>
                   </ResizablePanelGroup>
                 ) : (
-                  /* Single View: Show active tab content */
-                  <>
-                    {primaryGroup.activeTabId ? (
-                      (() => {
-                        const activeTab = allTabs.find(t => t.id === primaryGroup.activeTabId)
-                        if (!activeTab) return null
-
-                        if (activeTab.type === 'conversation') {
-                          return renderChatPanel(
-                            activeTab.data.conversationId,
-                            activeTab.data.workspaceId
-                          )
-                        } else {
-                          return renderEditorPanel(activeTab.data.filePath)
-                        }
-                      })()
-                    ) : (
-                      <div className="h-full flex items-center justify-center text-muted-foreground">
-                        <div className="text-center">
-                          <p>No tabs open</p>
-                          <p className="text-xs mt-2">Create a conversation or open a file to get started</p>
-                        </div>
-                      </div>
-                    )}
-                  </>
+                  /* Single View: Show primary group with tabs */
+                  <EditorGroupPanel
+                    group={primaryGroup}
+                    onTabClick={(tabId) => {
+                      setFocusedGroupId(DEFAULT_GROUP_ID)
+                      activateTab(tabId, DEFAULT_GROUP_ID)
+                    }}
+                    onTabClose={(tabId) => closeTab(tabId, DEFAULT_GROUP_ID)}
+                    renderConversation={renderChatPanel}
+                    renderFile={renderEditorPanel}
+                  />
                 )}
 
                 {/* Commit Dialog */}
