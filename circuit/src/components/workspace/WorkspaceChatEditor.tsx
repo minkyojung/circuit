@@ -2031,23 +2031,25 @@ The plan is ready. What would you like to do?`,
   const prevMessageCountRef = useRef(filteredMessages.length);
 
   // Auto-scroll to bottom when new messages arrive (only if already at bottom)
+  // DISABLED: Manual scroll control only
   useEffect(() => {
     const isNewMessage = filteredMessages.length > prevMessageCountRef.current;
     prevMessageCountRef.current = filteredMessages.length;
 
-    if (isAtBottom && isNewMessage && filteredMessages.length > 0) {
-      // Use requestAnimationFrame to ensure DOM has updated
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          // Scroll to bottom using virtualizer - use 'auto' instead of 'smooth'
-          // to avoid conflicts with virtual positioning
-          virtualizer.scrollToIndex(filteredMessages.length - 1, {
-            align: 'end',
-            behavior: 'auto', // Changed from 'smooth' to prevent animation conflicts
-          });
-        });
-      });
-    }
+    // Auto-scroll disabled - use "Scroll to Bottom" button for manual control
+    // if (isAtBottom && isNewMessage && filteredMessages.length > 0) {
+    //   // Use requestAnimationFrame to ensure DOM has updated
+    //   requestAnimationFrame(() => {
+    //     requestAnimationFrame(() => {
+    //       // Scroll to bottom using virtualizer - use 'auto' instead of 'smooth'
+    //       // to avoid conflicts with virtual positioning
+    //       virtualizer.scrollToIndex(filteredMessages.length - 1, {
+    //         align: 'end',
+    //         behavior: 'auto', // Changed from 'smooth' to prevent animation conflicts
+    //       });
+    //     });
+    //   });
+    // }
   }, [filteredMessages.length, isAtBottom]); // Removed virtualizer from deps
 
   // When reasoning accordion is toggled, the estimateSize function recalculates

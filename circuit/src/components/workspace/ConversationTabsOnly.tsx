@@ -89,19 +89,43 @@ export function ConversationTabsOnly({
     if (!deletingId) return
 
     try {
-      const result = await ipcRenderer.invoke('conversation:delete', deletingId)
-      if (result.success) {
-        if (deletingId === activeConversationId && conversations.length > 1) {
-          const otherConversation = conversations.find(c => c.id !== deletingId)
-          if (otherConversation) {
-            onConversationChange(otherConversation.id)
-          }
-        }
+      // If this is the last conversation, create a new one first
+      if (conversations.length === 1) {
+        console.log('[ConversationTabsOnly] Last conversation - creating new one before deleting')
+        const createResult = await ipcRenderer.invoke('conversation:create', workspaceId)
 
-        await loadConversations()
+        if (createResult.success && createResult.conversation) {
+          // Switch to the new conversation
+          onConversationChange(createResult.conversation.id)
+
+          // Now delete the old one
+          const deleteResult = await ipcRenderer.invoke('conversation:delete', deletingId)
+          if (!deleteResult.success) {
+            console.error('[ConversationTabsOnly] Failed to delete:', deleteResult.error)
+            alert(`Failed to delete conversation: ${deleteResult.error || 'Unknown error'}`)
+          }
+
+          await loadConversations()
+        } else {
+          console.error('[ConversationTabsOnly] Failed to create new conversation:', createResult.error)
+          alert(`Cannot delete last conversation: Failed to create replacement conversation`)
+        }
       } else {
-        console.error('[ConversationTabsOnly] Failed to delete:', result.error)
-        alert(`Failed to delete conversation: ${result.error || 'Unknown error'}`)
+        // Normal deletion - not the last conversation
+        const result = await ipcRenderer.invoke('conversation:delete', deletingId)
+        if (result.success) {
+          if (deletingId === activeConversationId) {
+            const otherConversation = conversations.find(c => c.id !== deletingId)
+            if (otherConversation) {
+              onConversationChange(otherConversation.id)
+            }
+          }
+
+          await loadConversations()
+        } else {
+          console.error('[ConversationTabsOnly] Failed to delete:', result.error)
+          alert(`Failed to delete conversation: ${result.error || 'Unknown error'}`)
+        }
       }
     } catch (error) {
       console.error('[ConversationTabsOnly] Error deleting conversation:', error)

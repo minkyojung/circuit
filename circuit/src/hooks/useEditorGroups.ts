@@ -65,6 +65,13 @@ export function useEditorGroups(initialGroups?: EditorGroup[]) {
    */
   const closeTab = useCallback((tabId: string, groupId: string) => {
     setEditorGroups((prev) => {
+      // Prevent closing the last tab - always keep at least one tab open
+      const totalTabCount = prev.reduce((sum, g) => sum + g.tabs.length, 0)
+      if (totalTabCount <= 1) {
+        console.log('[useEditorGroups] Cannot close last tab - at least one tab must remain open')
+        return prev
+      }
+
       return prev.map((group) => {
         if (group.id !== groupId) return group
 
