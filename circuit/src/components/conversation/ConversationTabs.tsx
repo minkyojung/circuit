@@ -8,6 +8,7 @@
 import { useState, useEffect } from 'react'
 import { Plus, X, Circle, CircleCheck } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useConversationDeletion } from '@/hooks/useConversationDeletion'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -47,8 +48,6 @@ export function ConversationTabs({
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState('')
-  const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
     if (!workspaceId) {
@@ -83,69 +82,18 @@ export function ConversationTabs({
     }
   }
 
+  // Use conversation deletion hook
+  const { deletingId, setDeletingId, isDeleting, confirmDelete } = useConversationDeletion({
+    workspaceId,
+    conversations,
+    activeConversationId,
+    onConversationChange,
+    loadConversations
+  })
+
   const handleCloseTab = (e: React.MouseEvent, conversationId: string) => {
     e.stopPropagation()
     setDeletingId(conversationId)
-  }
-
-  const confirmDelete = async () => {
-    if (!deletingId || isDeleting) return
-
-    setIsDeleting(true)
-    try {
-      // If this is the last conversation, create a new one first
-      if (conversations.length === 1) {
-        console.log('[ConversationTabs] Last conversation - creating new one before deleting')
-        const createResult = await ipcRenderer.invoke('conversation:create', workspaceId)
-
-        if (createResult.success && createResult.conversation) {
-          const newConversationId = createResult.conversation.id
-
-          // Switch to the new conversation immediately (fast UX)
-          onConversationChange(newConversationId)
-
-          // Now delete the old one
-          const deleteResult = await ipcRenderer.invoke('conversation:delete', deletingId)
-          if (!deleteResult.success) {
-            console.error('[ConversationTabs] Failed to delete old conversation, rolling back')
-
-            // Rollback: delete the newly created conversation and switch back
-            await ipcRenderer.invoke('conversation:delete', newConversationId)
-            onConversationChange(deletingId)
-
-            alert(`Failed to delete conversation: ${deleteResult.error || 'Unknown error'}`)
-          }
-
-          await loadConversations()
-        } else {
-          console.error('[ConversationTabs] Failed to create new conversation:', createResult.error)
-          alert(`Cannot delete last conversation: Failed to create replacement conversation`)
-        }
-      } else {
-        // Normal deletion - not the last conversation
-        const result = await ipcRenderer.invoke('conversation:delete', deletingId)
-        if (result.success) {
-          // If deleting active conversation, switch to first available
-          if (deletingId === activeConversationId) {
-            const otherConversation = conversations.find(c => c.id !== deletingId)
-            if (otherConversation) {
-              onConversationChange(otherConversation.id)
-            }
-          }
-
-          await loadConversations()
-        } else {
-          console.error('[ConversationTabs] Failed to delete:', result.error)
-          alert(`Failed to delete conversation: ${result.error || 'Unknown error'}`)
-        }
-      }
-    } catch (error) {
-      console.error('[ConversationTabs] Error deleting conversation:', error)
-      alert(`Error deleting conversation: ${error}`)
-    } finally {
-      setDeletingId(null)
-      setIsDeleting(false)
-    }
   }
 
   const handleCreateConversation = async () => {
