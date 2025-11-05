@@ -362,37 +362,61 @@ function App() {
     }
   }, [allTabs.length, viewMode])
 
-  // DEBUG: Add test tabs on mount
+  // Auto-load or create default conversation when workspace is selected
   useEffect(() => {
-    if (selectedWorkspace) {
-      // Add a test conversation tab
-      const conversationTab = createConversationTab(
-        'test-conv-1',
-        selectedWorkspace.id,
-        'Test Conversation',
-        selectedWorkspace.name
-      )
-      openTab(conversationTab, DEFAULT_GROUP_ID)
+    if (!selectedWorkspace) return
 
-      // Add a test file tab
-      const fileTab = createFileTab(
-        '/Users/test/example.ts',
-        'example.ts'
-      )
-      openTab(fileTab, SECONDARY_GROUP_ID)
+    const loadDefaultConversation = async () => {
+      const { ipcRenderer } = window.require('electron')
+
+      try {
+        // Get all conversations for this workspace
+        const result = await ipcRenderer.invoke('conversation:list', selectedWorkspace.id)
+
+        if (result.success && result.conversations && result.conversations.length > 0) {
+          // Load the most recently viewed or oldest conversation
+          const sortedConversations = [...result.conversations].sort(
+            (a, b) => (b.lastViewedAt || b.updatedAt) - (a.lastViewedAt || a.updatedAt)
+          )
+          const defaultConversation = sortedConversations[0]
+
+          // Create and open tab for default conversation
+          const conversationTab = createConversationTab(
+            defaultConversation.id,
+            selectedWorkspace.id,
+            defaultConversation.title,
+            selectedWorkspace.name
+          )
+          openTab(conversationTab, DEFAULT_GROUP_ID)
+        } else {
+          // No conversations exist, create a new one
+          const createResult = await ipcRenderer.invoke('conversation:create', selectedWorkspace.id)
+
+          if (createResult.success && createResult.conversation) {
+            const conversationTab = createConversationTab(
+              createResult.conversation.id,
+              selectedWorkspace.id,
+              createResult.conversation.title,
+              selectedWorkspace.name
+            )
+            openTab(conversationTab, DEFAULT_GROUP_ID)
+          }
+        }
+      } catch (error) {
+        console.error('[App] Error loading default conversation:', error)
+      }
     }
+
+    loadDefaultConversation()
   }, [selectedWorkspace?.id])
 
-  // Reset tabs when workspace changes
+  // Reset state when workspace changes (but not tabs - handled by loadDefaultConversation)
   useEffect(() => {
-    // Clear all tabs when switching workspaces
-    editorGroups.forEach(group => {
-      group.tabs.forEach(tab => {
-        closeTab(tab.id, group.id)
-      })
-    })
     setViewMode('chat')
     setFileCursorPosition(null)
+    setChatPrefillMessage(null)
+    setSessionId(null)
+    setCodeSelectionAction(null)
   }, [selectedWorkspace?.id])
 
   // Keyboard shortcuts
