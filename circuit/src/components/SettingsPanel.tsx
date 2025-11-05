@@ -14,6 +14,7 @@ import {
   SliderSetting,
   SegmentedControl,
 } from './settings/SettingPrimitives';
+import { AIRulesSection } from './settings/AIRulesSection';
 import { useTheme } from '@/hooks/useTheme';
 import { cn } from '@/lib/utils';
 import type { ClaudeModel, CompletionSound, SendKeyCombo, ThemeMode, TerminalMode, TerminalRenderer, AIMode } from '@/types/settings';
@@ -37,7 +38,11 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'archive', label: 'Archive', icon: Archive },
 ];
 
-export const SettingsPanel: React.FC = () => {
+interface SettingsPanelComponentProps {
+  workspacePath?: string;
+}
+
+export const SettingsPanel: React.FC<SettingsPanelComponentProps> = ({ workspacePath }) => {
   const { settings, updateSettings, resetSettings } = useSettingsContext();
   const { theme, setTheme } = useTheme();
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>('general');
@@ -81,7 +86,7 @@ export const SettingsPanel: React.FC = () => {
           <div className="p-5 space-y-5">
             {activeCategory === 'general' && <GeneralSettings theme={theme} setTheme={setTheme} settings={settings} updateSettings={updateSettings} />}
             {activeCategory === 'model' && <ModelSettings settings={settings} updateSettings={updateSettings} />}
-            {activeCategory === 'ai' && <AISettings settings={settings} updateSettings={updateSettings} />}
+            {activeCategory === 'ai' && <AISettings settings={settings} updateSettings={updateSettings} workspacePath={workspacePath} />}
             {activeCategory === 'terminal' && <TerminalSettings settings={settings} updateSettings={updateSettings} />}
             {activeCategory === 'advanced' && <AdvancedSettings settings={settings} updateSettings={updateSettings} />}
             {activeCategory === 'mcp' && <MCPSettings />}
@@ -116,6 +121,7 @@ interface SettingsPanelProps {
   setTheme?: (theme: ThemeMode) => void;
   settings: any;
   updateSettings: any;
+  workspacePath?: string;
 }
 
 const GeneralSettings: React.FC<SettingsPanelProps> = ({ theme, setTheme, settings, updateSettings }) => (
@@ -205,8 +211,11 @@ const ModelSettings: React.FC<SettingsPanelProps> = ({ settings, updateSettings 
   </SettingSection>
 );
 
-const AISettings: React.FC<SettingsPanelProps> = ({ settings, updateSettings }) => (
+const AISettings: React.FC<SettingsPanelProps> = ({ settings, updateSettings, workspacePath }) => (
   <>
+    {/* AI Coding Rules Section */}
+    {workspacePath && <AIRulesSection workspacePath={workspacePath} />}
+
     <SettingSection
       title="Monaco Editor AI"
       description="AI-powered code completion and assistance"

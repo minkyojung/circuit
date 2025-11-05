@@ -36,17 +36,11 @@ export const SettingSection: React.FC<SettingSectionProps> = ({
         )}
       </div>
       {/* Apple-style grouped card */}
-      <div className="bg-card border border-border rounded-lg overflow-hidden">
+      <div className="bg-card border border-border rounded-lg overflow-hidden divide-y divide-border/50">
         {childrenArray.map((child, index) => (
-          <React.Fragment key={index}>
-            <div className="px-4 py-3">
-              {child}
-            </div>
-            {/* Divider between items (except last) */}
-            {index < childrenArray.length - 1 && (
-              <div className="border-b border-border/50 mx-4" />
-            )}
-          </React.Fragment>
+          <div key={index} className="px-4 py-3">
+            {child}
+          </div>
         ))}
       </div>
     </div>
@@ -111,15 +105,15 @@ export const ToggleSetting: React.FC<ToggleSettingProps> = ({
         disabled={disabled}
         onClick={() => onChange(!checked)}
         className={cn(
-          'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
+          'relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-          checked ? 'bg-primary' : 'bg-input',
+          checked ? 'bg-foreground' : 'bg-input',
           disabled && 'opacity-50 cursor-not-allowed'
         )}
       >
         <span
           className={cn(
-            'inline-block h-4 w-4 transform rounded-full bg-white dark:bg-white shadow-sm transition-transform',
+            'inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform',
             checked ? 'translate-x-6' : 'translate-x-1'
           )}
         />

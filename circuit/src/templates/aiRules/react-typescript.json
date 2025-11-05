@@ -1,0 +1,17 @@
+{
+  "name": "React + TypeScript Best Practices",
+  "description": "Modern React development with TypeScript strict mode",
+  "projectTypes": ["react", "typescript"],
+  "rules": [
+    "Always use TypeScript strict mode and explicit return types for all functions",
+    "Prefer functional components with React hooks over class components",
+    "Use named exports instead of default exports for better refactoring",
+    "Props interfaces should use PascalCase and end with 'Props' suffix",
+    "Custom hooks must start with 'use' prefix (e.g., useAuth, useData)",
+    "Avoid prop drilling - use Context API or state management for deep nesting",
+    "Use React.memo() for expensive component renders, but measure first",
+    "Extract complex logic into custom hooks for reusability",
+    "Use TypeScript generics for reusable components",
+    "Prefer composition over inheritance for component design"
+  ]
+}

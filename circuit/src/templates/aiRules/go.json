@@ -1,0 +1,17 @@
+{
+  "name": "Go Best Practices",
+  "description": "Idiomatic Go with simplicity and clarity",
+  "projectTypes": ["go"],
+  "rules": [
+    "Follow Effective Go guidelines and Go Code Review Comments",
+    "Always handle errors explicitly, never ignore return values",
+    "Use early returns to reduce nesting (guard clauses)",
+    "Accept interfaces, return concrete types",
+    "Keep interfaces small and focused (io.Reader, io.Writer pattern)",
+    "Use context.Context for cancellation and timeouts in long operations",
+    "Avoid global variables, use dependency injection instead",
+    "Name variables clearly, avoid single-letter names except for short-lived loops",
+    "Use gofmt, golangci-lint, and fix all vet warnings",
+    "Document exported functions and types with complete sentences"
+  ]
+}

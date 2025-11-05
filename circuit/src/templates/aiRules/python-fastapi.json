@@ -1,0 +1,17 @@
+{
+  "name": "Python FastAPI Best Practices",
+  "description": "Modern async Python API with FastAPI and Pydantic",
+  "projectTypes": ["python", "fastapi"],
+  "rules": [
+    "Use Pydantic models for all request/response schemas with proper validation",
+    "Implement async/await for all I/O operations (database, HTTP, file)",
+    "Use type hints for all function parameters and return types",
+    "Follow PEP 8 style guide with Black formatter and Ruff linter",
+    "Structure with routers, dependencies, and service layers",
+    "Implement dependency injection for database sessions and auth",
+    "Use SQLAlchemy 2.0 async syntax for database operations",
+    "Document all endpoints with proper docstrings and OpenAPI examples",
+    "Implement comprehensive error handling with HTTPException",
+    "Use environment variables with pydantic-settings for configuration"
+  ]
+}

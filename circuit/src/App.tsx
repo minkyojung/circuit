@@ -384,7 +384,7 @@ function App() {
   }
 
   const renderSettingsPanel = () => {
-    return <SettingsPanel />
+    return <SettingsPanel workspacePath={selectedWorkspace?.path} />
   }
 
   // Workspace navigation refs (for keyboard shortcuts)

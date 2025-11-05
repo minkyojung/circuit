@@ -1,0 +1,17 @@
+{
+  "name": "TypeScript General Best Practices",
+  "description": "Modern TypeScript for any project",
+  "projectTypes": ["typescript", "node"],
+  "rules": [
+    "Enable strict mode in tsconfig.json (strict: true)",
+    "Use explicit types for function parameters and return values",
+    "Prefer interfaces for object shapes, types for unions/intersections",
+    "Use const assertions and as const for literal types",
+    "Avoid any type, use unknown for truly unknown types",
+    "Use enums sparingly, prefer string literal unions instead",
+    "Leverage utility types (Partial, Pick, Omit, Record, etc.)",
+    "Use type guards (typeof, instanceof, custom predicates) for type narrowing",
+    "Keep types DRY with generics and type inference",
+    "Document complex types with JSDoc comments"
+  ]
+}
