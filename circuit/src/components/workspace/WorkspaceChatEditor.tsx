@@ -147,12 +147,6 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
 
   // Start Claude session when workspace changes
   useEffect(() => {
-    console.log('[🔥 DEBUG] WorkspaceChatEditor useEffect triggered!', {
-      workspacePath: workspace.path,
-      workspaceId: workspace.id,
-      workspaceName: workspace.name
-    });
-
     const startSession = async () => {
       console.log('[WorkspaceChatEditor] Starting Claude session for:', workspace.path);
       const result = await ipcRenderer.invoke('claude:start-session', workspace.path);
