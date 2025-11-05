@@ -45,6 +45,9 @@ import { EditorGroupPanel } from '@/components/editor'
 import { DEFAULT_GROUP_ID, SECONDARY_GROUP_ID } from '@/types/editor'
 import './App.css'
 
+// @ts-ignore - Electron IPC
+const { ipcRenderer } = window.require('electron')
+
 // Project Path Context
 interface ProjectPathContextValue {
   projectPath: string
@@ -78,6 +81,47 @@ function App() {
 
   // Session ID for chat (one per workspace for now)
   const [sessionId, setSessionId] = useState<string | null>(null)
+
+  // Initialize Claude session when workspace changes
+  useEffect(() => {
+    if (!selectedWorkspace) {
+      console.log('[🔥 App] No workspace selected, skipping session initialization')
+      return
+    }
+
+    console.log('[🔥 App] Initializing Claude session for workspace:', {
+      workspacePath: selectedWorkspace.path,
+      workspaceId: selectedWorkspace.id,
+      workspaceName: selectedWorkspace.name
+    })
+
+    const startSession = async () => {
+      try {
+        console.log('[App] Starting Claude session for:', selectedWorkspace.path)
+        const result = await ipcRenderer.invoke('claude:start-session', selectedWorkspace.path)
+
+        if (result.success) {
+          console.log('[App] Claude session started:', result.sessionId)
+          setSessionId(result.sessionId)
+        } else {
+          console.error('[App] Failed to start Claude session:', result.error)
+          alert(`Failed to start Claude session: ${result.error}`)
+        }
+      } catch (error) {
+        console.error('[App] Error starting Claude session:', error)
+      }
+    }
+
+    startSession()
+
+    // Cleanup: stop session when workspace changes or component unmounts
+    return () => {
+      if (sessionId) {
+        console.log('[App] Stopping Claude session:', sessionId)
+        ipcRenderer.invoke('claude:stop-session', sessionId)
+      }
+    }
+  }, [selectedWorkspace?.path])
 
   // File cursor position for jumping to line
   const [fileCursorPosition, setFileCursorPosition] = useState<{

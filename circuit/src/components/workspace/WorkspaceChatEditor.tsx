@@ -43,6 +43,7 @@ import { getLanguageFromFilePath } from '@/lib/fileUtils';
 import { cn } from '@/lib/utils';
 
 // Configure Monaco Editor to use local files instead of CDN
+// The vite-plugin-monaco-editor plugin handles web worker configuration automatically
 loader.config({ monaco });
 
 // @ts-ignore - Electron IPC
@@ -146,6 +147,12 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
 
   // Start Claude session when workspace changes
   useEffect(() => {
+    console.log('[🔥 DEBUG] WorkspaceChatEditor useEffect triggered!', {
+      workspacePath: workspace.path,
+      workspaceId: workspace.id,
+      workspaceName: workspace.name
+    });
+
     const startSession = async () => {
       console.log('[WorkspaceChatEditor] Starting Claude session for:', workspace.path);
       const result = await ipcRenderer.invoke('claude:start-session', workspace.path);
