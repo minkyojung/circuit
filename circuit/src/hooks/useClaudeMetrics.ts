@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import type { ContextMetrics } from '@/types/metrics';
 
 interface UsageMetrics {
   input: number;
@@ -9,16 +10,6 @@ interface UsageMetrics {
   burnRate: number;
   timeLeft: number;
   resetTime: number;
-}
-
-interface ContextMetrics {
-  current: number;
-  limit: number;
-  percentage: number;
-  lastCompact: string | null;
-  sessionStart: string;
-  prunableTokens: number;
-  shouldCompact: boolean;
 }
 
 export interface CircuitMetrics {

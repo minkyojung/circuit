@@ -1,14 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-
-interface ContextMetrics {
-  current: number;
-  limit: number;
-  percentage: number;
-  lastCompact: string | null;
-  sessionStart: string;
-  prunableTokens: number;
-  shouldCompact: boolean;
-}
+import type { ContextMetrics } from '@/types/metrics';
 
 interface UseWorkspaceContextResult {
   context: ContextMetrics | null;
