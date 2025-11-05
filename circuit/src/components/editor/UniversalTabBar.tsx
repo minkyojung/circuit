@@ -6,10 +6,10 @@
  */
 
 import { useState } from 'react'
-import { X, Circle, MessageCircle, Plus } from 'lucide-react'
+import { X, Circle, MessageCircle, Plus, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Tab, ConversationTab, FileTab } from '@/types/editor'
-import { isConversationTab, isFileTab } from '@/types/editor'
+import { isConversationTab, isFileTab, isSettingsTab } from '@/types/editor'
 import { getIconForFile } from 'vscode-material-icon-theme-js'
 
 // Import Material Icon Theme SVGs
@@ -201,6 +201,7 @@ function TabItem({
 }: TabItemProps) {
   const isConversation = isConversationTab(tab)
   const isFile = isFileTab(tab)
+  const isSettings = isSettingsTab(tab)
 
   // Get icon based on tab type
   let Icon: React.ComponentType<React.SVGProps<SVGSVGElement>> = DefaultIcon
@@ -208,6 +209,8 @@ function TabItem({
     Icon = MessageCircle as any
   } else if (isFile) {
     Icon = getFileIconComponent(tab.data.filePath)
+  } else if (isSettings) {
+    Icon = Settings as any
   }
 
   // Check for unsaved changes (files only)

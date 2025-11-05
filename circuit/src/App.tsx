@@ -914,21 +914,21 @@ function App() {
     'cmd+w': {
       handler: handleCloseActiveTab,
       description: 'Close active tab',
-      enabled: !!selectedWorkspace,
+      enabled: primaryGroup.tabs.length > 0,
     },
 
     // Move active tab left (Cmd+Shift+[)
     'cmd+shift+[': {
       handler: () => handleMoveActiveTab('left'),
       description: 'Move tab left',
-      enabled: !!selectedWorkspace,
+      enabled: primaryGroup.tabs.length > 0,
     },
 
     // Move active tab right (Cmd+Shift+])
     'cmd+shift+]': {
       handler: () => handleMoveActiveTab('right'),
       description: 'Move tab right',
-      enabled: !!selectedWorkspace,
+      enabled: primaryGroup.tabs.length > 0,
     },
 
     // Close current workspace (Cmd+Shift+W)
