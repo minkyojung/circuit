@@ -14,7 +14,7 @@ import {
   FileText,
   ChevronRight,
   ChevronDown,
-  Function,
+  Braces,
   Box,
   Type,
   Package,
@@ -113,7 +113,7 @@ export function OutlinePanel({ filePath, onSymbolClick }: OutlinePanelProps) {
 
     switch (kind) {
       case 'function':
-        return <Function {...iconProps} className={cn(iconProps.className, "text-purple-500")} />;
+        return <Braces {...iconProps} className={cn(iconProps.className, "text-purple-500")} />;
       case 'class':
         return <Box {...iconProps} className={cn(iconProps.className, "text-blue-500")} />;
       case 'interface':
@@ -123,7 +123,7 @@ export function OutlinePanel({ filePath, onSymbolClick }: OutlinePanelProps) {
       case 'enum':
         return <Package {...iconProps} className={cn(iconProps.className, "text-orange-500")} />;
       case 'method':
-        return <Function {...iconProps} className={cn(iconProps.className, "text-purple-400")} />;
+        return <Braces {...iconProps} className={cn(iconProps.className, "text-purple-400")} />;
       case 'property':
         return <Circle {...iconProps} className={cn(iconProps.className, "text-gray-400")} />;
       default:
