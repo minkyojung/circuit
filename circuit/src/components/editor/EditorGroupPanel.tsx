@@ -118,7 +118,7 @@ export function EditorGroupPanel({
         'h-full flex flex-col transition-all',
         className
       )}
-      onClick={onFocus}
+      onClick={() => onFocus?.()}
     >
       {/* Tab Bar with focus-based opacity */}
       <div className={cn('transition-opacity', !isFocused && 'opacity-40')}>

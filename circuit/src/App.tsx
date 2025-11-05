@@ -102,6 +102,12 @@ function App() {
   // Panel focus state (which group is currently focused)
   const [focusedGroupId, setFocusedGroupId] = useState<string>(DEFAULT_GROUP_ID)
 
+  // Use ref to always access the latest focusedGroupId value (avoid stale closure)
+  const focusedGroupIdRef = useRef<string>(DEFAULT_GROUP_ID)
+  useEffect(() => {
+    focusedGroupIdRef.current = focusedGroupId
+  }, [focusedGroupId])
+
   // Drag state for tab dragging between panels
   const [draggedTab, setDraggedTab] = useState<{ tabId: string; sourceGroupId: string } | null>(null)
 
@@ -301,11 +307,14 @@ function App() {
 
   // Handle file selection from sidebar or file reference pills
   const handleFileSelect = (filePath: string, lineStart?: number, lineEnd?: number) => {
+    // Use ref to get latest focusedGroupId (avoid stale closure)
+    const currentFocusedGroup = focusedGroupIdRef.current
+
     // Create or activate file tab
     const tab = createFileTab(filePath, getFileName(filePath))
 
-    // Open in currently focused group
-    openTab(tab, focusedGroupId)
+    // Open in currently focused group (using ref for latest value)
+    openTab(tab, currentFocusedGroup)
 
     // Store line selection for Monaco to use
     if (lineStart) {
@@ -326,8 +335,8 @@ function App() {
 
   // Handle conversation selection
   const handleConversationSelect = (conversationId: string, workspaceId: string, title?: string) => {
-    console.log('[App] Conversation selected:', conversationId)
-
+    // Use ref to get latest focusedGroupId (avoid stale closure)
+    const currentFocusedGroup = focusedGroupIdRef.current
     // Create or activate conversation tab in focused group
     const tab = createConversationTab(
       conversationId,
@@ -335,7 +344,7 @@ function App() {
       title,
       selectedWorkspace?.name
     )
-    openTab(tab, focusedGroupId)
+    openTab(tab, currentFocusedGroup)
   }
 
   // VS Code style: Duplicate active tab when switching to split view
