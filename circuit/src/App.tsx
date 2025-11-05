@@ -42,11 +42,12 @@ import { Toaster } from 'sonner'
 import { FEATURES } from '@/config/features'
 import { useEditorGroups } from '@/hooks/useEditorGroups'
 import { useWorkspaceContext } from '@/hooks/useWorkspaceContext'
-import { createConversationTab, createFileTab } from '@/types/editor'
+import { createConversationTab, createFileTab, createSettingsTab } from '@/types/editor'
 import type { Tab } from '@/types/editor'
 import { getFileName } from '@/lib/fileUtils'
 import { EditorGroupPanel } from '@/components/editor'
 import { DEFAULT_GROUP_ID, SECONDARY_GROUP_ID } from '@/types/editor'
+import { SettingsPanel } from '@/components/SettingsPanel'
 import './App.css'
 
 // @ts-ignore - Electron IPC
@@ -382,6 +383,10 @@ function App() {
     )
   }
 
+  const renderSettingsPanel = () => {
+    return <SettingsPanel />
+  }
+
   // Workspace navigation refs (for keyboard shortcuts)
   const workspacesRef = useRef<Workspace[]>([])
   const setWorkspacesForShortcuts = (workspaces: Workspace[]) => {
@@ -609,6 +614,27 @@ function App() {
       selectedWorkspace?.name
     )
     openTab(tab, currentFocusedGroup)
+  }
+
+  // Handle opening settings
+  const handleOpenSettings = () => {
+    const currentFocusedGroup = focusedGroupIdRef.current
+
+    // Check if settings tab already exists
+    const allTabs = getAllTabs()
+    const settingsTab = allTabs.find(tab => tab.type === 'settings')
+
+    if (settingsTab) {
+      // Settings tab exists, activate it
+      const tabLocation = findTab(settingsTab.id)
+      if (tabLocation) {
+        activateTab(settingsTab.id, tabLocation.groupId)
+      }
+    } else {
+      // Create new settings tab
+      const tab = createSettingsTab()
+      openTab(tab, currentFocusedGroup)
+    }
   }
 
   // Handle new conversation creation
@@ -912,6 +938,12 @@ function App() {
       enabled: !!selectedWorkspace,
     },
 
+    // Open Settings (Cmd+,)
+    'cmd+,': {
+      handler: handleOpenSettings,
+      description: 'Open settings',
+    },
+
     // Commit dialog (Cmd+Enter when workspace is selected)
     'cmd+enter': {
       handler: () => setShowCommitDialog(true),
@@ -1001,6 +1033,7 @@ function App() {
                         onCreateConversation={handleCreateConversation}
                         renderConversation={renderChatPanel}
                         renderFile={renderEditorPanel}
+                        renderSettings={renderSettingsPanel}
                       />
                     </ResizablePanel>
                     <ResizableHandle />
@@ -1018,6 +1051,7 @@ function App() {
                         onCreateConversation={handleCreateConversation}
                         renderConversation={renderChatPanel}
                         renderFile={renderEditorPanel}
+                        renderSettings={renderSettingsPanel}
                       />
                     </ResizablePanel>
                   </ResizablePanelGroup>
@@ -1033,6 +1067,7 @@ function App() {
                     onCreateConversation={handleCreateConversation}
                     renderConversation={renderChatPanel}
                     renderFile={renderEditorPanel}
+                    renderSettings={renderSettingsPanel}
                   />
                 )}
 
@@ -1070,6 +1105,7 @@ function App() {
             workspace={selectedWorkspace}
             onCommit={() => setShowCommitDialog(true)}
             onFileSelect={handleFileSelect}
+            onOpenSettings={handleOpenSettings}
           />
         </Sidebar>
       )}

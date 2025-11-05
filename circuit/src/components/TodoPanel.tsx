@@ -12,7 +12,6 @@ import { useState } from 'react'
 import { Settings, Terminal as TerminalIcon, MessageSquare, AlertCircle } from 'lucide-react'
 import type { Workspace } from '@/types/workspace'
 import { ThemeToggle } from '@/components/ThemeToggle'
-import { SettingsDialog } from '@/components/SettingsDialog'
 import { Terminal } from '@/components/Terminal'
 import { ProblemsPanel } from '@/components/problems/ProblemsPanel'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
@@ -26,10 +25,10 @@ interface TodoPanelProps {
   workspace?: Workspace | null
   onCommit?: () => void
   onFileSelect?: (path: string, line: number) => void
+  onOpenSettings?: () => void
 }
 
-export function TodoPanel({ workspace, onCommit, onFileSelect }: TodoPanelProps) {
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+export function TodoPanel({ workspace, onCommit, onFileSelect, onOpenSettings }: TodoPanelProps) {
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false)
   const [activeTab, setActiveTab] = useState('terminal')
 
@@ -42,9 +41,9 @@ export function TodoPanel({ workspace, onCommit, onFileSelect }: TodoPanelProps)
           <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as any}>
             {/* Settings Button */}
             <button
-              onClick={() => setIsSettingsOpen(true)}
+              onClick={onOpenSettings}
               className="flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-sidebar-hover text-sidebar-foreground-muted hover:text-sidebar-foreground"
-              title="Settings"
+              title="Settings (Cmd+,)"
             >
               <Settings size={16} strokeWidth={1.5} />
             </button>
@@ -125,12 +124,6 @@ export function TodoPanel({ workspace, onCommit, onFileSelect }: TodoPanelProps)
           </div>
         )}
       </SidebarContent>
-
-      {/* Settings Dialog */}
-      <SettingsDialog
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-      />
 
       {/* Feedback Dialog - Placeholder for now */}
       {isFeedbackOpen && (
