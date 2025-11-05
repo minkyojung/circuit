@@ -26,7 +26,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import type { Workspace } from "@/types/workspace"
-import { PanelLeft, PanelRight, FolderGit2, Columns2, Maximize2 } from 'lucide-react'
+import { PanelLeft, PanelRight, FolderGit2, Columns2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
@@ -41,7 +41,7 @@ import { useEditorGroups } from '@/hooks/useEditorGroups'
 import { createConversationTab, createFileTab } from '@/types/editor'
 import type { Tab } from '@/types/editor'
 import { getFileName } from '@/lib/fileUtils'
-import { EditorGroupPanel } from '@/components/editor'
+import { EditorGroupPanel, UniversalTabBar } from '@/components/editor'
 import { DEFAULT_GROUP_ID, SECONDARY_GROUP_ID } from '@/types/editor'
 import './App.css'
 
@@ -352,15 +352,16 @@ function App() {
     }
   }
 
-  // Auto-switch view mode based on open tabs
+  // Get all tabs for UnifiedTabs
   const allTabs = getAllTabs()
-  useEffect(() => {
-    if (allTabs.length > 0 && viewMode === 'chat') {
-      setViewMode('split')
-    } else if (allTabs.length === 0 && viewMode !== 'chat') {
-      setViewMode('chat')
-    }
-  }, [allTabs.length, viewMode])
+
+  // Extract conversation and file tabs
+  const conversationTabs = allTabs.filter(t => t.type === 'conversation')
+  const fileTabs = allTabs.filter(t => t.type === 'file')
+
+  // Get active conversation and file
+  const activeConversationTab = conversationTabs.find(t => t.id === primaryGroup.activeTabId)
+  const activeFileTab = fileTabs.find(t => t.id === primaryGroup.activeTabId || t.id === secondaryGroup.activeTabId)
 
   // Auto-load or create default conversation when workspace is selected
   useEffect(() => {
@@ -512,52 +513,57 @@ function App() {
               className="grid items-center gap-2 min-w-0"
               style={{
                 WebkitAppRegion: 'no-drag',
-                gridTemplateColumns: selectedWorkspace && allTabs.length > 0 ? 'auto 1fr' : '1fr'
+                gridTemplateColumns: selectedWorkspace && allTabs.length > 0 ? '1fr auto' : '1fr'
               } as any}
             >
-              {/* Column 1: View mode toggle button (auto width) */}
+              {/* Column 1: Tabs container (flexible with overflow) */}
+              <div className="min-w-0 overflow-x-auto flex-1">
+                <div className="max-w-4xl mx-auto">
+                  {selectedWorkspace ? (
+                    <UniversalTabBar
+                      groupId={DEFAULT_GROUP_ID}
+                      tabs={allTabs}
+                      activeTabId={primaryGroup.activeTabId}
+                      onTabClick={(tabId) => activateTab(tabId, DEFAULT_GROUP_ID)}
+                      onTabClose={(tabId) => {
+                        const result = findTab(tabId)
+                        if (result) {
+                          closeTab(tabId, result.groupId)
+                        }
+                      }}
+                    />
+                  ) : (
+                    <Breadcrumb>
+                      <BreadcrumbList>
+                        <BreadcrumbItem>
+                          <BreadcrumbPage className="font-medium text-muted-foreground">
+                            {repositoryName}
+                          </BreadcrumbPage>
+                        </BreadcrumbItem>
+                      </BreadcrumbList>
+                    </Breadcrumb>
+                  )}
+                </div>
+              </div>
+
+              {/* Column 3: Split View Toggle Button */}
               {selectedWorkspace && allTabs.length > 0 && (
-                <div className="flex items-center gap-2 shrink-0">
-                  {viewMode === 'editor' && (
-                    <button
-                      onClick={() => setViewMode('split')}
-                      className={cn(
-                        "flex h-7 w-7 items-center justify-center rounded-md transition-colors",
-                        "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
-                      )}
-                      title="Show Chat"
-                    >
-                      <Columns2 size={16} />
-                    </button>
-                  )}
-                  {viewMode === 'split' && (
-                    <button
-                      onClick={() => setViewMode('editor')}
-                      className={cn(
-                        "flex h-7 w-7 items-center justify-center rounded-md transition-colors",
-                        "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
-                      )}
-                      title="Editor Only"
-                    >
-                      <Maximize2 size={16} />
-                    </button>
-                  )}
-                  <Separator orientation="vertical" className="mr-2 h-4" />
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setViewMode(viewMode === 'split' ? 'chat' : 'split')}
+                    className={cn(
+                      "flex h-7 w-7 items-center justify-center rounded-md transition-colors",
+                      viewMode === 'split'
+                        ? 'bg-secondary text-secondary-foreground'
+                        : 'text-muted-foreground hover:bg-secondary/50 hover:text-foreground'
+                    )}
+                    title={viewMode === 'split' ? 'Single View' : 'Split View'}
+                  >
+                    <Columns2 size={16} />
+                  </button>
+                  <Separator orientation="vertical" className="h-4" />
                 </div>
               )}
-
-              {/* Column 2: Workspace/Repository name */}
-              <div className="min-w-0">
-                <Breadcrumb>
-                  <BreadcrumbList>
-                    <BreadcrumbItem>
-                      <BreadcrumbPage className="font-medium text-muted-foreground">
-                        {selectedWorkspace?.name || repositoryName}
-                      </BreadcrumbPage>
-                    </BreadcrumbItem>
-                  </BreadcrumbList>
-                </Breadcrumb>
-              </div>
             </div>
 
             {/* Spacer */}
@@ -589,51 +595,64 @@ function App() {
           <div className="flex flex-1 flex-col overflow-hidden">
             {selectedWorkspace ? (
               <>
-                {/* NEW: Unified Editor Group System */}
                 {viewMode === 'split' ? (
-                  /* Split View: Two editor groups side by side */
+                  /* Split View: Chat (left) + Editor (right) */
                   <ResizablePanelGroup direction="horizontal" className="h-full">
                     <ResizablePanel defaultSize={50} minSize={30}>
-                      <EditorGroupPanel
-                        group={primaryGroup}
-                        onTabClick={(tabId) => activateTab(tabId, DEFAULT_GROUP_ID)}
-                        onTabClose={(tabId) => handleTabClose(tabId, DEFAULT_GROUP_ID)}
-                        onTabDrop={(tabId, targetIndex) => {
-                          // Handle tab reorder within same group
-                          // TODO: implement reorder logic
-                        }}
-                        renderConversation={renderChatPanel}
-                        renderFile={renderEditorPanel}
-                      />
+                      {activeConversationTab ? (
+                        renderChatPanel(
+                          activeConversationTab.data.conversationId,
+                          activeConversationTab.data.workspaceId
+                        )
+                      ) : (
+                        <div className="h-full flex items-center justify-center text-muted-foreground">
+                          <div className="text-center">
+                            <p>No conversation selected</p>
+                            <p className="text-xs mt-2">Create or select a conversation to get started</p>
+                          </div>
+                        </div>
+                      )}
                     </ResizablePanel>
                     <ResizableHandle />
                     <ResizablePanel defaultSize={50} minSize={30}>
-                      <EditorGroupPanel
-                        group={secondaryGroup}
-                        onTabClick={(tabId) => activateTab(tabId, SECONDARY_GROUP_ID)}
-                        onTabClose={(tabId) => handleTabClose(tabId, SECONDARY_GROUP_ID)}
-                        onTabDrop={(tabId, targetIndex) => {
-                          // Handle tab reorder within same group
-                          // TODO: implement reorder logic
-                        }}
-                        renderConversation={renderChatPanel}
-                        renderFile={renderEditorPanel}
-                      />
+                      {activeFileTab ? (
+                        renderEditorPanel(activeFileTab.data.filePath)
+                      ) : (
+                        <div className="h-full flex items-center justify-center text-muted-foreground">
+                          <div className="text-center">
+                            <p>No file open</p>
+                            <p className="text-xs mt-2">Open a file from the sidebar to get started</p>
+                          </div>
+                        </div>
+                      )}
                     </ResizablePanel>
                   </ResizablePanelGroup>
                 ) : (
-                  /* Single View: One editor group */
-                  <EditorGroupPanel
-                    group={primaryGroup}
-                    onTabClick={(tabId) => activateTab(tabId, DEFAULT_GROUP_ID)}
-                    onTabClose={(tabId) => handleTabClose(tabId, DEFAULT_GROUP_ID)}
-                    onTabDrop={(tabId, targetIndex) => {
-                      // Handle tab reorder within same group
-                      // TODO: implement reorder logic
-                    }}
-                    renderConversation={renderChatPanel}
-                    renderFile={renderEditorPanel}
-                  />
+                  /* Single View: Show active tab content */
+                  <>
+                    {primaryGroup.activeTabId ? (
+                      (() => {
+                        const activeTab = allTabs.find(t => t.id === primaryGroup.activeTabId)
+                        if (!activeTab) return null
+
+                        if (activeTab.type === 'conversation') {
+                          return renderChatPanel(
+                            activeTab.data.conversationId,
+                            activeTab.data.workspaceId
+                          )
+                        } else {
+                          return renderEditorPanel(activeTab.data.filePath)
+                        }
+                      })()
+                    ) : (
+                      <div className="h-full flex items-center justify-center text-muted-foreground">
+                        <div className="text-center">
+                          <p>No tabs open</p>
+                          <p className="text-xs mt-2">Create a conversation or open a file to get started</p>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
 
                 {/* Commit Dialog */}
