@@ -179,12 +179,17 @@ export function ConversationTabs({
           <div
             key={conversation.id}
             className={cn(
-              'group relative flex items-center gap-2 px-2 py-[7px] transition-colors',
+              'group relative flex items-center gap-2 px-2 py-[7px]',
               'text-sm font-medium whitespace-nowrap',
               'rounded-md',
+              'transition-all duration-200',
+              // Glassmorphism effect
+              'backdrop-blur-md',
+              'border border-white/10',
+              'shadow-sm',
               isActive
-                ? 'bg-secondary text-secondary-foreground'
-                : 'bg-transparent text-muted-foreground hover:bg-secondary/50 hover:text-secondary-foreground'
+                ? 'bg-white/10 text-foreground shadow-md border-white/20'
+                : 'bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground hover:shadow-md'
             )}
           >
             {/* Icon - read/unread indicator */}
