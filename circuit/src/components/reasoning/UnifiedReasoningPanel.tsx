@@ -48,79 +48,102 @@ export const UnifiedReasoningPanel: React.FC<UnifiedReasoningPanelProps> = ({
   const toolSummary = summarizeToolUsage(steps);
 
   return (
-    <Collapsible
-      open={isExpanded}
-      onOpenChange={setIsExpanded}
-      className={cn(
-        "border border-border rounded-lg bg-card/30 backdrop-blur-sm overflow-hidden",
-        className
-      )}
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
     >
-      {/* Header with summary */}
-      <CollapsibleTrigger className="w-full">
-        <div className="flex items-center justify-between px-4 py-3 hover:bg-secondary/30 transition-colors">
-          <div className="flex items-center gap-2.5">
-            {/* Chevron icon */}
-            <ChevronDown
-              className={cn(
-                "w-4 h-4 opacity-60 transition-transform",
-                isExpanded ? "rotate-180" : "rotate-0"
-              )}
-              strokeWidth={1.5}
-            />
+      <Collapsible
+        open={isExpanded}
+        onOpenChange={setIsExpanded}
+        className={cn(
+          "border border-border/60 rounded-lg overflow-hidden",
+          "bg-gradient-to-br from-secondary/40 via-secondary/30 to-secondary/20",
+          "backdrop-blur-sm shadow-sm",
+          className
+        )}
+      >
+        {/* Header with summary */}
+        <CollapsibleTrigger className="w-full group">
+          <div className="flex items-center justify-between px-4 py-3 hover:bg-secondary/20 transition-all duration-200">
+            <div className="flex items-center gap-2.5">
+              {/* Chevron icon */}
+              <ChevronDown
+                className={cn(
+                  "w-4 h-4 opacity-60 transition-all duration-300 ease-out group-hover:opacity-80",
+                  isExpanded ? "rotate-180" : "rotate-0"
+                )}
+                strokeWidth={1.5}
+              />
 
-            {/* Summary text */}
-            <span className="text-sm font-light opacity-70">
-              {stepCount} {stepCount === 1 ? 'step' : 'steps'}
-              {toolSummary && (
-                <>
-                  <span className="mx-1.5 opacity-50">·</span>
-                  <span>{toolSummary}</span>
-                </>
-              )}
+              {/* Summary text */}
+              <span className="text-sm font-light opacity-70 group-hover:opacity-90 transition-opacity">
+                {stepCount} {stepCount === 1 ? 'step' : 'steps'}
+                {toolSummary && (
+                  <>
+                    <span className="mx-1.5 opacity-50">·</span>
+                    <span>{toolSummary}</span>
+                  </>
+                )}
+              </span>
+            </div>
+
+            {/* Duration */}
+            <span className="text-sm font-light opacity-60 group-hover:opacity-80 transition-opacity">
+              {duration}s
             </span>
           </div>
+        </CollapsibleTrigger>
 
-          {/* Duration */}
-          <span className="text-sm font-light opacity-60">
-            {duration}s
-          </span>
-        </div>
-      </CollapsibleTrigger>
-
-      {/* Default view (always visible when collapsed): File changes summary */}
-      {!isExpanded && (
-        <div className="border-t border-border">
-          {fileSummaryBlock ? (
-            // Use FileSummaryBlock in compact mode (no header, no border)
-            <FileSummaryBlock
-              block={fileSummaryBlock}
-              onFileClick={onFileClick}
-              compact={true}
-            />
-          ) : (
-            // Fallback to extracted file changes from thinking steps
-            <FileChangeSummary
-              fileChanges={fileChanges}
-              onFileClick={onFileClick}
-            />
+        {/* Default view (always visible when collapsed): File changes summary */}
+        <AnimatePresence mode="wait">
+          {!isExpanded && (
+            <motion.div
+              key="collapsed"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2, ease: "easeInOut" }}
+              className="border-t border-border/50"
+            >
+              {fileSummaryBlock ? (
+                // Use FileSummaryBlock in compact mode (no header, no border)
+                <FileSummaryBlock
+                  block={fileSummaryBlock}
+                  onFileClick={onFileClick}
+                  compact={true}
+                />
+              ) : (
+                // Fallback to extracted file changes from thinking steps
+                <FileChangeSummary
+                  fileChanges={fileChanges}
+                  onFileClick={onFileClick}
+                />
+              )}
+            </motion.div>
           )}
-        </div>
-      )}
+        </AnimatePresence>
 
-      {/* Expanded view: Full reasoning timeline */}
-      <CollapsibleContent>
-        <div className="border-t border-border">
-          <div className="px-2 py-2">
-            <ReasoningAccordion
-              steps={steps}
-              isLive={isLive}
-              duration={duration}
-            />
-          </div>
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
+        {/* Expanded view: Full reasoning timeline */}
+        <CollapsibleContent>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, delay: 0.1 }}
+            className="border-t border-border/50"
+          >
+            <div className="px-2 py-2">
+              <ReasoningAccordion
+                steps={steps}
+                isLive={isLive}
+                duration={duration}
+              />
+            </div>
+          </motion.div>
+        </CollapsibleContent>
+      </Collapsible>
+    </motion.div>
   );
 };
 

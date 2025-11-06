@@ -60,7 +60,7 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
       <div
         className={`max-w-[75%] ${
           msg.role === 'user'
-            ? 'bg-[#E8EEEB] dark:bg-[#1E2B26] px-3 py-2 rounded-xl border border-border'
+            ? 'bg-[#E8EEEB] dark:bg-[#1F2523] px-3 py-2 rounded-xl border border-border'
             : ''
         }`}
       >
@@ -104,28 +104,6 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
             })}
           </div>
         )}
-
-        {/* Unified Reasoning Panel - Show for assistant messages with reasoning steps */}
-        {msg.role === 'assistant' && messageThinkingSteps[msg.id] !== undefined && (() => {
-          // Find file-summary block for collapsed view
-          const fileSummaryBlock = msg.blocks?.find(b => b.type === 'file-summary');
-
-          return (
-            <div className="mb-3">
-              <UnifiedReasoningPanel
-                steps={messageThinkingSteps[msg.id]?.steps || []}
-                duration={
-                  isSending && msg.id === pendingAssistantMessageId
-                    ? currentDuration
-                    : messageThinkingSteps[msg.id]?.duration || 0
-                }
-                isLive={isSending && msg.id === pendingAssistantMessageId}
-                fileSummaryBlock={fileSummaryBlock}
-                onFileClick={onFileReferenceClick}
-              />
-            </div>
-          );
-        })()}
 
         {/* Plan Review moved to right sidebar TodoPanel */}
 
@@ -217,6 +195,28 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
             </button>
           </div>
         )}
+
+        {/* Unified Reasoning Panel - Show at bottom for assistant messages with reasoning steps */}
+        {msg.role === 'assistant' && messageThinkingSteps[msg.id] !== undefined && (() => {
+          // Find file-summary block for collapsed view
+          const fileSummaryBlock = msg.blocks?.find(b => b.type === 'file-summary');
+
+          return (
+            <div className="mt-4">
+              <UnifiedReasoningPanel
+                steps={messageThinkingSteps[msg.id]?.steps || []}
+                duration={
+                  isSending && msg.id === pendingAssistantMessageId
+                    ? currentDuration
+                    : messageThinkingSteps[msg.id]?.duration || 0
+                }
+                isLive={isSending && msg.id === pendingAssistantMessageId}
+                fileSummaryBlock={fileSummaryBlock}
+                onFileClick={onFileReferenceClick}
+              />
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
