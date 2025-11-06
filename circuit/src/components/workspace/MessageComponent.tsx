@@ -1,11 +1,12 @@
 import React from 'react';
 import type { Message } from '@/types/conversation';
 import type { ThinkingStep } from '@/types/thinking';
-import { Paperclip, Copy, Check, Play, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { Paperclip, Play, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { BlockList } from '@/components/blocks';
 import { InlineTodoProgress } from '@/components/blocks/InlineTodoProgress';
 import { UnifiedReasoningPanel } from '@/components/reasoning/UnifiedReasoningPanel';
+import { MessageActions } from './MessageActions';
 import { cn } from '@/lib/utils';
 
 export interface MessageComponentProps {
@@ -16,6 +17,7 @@ export interface MessageComponentProps {
   copiedMessageId: string | null;
   currentDuration: number;
   onCopyMessage: (messageId: string, content: string) => void;
+  onRetryMessage: (messageId: string, mode: 'normal' | 'extended') => void;
   onExecuteCommand: (command: string) => Promise<void>;
   onFileReferenceClick?: (filePath: string, lineStart?: number, lineEnd?: number) => void;
   onRunAgent?: (messageId: string) => void;
@@ -30,6 +32,7 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
   copiedMessageId,
   currentDuration,
   onCopyMessage,
+  onRetryMessage,
   onExecuteCommand,
   onFileReferenceClick,
   onRunAgent,
@@ -179,22 +182,6 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
           </>
         )}
 
-        {/* Copy button - Show below message content for assistant messages */}
-        {msg.role === 'assistant' && (
-          <div className="mt-3 flex justify-end">
-            <button
-              onClick={() => onCopyMessage(msg.id, msg.content)}
-              className="p-1 text-muted-foreground/60 hover:text-foreground rounded-md hover:bg-secondary/50 transition-all"
-              title="Copy message"
-            >
-              {copiedMessageId === msg.id ? (
-                <Check className="w-3 h-3 text-green-500" strokeWidth={1.5} />
-              ) : (
-                <Copy className="w-3 h-3 opacity-60 hover:opacity-100 transition-opacity" strokeWidth={1.5} />
-              )}
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Unified Reasoning Panel - Show at bottom for assistant messages with reasoning steps */}
@@ -218,6 +205,19 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
           </div>
         );
       })()}
+
+      {/* Message Actions - Show for assistant messages (Copy, Retry) */}
+      {msg.role === 'assistant' && !isSending && (
+        <div className="w-full">
+          <MessageActions
+            messageId={msg.id}
+            content={msg.content}
+            onCopy={onCopyMessage}
+            onRetry={onRetryMessage}
+            copiedMessageId={copiedMessageId}
+          />
+        </div>
+      )}
     </div>
   );
 };

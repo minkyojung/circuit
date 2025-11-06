@@ -583,6 +583,80 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
     setTimeout(() => setCopiedMessageId(null), 2000);
   }, []);
 
+  // Retry message handler
+  const handleRetryMessage = useCallback(async (messageId: string, mode: 'normal' | 'extended') => {
+    if (!conversationId) {
+      console.error('[ChatPanel] Cannot retry: No conversation ID');
+      return;
+    }
+
+    console.log('[ChatPanel] Retrying message:', messageId, 'with mode:', mode);
+
+    // Find the assistant message and the user message before it
+    const messageIndex = messages.findIndex(m => m.id === messageId);
+    if (messageIndex === -1 || messageIndex === 0) {
+      console.error('[ChatPanel] Cannot find message or no previous message');
+      return;
+    }
+
+    // Find the previous user message
+    let userMessageIndex = messageIndex - 1;
+    while (userMessageIndex >= 0 && messages[userMessageIndex].role !== 'user') {
+      userMessageIndex--;
+    }
+
+    if (userMessageIndex < 0) {
+      console.error('[ChatPanel] Cannot find previous user message');
+      return;
+    }
+
+    const userMessage = messages[userMessageIndex];
+
+    // Extract attachments from metadata
+    const attachments: AttachedFile[] = [];
+    if (userMessage.metadata?.attachments) {
+      try {
+        const metadataAttachments = typeof userMessage.metadata.attachments === 'string'
+          ? JSON.parse(userMessage.metadata.attachments)
+          : userMessage.metadata.attachments;
+
+        attachments.push(...metadataAttachments);
+      } catch (error) {
+        console.error('[ChatPanel] Failed to parse attachments:', error);
+      }
+    }
+
+    // Delete all messages after the user message
+    const messagesToKeep = messages.slice(0, userMessageIndex + 1);
+
+    try {
+      // Update database to remove messages after the user message
+      await ipcRenderer.invoke('db:messages:delete-after', conversationId, userMessage.id);
+
+      // Update local state
+      setMessages(messagesToKeep);
+
+      // Set thinking mode based on retry mode
+      const newThinkingMode = mode === 'extended' ? 'extended' : 'normal';
+
+      // Resend the message
+      console.log('[ChatPanel] Resending message with mode:', newThinkingMode);
+      ipcRenderer.send(
+        'claude:send-message',
+        sessionId,
+        userMessage.content,
+        attachments,
+        newThinkingMode,
+        false, // architectMode - use default
+        undefined // aiRulesSystemPrompt - use default
+      );
+
+      toast.success(mode === 'extended' ? 'Retrying with extended thinking...' : 'Retrying message...');
+    } catch (error) {
+      console.error('[ChatPanel] Failed to retry message:', error);
+      toast.error('Failed to retry message');
+    }
+  }, [conversationId, messages, sessionId]);
 
   // Execute command handler
   const handleExecuteCommand = useCallback(async (command: string) => {
@@ -1441,6 +1515,7 @@ The plan is ready. What would you like to do?`,
                       copiedMessageId={copiedMessageId}
                       currentDuration={currentDuration}
                       onCopyMessage={handleCopyMessage}
+                      onRetryMessage={handleRetryMessage}
                       onExecuteCommand={handleExecuteCommand}
                       onFileReferenceClick={onFileReferenceClick}
                       onRunAgent={handleRunAgentForMessage}

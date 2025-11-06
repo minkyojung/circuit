@@ -7,6 +7,7 @@
 import React from 'react';
 import { Copy, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 import { RetryDropdown } from './RetryDropdown';
 
 interface MessageActionsProps {
@@ -27,14 +28,15 @@ export function MessageActions({
   const isCopied = copiedMessageId === messageId;
 
   return (
-    <div className="mt-3 flex items-center gap-2 justify-end">
-      {/* Copy Button - Increased size */}
-      <button
+    <div className="mt-2 flex items-center gap-1 justify-end">
+      {/* Copy Button */}
+      <Button
+        variant="ghost"
+        size="icon"
         onClick={() => onCopy(messageId, content)}
         className={cn(
-          'p-2 rounded-md transition-all',
-          'text-muted-foreground/60 hover:text-foreground',
-          'hover:bg-secondary/50',
+          'h-[32px] w-[32px] hover:bg-secondary',
+          'text-muted-foreground hover:text-foreground',
           isCopied && 'text-green-500'
         )}
         title="Copy message"
@@ -44,7 +46,7 @@ export function MessageActions({
         ) : (
           <Copy className="w-4 h-4" strokeWidth={1.5} />
         )}
-      </button>
+      </Button>
 
       {/* Retry Dropdown */}
       <RetryDropdown
