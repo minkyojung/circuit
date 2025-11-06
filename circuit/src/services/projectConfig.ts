@@ -162,8 +162,12 @@ export async function addAIRule(
   workspacePath: string,
   rule: Omit<AIRule, 'id' | 'order'>
 ): Promise<AIRule | undefined> {
-  const config = await loadProjectConfig(workspacePath);
-  if (!config) return undefined;
+  let config = await loadProjectConfig(workspacePath);
+
+  // If no config exists, create a new one
+  if (!config) {
+    config = await createProjectConfig(workspacePath);
+  }
 
   // Generate ID
   const id = `rule-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;

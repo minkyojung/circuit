@@ -531,6 +531,12 @@ app.whenReady().then(async () => {
     const { registerAgentHandlers } = require('../dist-electron/agentHandlers.js');
     registerAgentHandlers();
     console.log('[main.cjs] ✅ Agent handlers registered successfully');
+
+    // Register file system handlers
+    console.log('[main.cjs] Registering file system handlers...');
+    const { registerFileSystemHandlers } = require('../dist-electron/fileSystemHandlers.js');
+    registerFileSystemHandlers();
+    console.log('[main.cjs] ✅ File system handlers registered successfully');
   } catch (error) {
     console.error('[main.cjs] ❌ CRITICAL: Failed to register handlers:', error);
     console.error('[main.cjs] Error stack:', error.stack);
@@ -2602,6 +2608,17 @@ ipcMain.handle('circuit:reload-claude-code', async (event, openVSCode = true) =>
     console.log('[main.cjs] Git handlers registered');
   } catch (error) {
     console.error('[main.cjs] Failed to register git handlers:', error);
+  }
+})();
+
+// Register Monaco/Language Server handlers
+(async () => {
+  try {
+    const { registerMonacoHandlers } = await import('../dist-electron/monacoHandlers.js');
+    registerMonacoHandlers();
+    console.log('[main.cjs] Monaco handlers registered');
+  } catch (error) {
+    console.error('[main.cjs] Failed to register monaco handlers:', error);
   }
 })();
 

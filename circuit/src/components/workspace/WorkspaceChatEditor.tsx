@@ -35,6 +35,7 @@ import type { TodoGenerationResult, TodoDraft, ExecutionMode } from '@/types/tod
 import { FEATURES } from '@/config/features';
 import { getLanguageFromFilePath } from '@/lib/fileUtils';
 import { cn } from '@/lib/utils';
+import { getAIRulesContext } from '@/services/projectConfig';
 
 // Configure Monaco Editor to use local files instead of CDN
 // The vite-plugin-monaco-editor plugin handles web worker configuration automatically
@@ -894,8 +895,21 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
       }
     }
 
+    // Get AI coding rules and prepend to input
+    let enhancedInput = inputText;
+    try {
+      const aiRulesContext = await getAIRulesContext(workspace.path);
+      if (aiRulesContext) {
+        // Prepend AI rules to user message
+        enhancedInput = `${aiRulesContext}\n\n---\n\n${inputText}`;
+        console.log('[ChatPanel] 📝 Added AI coding rules to message');
+      }
+    } catch (error) {
+      console.warn('[ChatPanel] Failed to load AI rules, continuing without them:', error);
+    }
+
     // Build content - no need to include file list in content anymore
-    const content = inputText;
+    const content = enhancedInput;
 
     const userMessage: Message = {
       id: `msg-${Date.now()}`,
@@ -923,7 +937,7 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
       });
       return [...prev, userMessage];
     });
-    const currentInput = inputText;
+    const currentInput = enhancedInput;
     setInput('');
     setIsSending(true);
 
@@ -1474,6 +1488,168 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
     }
   }, [currentSelection, activeFile, handleAddTests]);
 
+  // Load TypeScript configuration and type definitions from workspace
+  useEffect(() => {
+    const loadTsConfig = async () => {
+      try {
+        console.log('[EditorPanel] Loading TypeScript configuration...');
+        const result = await ipcRenderer.invoke('monaco:load-tsconfig', workspace.path);
+
+        // Set up default compiler options first
+        const defaultOptions = {
+          target: monaco.languages.typescript.ScriptTarget.ES2020,
+          allowNonTsExtensions: true,
+          moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+          module: monaco.languages.typescript.ModuleKind.ESNext,
+          noEmit: true,
+          esModuleInterop: true,
+          jsx: monaco.languages.typescript.JsxEmit.React,
+          reactNamespace: 'React',
+          allowJs: true,
+          typeRoots: ['node_modules/@types'],
+        };
+
+        if (result.success && result.compilerOptions) {
+          console.log('[EditorPanel] Applying TypeScript compiler options to Monaco');
+
+          // Merge with project config
+          const mergedOptions = {
+            ...defaultOptions,
+            ...result.compilerOptions,
+          };
+
+          // Apply to TypeScript
+          monaco.languages.typescript.typescriptDefaults.setCompilerOptions(mergedOptions);
+
+          // Apply to JavaScript as well (for .js/.jsx files)
+          monaco.languages.typescript.javascriptDefaults.setCompilerOptions(mergedOptions);
+
+          console.log('[EditorPanel] ✅ TypeScript configuration applied successfully');
+        } else {
+          console.log('[EditorPanel] No tsconfig.json found, using default Monaco settings');
+
+          // Apply defaults
+          monaco.languages.typescript.typescriptDefaults.setCompilerOptions(defaultOptions);
+          monaco.languages.typescript.javascriptDefaults.setCompilerOptions(defaultOptions);
+        }
+
+        // Enable diagnostics
+        monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
+          noSemanticValidation: false,
+          noSyntaxValidation: false,
+          onlyVisible: false,
+        });
+
+        monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
+          noSemanticValidation: false,
+          noSyntaxValidation: false,
+          onlyVisible: false,
+        });
+      } catch (error) {
+        console.error('[EditorPanel] Error loading TypeScript configuration:', error);
+      }
+    };
+
+    const loadTypeDefinitions = async () => {
+      try {
+        console.log('[EditorPanel] Loading type definitions from node_modules...');
+
+        // Add basic React types inline (fallback if @types/react not available)
+        const basicReactTypes = `
+declare namespace React {
+  type ReactNode = string | number | boolean | null | undefined | ReactElement | ReactFragment;
+  type ReactElement = any;
+  type ReactFragment = any;
+
+  interface FunctionComponent<P = {}> {
+    (props: P): ReactNode;
+  }
+
+  type FC<P = {}> = FunctionComponent<P>;
+
+  function useEffect(effect: () => void | (() => void), deps?: any[]): void;
+  function useState<S>(initialState: S | (() => S)): [S, (newState: S) => void];
+  function useRef<T>(initialValue: T): { current: T };
+  function useCallback<T extends (...args: any[]) => any>(callback: T, deps: any[]): T;
+  function useMemo<T>(factory: () => T, deps: any[]): T;
+}
+
+declare module 'react' {
+  export = React;
+}
+`;
+
+        monaco.languages.typescript.typescriptDefaults.addExtraLib(
+          basicReactTypes,
+          'file:///node_modules/@types/react/index.d.ts'
+        );
+        console.log('[EditorPanel] ✅ Added basic React type definitions');
+
+        // Get list of available type packages
+        const typesResult = await ipcRenderer.invoke('monaco:list-type-definitions', workspace.path);
+
+        if (!typesResult.success || !typesResult.types || typesResult.types.length === 0) {
+          console.log('[EditorPanel] No type definitions found in node_modules/@types (using fallback types)');
+          return;
+        }
+
+        console.log(`[EditorPanel] Found ${typesResult.types.length} type definition packages`);
+
+        // Load common/important type definitions from @types
+        const importantTypes = ['react', 'react-dom', 'node'];
+        const typesToLoad = typesResult.types.filter((t: string) => importantTypes.includes(t));
+
+        console.log(`[EditorPanel] Loading ${typesToLoad.length} @types definitions:`, typesToLoad);
+
+        for (const packageName of typesToLoad) {
+          try {
+            const typeDefResult = await ipcRenderer.invoke('monaco:load-type-definition', workspace.path, packageName);
+
+            if (typeDefResult.success && typeDefResult.content) {
+              // Add type definition to Monaco
+              monaco.languages.typescript.typescriptDefaults.addExtraLib(
+                typeDefResult.content,
+                `file:///node_modules/@types/${packageName}/index.d.ts`
+              );
+              console.log(`[EditorPanel] ✅ Loaded type definitions for @types/${packageName}`);
+            }
+          } catch (err) {
+            console.warn(`[EditorPanel] Failed to load type definitions for ${packageName}:`, err);
+          }
+        }
+
+        // Load package types for frameworks (Next.js, etc.)
+        const frameworkPackages = ['next'];
+        console.log('[EditorPanel] Loading framework type definitions...');
+
+        for (const packageName of frameworkPackages) {
+          try {
+            const packageTypesResult = await ipcRenderer.invoke('monaco:load-package-types', workspace.path, packageName);
+
+            if (packageTypesResult.success && packageTypesResult.content) {
+              monaco.languages.typescript.typescriptDefaults.addExtraLib(
+                packageTypesResult.content,
+                `file:///node_modules/${packageName}/index.d.ts`
+              );
+              console.log(`[EditorPanel] ✅ Loaded type definitions for ${packageName}`);
+            } else {
+              console.log(`[EditorPanel] Package ${packageName} types not available`);
+            }
+          } catch (err) {
+            console.warn(`[EditorPanel] Failed to load package types for ${packageName}:`, err);
+          }
+        }
+
+        console.log('[EditorPanel] ✅ All type definitions loaded successfully');
+      } catch (error) {
+        console.error('[EditorPanel] Error loading type definitions:', error);
+      }
+    };
+
+    loadTsConfig();
+    loadTypeDefinitions();
+  }, [workspace.path]);
+
   // Set active file when selectedFile changes (from sidebar)
   useEffect(() => {
     if (selectedFile && selectedFile !== activeFile) {
@@ -1585,6 +1761,20 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
   // Handle Monaco editor mount
   const handleEditorDidMount = (editor: monaco.editor.IStandaloneCodeEditor) => {
     editorRef.current = editor;
+
+    // Ensure the model has the correct language
+    const model = editor.getModel();
+    if (model && activeFile) {
+      const expectedLanguage = getLanguageFromFilePath(activeFile);
+      const currentLanguage = model.getLanguageId();
+
+      if (currentLanguage !== expectedLanguage) {
+        console.log(`[EditorPanel] Fixing language: ${currentLanguage} -> ${expectedLanguage} for ${activeFile}`);
+        monaco.editor.setModelLanguage(model, expectedLanguage);
+      } else {
+        console.log(`[EditorPanel] Model language correctly set to: ${expectedLanguage} for ${activeFile}`);
+      }
+    }
 
     // Listen for selection changes to show/hide floating actions
     editor.onDidChangeCursorSelection((e) => {

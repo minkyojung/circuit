@@ -1,34 +1,47 @@
 /**
  * AI Rules Section Component
- * Manages project-specific AI coding rules in Settings
+ * Manages project-specific AI coding rules in Settings (Cursor-style)
  */
 
 import React, { useState, useEffect } from 'react';
-import { Plus, GripVertical, Trash2, FileDown, FileUp, Check, X } from 'lucide-react';
+import { FileDown, FileUp, Sparkles } from 'lucide-react';
 import { SettingSection } from './SettingPrimitives';
-import type { AIRule } from '@/types/project';
 import {
   getAIRules,
   addAIRule,
-  updateAIRule,
   deleteAIRule,
-  reorderAIRules,
   importCursorRules,
   exportCursorRules,
-} from '@/services/projectConfigLocal';
-import { cn } from '@/lib/utils';
+} from '@/services/projectConfig';
+
+// Import templates
+import reactTypescriptTemplate from '@/templates/aiRules/react-typescript.json';
+import nextjsTemplate from '@/templates/aiRules/nextjs.json';
+import nodejsApiTemplate from '@/templates/aiRules/nodejs-api.json';
+import pythonFastapiTemplate from '@/templates/aiRules/python-fastapi.json';
+import rustTemplate from '@/templates/aiRules/rust.json';
+import goTemplate from '@/templates/aiRules/go.json';
+import typescriptTemplate from '@/templates/aiRules/typescript.json';
 
 interface AIRulesSectionProps {
   workspacePath: string;
 }
 
+const TEMPLATES = {
+  'react-typescript': reactTypescriptTemplate,
+  'nextjs': nextjsTemplate,
+  'nodejs-api': nodejsApiTemplate,
+  'python-fastapi': pythonFastapiTemplate,
+  'rust': rustTemplate,
+  'go': goTemplate,
+  'typescript': typescriptTemplate,
+};
+
 export const AIRulesSection: React.FC<AIRulesSectionProps> = ({ workspacePath }) => {
-  const [rules, setRules] = useState<AIRule[]>([]);
+  const [rulesText, setRulesText] = useState('');
   const [loading, setLoading] = useState(true);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editContent, setEditContent] = useState('');
-  const [newRuleContent, setNewRuleContent] = useState('');
-  const [showNewRule, setShowNewRule] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState('');
 
   // Use fallback workspace path if not provided
   const effectiveWorkspacePath = workspacePath || 'default-workspace';
@@ -42,7 +55,12 @@ export const AIRulesSection: React.FC<AIRulesSectionProps> = ({ workspacePath })
     setLoading(true);
     try {
       const loadedRules = await getAIRules(effectiveWorkspacePath);
-      setRules(loadedRules);
+      // Convert rules array to text (one rule per line)
+      const text = loadedRules
+        .filter((r) => r.enabled)
+        .map((r) => r.content)
+        .join('\n');
+      setRulesText(text);
     } catch (error) {
       console.error('Failed to load AI rules:', error);
     } finally {
@@ -50,62 +68,56 @@ export const AIRulesSection: React.FC<AIRulesSectionProps> = ({ workspacePath })
     }
   };
 
-  const handleAddRule = async () => {
-    if (!newRuleContent.trim()) return;
-
+  const handleSave = async () => {
+    setSaving(true);
     try {
-      const newRule = await addAIRule(effectiveWorkspacePath, {
-        content: newRuleContent.trim(),
-        enabled: true,
-        category: 'general',
-      });
-
-      if (newRule) {
-        setRules([...rules, newRule]);
-        setNewRuleContent('');
-        setShowNewRule(false);
+      // First, get existing rules to clear them
+      const existingRules = await getAIRules(effectiveWorkspacePath);
+      for (const rule of existingRules) {
+        await deleteAIRule(effectiveWorkspacePath, rule.id);
       }
+
+      // Parse text into individual rules (one per line, skip empty lines)
+      const lines = rulesText
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+
+      // Add new rules
+      for (let i = 0; i < lines.length; i++) {
+        await addAIRule(effectiveWorkspacePath, {
+          content: lines[i],
+          enabled: true,
+          category: 'general',
+        });
+      }
+
+      console.log(`Saved ${lines.length} AI coding rules`);
     } catch (error) {
-      console.error('Failed to add rule:', error);
+      console.error('Failed to save rules:', error);
+      alert('Failed to save rules');
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleUpdateRule = async (ruleId: string) => {
-    if (!editContent.trim()) return;
+  const handleApplyTemplate = async (templateKey: string) => {
+    if (!templateKey) return;
 
-    try {
-      const success = await updateAIRule(effectiveWorkspacePath, ruleId, {
-        content: editContent.trim(),
-      });
+    const template = TEMPLATES[templateKey as keyof typeof TEMPLATES];
+    if (!template) return;
 
-      if (success) {
-        setRules(rules.map((r) => (r.id === ruleId ? { ...r, content: editContent.trim() } : r)));
-        setEditingId(null);
-        setEditContent('');
-      }
-    } catch (error) {
-      console.error('Failed to update rule:', error);
+    // Join template rules with newlines
+    const templateText = template.rules.join('\n');
+
+    // Append to existing rules (or replace if empty)
+    if (rulesText.trim()) {
+      setRulesText(rulesText + '\n' + templateText);
+    } else {
+      setRulesText(templateText);
     }
-  };
 
-  const handleToggleRule = async (ruleId: string, enabled: boolean) => {
-    try {
-      await updateAIRule(effectiveWorkspacePath, ruleId, { enabled });
-      setRules(rules.map((r) => (r.id === ruleId ? { ...r, enabled } : r)));
-    } catch (error) {
-      console.error('Failed to toggle rule:', error);
-    }
-  };
-
-  const handleDeleteRule = async (ruleId: string) => {
-    try {
-      const success = await deleteAIRule(effectiveWorkspacePath, ruleId);
-      if (success) {
-        setRules(rules.filter((r) => r.id !== ruleId));
-      }
-    } catch (error) {
-      console.error('Failed to delete rule:', error);
-    }
+    setSelectedTemplate(''); // Reset dropdown
   };
 
   const handleImportCursorRules = async () => {
@@ -125,6 +137,7 @@ export const AIRulesSection: React.FC<AIRulesSectionProps> = ({ workspacePath })
 
   const handleExportCursorRules = async () => {
     try {
+      await handleSave(); // Save current rules first
       const success = await exportCursorRules(effectiveWorkspacePath);
       if (success) {
         alert('Successfully exported rules to .cursorrules');
@@ -148,141 +161,69 @@ export const AIRulesSection: React.FC<AIRulesSectionProps> = ({ workspacePath })
   return (
     <SettingSection
       title="AI Coding Rules"
-      description="Define how AI should write code for this project (like Cursor's .cursorrules)"
+      description="Define how AI should write code for this project (one rule per line)"
     >
-      {/* Rules List */}
-      <div className="space-y-2">
-        {rules.length === 0 && !showNewRule && (
-          <div className="p-4 border border-dashed border-border rounded-md text-center">
-            <p className="text-sm text-muted-foreground">No coding rules yet</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Add rules to guide AI behavior for this project
-            </p>
-          </div>
-        )}
-
-        {rules.map((rule, index) => (
-          <div
-            key={rule.id}
-            className={cn(
-              'group flex items-start gap-2 p-3 rounded-md border transition-colors',
-              rule.enabled
-                ? 'bg-background border-border'
-                : 'bg-muted/30 border-border/50 opacity-60'
-            )}
+      {/* Template Selection */}
+      <div className="mb-3">
+        <label className="block text-xs font-medium text-foreground mb-1.5">
+          Apply Template
+        </label>
+        <div className="flex gap-2">
+          <select
+            value={selectedTemplate}
+            onChange={(e) => handleApplyTemplate(e.target.value)}
+            className="flex-1 px-3 py-1.5 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary"
           >
-            {/* Drag Handle */}
-            <div className="flex-shrink-0 pt-0.5 cursor-grab opacity-0 group-hover:opacity-100 transition-opacity">
-              <GripVertical size={16} className="text-muted-foreground" />
-            </div>
-
-            {/* Rule Number & Checkbox */}
-            <div className="flex-shrink-0 pt-0.5">
-              <input
-                type="checkbox"
-                checked={rule.enabled}
-                onChange={(e) => handleToggleRule(rule.id, e.target.checked)}
-                className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
-              />
-            </div>
-
-            {/* Rule Content */}
-            <div className="flex-1 min-w-0">
-              {editingId === rule.id ? (
-                <div className="space-y-2">
-                  <textarea
-                    value={editContent}
-                    onChange={(e) => setEditContent(e.target.value)}
-                    className="w-full px-2 py-1.5 text-sm bg-background border border-border rounded-md resize-none focus:outline-none focus:ring-1 focus:ring-primary"
-                    rows={2}
-                    autoFocus
-                  />
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => handleUpdateRule(rule.id)}
-                      className="px-2 py-1 text-xs bg-primary text-primary-foreground rounded hover:bg-primary/90"
-                    >
-                      <Check size={12} />
-                    </button>
-                    <button
-                      onClick={() => {
-                        setEditingId(null);
-                        setEditContent('');
-                      }}
-                      className="px-2 py-1 text-xs bg-muted text-foreground rounded hover:bg-muted/80"
-                    >
-                      <X size={12} />
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <p
-                  className={cn(
-                    'text-sm cursor-pointer',
-                    rule.enabled ? 'text-foreground' : 'text-muted-foreground'
-                  )}
-                  onClick={() => {
-                    setEditingId(rule.id);
-                    setEditContent(rule.content);
-                  }}
-                >
-                  {index + 1}. {rule.content}
-                </p>
-              )}
-            </div>
-
-            {/* Delete Button */}
-            <button
-              onClick={() => handleDeleteRule(rule.id)}
-              className="flex-shrink-0 p-1 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-            >
-              <Trash2 size={14} />
-            </button>
-          </div>
-        ))}
-
-        {/* New Rule Input */}
-        {showNewRule && (
-          <div className="p-3 border border-dashed border-primary/50 rounded-md space-y-2">
-            <textarea
-              value={newRuleContent}
-              onChange={(e) => setNewRuleContent(e.target.value)}
-              placeholder="E.g., Always use TypeScript strict mode"
-              className="w-full px-2 py-1.5 text-sm bg-background border border-border rounded-md resize-none focus:outline-none focus:ring-1 focus:ring-primary"
-              rows={2}
-              autoFocus
-            />
-            <div className="flex gap-1">
-              <button
-                onClick={handleAddRule}
-                className="px-3 py-1.5 text-xs bg-primary text-primary-foreground rounded hover:bg-primary/90 font-medium"
-              >
-                Add Rule
-              </button>
-              <button
-                onClick={() => {
-                  setShowNewRule(false);
-                  setNewRuleContent('');
-                }}
-                className="px-3 py-1.5 text-xs bg-muted text-foreground rounded hover:bg-muted/80"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
+            <option value="">Select a template...</option>
+            <option value="react-typescript">React + TypeScript</option>
+            <option value="nextjs">Next.js</option>
+            <option value="nodejs-api">Node.js API</option>
+            <option value="python-fastapi">Python FastAPI</option>
+            <option value="rust">Rust</option>
+            <option value="go">Go</option>
+            <option value="typescript">TypeScript</option>
+          </select>
+          <button
+            onClick={() => handleApplyTemplate(selectedTemplate)}
+            disabled={!selectedTemplate}
+            className="px-3 py-1.5 text-xs bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+          >
+            <Sparkles size={12} />
+            Apply
+          </button>
+        </div>
       </div>
 
-      {/* Add Rule Button */}
-      {!showNewRule && (
-        <button
-          onClick={() => setShowNewRule(true)}
-          className="mt-3 flex items-center gap-1.5 px-3 py-1.5 text-sm text-primary hover:text-primary/80 hover:bg-primary/5 rounded-md transition-colors"
-        >
-          <Plus size={14} />
-          Add Rule
-        </button>
-      )}
+      {/* Rules Textarea */}
+      <div className="space-y-2">
+        <label className="block text-xs font-medium text-foreground">
+          Coding Rules (one per line)
+        </label>
+        <textarea
+          value={rulesText}
+          onChange={(e) => setRulesText(e.target.value)}
+          placeholder="Always use TypeScript strict mode
+Prefer functional components over class components
+Use named exports instead of default exports
+Extract complex logic into custom hooks
+..."
+          className="w-full px-3 py-2 text-sm bg-background border border-border rounded-md resize-none focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+          rows={12}
+          spellCheck={false}
+        />
+        <p className="text-xs text-muted-foreground">
+          {rulesText.split('\n').filter((line) => line.trim()).length} rules
+        </p>
+      </div>
+
+      {/* Save Button */}
+      <button
+        onClick={handleSave}
+        disabled={saving}
+        className="mt-3 px-4 py-2 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50 font-medium"
+      >
+        {saving ? 'Saving...' : 'Save Rules'}
+      </button>
 
       {/* Import/Export Buttons */}
       <div className="mt-4 pt-4 border-t border-border flex gap-2">
@@ -296,7 +237,7 @@ export const AIRulesSection: React.FC<AIRulesSectionProps> = ({ workspacePath })
         <button
           onClick={handleExportCursorRules}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-muted text-foreground rounded hover:bg-muted/80 transition-colors"
-          disabled={rules.length === 0}
+          disabled={!rulesText.trim()}
         >
           <FileUp size={12} />
           Export to .cursorrules
@@ -307,8 +248,8 @@ export const AIRulesSection: React.FC<AIRulesSectionProps> = ({ workspacePath })
       <div className="mt-4 p-3 bg-muted/30 rounded-md border border-border/50">
         <p className="text-xs text-muted-foreground leading-relaxed">
           <span className="font-medium text-foreground">How it works:</span> These rules are
-          automatically included in AI conversations as system instructions. AI will follow these
-          guidelines when writing code for your project.
+          automatically included in every AI conversation. The AI will follow these guidelines when
+          generating or modifying code for your project.
         </p>
       </div>
     </SettingSection>

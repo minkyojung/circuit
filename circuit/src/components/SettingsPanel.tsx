@@ -214,7 +214,7 @@ const ModelSettings: React.FC<SettingsPanelProps> = ({ settings, updateSettings 
 const AISettings: React.FC<SettingsPanelProps> = ({ settings, updateSettings, workspacePath }) => (
   <>
     {/* AI Coding Rules Section */}
-    {workspacePath && <AIRulesSection workspacePath={workspacePath} />}
+    <AIRulesSection workspacePath={workspacePath || 'default-workspace'} />
 
     <SettingSection
       title="Monaco Editor AI"
