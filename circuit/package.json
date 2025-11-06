@@ -18,6 +18,7 @@
     "test:coverage": "vitest --coverage"
   },
   "dependencies": {
+    "@anthropic-ai/tokenizer": "^0.0.4",
     "@modelcontextprotocol/sdk": "^1.20.1",
     "@monaco-editor/react": "^4.7.0",
     "@radix-ui/react-accordion": "^1.2.12",

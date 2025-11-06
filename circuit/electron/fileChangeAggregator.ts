@@ -30,6 +30,10 @@ export interface FileChange {
   additions: number
   deletions: number
   toolCallId?: string
+  // Diff content for detailed view
+  oldContent?: string
+  newContent?: string
+  diffLines?: Array<{ type: 'add' | 'remove' | 'unchanged'; content: string }>
 }
 
 export class FileChangeAggregator {
@@ -91,6 +95,7 @@ export class FileChangeAggregator {
     const newString = args.new_string || ''
 
     const stats = this.calculateSimpleDiff(oldString, newString)
+    const diffLines = this.generateDiffLines(oldString, newString)
 
     this.changes.set(normalizedPath, {
       filePath: normalizedPath,  // ✅ Store normalized path
@@ -98,6 +103,10 @@ export class FileChangeAggregator {
       additions: stats.additions,
       deletions: stats.deletions,
       toolCallId,
+      // ✅ Store diff content for detailed view
+      oldContent: oldString,
+      newContent: newString,
+      diffLines,
     })
   }
 
@@ -249,6 +258,51 @@ export class FileChangeAggregator {
     }
 
     return files
+  }
+
+  /**
+   * Generate line-by-line diff for detailed view
+   */
+  private generateDiffLines(oldContent: string, newContent: string): Array<{ type: 'add' | 'remove' | 'unchanged'; content: string }> {
+    const oldLines = oldContent.split('\n')
+    const newLines = newContent.split('\n')
+    const diffLines: Array<{ type: 'add' | 'remove' | 'unchanged'; content: string }> = []
+
+    // Simple line-based diff algorithm
+    // For each old line, check if it exists in new lines
+    const oldSet = new Set(oldLines)
+    const newSet = new Set(newLines)
+
+    const processedNew = new Set<number>()
+
+    // First pass: match old lines
+    for (let i = 0; i < oldLines.length; i++) {
+      const oldLine = oldLines[i]
+
+      // Find matching line in new content
+      const newIndex = newLines.findIndex((line, idx) =>
+        line === oldLine && !processedNew.has(idx)
+      )
+
+      if (newIndex !== -1) {
+        // Line unchanged
+        diffLines.push({ type: 'unchanged', content: oldLine })
+        processedNew.add(newIndex)
+      } else {
+        // Line removed
+        diffLines.push({ type: 'remove', content: oldLine })
+      }
+    }
+
+    // Second pass: add new lines
+    for (let i = 0; i < newLines.length; i++) {
+      if (!processedNew.has(i)) {
+        // Insert added line at appropriate position
+        diffLines.push({ type: 'add', content: newLines[i] })
+      }
+    }
+
+    return diffLines
   }
 
   /**

@@ -844,7 +844,7 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
     }
   }, [conversationId, createTodosFromDrafts, todos.length, workspace.id, onConversationChange]);
 
-  // Handle session compact - summarize old messages to reduce token usage
+  // Handle session compact - summarize old messages to reduce token usage (Enhanced)
   const handleSessionCompact = useCallback(async (silent: boolean = false) => {
     if (!conversationId) {
       console.warn('[ChatPanel] No conversation to compact');
@@ -859,16 +859,18 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
     }
 
     try {
-      console.log(`[ChatPanel] Starting ${silent ? 'auto' : 'manual'} session compact...`, messages.length, 'messages');
+      console.log(`[ChatPanel] 🗜️  Starting ${silent ? 'auto' : 'manual'} session compact...`);
+      console.log('[ChatPanel] Messages:', messages.length, '| Strategy: Keep initial 3 + important + recent 10');
 
       // Show loading toast only for manual compact
-      const loadingToast = silent ? null : toast.loading('Compacting session...');
+      const loadingToast = silent ? null : toast.loading('Analyzing and compacting session...');
 
-      // Call IPC handler to generate summary
+      // Call enhanced IPC handler with smart preservation
       const result = await ipcRenderer.invoke('session:compact', {
         sessionId: sessionId,
         messages: messages,
         keepRecentCount: 10,
+        keepInitialCount: 3,  // ✅ NEW: Keep first 3 messages (project context)
       });
 
       if (!result.success) {
@@ -878,58 +880,97 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
         return;
       }
 
-      console.log('[ChatPanel] Compact successful:', {
+      // ✅ Enhanced logging
+      console.log('[ChatPanel] 📊 Compact result:', {
         originalCount: result.originalMessageCount,
+        summarizedCount: result.summarizedMessageCount,
         keptCount: result.keptMessageCount,
+        preservedImportant: result.preservedMessages?.length || 0,
         tokensBefore: result.tokensBeforeEstimate,
         tokensAfter: result.tokensAfterEstimate,
         savings: Math.round((1 - result.tokensAfterEstimate / result.tokensBeforeEstimate) * 100) + '%',
       });
 
-      // Create summary message
+      // ✅ Enhanced summary message with more context
       const timestamp = Date.now();
       const summaryMessage: Message = {
         id: `summary-${timestamp}`,
         conversationId: conversationId,
         role: 'assistant',
-        content: `## Session Summary\n\n${result.summary}\n\n---\n\n*This summary replaces ${result.originalMessageCount} earlier messages to reduce token usage.*${silent ? ' (Auto-compacted)' : ''}`,
+        content: `## 📝 Session Summary\n\n${result.summary}\n\n---\n\n*This summary consolidates **${result.summarizedMessageCount}** messages (out of ${result.originalMessageCount} total). ${result.preservedMessages?.length || 0} important messages preserved separately.*${silent ? ' 🤖 (Auto-compacted)' : ''}`,
         timestamp,
         metadata: {
           isCompactSummary: true,
           originalMessageCount: result.originalMessageCount,
+          summarizedMessageCount: result.summarizedMessageCount,
           tokensBeforeEstimate: result.tokensBeforeEstimate,
           tokensAfterEstimate: result.tokensAfterEstimate,
         },
       };
 
-      // Keep recent messages
-      const recentMessages = messages.slice(-result.keptMessageCount);
+      // ✅ Build messages array from current state
+      // Backend already selected: initial + important + recent
+      // We need to reconstruct this from message IDs
 
-      // Update messages: [summary] + [recent messages]
-      const newMessages = [summaryMessage, ...recentMessages];
+      // Simple approach: Find messages that were kept
+      // Backend returns: keptMessageCount (initial + important + recent count)
+      // We'll reconstruct by taking first 3, last 10, and any in between that match IDs
+
+      const preservedIds = new Set(result.preservedMessages?.map((m: Message) => m.id) || []);
+      const recentMessages = messages.slice(-10);  // Last 10
+      const initialMessages = messages.slice(0, 3);  // First 3
+
+      // Find preserved important messages (not in initial or recent)
+      const preservedImportant = messages.filter(msg =>
+        preservedIds.has(msg.id) &&
+        !initialMessages.some(m => m.id === msg.id) &&
+        !recentMessages.some(m => m.id === msg.id)
+      );
+
+      // Build final message array: [initial] + [summary] + [preserved important] + [recent]
+      const newMessages = [
+        ...initialMessages,
+        summaryMessage,
+        ...preservedImportant,
+        ...recentMessages,
+      ];
+
       setMessages(newMessages);
 
       // Save summary message to database
       await ipcRenderer.invoke('message:create', summaryMessage);
 
-      // Delete old messages from database (keep only summary + recent)
-      const messagesToDelete = messages.slice(0, -result.keptMessageCount);
+      // Delete summarized messages from database
+      // Backend told us which were kept, so delete everything except those + summary
+      const keptIds = new Set([
+        ...initialMessages.map(m => m.id),
+        summaryMessage.id,
+        ...preservedImportant.map(m => m.id),
+        ...recentMessages.map(m => m.id),
+      ]);
+
+      const messagesToDelete = messages.filter(msg => !keptIds.has(msg.id));
+
+      console.log(`[ChatPanel] 🗑️  Deleting ${messagesToDelete.length} summarized messages from DB...`);
+
       for (const msg of messagesToDelete) {
         await ipcRenderer.invoke('message:delete', msg.id);
       }
 
       if (loadingToast) toast.dismiss(loadingToast);
 
-      // Show success toast
+      // ✅ Enhanced success toast with more detail
+      const savedPercentage = Math.round((1 - result.tokensAfterEstimate / result.tokensBeforeEstimate) * 100);
+      const keptTotal = initialMessages.length + 1 + preservedImportant.length + recentMessages.length;
+
       if (!silent) {
         toast.success(
-          `Session compacted: ${result.originalMessageCount} messages → ${result.keptMessageCount + 1} messages (${Math.round((1 - result.tokensAfterEstimate / result.tokensBeforeEstimate) * 100)}% tokens saved)`,
-          { duration: 5000 }
+          `✅ Session compacted: ${result.originalMessageCount} → ${keptTotal} messages (${savedPercentage}% tokens saved)\n${result.summarizedMessageCount} messages summarized, ${preservedImportant.length} important kept`,
+          { duration: 6000 }
         );
       } else {
-        // Silent mode: show subtle notification
         toast.info(
-          `Context auto-compacted (${Math.round((1 - result.tokensAfterEstimate / result.tokensBeforeEstimate) * 100)}% tokens saved)`,
+          `🤖 Auto-compact: ${savedPercentage}% tokens saved`,
           { duration: 3000 }
         );
       }
@@ -941,7 +982,7 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
 
       console.log(`[ChatPanel] ✅ Session compact completed successfully (${silent ? 'auto' : 'manual'})`);
     } catch (error) {
-      console.error('[ChatPanel] Session compact failed:', error);
+      console.error('[ChatPanel] ❌ Session compact failed:', error);
       if (!silent) toast.error('Failed to compact session. Please try again.');
     }
   }, [conversationId, sessionId, messages]);

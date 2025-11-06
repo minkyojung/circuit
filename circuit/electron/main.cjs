@@ -3816,11 +3816,16 @@ Plan Mode ensures structured, thoughtful development. Take your time to plan wel
                     const fileName = input.file_path.split('/').pop();
                     detailedMessage = `Edit ${fileName}`;
                     metadata.filePath = input.file_path;
+                    // ✅ Include full Edit args for diff calculation
+                    metadata.oldString = input.old_string;
+                    metadata.newString = input.new_string;
                   }
                   else if (toolName === 'Write' && input.file_path) {
                     const fileName = input.file_path.split('/').pop();
                     detailedMessage = `Write ${fileName}`;
                     metadata.filePath = input.file_path;
+                    // ✅ Include content for diff calculation
+                    metadata.content = input.content;
                   }
                   else if (toolName === 'Bash' && input.command) {
                     const shortCmd = input.command.length > 40

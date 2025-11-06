@@ -8,6 +8,11 @@ export interface ThinkingStep {
   filePath?: string;
   command?: string;
   pattern?: string;
+  // Edit tool args (for diff calculation)
+  oldString?: string;
+  newString?: string;
+  // Write tool args (for diff calculation)
+  content?: string;
 }
 
 export type StepGroupType = 'thinking' | 'tools' | 'final-thinking';

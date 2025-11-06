@@ -146,6 +146,10 @@ export interface BlockMetadata {
     additions: number
     deletions: number
     toolCallId?: string
+    // Diff content for detailed view
+    oldContent?: string
+    newContent?: string
+    diffLines?: Array<{ type: 'add' | 'remove' | 'unchanged'; content: string }>
   }>
   totalAdditions?: number
   totalDeletions?: number

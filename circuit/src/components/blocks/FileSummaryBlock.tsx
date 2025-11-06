@@ -1,6 +1,7 @@
 /**
  * FileSummaryBlock - Displays a summary of file changes at the end of assistant messages
  * Shows total files changed with additions/deletions statistics
+ * Expandable to show detailed line-by-line diff for each file
  */
 
 import React, { useState } from 'react'
@@ -15,6 +16,7 @@ interface FileSummaryBlockProps {
 
 export const FileSummaryBlock: React.FC<FileSummaryBlockProps> = ({ block, onFileClick }) => {
   const [isExpanded, setIsExpanded] = useState(true)
+  const [expandedFiles, setExpandedFiles] = useState<Set<number>>(new Set())
 
   const files = block.metadata.files || []
   const totalFiles = block.metadata.totalFiles || files.length
@@ -25,6 +27,16 @@ export const FileSummaryBlock: React.FC<FileSummaryBlockProps> = ({ block, onFil
 
   const getFileIcon = (changeType: 'created' | 'modified' | 'deleted') => {
     return <FileCode className="w-4 h-4 flex-shrink-0 text-blue-400" />
+  }
+
+  const toggleFileExpansion = (idx: number) => {
+    const newExpanded = new Set(expandedFiles)
+    if (newExpanded.has(idx)) {
+      newExpanded.delete(idx)
+    } else {
+      newExpanded.add(idx)
+    }
+    setExpandedFiles(newExpanded)
   }
 
   return (
@@ -56,26 +68,74 @@ export const FileSummaryBlock: React.FC<FileSummaryBlockProps> = ({ block, onFil
       {/* File list */}
       {isExpanded && (
         <div className="divide-y divide-border/50">
-          {files.map((file, idx) => (
-            <div
-              key={idx}
-              onClick={() => onFileClick?.(file.filePath)}
-              className="flex items-center justify-between px-3 py-2 hover:bg-accent/20 cursor-pointer group transition-colors"
-            >
-              <div className="flex items-center gap-2 flex-1 min-w-0">
-                {getFileIcon(file.changeType)}
-                <span className="font-mono text-xs truncate text-foreground/90">
-                  {file.filePath}
-                </span>
-              </div>
+          {files.map((file, idx) => {
+            const isFileExpanded = expandedFiles.has(idx)
+            const hasDiffLines = file.diffLines && file.diffLines.length > 0
 
-              <div className="flex items-center gap-2 text-xs font-mono ml-3">
-                <span className="text-green-500">+{file.additions}</span>
-                <span className="text-red-500">-{file.deletions}</span>
-                <Square className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+            return (
+              <div key={idx} className="bg-background/30">
+                {/* File header */}
+                <div
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (hasDiffLines) {
+                      toggleFileExpansion(idx)
+                    } else {
+                      onFileClick?.(file.filePath)
+                    }
+                  }}
+                  className="flex items-center justify-between px-3 py-2 hover:bg-accent/20 cursor-pointer group transition-colors"
+                >
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    {hasDiffLines && (
+                      <ChevronRight
+                        className={cn(
+                          "w-3 h-3 transition-transform text-muted-foreground",
+                          isFileExpanded && "rotate-90"
+                        )}
+                      />
+                    )}
+                    {getFileIcon(file.changeType)}
+                    <span className="font-mono text-xs truncate text-foreground/90">
+                      {file.filePath}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-xs font-mono ml-3">
+                    <span className="text-green-500">+{file.additions}</span>
+                    <span className="text-red-500">-{file.deletions}</span>
+                    <Square className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                </div>
+
+                {/* Detailed diff view */}
+                {isFileExpanded && hasDiffLines && (
+                  <div className="bg-background/70 border-t border-border/30 max-h-96 overflow-y-auto">
+                    <div className="font-mono text-xs">
+                      {file.diffLines.map((line, lineIdx) => (
+                        <div
+                          key={lineIdx}
+                          className={cn(
+                            "px-3 py-0.5 leading-relaxed",
+                            line.type === 'add' && "bg-green-500/10 text-green-400",
+                            line.type === 'remove' && "bg-red-500/10 text-red-400",
+                            line.type === 'unchanged' && "text-muted-foreground/70"
+                          )}
+                        >
+                          <span className="select-none mr-2 inline-block w-4">
+                            {line.type === 'add' && '+'}
+                            {line.type === 'remove' && '-'}
+                            {line.type === 'unchanged' && ' '}
+                          </span>
+                          <span>{line.content || ' '}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
