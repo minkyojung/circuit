@@ -5,6 +5,7 @@ import type { Message } from '@/types/conversation';
 import Editor, { loader } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
 import { ChevronDown } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -21,24 +22,26 @@ import { summarizeToolUsage } from '@/lib/thinkingUtils';
 import { motion, AnimatePresence } from 'motion/react';
 import { TodoProvider, useTodos } from '@/contexts/TodoContext';
 import { useAgent } from '@/contexts/AgentContext';
+import { useSettingsContext } from '@/contexts/SettingsContext';
+import { useIPCEvents } from '@/hooks/useIPCEvents';
+import type { IPCEventCallbacks } from '@/services/IPCEventBridge';
 import { TodoConfirmationDialog } from '@/components/todo';
+import { useLanguageService } from '@/hooks/useLanguageService';
+import { useClaudeMetrics } from '@/hooks/useClaudeMetrics';
 import { MessageComponent } from './MessageComponent';
 import { ChatEmptyState } from './ChatEmptyState';
 import { MarkdownPreview } from './MarkdownPreview';
 import { FloatingCodeActions } from './FloatingCodeActions';
-import {
-  extractTodoWriteFromBlocks,
-  extractPlanFromText,
-  convertClaudeTodosToDrafts,
-  calculateOverallComplexity,
-  calculateTotalTime
-} from '@/lib/planModeUtils';
+import { ConversationTabsOnly } from './ConversationTabsOnly';
+import { FileTabsOnly } from './FileTabsOnly';
 import type { TodoGenerationResult, TodoDraft, ExecutionMode } from '@/types/todo';
 import { FEATURES } from '@/config/features';
 import { getLanguageFromFilePath } from '@/lib/fileUtils';
 import { cn } from '@/lib/utils';
+import { getAIRulesContext } from '@/services/projectConfigLocal';
 
 // Configure Monaco Editor to use local files instead of CDN
+// The vite-plugin-monaco-editor plugin handles web worker configuration automatically
 loader.config({ monaco });
 
 // @ts-ignore - Electron IPC
@@ -71,6 +74,14 @@ interface WorkspaceChatEditorProps {
     lineStart: number
     lineEnd: number
   } | null;
+
+  // Active file path for editor tabs
+  activeFilePath?: string | null;
+  onFileChange?: (filePath: string) => void;
+  onCloseFile?: (filePath: string) => void;
+
+  // Unsaved files state
+  unsavedFiles?: Set<string>;
 }
 
 type ViewMode = 'chat' | 'editor' | 'split';
@@ -87,9 +98,14 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
   openFiles: externalOpenFiles = [],
   onUnsavedChange,
   onFileReferenceClick,
-  fileCursorPosition
+  fileCursorPosition,
+  activeFilePath,
+  onFileChange,
+  onCloseFile,
+  unsavedFiles = new Set()
 }) => {
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const { settings } = useSettingsContext();
 
   // Use external viewMode if provided, otherwise use local state
   const viewMode = externalViewMode || 'chat';
@@ -125,8 +141,16 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
     lineEnd: number
   }) => {
     console.log('[WorkspaceChatEditor] Code selection action:', action.type);
+
+    // Auto-convert to split view if currently in editor-only mode
+    if (viewMode === 'editor' && onViewModeChange) {
+      console.log('[WorkspaceChatEditor] Auto-converting from editor to split view');
+      onViewModeChange('split');
+    }
+
+    // Store action for ChatPanel to handle
     setCodeSelectionAction(action);
-  }, []);
+  }, [viewMode, onViewModeChange]);
 
   // Start Claude session when workspace changes
   useEffect(() => {
@@ -182,6 +206,7 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
         <div className="h-full">
           <EditorPanel
             workspace={workspace}
+            sessionId={sessionId}
             openFiles={openFiles}
             selectedFile={selectedFile}
             onCloseFile={handleCloseFile}
@@ -193,33 +218,61 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
       )}
 
       {viewMode === 'split' && (
-        /* Split View - Chat and Editor side by side */
+        /* Split View - Chat and Editor side by side with independent tabs */
         <ResizablePanelGroup direction="horizontal" className="h-full">
           <ResizablePanel defaultSize={50} minSize={30}>
-            <ChatPanel
-              workspace={workspace}
-              sessionId={sessionId}
-              onFileEdit={handleFileEdit}
-              prefillMessage={prefillMessage}
-              externalConversationId={externalConversationId}
-              onPrefillCleared={onPrefillCleared}
-              onConversationChange={onConversationChange}
-              onFileReferenceClick={onFileReferenceClick}
-              codeSelectionAction={codeSelectionAction}
-              onCodeSelectionHandled={() => setCodeSelectionAction(null)}
-            />
+            <div className="h-full flex flex-col">
+              {/* Conversation Tabs for ChatPanel */}
+              <ConversationTabsOnly
+                workspaceId={workspace.id}
+                workspaceName={workspace.name}
+                activeConversationId={externalConversationId}
+                onConversationChange={onConversationChange || (() => {})}
+              />
+              {/* Chat Content */}
+              <div className="flex-1 min-h-0">
+                <ChatPanel
+                  workspace={workspace}
+                  sessionId={sessionId}
+                  onFileEdit={handleFileEdit}
+                  prefillMessage={prefillMessage}
+                  externalConversationId={externalConversationId}
+                  onPrefillCleared={onPrefillCleared}
+                  onConversationChange={onConversationChange}
+                  onFileReferenceClick={onFileReferenceClick}
+                  codeSelectionAction={codeSelectionAction}
+                  onCodeSelectionHandled={() => setCodeSelectionAction(null)}
+                />
+              </div>
+            </div>
           </ResizablePanel>
           <ResizableHandle />
           <ResizablePanel defaultSize={50} minSize={30}>
-            <EditorPanel
-              workspace={workspace}
-              openFiles={openFiles}
-              selectedFile={selectedFile}
-              onCloseFile={handleCloseFile}
-              onUnsavedChange={onUnsavedChange}
-              fileCursorPosition={fileCursorPosition}
-              onCodeSelectionAction={handleCodeSelectionAction}
-            />
+            <div className="h-full flex flex-col">
+              {/* File Tabs for EditorPanel */}
+              <FileTabsOnly
+                openFiles={openFiles.map(path => ({
+                  path,
+                  unsavedChanges: unsavedFiles.has(path)
+                }))}
+                activeFilePath={activeFilePath || selectedFile}
+                onFileChange={onFileChange || (() => {})}
+                onCloseFile={onCloseFile || handleCloseFile}
+              />
+              {/* Editor Content */}
+              <div className="flex-1 min-h-0">
+                <EditorPanel
+                  workspace={workspace}
+                  sessionId={sessionId}
+                  openFiles={openFiles}
+                  selectedFile={activeFilePath || selectedFile}
+                  onCloseFile={onCloseFile || handleCloseFile}
+                  onUnsavedChange={onUnsavedChange}
+                  fileCursorPosition={fileCursorPosition}
+                  onCodeSelectionAction={handleCodeSelectionAction}
+                />
+              </div>
+            </div>
           </ResizablePanel>
         </ResizablePanelGroup>
       )}
@@ -278,6 +331,10 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
 
   // Agent context
   const { startAgent, agents: agentStatesByTodoId } = useAgent();
+
+  // Metrics for auto-compact
+  const { metrics } = useClaudeMetrics();
+  const [lastAutoCompactTime, setLastAutoCompactTime] = useState<number>(0);
 
   // Simply pass through agentStatesByTodoId as it's already todoId-based
   // MessageComponent will use todoId from metadata to look up the state
@@ -371,6 +428,13 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   // Load conversation when workspace or externalConversationId changes
   useEffect(() => {
     const loadConversation = async () => {
+      // Early return: Skip if we're already on the correct conversation
+      // Use ref to avoid circular dependency in useEffect
+      if (externalConversationId && conversationIdRef.current === externalConversationId) {
+        console.log('[ChatPanel] Already loaded conversation:', externalConversationId, '- skipping reload');
+        return;
+      }
+
       setIsLoadingConversation(true);
 
       try {
@@ -399,8 +463,9 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
         console.log('[ChatPanel] Loaded conversation:', conversation.id);
         setConversationId(conversation.id);
 
-        // Notify parent about conversation change
-        if (onConversationChange && conversation.id !== externalConversationId) {
+        // Notify parent about conversation change ONLY if we created/found a new one
+        // (i.e., when externalConversationId was not provided)
+        if (onConversationChange && !externalConversationId) {
           onConversationChange(conversation.id);
         }
 
@@ -440,7 +505,7 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
     };
 
     loadConversation();
-  }, [workspace.id, externalConversationId]);
+  }, [workspace.id, externalConversationId]);  // conversationId removed to prevent circular dependency
 
   // Sync refs with latest state (to avoid stale closures)
   useEffect(() => {
@@ -480,51 +545,13 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   }, [prefillMessage, onPrefillCleared]);
 
   // Notify parent when conversationId changes
+  // Note: onConversationChange is intentionally NOT in deps to avoid infinite loop
+  // (it's an inline function in App.tsx that gets recreated on every render)
   useEffect(() => {
     onConversationChange?.(conversationId);
-  }, [conversationId, onConversationChange]);
+  }, [conversationId]);
 
-  const parseFileChanges = useCallback((response: string): string[] => {
-    const files: string[] = [];
-
-    // Pattern 1: <file_path>path/to/file.ts</file_path>
-    const filePathMatches = response.matchAll(/<file_path>(.*?)<\/file_path>/g);
-    for (const match of filePathMatches) {
-      files.push(match[1]);
-    }
-
-    // Pattern 2: "I'll edit src/App.tsx" or "수정했습니다" with README.md
-    const editMentions = response.matchAll(/(?:edit|modify|update|create|추가|수정|변경|생성)(?:했습니다)?[^.]*?([a-zA-Z0-9_\-/.]+\.[a-z]+)/gi);
-    for (const match of editMentions) {
-      const filePath = match[1];
-      if (!files.includes(filePath)) {
-        files.push(filePath);
-      }
-    }
-
-    // Pattern 3: File paths mentioned anywhere (e.g., README.md, src/App.tsx)
-    const filePathPattern = /\b([a-zA-Z0-9_\-]+(?:\/[a-zA-Z0-9_\-]+)*\.[a-z]+)\b/gi;
-    const allFileMatches = response.matchAll(filePathPattern);
-    for (const match of allFileMatches) {
-      const filePath = match[1];
-      // Only include if it looks like a real file (not just any word.extension)
-      if (!files.includes(filePath) && (filePath.includes('/') || filePath.toUpperCase() === filePath || filePath.includes('README'))) {
-        files.push(filePath);
-      }
-    }
-
-    // Pattern 4: Code blocks with file paths
-    const codeBlockMatches = response.matchAll(/```[a-z]*\s*(?:\/\/|#)?\s*([a-zA-Z0-9_\-/.]+\.[a-z]+)/gi);
-    for (const match of codeBlockMatches) {
-      const filePath = match[1];
-      if (!files.includes(filePath)) {
-        files.push(filePath);
-      }
-    }
-
-    console.log('[parseFileChanges] Detected files:', files);
-    return files;
-  }, []);
+  // parseFileChanges removed - now handled by FileChangeDetector service
 
   // Scroll handlers
   const handleScroll = useCallback(() => {
@@ -639,869 +666,67 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
     }
   }, [messages.length, handleScroll]);
 
-  // IPC Event Handlers (using useCallback to avoid stale closures)
-  const handleThinkingStart = useCallback((_event: any, eventSessionId: string, _timestamp: number) => {
-      console.log('[WorkspaceChat] 🎬 handleThinkingStart called, isMounted:', isMountedRef.current, 'eventSessionId:', eventSessionId);
 
-      if (!isMountedRef.current) {
-        console.log('[WorkspaceChat] ⚠️  Component unmounted, ignoring event');
-        return;
-      }
-
-      // Filter: only handle events for THIS component's session
-      const currentSessionId = sessionIdRef.current;
-      console.log('[WorkspaceChat] 🔍 Session check - current:', currentSessionId, 'event:', eventSessionId);
-
-      if (!currentSessionId || eventSessionId !== currentSessionId) {
-        console.log('[WorkspaceChat] ⏭️  Ignoring thinking-start for different session:', eventSessionId, '(current:', currentSessionId, ')');
-        return;
-      }
-
-      console.log('[WorkspaceChat] 🧠 Thinking started:', eventSessionId);
-
-      // Initialize refs and clear history
-      thinkingStartTimeRef.current = Date.now();
-      currentStepMessageRef.current = 'Starting analysis';
-      setThinkingSteps([]); // Clear previous history
-      setCurrentDuration(0); // Reset duration timer
-
-      // Create empty assistant message immediately for real-time streaming
-      const pending = pendingUserMessageRef.current;
-      const currentConversationId = conversationIdRef.current;
-      if (pending && currentConversationId) {
-        const assistantMessageId = `msg-${Date.now()}`;
-        const emptyAssistantMessage: Message = {
-          id: assistantMessageId,
-          conversationId: currentConversationId,
-          role: 'assistant',
-          content: '', // Will be filled in by response-complete
-          timestamp: Date.now(),
-          blocks: [], // Will be populated with tool blocks in real-time
-          metadata: {}
-        };
-
-        // Add to messages state immediately
-        setMessages((prev) => {
-          console.log('[ChatPanel] 🤖 Adding assistant message:', {
-            messageId: assistantMessageId,
-            prevLength: prev.length,
-            newLength: prev.length + 1,
-            timestamp: Date.now()
-          });
-          return [...prev, emptyAssistantMessage];
-        });
-        setPendingAssistantMessageId(assistantMessageId);
-
-        // Auto-open reasoning dropdown for real-time visibility
-        setOpenReasoningId(assistantMessageId);
-
-        // Initialize messageThinkingSteps for this message so accordion displays immediately
-        setMessageThinkingSteps((prevSteps) => ({
-          ...prevSteps,
-          [assistantMessageId]: {
-            steps: [],
-            duration: 0
-          }
-        }));
-
-        console.log('[WorkspaceChat] ✅ Empty assistant message created:', assistantMessageId);
-      }
-
-      // Client-side timer: Update every 1s for duration display
-      thinkingTimerRef.current = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - thinkingStartTimeRef.current) / 1000);
-        setCurrentDuration(elapsed);
-        console.log(`[WorkspaceChat] ⏱️  Timer tick: ${elapsed}s`);
-      }, 1000);
-
-      console.log('[WorkspaceChat] ✅ Timer started');
-  }, []);
-
-  const handleMilestone = useCallback((_event: any, eventSessionId: string, milestone: any) => {
-      if (!isMountedRef.current) return; // Prevent setState on unmounted component
-
-      // Filter: only handle events for THIS component's session
-      const currentSessionId = sessionIdRef.current;
-      if (!currentSessionId || eventSessionId !== currentSessionId) {
-        return; // Silently ignore events for other sessions
-      }
-
-      console.log('[WorkspaceChat] 📍 Milestone:', milestone);
-
-      // Update ref for timer display
-      currentStepMessageRef.current = milestone.message;
-
-      // Add to history array
-      const newStep = {
-        type: milestone.type,
-        message: milestone.message,
-        timestamp: milestone.timestamp || Date.now(),
-        tool: milestone.tool,
-        filePath: milestone.filePath,
-        command: milestone.command,
-        pattern: milestone.pattern
-      };
-
-      setThinkingSteps(prev => {
-        const updatedSteps = [...prev, newStep];
-
-        // Update messageThinkingSteps in real-time for the pending assistant message
-        const currentPendingId = pendingAssistantMessageIdRef.current;
-        if (currentPendingId) {
-          const duration = thinkingStartTimeRef.current > 0
-            ? Math.round((Date.now() - thinkingStartTimeRef.current) / 1000)
-            : 0;
-
-          setMessageThinkingSteps((prevSteps) => ({
-            ...prevSteps,
-            [currentPendingId]: {
-              steps: updatedSteps,
-              duration
-            }
-          }));
-        }
-
-        return updatedSteps;
-      });
-
-      // Note: Tool blocks are NOT added to msg.blocks
-      // They are only stored in messageThinkingSteps and displayed in ReasoningAccordion
-      // This prevents duplicate rendering (ReasoningAccordion + BlockRenderer)
-      if (milestone.type === 'tool-use' && milestone.tool) {
-        console.log('[WorkspaceChat] 📝 Tool step recorded in ReasoningAccordion only:', milestone.tool);
-      }
-  }, []);
-
-  const handleThinkingComplete = useCallback((_event: any, eventSessionId: string, stats: any) => {
-      if (!isMountedRef.current) return; // Prevent setState on unmounted component
-
-      // Filter: only handle events for THIS component's session
-      const currentSessionId = sessionIdRef.current;
-      if (!currentSessionId || eventSessionId !== currentSessionId) {
-        return; // Silently ignore events for other sessions
-      }
-      console.log('[WorkspaceChat] ✅ Thinking complete:', stats);
-
-      // Note: No need to update tool blocks since they're not in msg.blocks anymore
-      // Tool execution status is shown in ReasoningAccordion via messageThinkingSteps
-
-      // Stop timer and reset currentDuration
-      if (thinkingTimerRef.current) {
-        clearInterval(thinkingTimerRef.current);
-        thinkingTimerRef.current = null;
-        setCurrentDuration(0);
-        console.log('[WorkspaceChat] 🛑 Timer stopped');
-      }
-  }, []);
-
-  const handleResponseComplete = useCallback(async (_event: any, result: any) => {
-      if (!isMountedRef.current) return; // Prevent setState on unmounted component
-
-      // Filter: only handle events for THIS component's session
-      const currentSessionId = sessionIdRef.current;
-      if (!currentSessionId || result.sessionId !== currentSessionId) {
-        console.log('[WorkspaceChat] ⏭️  Ignoring response-complete for different session:', result.sessionId, '(current:', currentSessionId, ')');
-        return;
-      }
-
-      console.log('[WorkspaceChat] Response complete:', result);
-
-      const pending = pendingUserMessageRef.current;
-      if (!result.success || !pending) {
-        setIsSending(false);
-        return;
-      }
-
-      // Calculate thinking duration
-      const duration = thinkingStartTimeRef.current > 0
-        ? Math.round((Date.now() - thinkingStartTimeRef.current) / 1000)
-        : 0;
-
-      // Get existing assistant message ID (created in handleThinkingStart)
-      let assistantMessageId = pendingAssistantMessageId;
-      const currentThinkingSteps = thinkingStepsRef.current;
-
-      if (assistantMessageId) {
-        // Update existing assistant message with content
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === assistantMessageId
-              ? {
-                  ...msg,
-                  content: result.message,
-                  metadata: {
-                    thinkingSteps: currentThinkingSteps,
-                    thinkingDuration: duration
-                  }
-                }
-              : msg
-          )
-        );
-
-        // Create complete message object for saving
-        // Note: No tool blocks in message body - they're only in ReasoningAccordion
-        const assistantMessage: Message = {
-          id: assistantMessageId,
-          conversationId: pending.conversationId,
-          role: 'assistant',
-          content: result.message,
-          timestamp: Date.now(),
-          metadata: {
-            thinkingSteps: currentThinkingSteps,
-            thinkingDuration: duration
-          }
-        };
-
-        // Save thinking steps to memory
-        setMessageThinkingSteps((prev) => ({
-          ...prev,
-          [assistantMessageId!]: {
-            steps: [...currentThinkingSteps],
-            duration
-          }
-        }));
-
-        // Save assistant message to database (with thinking steps in metadata)
-        const saveResult = await ipcRenderer.invoke('message:save', assistantMessage);
-        if (saveResult.success && saveResult.blocks) {
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === assistantMessageId ? { ...msg, blocks: saveResult.blocks } : msg
-            )
-          );
-
-          // Plan Mode: Check if Claude output a plan in JSON format
-          console.log('[WorkspaceChat] 📋 Checking for plan in blocks:', saveResult.blocks?.length || 0, 'blocks');
-          let todoWriteData = extractTodoWriteFromBlocks(saveResult.blocks);
-          console.log('[WorkspaceChat] 📋 Plan from blocks:', todoWriteData ? `Found ${todoWriteData.todos.length} todos` : 'Not found');
-
-          // Fallback: Try parsing from message content if blocks parsing failed
-          if (!todoWriteData && result.message) {
-            console.log('[WorkspaceChat] 📋 Plan mode: Trying to extract plan from message content');
-            console.log('[WorkspaceChat] 📋 Message content length:', result.message.length);
-            todoWriteData = extractPlanFromText(result.message);
-            console.log('[WorkspaceChat] 📋 Plan from text:', todoWriteData ? `Found ${todoWriteData.todos.length} todos` : 'Not found');
-          }
-
-          // Plan Mode validation: If in Plan Mode but no plan found, retry once
-          // Only execute if PLAN_MODE feature is enabled
-          const isPlanMode = currentThinkingModeRef.current === 'plan';
-          if (FEATURES.PLAN_MODE && isPlanMode && (!todoWriteData || todoWriteData.todos.length === 0)) {
-            console.warn('[WorkspaceChat] ⚠️ Plan Mode active but no plan found in response');
-
-            // Check if this is already a retry (prevent infinite loop)
-            const isRetry = assistantMessage.metadata?.planRetryAttempt || 0;
-
-            if (isRetry === 0) {
-              console.log('[WorkspaceChat] 🔄 Automatically requesting plan from Claude (retry 1/1)');
-
-              // Update assistant message to show we're requesting a plan
-              setMessages((prev) =>
-                prev.map((msg) =>
-                  msg.id === assistantMessageId
-                    ? {
-                        ...msg,
-                        metadata: {
-                          ...msg.metadata,
-                          planRetryAttempt: 1
-                        }
-                      }
-                    : msg
-                )
-              );
-
-              // Send automatic follow-up request for plan
-              const retryPrompt = `You are in PLAN MODE. You must create a detailed plan in JSON format before proceeding.
-
-Please create a plan with the following structure:
-\`\`\`json
-{
-  "todos": [
-    {
-      "content": "Task description",
-      "activeForm": "Doing task description",
-      "status": "pending",
-      "complexity": "trivial" | "simple" | "moderate" | "complex" | "very_complex",
-      "priority": "low" | "medium" | "high" | "critical",
-      "estimatedDuration": 30,
-      "order": 0,
-      "depth": 0
-    }
-  ]
-}
-\`\`\`
-
-Wrap the JSON in triple backticks with 'json' language marker. This is REQUIRED.`;
-
-              // Send retry message
-              setTimeout(() => {
-                ipcRenderer.send('claude:send-message', sessionId, retryPrompt, [], 'plan');
-              }, 1000);
-
-              return; // Exit early, wait for retry response
-            } else {
-              console.error('[WorkspaceChat] ❌ Plan Mode retry failed - Claude did not provide a plan after 2 attempts');
-
-              // Show error to user
-              setMessages((prev) =>
-                prev.map((msg) =>
-                  msg.id === assistantMessageId
-                    ? {
-                        ...msg,
-                        content: msg.content + '\n\n⚠️ **Plan Mode Error**: Claude did not provide a plan in the required JSON format. Please try again or switch to Normal mode.',
-                        metadata: {
-                          ...msg.metadata,
-                          planGenerationFailed: true
-                        }
-                      }
-                    : msg
-                )
-              );
-
-              // Still save the message
-              await ipcRenderer.invoke('message:save', {
-                ...assistantMessage,
-                content: result.message + '\n\n⚠️ **Plan Mode Error**: Claude did not provide a plan in the required JSON format.',
-                metadata: {
-                  ...assistantMessage.metadata,
-                  planGenerationFailed: true
-                }
-              });
-            }
-          } else if (FEATURES.PLAN_MODE && todoWriteData && todoWriteData.todos.length > 0) {
-            console.log('[WorkspaceChat] 📋 TodoWrite detected, checking thinking mode');
-            console.log('[WorkspaceChat] 📋 Current thinking mode:', currentThinkingModeRef.current);
-
-            // Convert Claude's todos to Circuit format
-            const todoDrafts = convertClaudeTodosToDrafts(todoWriteData.todos);
-
-            // Create TodoGenerationResult
-            const todoResult: TodoGenerationResult = {
-              todos: todoDrafts,
-              complexity: calculateOverallComplexity(todoDrafts),
-              estimatedTotalTime: calculateTotalTime(todoDrafts),
-              confidence: 0.95,
-              reasoning: currentThinkingModeRef.current === 'plan'
-                ? 'Claude analyzed codebase and created detailed plan in Plan Mode'
-                : 'Claude automatically created task breakdown while working'
-            };
-
-            // Determine where to display based on thinking mode
-            const isPlanMode = currentThinkingModeRef.current === 'plan';
-
-            if (isPlanMode) {
-              // Plan Mode: Display in right sidebar (persistent)
-              console.log('[WorkspaceChat] 📋 Plan Mode: Adding to sidebar');
-
-              setMessages((prev) =>
-                prev.map((msg) =>
-                  msg.id === assistantMessageId
-                    ? {
-                        ...msg,
-                        metadata: {
-                          ...msg.metadata,
-                          planResult: todoResult,
-                          hasPendingPlan: true
-                        }
-                      }
-                    : msg
-                )
-              );
-
-              const updatedMessage = {
-                ...assistantMessage,
-                metadata: {
-                  ...assistantMessage.metadata,
-                  planResult: todoResult,
-                  hasPendingPlan: true
-                }
-              };
-
-              console.log('[WorkspaceChat] 💾 Saving plan to sidebar');
-              await ipcRenderer.invoke('message:save', updatedMessage);
-
-              // Sync TodoWrite status updates to database
-              console.log('[WorkspaceChat] 🔄 Syncing TodoWrite status to database');
-              try {
-                // Read current todos.json file to compare status
-                const todosFileResult = await ipcRenderer.invoke('workspace:read-file',
-                  workspacePathRef.current,
-                  '.circuit/todos.json'
-                );
-
-                if (todosFileResult.success && todosFileResult.content) {
-                  const todosData = JSON.parse(todosFileResult.content);
-
-                  // Update each todo in database based on TodoWrite data
-                  for (let i = 0; i < todoWriteData.todos.length && i < todosData.todos.length; i++) {
-                    const claudeTodo = todoWriteData.todos[i];
-                    const dbTodo = todosData.todos[i];
-
-                    // Update status if different
-                    if (claudeTodo.status && claudeTodo.status !== dbTodo.status) {
-                      console.log(`[WorkspaceChat] 🔄 Updating todo ${dbTodo.id}: ${dbTodo.status} → ${claudeTodo.status}`);
-
-                      const updateData: any = {
-                        todoId: dbTodo.id,
-                        status: claudeTodo.status,
-                      };
-
-                      // Add timing data
-                      if (claudeTodo.status === 'completed') {
-                        updateData.completedAt = Date.now();
-                      } else if (claudeTodo.status === 'in_progress' && !dbTodo.startedAt) {
-                        updateData.startedAt = Date.now();
-                      }
-
-                      await ipcRenderer.invoke('todos:update-status', updateData);
-
-                      // Update local todos.json file
-                      todosData.todos[i].status = claudeTodo.status;
-                      if (claudeTodo.status === 'completed' && !todosData.todos[i].completedAt) {
-                        todosData.todos[i].completedAt = Date.now();
-                      } else if (claudeTodo.status === 'in_progress' && !todosData.todos[i].startedAt) {
-                        todosData.todos[i].startedAt = Date.now();
-                      }
-                    }
-                  }
-
-                  // Write updated todos back to file
-                  await ipcRenderer.invoke('workspace:write-file',
-                    workspacePathRef.current,
-                    '.circuit/todos.json',
-                    JSON.stringify(todosData, null, 2)
-                  );
-
-                  console.log('[WorkspaceChat] ✅ Todo status sync complete');
-                }
-              } catch (error) {
-                console.error('[WorkspaceChat] ❌ Failed to sync todo status:', error);
-              }
-            } else {
-              // Normal/Think Mode: Display inline in chat (temporary)
-              console.log('[WorkspaceChat] 📋 TodoWrite Mode: Adding inline to chat');
-
-              setMessages((prev) =>
-                prev.map((msg) =>
-                  msg.id === assistantMessageId
-                    ? {
-                        ...msg,
-                        metadata: {
-                          ...msg.metadata,
-                          todoWriteResult: todoResult
-                        }
-                      }
-                    : msg
-                )
-              );
-
-              const updatedMessage = {
-                ...assistantMessage,
-                metadata: {
-                  ...assistantMessage.metadata,
-                  todoWriteResult: todoResult
-                }
-              };
-
-              console.log('[WorkspaceChat] 💾 Saving TodoWrite inline');
-              await ipcRenderer.invoke('message:save', updatedMessage);
-            }
-          } else if (todoWriteData && todoWriteData.todos.length > 0) {
-            // TodoWrite detected but not a new plan - this is a status update
-            console.log('[WorkspaceChat] 🔄 TodoWrite detected: Syncing status updates to database');
-
-            try {
-              // Read current todos.json file
-              const todosFileResult = await ipcRenderer.invoke('workspace:read-file',
-                workspacePathRef.current,
-                '.circuit/todos.json'
-              );
-
-              if (todosFileResult.success && todosFileResult.content) {
-                const todosData = JSON.parse(todosFileResult.content);
-
-                // Update each todo in database based on TodoWrite data
-                for (let i = 0; i < todoWriteData.todos.length && i < todosData.todos.length; i++) {
-                  const claudeTodo = todoWriteData.todos[i];
-                  const dbTodo = todosData.todos[i];
-
-                  // Update status if changed
-                  if (claudeTodo.status && claudeTodo.status !== dbTodo.status) {
-                    console.log(`[WorkspaceChat] 🔄 Updating todo ${dbTodo.id}: ${dbTodo.status} → ${claudeTodo.status}`);
-
-                    const updateData: any = {
-                      todoId: dbTodo.id,
-                      status: claudeTodo.status,
-                    };
-
-                    // Add timing data
-                    if (claudeTodo.status === 'completed') {
-                      updateData.completedAt = Date.now();
-                    }
-
-                    await ipcRenderer.invoke('todos:update-status', updateData);
-
-                    // Update local todos.json file
-                    todosData.todos[i].status = claudeTodo.status;
-                  }
-                }
-
-                // Write updated todos back to file
-                await ipcRenderer.invoke('workspace:write-file',
-                  workspacePathRef.current,
-                  '.circuit/todos.json',
-                  JSON.stringify(todosData, null, 2)
-                );
-
-                console.log('[WorkspaceChat] ✅ Todo status sync complete');
-
-                // Note: No need to call onPlanAdded here
-                // TodoPanel auto-refresh will detect DB changes automatically
-              }
-            } catch (error) {
-              console.error('[WorkspaceChat] ❌ Error syncing todo status:', error);
-            }
-          }
-        }
-
-        console.log('[WorkspaceChat] ✅ Assistant message updated with content and blocks');
-      } else {
-        // Fallback: Create new message (shouldn't happen in normal flow)
-        console.warn('[WorkspaceChat] ⚠️ No pending assistant message ID, creating new message');
-
-        const newAssistantMessage: Message = {
-          id: `msg-${Date.now()}`,
-          conversationId: pending.conversationId,
-          role: 'assistant',
-          content: result.message,
-          timestamp: Date.now(),
-          metadata: {
-            thinkingSteps: currentThinkingSteps,
-            thinkingDuration: duration
-          }
-        };
-
-        // Set assistantMessageId for auto-open reasoning
-        assistantMessageId = newAssistantMessage.id;
-
-        setMessages((prev) => [...prev, newAssistantMessage]);
-
-        // Save thinking steps to memory
-        setMessageThinkingSteps((prev) => ({
-          ...prev,
-          [newAssistantMessage.id]: {
-            steps: [...currentThinkingSteps],
-            duration
-          }
-        }));
-
-        // Save assistant message to database
-        const saveResult = await ipcRenderer.invoke('message:save', newAssistantMessage);
-        if (saveResult.success && saveResult.blocks) {
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === newAssistantMessage.id ? { ...msg, blocks: saveResult.blocks } : msg
-            )
-          );
-        }
-      }
-
-      // Auto-open reasoning for completed message if it has thinking steps
-      // Use setTimeout to ensure messageThinkingSteps has been updated in the next render
-      const hasThinkingSteps = currentThinkingSteps.length > 0;
-      if (assistantMessageId && hasThinkingSteps) {
-        setTimeout(() => {
-          setOpenReasoningId(assistantMessageId);
-          console.log('[WorkspaceChat] ✅ Auto-opened reasoning for completed message');
-        }, 100);
-      }
-
-      // Clear thinking steps for next message
-      setThinkingSteps([]);
-
-      // Parse and detect file changes
-      const editedFiles = parseFileChanges(result.message);
-      console.log('[WorkspaceChat] Detected file changes:', editedFiles);
-
-      editedFiles.forEach((file) => {
-        onFileEdit(file);
-      });
-
-      pendingUserMessageRef.current = null;
-      setPendingAssistantMessageId(null); // Clear pending message ID
-      setIsSending(false);
-  }, [parseFileChanges, onFileEdit]);
-
-  const handleResponseError = useCallback(async (_event: any, error: any) => {
-      if (!isMountedRef.current) return; // Prevent setState on unmounted component
-
-      // Filter: only handle events for THIS component's session
-      const currentSessionId = sessionIdRef.current;
-      if (error.sessionId && currentSessionId && error.sessionId !== currentSessionId) {
-        return; // Silently ignore errors for other sessions
-      }
-
-      console.error('[WorkspaceChat] Response error:', error);
-
-      const pending = pendingUserMessageRef.current;
-      if (!pending) {
-        setIsSending(false);
-        return;
-      }
-
-      const errorMessage: Message = {
-        id: `msg-${Date.now()}`,
-        conversationId: pending.conversationId,
-        role: 'assistant',
-        content: `Error: ${error.error || error.message || 'Unknown error'}`,
-        timestamp: Date.now(),
-      };
-
-      setMessages((prev) => [...prev, errorMessage]);
-
-      // Save error message
-      await ipcRenderer.invoke('message:save', errorMessage);
-
-      pendingUserMessageRef.current = null;
-      setIsSending(false);
-  }, []);
-
-  const handleMessageCancelled = useCallback((_event: any, cancelledSessionId: string) => {
-    if (!isMountedRef.current) return; // Prevent setState on unmounted component
-
-    // Filter: only handle events for THIS component's session
-    const currentSessionId = sessionIdRef.current;
-    if (!currentSessionId || cancelledSessionId !== currentSessionId) {
-      return; // Silently ignore cancellations for other sessions
-    }
-
-    console.log('[WorkspaceChat] Message cancelled:', cancelledSessionId);
-
-    // Reset states
-    setIsSending(false);
-    setIsCancelling(false);
-    setThinkingSteps([]);
-
-    // Clear refs
-    pendingUserMessageRef.current = null;
-    setPendingAssistantMessageId(null);
-    thinkingStepsRef.current = [];
-
-    // Clear timer if running
-    if (thinkingTimerRef.current) {
-      clearInterval(thinkingTimerRef.current);
-      thinkingTimerRef.current = null;
-    }
-
-    // Optional: Add a system message indicating cancellation
-    const cancelMessage: Message = {
-      id: `msg-${Date.now()}`,
-      conversationId: conversationId!,
-      role: 'assistant',
-      content: '_Message cancelled by user_',
-      timestamp: Date.now(),
-      metadata: { cancelled: true }
-    };
-
-    setMessages((prev) => [...prev, cancelMessage]);
-  }, [conversationId]);
-
-  // Handler for task execution trigger from TodoPanel
-  const handleExecuteTasks = useCallback(async (_event: any, data: {
-    conversationId: string
-    messageId: string
-    mode: ExecutionMode
-    todos: TodoDraft[]
-  }) => {
-    try {
-      // Write todos to .circuit/todos.json file
-      const todosData = {
-        conversationId: data.conversationId,
-        messageId: data.messageId,
-        mode: data.mode,
-        todos: data.todos.map((draft: any, index: number) => ({
-          id: `todo-${data.messageId}-${index}`,
-          content: draft.content,
-          description: draft.description,
-          activeForm: draft.activeForm,
-          status: 'pending',
-          priority: draft.priority,
-          complexity: draft.complexity,
-          estimatedDuration: draft.estimatedDuration,
-          order: draft.order || index,
-          depth: draft.depth || 0,
-        })),
-      }
-
-      await ipcRenderer.invoke('workspace:write-file',
-        workspacePathRef.current,
-        '.circuit/todos.json',
-        JSON.stringify(todosData, null, 2)
-      )
-
-      // Save todos to database for real-time progress tracking
-      const now = Date.now()
-      const todosForDB = data.todos.map((draft: any, index: number) => ({
-        id: `todo-${data.messageId}-${index}`,
-        conversationId: data.conversationId,
-        messageId: data.messageId,
-        parentId: draft.parentId,
-        order: draft.order ?? index,
-        depth: draft.depth ?? 0,
-        content: draft.content,
-        description: draft.description,
-        activeForm: draft.activeForm,
-        status: 'pending' as const,
-        progress: 0,
-        priority: draft.priority,
-        complexity: draft.complexity,
-        thinkingStepIds: [],
-        blockIds: [],
-        estimatedDuration: draft.estimatedDuration,
-        actualDuration: undefined,
-        startedAt: undefined,
-        completedAt: undefined,
-        createdAt: now,
-        updatedAt: now,
-      }))
-
-      const dbSaveResult = await ipcRenderer.invoke('todos:save-multiple', todosForDB)
-      if (!dbSaveResult.success) {
-        console.error('[handleExecuteTasks] Failed to save todos to DB:', dbSaveResult.error)
-      } else {
-        console.log('[handleExecuteTasks] Successfully saved', todosForDB.length, 'todos to DB')
-      }
-
-      // Prepare mode-specific prompt
-      const modePrompts = {
-        auto: `I've created a task plan in .circuit/todos.json with ${data.todos.length} task${data.todos.length === 1 ? '' : 's'}.
-
-Please execute ALL tasks in order automatically. Use the TodoWrite tool to update task status as you progress. Show progress for each task.`,
-
-        manual: `I've created a task plan in .circuit/todos.json with ${data.todos.length} task${data.todos.length === 1 ? '' : 's'}.
-
-I'll control execution manually. Respond to commands like:
-- "next" or "continue" - Execute next pending task
-- "run all" - Execute all remaining tasks
-- "execute task N" - Execute specific task by number
-- "skip task N" - Skip a task
-
-The plan is ready. What would you like to do?`,
-      }
-
-      const executionPrompt = modePrompts[data.mode]
-
-      // Create and send user message manually
-      // (Can't call handleSend due to function declaration order)
-      if (!sessionId || !conversationId) {
-        console.error('[WorkspaceChat] No session or conversation ID')
-        return
-      }
-
-      // Create user message
-      const userMessage: Message = {
-        id: `msg-${Date.now()}`,
-        conversationId: conversationId,
-        role: 'user',
-        content: executionPrompt,
-        timestamp: Date.now(),
-      }
-
-      // Add to UI
-      setMessages((prev) => [...prev, userMessage])
-
-      // Save to DB
-      const saveResult = await ipcRenderer.invoke('message:save', userMessage)
-      if (saveResult.success && saveResult.blocks) {
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === userMessage.id ? { ...msg, blocks: saveResult.blocks } : msg
-          )
-        )
-      }
-
-      // Set pending ref for response handling
-      pendingUserMessageRef.current = userMessage
-      setIsSending(true)
-
-      // Send to Claude
-      ipcRenderer.send('claude:send-message', sessionId, executionPrompt, [], 'normal')
-    } catch (error) {
-      console.error('[WorkspaceChat] Error executing tasks:', error)
-    }
-  }, [workspace, sessionId, conversationId, setMessages, setIsSending])
-
-  // Store handlers in refs to avoid re-registering IPC listeners
-  const handlersRef = useRef({
-    handleThinkingStart,
-    handleMilestone,
-    handleThinkingComplete,
-    handleResponseComplete,
-    handleResponseError,
-    handleMessageCancelled,
-    handleExecuteTasks
+  // ============================================================================
+  // IPC Event Handlers - Managed by useIPCEvents hook
+  // ============================================================================
+
+  // Create callbacks for IPCEventBridge
+  // Note: useMemo with empty deps because all setters are stable
+  const ipcCallbacks: IPCEventCallbacks = useMemo(() => ({
+    // Message state
+    onMessagesUpdate: setMessages,
+    onMessageAdd: (msg) => setMessages((prev) => [...prev, msg]),
+    onMessageUpdate: (id, updates) =>
+      setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, ...updates } : m))),
+
+    // Thinking state
+    onThinkingStepsUpdate: setThinkingSteps,
+    onThinkingStepAdd: (step) => setThinkingSteps((prev) => [...prev, step]),
+    onMessageThinkingStepsUpdate: (msgId, data) =>
+      setMessageThinkingSteps((prev) => ({ ...prev, [msgId]: data })),
+    onCurrentDurationUpdate: setCurrentDuration,
+    onOpenReasoningIdUpdate: setOpenReasoningId,
+
+    // Sending state
+    onIsSendingUpdate: setIsSending,
+    onIsCancellingUpdate: setIsCancelling,
+    onPendingAssistantMessageIdUpdate: setPendingAssistantMessageId,
+
+    // File operations
+    onFileEdit: onFileEdit,
+  }), []);
+
+  // Register IPC event listeners
+  useIPCEvents({
+    sessionId,
+    conversationId,
+    workspacePath: workspace.path,
+    workspaceId: workspace.id,
+    pendingAssistantMessageId,
+    thinkingSteps,
+
+    // Refs
+    isMountedRef,
+    sessionIdRef,
+    conversationIdRef,
+    workspacePathRef,
+    pendingUserMessageRef,
+    pendingAssistantMessageIdRef,
+    thinkingStartTimeRef,
+    currentStepMessageRef,
+    thinkingStepsRef,
+    thinkingTimerRef,
+    currentThinkingModeRef,
+    messageThinkingStepsRef,
+
+    // Callbacks
+    callbacks: ipcCallbacks,
   });
 
-  // Update refs when handlers change (but don't re-register listeners)
-  handlersRef.current = {
-    handleThinkingStart,
-    handleMilestone,
-    handleThinkingComplete,
-    handleResponseComplete,
-    handleResponseError,
-    handleMessageCancelled,
-    handleExecuteTasks
-  };
-
-  // Listen for thinking steps from Electron (register once, use refs for handlers)
-  useEffect(() => {
-    // CRITICAL: Reset mounted flag when listeners are registered
-    isMountedRef.current = true;
-    console.log('[WorkspaceChat] 🎧 Registering IPC listeners, sessionId:', sessionIdRef.current, 'isMounted:', isMountedRef.current);
-
-    // Wrap handlers to use refs (always call latest version)
-    const debugThinkingStart = (event: any, ...args: any[]) => {
-      console.log('[WorkspaceChat] 🎤 RAW thinking-start event received:', args, 'isMounted:', isMountedRef.current);
-      handlersRef.current.handleThinkingStart(event, ...args);
-    };
-
-    const wrappedMilestone = (event: any, ...args: any[]) => handlersRef.current.handleMilestone(event, ...args);
-    const wrappedThinkingComplete = (event: any, ...args: any[]) => handlersRef.current.handleThinkingComplete(event, ...args);
-    const wrappedResponseComplete = (event: any, ...args: any[]) => handlersRef.current.handleResponseComplete(event, ...args);
-    const wrappedResponseError = (event: any, ...args: any[]) => handlersRef.current.handleResponseError(event, ...args);
-    const wrappedMessageCancelled = (event: any, ...args: any[]) => handlersRef.current.handleMessageCancelled(event, ...args);
-    const wrappedExecuteTasks = (event: any, ...args: any[]) => handlersRef.current.handleExecuteTasks(event, ...args);
-
-    ipcRenderer.on('claude:thinking-start', debugThinkingStart);
-    ipcRenderer.on('claude:milestone', wrappedMilestone);
-    ipcRenderer.on('claude:thinking-complete', wrappedThinkingComplete);
-    ipcRenderer.on('claude:response-complete', wrappedResponseComplete);
-    ipcRenderer.on('claude:response-error', wrappedResponseError);
-    ipcRenderer.on('claude:message-cancelled', wrappedMessageCancelled);
-    ipcRenderer.on('todos:execute-tasks', wrappedExecuteTasks);
-
-    return () => {
-      console.log('[WorkspaceChat] 🧹 Cleanup: Removing IPC listeners');
-
-      // Mark component as unmounted to prevent setState calls
-      isMountedRef.current = false;
-
-      // Cleanup timer if component unmounts during thinking
-      if (thinkingTimerRef.current) {
-        clearInterval(thinkingTimerRef.current);
-        thinkingTimerRef.current = null;
-        console.log('[WorkspaceChat] 🧹 Timer cleaned up on unmount');
-      }
-
-      ipcRenderer.removeListener('claude:thinking-start', debugThinkingStart);
-      ipcRenderer.removeListener('claude:milestone', wrappedMilestone);
-      ipcRenderer.removeListener('claude:thinking-complete', wrappedThinkingComplete);
-      ipcRenderer.removeListener('claude:response-complete', wrappedResponseComplete);
-      ipcRenderer.removeListener('claude:response-error', wrappedResponseError);
-      ipcRenderer.removeListener('claude:message-cancelled', wrappedMessageCancelled);
-      ipcRenderer.removeListener('todos:execute-tasks', wrappedExecuteTasks);
-    };
-  }, []); // Empty deps - register once, use refs for latest handlers
+  // ============================================================================
+  // End of IPC Event Handlers
+  // ============================================================================
 
   // Cancel current message
   const handleCancel = () => {
@@ -1588,10 +813,10 @@ The plan is ready. What would you like to do?`,
         role: 'user',
         content: content.trim(),
         timestamp,
-        metadata: JSON.stringify({
+        metadata: {
           isTask: true,
           todoId: todoId  // Store todoId in metadata
-        }),
+        },
       };
 
       // Add message to UI immediately
@@ -1619,9 +844,133 @@ The plan is ready. What would you like to do?`,
     }
   }, [conversationId, createTodosFromDrafts, todos.length, workspace.id, onConversationChange]);
 
-  const handleSend = async (inputText: string, attachments: AttachedFile[], thinkingMode: import('./ChatInput').ThinkingMode) => {
+  // Handle session compact - summarize old messages to reduce token usage
+  const handleSessionCompact = useCallback(async (silent: boolean = false) => {
+    if (!conversationId) {
+      console.warn('[ChatPanel] No conversation to compact');
+      if (!silent) toast.error('No active conversation to compact');
+      return;
+    }
+
+    if (messages.length < 20) {
+      console.warn('[ChatPanel] Not enough messages to compact (need at least 20)');
+      if (!silent) toast.info('Not enough messages to compact (minimum 20 messages needed)');
+      return;
+    }
+
+    try {
+      console.log(`[ChatPanel] Starting ${silent ? 'auto' : 'manual'} session compact...`, messages.length, 'messages');
+
+      // Show loading toast only for manual compact
+      const loadingToast = silent ? null : toast.loading('Compacting session...');
+
+      // Call IPC handler to generate summary
+      const result = await ipcRenderer.invoke('session:compact', {
+        sessionId: sessionId,
+        messages: messages,
+        keepRecentCount: 10,
+      });
+
+      if (!result.success) {
+        if (loadingToast) toast.dismiss(loadingToast);
+        if (!silent) toast.error(`Failed to compact: ${result.error}`);
+        console.error('[ChatPanel] Compact failed:', result.error);
+        return;
+      }
+
+      console.log('[ChatPanel] Compact successful:', {
+        originalCount: result.originalMessageCount,
+        keptCount: result.keptMessageCount,
+        tokensBefore: result.tokensBeforeEstimate,
+        tokensAfter: result.tokensAfterEstimate,
+        savings: Math.round((1 - result.tokensAfterEstimate / result.tokensBeforeEstimate) * 100) + '%',
+      });
+
+      // Create summary message
+      const timestamp = Date.now();
+      const summaryMessage: Message = {
+        id: `summary-${timestamp}`,
+        conversationId: conversationId,
+        role: 'assistant',
+        content: `## Session Summary\n\n${result.summary}\n\n---\n\n*This summary replaces ${result.originalMessageCount} earlier messages to reduce token usage.*${silent ? ' (Auto-compacted)' : ''}`,
+        timestamp,
+        metadata: {
+          isCompactSummary: true,
+          originalMessageCount: result.originalMessageCount,
+          tokensBeforeEstimate: result.tokensBeforeEstimate,
+          tokensAfterEstimate: result.tokensAfterEstimate,
+        },
+      };
+
+      // Keep recent messages
+      const recentMessages = messages.slice(-result.keptMessageCount);
+
+      // Update messages: [summary] + [recent messages]
+      const newMessages = [summaryMessage, ...recentMessages];
+      setMessages(newMessages);
+
+      // Save summary message to database
+      await ipcRenderer.invoke('message:create', summaryMessage);
+
+      // Delete old messages from database (keep only summary + recent)
+      const messagesToDelete = messages.slice(0, -result.keptMessageCount);
+      for (const msg of messagesToDelete) {
+        await ipcRenderer.invoke('message:delete', msg.id);
+      }
+
+      if (loadingToast) toast.dismiss(loadingToast);
+
+      // Show success toast
+      if (!silent) {
+        toast.success(
+          `Session compacted: ${result.originalMessageCount} messages → ${result.keptMessageCount + 1} messages (${Math.round((1 - result.tokensAfterEstimate / result.tokensBeforeEstimate) * 100)}% tokens saved)`,
+          { duration: 5000 }
+        );
+      } else {
+        // Silent mode: show subtle notification
+        toast.info(
+          `Context auto-compacted (${Math.round((1 - result.tokensAfterEstimate / result.tokensBeforeEstimate) * 100)}% tokens saved)`,
+          { duration: 3000 }
+        );
+      }
+
+      // Update last auto-compact time if this was an auto-compact
+      if (silent) {
+        setLastAutoCompactTime(Date.now());
+      }
+
+      console.log(`[ChatPanel] ✅ Session compact completed successfully (${silent ? 'auto' : 'manual'})`);
+    } catch (error) {
+      console.error('[ChatPanel] Session compact failed:', error);
+      if (!silent) toast.error('Failed to compact session. Please try again.');
+    }
+  }, [conversationId, sessionId, messages]);
+
+  // Auto-compact when Context Gauge reaches 80% (shouldCompact = true)
+  useEffect(() => {
+    const shouldAutoCompact = metrics?.context?.shouldCompact;
+
+    if (!shouldAutoCompact || !conversationId || messages.length < 20) {
+      return;
+    }
+
+    // Prevent compact if we did it recently (within 5 minutes)
+    const MIN_COMPACT_INTERVAL = 5 * 60 * 1000; // 5 minutes
+    const timeSinceLastCompact = Date.now() - lastAutoCompactTime;
+
+    if (lastAutoCompactTime > 0 && timeSinceLastCompact < MIN_COMPACT_INTERVAL) {
+      console.log('[ChatPanel] Skipping auto-compact (too soon since last compact)');
+      return;
+    }
+
+    // Trigger silent auto-compact
+    console.log('[ChatPanel] Auto-compact triggered (Context Gauge at 80%+)');
+    handleSessionCompact(true);
+  }, [metrics?.context?.shouldCompact, conversationId, messages.length, lastAutoCompactTime, handleSessionCompact]);
+
+  const handleSend = async (inputText: string, attachments: AttachedFile[], thinkingMode: import('./ChatInput').ThinkingMode, architectMode: boolean) => {
     if (!inputText.trim() && attachments.length === 0) return;
-    if (isSending || !sessionId) return;
+    if (!sessionId) return;
 
     // Build final input with code attachments prepended
     let finalInput = inputText;
@@ -1642,19 +991,14 @@ The plan is ready. What would you like to do?`,
       setCodeAttachment(null);
     }
 
-    // Plan mode: Let Claude generate detailed todos
-    if (thinkingMode === 'plan') {
-      console.log('[ChatPanel] Plan mode: Claude will generate todos');
-      await executePrompt(finalInput, attachments, thinkingMode);
-      return;
-    }
+    // Clear input immediately (improved UX)
+    setInput('');
 
-    // Normal/Think modes: Execute directly without todo analysis
-    // Todo analysis is ONLY for plan mode now
-    await executePrompt(finalInput, attachments, thinkingMode);
+    // Execute prompt directly
+    await executePrompt(finalInput, attachments, thinkingMode, architectMode);
   };
 
-  const executePrompt = async (inputText: string, attachments: AttachedFile[], thinkingMode: import('./ChatInput').ThinkingMode) => {
+  const executePrompt = async (inputText: string, attachments: AttachedFile[], thinkingMode: import('./ChatInput').ThinkingMode, architectMode: boolean) => {
     if (isSending || !sessionId) return;
 
     // Track current thinking mode for plan detection
@@ -1682,7 +1026,8 @@ The plan is ready. What would you like to do?`,
       }
     }
 
-    // Build content - no need to include file list in content anymore
+    // NO LONGER prepending AI rules to user message - they will be sent as system prompt instead
+    // Build content with just the user input
     const content = inputText;
 
     const userMessage: Message = {
@@ -1711,7 +1056,6 @@ The plan is ready. What would you like to do?`,
       });
       return [...prev, userMessage];
     });
-    const currentInput = inputText;
     setInput('');
     setIsSending(true);
 
@@ -1732,15 +1076,30 @@ The plan is ready. What would you like to do?`,
     // Store pending user message for response handlers
     pendingUserMessageRef.current = userMessage;
 
+    // Load AI rules context if architect mode is enabled
+    let aiRulesSystemPrompt: string | undefined = undefined;
+    if (architectMode) {
+      try {
+        aiRulesSystemPrompt = await getAIRulesContext(workspace.path);
+        if (aiRulesSystemPrompt) {
+          console.log('[ChatPanel] 🏗️ Architect Mode enabled - AI rules will be sent as system prompt');
+        }
+      } catch (error) {
+        console.warn('[ChatPanel] Failed to load AI rules for Architect Mode:', error);
+      }
+    }
+
     // Send message (non-blocking) - response will arrive via event listeners
     console.log('[ChatPanel] 📨 Sending message to Claude:', {
       sessionId,
-      messageLength: currentInput.length,
+      messageLength: inputText.length,
       attachmentsCount: attachments.length,
       thinkingMode,
+      architectMode,
+      hasAIRules: !!aiRulesSystemPrompt,
       currentSessionIdRef: sessionIdRef.current
     });
-    ipcRenderer.send('claude:send-message', sessionId, currentInput, attachments, thinkingMode);
+    ipcRenderer.send('claude:send-message', sessionId, inputText, attachments, thinkingMode, architectMode, aiRulesSystemPrompt);
     console.log('[ChatPanel] 📨 Message sent, waiting for IPC events...');
   };
 
@@ -1920,11 +1279,42 @@ The plan is ready. What would you like to do?`,
   // Memoize getScrollElement to prevent virtualizer recreation
   const getScrollElement = useCallback(() => scrollContainerRef.current, []);
 
-  // Memoize estimateSize to prevent virtualizer recreation
-  const estimateSize = useCallback(() => {
-    // Use single fixed height for all messages to avoid measurement issues
-    return 200;
-  }, []);
+  // Memoize estimateSize with dynamic height prediction
+  const estimateSize = useCallback((index: number) => {
+    const msg = filteredMessages[index];
+    if (!msg) return 200;
+
+    // Check if reasoning is open for this message
+    const isReasoningOpen = openReasoningId === msg.id;
+    const hasReasoning = messageThinkingSteps[msg.id]?.steps?.length > 0;
+
+    // If reasoning accordion is open, estimate based on number of steps
+    if (isReasoningOpen && hasReasoning) {
+      const stepCount = messageThinkingSteps[msg.id].steps.length;
+      // Each step is ~40px, plus base message height of 150px, plus accordion header ~50px
+      return 150 + 50 + (stepCount * 40);
+    }
+
+    // Estimate based on number of blocks (code blocks, etc.)
+    const blockCount = msg.blocks?.length || 0;
+    if (blockCount > 0) {
+      // Code blocks are typically 200-300px each
+      return 150 + (blockCount * 250);
+    }
+
+    // Estimate based on content length
+    const contentLength = msg.content?.length || 0;
+    if (contentLength > 1000) {
+      return 400;
+    } else if (contentLength > 500) {
+      return 300;
+    } else if (contentLength > 200) {
+      return 200;
+    }
+
+    // Default minimum height
+    return 150;
+  }, [filteredMessages, messageThinkingSteps, openReasoningId]);
 
   const virtualizer = useVirtualizer({
     count: filteredMessages.length,
@@ -1933,28 +1323,7 @@ The plan is ready. What would you like to do?`,
     overscan: 5, // Render 5 extra items outside viewport for smooth scrolling
   });
 
-  // Track previous message count to detect new messages
-  const prevMessageCountRef = useRef(filteredMessages.length);
-
-  // Auto-scroll to bottom when new messages arrive (only if already at bottom)
-  useEffect(() => {
-    const isNewMessage = filteredMessages.length > prevMessageCountRef.current;
-    prevMessageCountRef.current = filteredMessages.length;
-
-    if (isAtBottom && isNewMessage && filteredMessages.length > 0) {
-      // Use requestAnimationFrame to ensure DOM has updated
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          // Scroll to bottom using virtualizer - use 'auto' instead of 'smooth'
-          // to avoid conflicts with virtual positioning
-          virtualizer.scrollToIndex(filteredMessages.length - 1, {
-            align: 'end',
-            behavior: 'auto', // Changed from 'smooth' to prevent animation conflicts
-          });
-        });
-      });
-    }
-  }, [filteredMessages.length, isAtBottom]); // Removed virtualizer from deps
+  // Auto-scroll is disabled - users can manually scroll using the "Scroll to Bottom" button
 
   // When reasoning accordion is toggled, the estimateSize function recalculates
   // because openReasoningId is in its dependencies. This triggers virtualizer
@@ -1966,7 +1335,7 @@ The plan is ready. What would you like to do?`,
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="h-full overflow-auto p-3 pb-[300px]"
+        className="absolute inset-0 bottom-[240px] overflow-auto p-3"
       >
         {isLoadingConversation ? (
           <div className="space-y-5 max-w-4xl mx-auto">
@@ -2064,7 +1433,7 @@ The plan is ready. What would you like to do?`,
 
       {/* Scroll to Bottom Button */}
       {!isAtBottom && messages.length > 0 && (
-        <div className="absolute bottom-[230px] left-1/2 -translate-x-1/2 pointer-events-none z-50">
+        <div className="absolute bottom-[260px] left-1/2 -translate-x-1/2 pointer-events-none z-50">
           <button
             onClick={scrollToBottom}
             className="pointer-events-auto flex items-center justify-center w-6 h-6 rounded-full bg-muted text-foreground border-2 border-border shadow-lg hover:bg-muted/80 transition-all duration-200"
@@ -2082,14 +1451,16 @@ The plan is ready. What would you like to do?`,
             value={input}
             onChange={setInput}
             onSubmit={handleSend}
-            disabled={isSending || !sessionId || isLoadingConversation}
+            disabled={!sessionId || isLoadingConversation}
             placeholder="Ask, search, or make anything..."
             showControls={true}
+            isSending={isSending}
             isCancelling={isCancelling}
             onCancel={handleCancel}
             workspacePath={workspace.path}
             projectPath={workspace.path.split('/.conductor/workspaces/')[0]}
             onAddTodo={handleAddTodo}
+            onCompact={handleSessionCompact}
             codeAttachment={codeAttachment}
             onCodeAttachmentRemove={() => setCodeAttachment(null)}
           />
@@ -2122,6 +1493,7 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
 
 interface EditorPanelProps {
   workspace: Workspace;
+  sessionId: string | null;  // Claude session ID for AI features
   openFiles: string[];
   selectedFile: string | null;
   onCloseFile?: (filePath: string) => void;
@@ -2142,6 +1514,7 @@ interface EditorPanelProps {
 
 const EditorPanel: React.FC<EditorPanelProps> = ({
   workspace,
+  sessionId,
   openFiles,
   selectedFile,
   onCloseFile,
@@ -2149,6 +1522,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
   fileCursorPosition,
   onCodeSelectionAction,
 }) => {
+  const { settings } = useSettingsContext();
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [fileContents, setFileContents] = useState<Map<string, string>>(new Map());
   const [isLoadingFile, setIsLoadingFile] = useState(false);
@@ -2158,6 +1532,46 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
 
   // Monaco editor instance ref
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+
+  // Get project root path (workspace.path is a worktree, we need the actual project root)
+  // Example: /path/to/project/.conductor/workspaces/duck -> /path/to/project
+  const projectRoot = useMemo(() => {
+    const parts = workspace.path.split('/.conductor/workspaces/');
+    return parts[0]; // Return the project root without worktree path
+  }, [workspace.path]);
+
+  // ✅ Normalize active file path to workspace-relative path
+  // This ensures consistent tab IDs and file loading regardless of path format
+  const normalizedActiveFile = useMemo(() => {
+    if (!activeFile) return null;
+
+    let normalized = activeFile;
+
+    // Convert absolute path to relative path
+    if (normalized.startsWith('/') || normalized.match(/^[A-Z]:\\/)) {
+      if (normalized.startsWith(projectRoot)) {
+        normalized = normalized.slice(projectRoot.length);
+        if (normalized.startsWith('/') || normalized.startsWith('\\')) {
+          normalized = normalized.slice(1);
+        }
+      }
+    }
+
+    // Remove "./" prefix
+    normalized = normalized.replace(/^\.\//, '');
+    normalized = normalized.replace(/^\.\\/, '');
+
+    // Normalize path separators
+    normalized = normalized.replace(/\\/g, '/');
+
+    return normalized;
+  }, [activeFile, projectRoot]);
+
+  // Language service for TypeScript/diagnostics (using LSP for full project analysis)
+  const { languageService, isInitialized: isLanguageServiceInitialized, mode: languageServiceMode } = useLanguageService({
+    workspacePath: projectRoot, // Use project root, not worktree path
+    mode: 'lsp', // Use LSP for project-wide diagnostics
+  });
 
   // Floating action bar state
   const [floatingActionsVisible, setFloatingActionsVisible] = useState(false);
@@ -2248,6 +1662,9 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
     }
   }, [currentSelection, activeFile, handleAddTests]);
 
+  // Note: TypeScript configuration and type definitions are now loaded
+  // automatically by the useLanguageService hook (MonacoLanguageService)
+
   // Set active file when selectedFile changes (from sidebar)
   useEffect(() => {
     if (selectedFile && selectedFile !== activeFile) {
@@ -2263,60 +1680,137 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
     }
   }, [openFiles.length]);
 
-  const fileContent = activeFile ? fileContents.get(activeFile) || '' : '';
-  const hasUnsavedChanges = activeFile ? unsavedChanges.get(activeFile) || false : false;
-  const isMarkdown = activeFile?.toLowerCase().endsWith('.md') || activeFile?.toLowerCase().endsWith('.markdown');
+  // ✅ Use normalized path for file content lookup
+  const fileContent = normalizedActiveFile ? fileContents.get(normalizedActiveFile) || '' : '';
+  const hasUnsavedChanges = normalizedActiveFile ? unsavedChanges.get(normalizedActiveFile) || false : false;
+  const isMarkdown = normalizedActiveFile?.toLowerCase().endsWith('.md') || normalizedActiveFile?.toLowerCase().endsWith('.markdown');
+
+  // Track opened files in LSP
+  const openedLSPFiles = useRef<Set<string>>(new Set());
+
+  // Cleanup: Close all LSP documents on unmount
+  useEffect(() => {
+    return () => {
+      if (languageService && languageServiceMode === 'lsp') {
+        openedLSPFiles.current.forEach(async (file) => {
+          try {
+            const fileUri = `file:///${file}`;
+            await (languageService as any).closeDocument(fileUri);
+            console.log('[EditorPanel] ✅ LSP: Document closed on unmount:', file);
+          } catch (error) {
+            console.error('[EditorPanel] LSP cleanup error:', error);
+          }
+        });
+        openedLSPFiles.current.clear();
+      }
+    };
+  }, [languageService, languageServiceMode]);
 
   // Load file contents when active file changes
   useEffect(() => {
-    if (!activeFile) {
+    if (!normalizedActiveFile) {
       return;
     }
 
-    // If file content already loaded, skip
-    if (fileContents.has(activeFile)) {
+    // ✅ Use normalized path for cache check
+    if (fileContents.has(normalizedActiveFile)) {
+      console.log('[EditorPanel] File content already loaded (cache hit):', normalizedActiveFile);
       return;
     }
 
     const loadFileContent = async () => {
       setIsLoadingFile(true);
       try {
-        console.log('[EditorPanel] Loading file:', activeFile);
-        const result = await ipcRenderer.invoke('workspace:read-file', workspace.path, activeFile);
+        console.log('[EditorPanel] Loading file (normalized):', normalizedActiveFile);
+        // ✅ Use normalized path for IPC call
+        const result = await ipcRenderer.invoke('workspace:read-file', workspace.path, normalizedActiveFile);
 
         if (result.success) {
-          setFileContents(prev => new Map(prev).set(activeFile, result.content));
+          // ✅ Store with normalized path as key
+          setFileContents(prev => new Map(prev).set(normalizedActiveFile, result.content));
+
+          // Notify LSP that document was opened
+          if (languageService && isLanguageServiceInitialized && languageServiceMode === 'lsp') {
+            // ✅ Use normalized path for LSP URI
+            const fileUri = `file:///${normalizedActiveFile}`;
+            const languageId = getLanguageFromFilePath(normalizedActiveFile);
+
+            // Map Monaco language IDs to LSP language IDs
+            const lspLanguageId = languageId === 'typescriptreact' ? 'typescriptreact' :
+                                   languageId === 'typescript' ? 'typescript' :
+                                   languageId === 'javascriptreact' ? 'javascriptreact' :
+                                   languageId === 'javascript' ? 'javascript' : 'typescript';
+
+            await (languageService as any).openDocument(fileUri, lspLanguageId, result.content);
+            // ✅ Track with normalized path
+            openedLSPFiles.current.add(normalizedActiveFile);
+            console.log('[EditorPanel] ✅ LSP: Document opened:', normalizedActiveFile);
+          }
         } else {
           console.error('[EditorPanel] Failed to load file:', result.error);
-          setFileContents(prev => new Map(prev).set(activeFile, `// Error loading file: ${result.error}`));
+          // ✅ Store error with normalized path
+          setFileContents(prev => new Map(prev).set(normalizedActiveFile, `// Error loading file: ${result.error}`));
         }
       } catch (error) {
         console.error('[EditorPanel] Error loading file:', error);
-        setFileContents(prev => new Map(prev).set(activeFile, `// Error: ${error}`));
+        // ✅ Store error with normalized path
+        setFileContents(prev => new Map(prev).set(normalizedActiveFile, `// Error: ${error}`));
       } finally {
         setIsLoadingFile(false);
       }
     };
 
     loadFileContent();
-  }, [activeFile, workspace.path]);
+  }, [normalizedActiveFile, workspace.path, languageService, isLanguageServiceInitialized, languageServiceMode]);
+
+  // Close documents when files are removed from openFiles
+  useEffect(() => {
+    if (!languageService || !isLanguageServiceInitialized || languageServiceMode !== 'lsp') {
+      return;
+    }
+
+    // Find files that were opened in LSP but are no longer in openFiles
+    const currentOpenFiles = new Set(openFiles);
+    const filesToClose: string[] = [];
+
+    openedLSPFiles.current.forEach(file => {
+      if (!currentOpenFiles.has(file)) {
+        filesToClose.push(file);
+      }
+    });
+
+    // Close documents in LSP
+    filesToClose.forEach(async (file) => {
+      try {
+        const fileUri = `file:///${file}`;
+        await (languageService as any).closeDocument(fileUri);
+        openedLSPFiles.current.delete(file);
+        console.log('[EditorPanel] ✅ LSP: Document closed:', file);
+      } catch (error) {
+        console.error('[EditorPanel] LSP close error:', error);
+      }
+    });
+  }, [openFiles, languageService, isLanguageServiceInitialized, languageServiceMode]);
 
   // Save file
   const handleSaveFile = async () => {
-    if (!activeFile || !hasUnsavedChanges) return;
+    if (!normalizedActiveFile || !hasUnsavedChanges) return;
 
     setIsSaving(true);
     try {
-      console.log('[EditorPanel] Saving file:', activeFile);
-      const content = fileContents.get(activeFile) || '';
-      const result = await ipcRenderer.invoke('workspace:write-file', workspace.path, activeFile, content);
+      console.log('[EditorPanel] Saving file (normalized):', normalizedActiveFile);
+      // ✅ Use normalized path for file content lookup
+      const content = fileContents.get(normalizedActiveFile) || '';
+      // ✅ Use normalized path for IPC call
+      const result = await ipcRenderer.invoke('workspace:write-file', workspace.path, normalizedActiveFile, content);
 
       if (result.success) {
         console.log('[EditorPanel] File saved successfully');
-        setUnsavedChanges(prev => new Map(prev).set(activeFile, false));
+        // ✅ Update unsaved changes with normalized path
+        setUnsavedChanges(prev => new Map(prev).set(normalizedActiveFile, false));
 
         // Notify parent that file is saved (no unsaved changes)
-        onUnsavedChange?.(activeFile, false);
+        onUnsavedChange?.(normalizedActiveFile, false);
       } else {
         console.error('[EditorPanel] Failed to save file:', result.error);
         alert(`Failed to save file: ${result.error}`);
@@ -2330,16 +1824,41 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
   };
 
   // Handle content change
-  const handleContentChange = (value: string | undefined) => {
-    if (!activeFile || value === undefined) return;
+  // Debounced LSP update
+  const updateLSPDebounced = useRef<NodeJS.Timeout | null>(null);
 
-    const currentContent = fileContents.get(activeFile) || '';
+  const handleContentChange = (value: string | undefined) => {
+    if (!normalizedActiveFile || value === undefined) return;
+
+    // ✅ Use normalized path for file content lookup
+    const currentContent = fileContents.get(normalizedActiveFile) || '';
     if (value !== currentContent) {
-      setFileContents(prev => new Map(prev).set(activeFile, value));
-      setUnsavedChanges(prev => new Map(prev).set(activeFile, true));
+      // ✅ Store with normalized path
+      setFileContents(prev => new Map(prev).set(normalizedActiveFile, value));
+      setUnsavedChanges(prev => new Map(prev).set(normalizedActiveFile, true));
 
       // Notify parent about unsaved changes
-      onUnsavedChange?.(activeFile, true);
+      onUnsavedChange?.(normalizedActiveFile, true);
+
+      // Notify LSP about document changes (debounced to avoid too many updates)
+      if (languageService && isLanguageServiceInitialized && languageServiceMode === 'lsp') {
+        // Clear previous timeout
+        if (updateLSPDebounced.current) {
+          clearTimeout(updateLSPDebounced.current);
+        }
+
+        // Set new timeout (500ms delay)
+        updateLSPDebounced.current = setTimeout(async () => {
+          try {
+            // ✅ Use normalized path for LSP URI
+            const fileUri = `file:///${normalizedActiveFile}`;
+            await (languageService as any).updateDocument(fileUri, value);
+            console.log('[EditorPanel] ✅ LSP: Document updated:', normalizedActiveFile);
+          } catch (error) {
+            console.error('[EditorPanel] LSP update error:', error);
+          }
+        }, 500);
+      }
     }
   };
 
@@ -2359,6 +1878,32 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
   // Handle Monaco editor mount
   const handleEditorDidMount = (editor: monaco.editor.IStandaloneCodeEditor) => {
     editorRef.current = editor;
+
+    // Log model info for debugging
+    const model = editor.getModel();
+    if (model && activeFile) {
+      console.log(`[EditorPanel] Model mounted:`, {
+        file: activeFile,
+        language: model.getLanguageId(),
+        uri: model.uri.toString()
+      });
+
+      // Refresh diagnostics using language service
+      if (languageService && isLanguageServiceInitialized) {
+        setTimeout(async () => {
+          try {
+            await languageService.refreshDiagnostics(model.uri.toString());
+            const diagnostics = await languageService.getDiagnostics(model.uri.toString());
+            console.log(`[EditorPanel] Current diagnostics for ${activeFile}: ${diagnostics.length} issues`);
+            console.log('[EditorPanel] ✅ Diagnostics refreshed via language service');
+          } catch (error) {
+            console.error('[EditorPanel] Failed to refresh diagnostics:', error);
+          }
+        }, 100); // Small delay to ensure TypeScript worker is ready
+      } else {
+        console.log('[EditorPanel] Language service not yet initialized');
+      }
+    }
 
     // Listen for selection changes to show/hide floating actions
     editor.onDidChangeCursorSelection((e) => {
@@ -2472,6 +2017,189 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
     });
   };
 
+  // Register Monaco Hover Provider for AI explanations
+  useEffect(() => {
+    if (!settings.monaco.enableHover || !sessionId) return;
+
+    const disposable = monaco.languages.registerHoverProvider(['typescript', 'javascript', 'python', 'java', 'go', 'rust'], {
+      provideHover: async (model, position) => {
+        const word = model.getWordAtPosition(position);
+        if (!word) return null;
+
+        // Get surrounding context (3 lines before and after)
+        const startLine = Math.max(1, position.lineNumber - 3);
+        const endLine = Math.min(model.getLineCount(), position.lineNumber + 3);
+        const context = model.getValueInRange({
+          startLineNumber: startLine,
+          startColumn: 1,
+          endLineNumber: endLine,
+          endColumn: model.getLineMaxColumn(endLine)
+        });
+
+        const language = model.getLanguageId();
+
+        try {
+          // Call IPC handler for quick explanation
+          const result = await ipcRenderer.invoke('claude:quick-explain', {
+            word: word.word,
+            context,
+            language,
+            aiMode: settings.monaco.aiMode
+          });
+
+          if (!result.success) return null;
+
+          return {
+            range: new monaco.Range(
+              position.lineNumber,
+              word.startColumn,
+              position.lineNumber,
+              word.endColumn
+            ),
+            contents: [
+              { value: `**${word.word}**` },
+              { value: result.explanation },
+              {
+                value: '[더 자세히 알아보기 →](command:circuit.explainInChat)',
+                isTrusted: true
+              }
+            ]
+          };
+        } catch (error) {
+          console.error('[Monaco Hover] Error:', error);
+          return null;
+        }
+      }
+    });
+
+    return () => disposable.dispose();
+  }, [settings.monaco.enableHover, settings.monaco.aiMode, sessionId]);
+
+  // Register AI Completion Provider
+  useEffect(() => {
+    if (!settings.monaco.enableAutocompletion || !sessionId) return;
+
+    // Simple cache for completions (cleared every 5 minutes)
+    const completionCache = new Map<string, { completion: string, timestamp: number }>();
+    const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+    const disposable = monaco.languages.registerCompletionItemProvider(
+      ['typescript', 'javascript', 'python', 'java', 'go', 'rust'],
+      {
+        triggerCharacters: ['.', '(', '<', '{', ' '],
+        provideCompletionItems: async (model, position) => {
+          try {
+            // Get code context
+            const currentLine = model.getLineContent(position.lineNumber);
+            const prefix = model.getValueInRange({
+              startLineNumber: Math.max(1, position.lineNumber - 10),
+              startColumn: 1,
+              endLineNumber: position.lineNumber,
+              endColumn: position.column
+            });
+
+            const suffix = model.getValueInRange({
+              startLineNumber: position.lineNumber,
+              startColumn: position.column,
+              endLineNumber: Math.min(model.getLineCount(), position.lineNumber + 5),
+              endColumn: model.getLineMaxColumn(Math.min(model.getLineCount(), position.lineNumber + 5))
+            });
+
+            // Build context (20 lines around cursor)
+            const startLine = Math.max(1, position.lineNumber - 10);
+            const endLine = Math.min(model.getLineCount(), position.lineNumber + 10);
+            const context = model.getValueInRange({
+              startLineNumber: startLine,
+              startColumn: 1,
+              endLineNumber: endLine,
+              endColumn: model.getLineMaxColumn(endLine)
+            });
+
+            const language = model.getLanguageId();
+
+            // Check cache if enabled
+            const cacheKey = `${prefix}|${suffix}|${language}`;
+            if (settings.monaco.cacheCompletions) {
+              const cached = completionCache.get(cacheKey);
+              if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+                return {
+                  suggestions: [{
+                    label: '⚡ AI Suggestion',
+                    kind: monaco.languages.CompletionItemKind.Snippet,
+                    insertText: cached.completion,
+                    detail: 'Claude AI (cached)',
+                    documentation: 'AI-powered code completion',
+                    range: new monaco.Range(
+                      position.lineNumber,
+                      position.column,
+                      position.lineNumber,
+                      position.column
+                    )
+                  }]
+                };
+              }
+            }
+
+            // Debounce: Wait for completion delay
+            await new Promise(resolve => setTimeout(resolve, settings.monaco.completionDelay || 300));
+
+            // Request AI completion
+            const result = await ipcRenderer.invoke('claude:ai-completion', {
+              prefix,
+              suffix,
+              context,
+              language,
+              aiMode: settings.monaco.aiMode,
+              maxTokens: settings.monaco.maxTokens || 150
+            });
+
+            if (!result.success || !result.completion) {
+              return { suggestions: [] };
+            }
+
+            // Cache the result
+            if (settings.monaco.cacheCompletions) {
+              completionCache.set(cacheKey, {
+                completion: result.completion,
+                timestamp: Date.now()
+              });
+            }
+
+            // Return completion suggestion
+            return {
+              suggestions: [{
+                label: '⚡ AI Suggestion',
+                kind: monaco.languages.CompletionItemKind.Snippet,
+                insertText: result.completion,
+                detail: `Claude AI (${settings.monaco.aiMode})`,
+                documentation: 'AI-powered code completion',
+                range: new monaco.Range(
+                  position.lineNumber,
+                  position.column,
+                  position.lineNumber,
+                  position.column
+                ),
+                sortText: '0' // Prioritize AI suggestions
+              }]
+            };
+          } catch (error) {
+            console.error('[Monaco Completion] Error:', error);
+            return { suggestions: [] };
+          }
+        }
+      }
+    );
+
+    return () => disposable.dispose();
+  }, [
+    settings.monaco.enableAutocompletion,
+    settings.monaco.aiMode,
+    settings.monaco.completionDelay,
+    settings.monaco.maxTokens,
+    settings.monaco.cacheCompletions,
+    sessionId
+  ]);
+
   // Jump to line when fileCursorPosition changes
   useEffect(() => {
     if (!editorRef.current || !fileCursorPosition) return;
@@ -2570,9 +2298,8 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
           ) : (
             <Editor
               height="100%"
-              key={activeFile} // Force remount on file change
-              defaultLanguage={getLanguageFromFilePath(activeFile || '')}
-              language={getLanguageFromFilePath(activeFile || '')}
+              path={normalizedActiveFile || undefined} // ✅ Use normalized path for Monaco model URI
+              language={getLanguageFromFilePath(normalizedActiveFile || '')}
               value={fileContent}
               onChange={handleContentChange}
               onMount={handleEditorDidMount}
@@ -2590,6 +2317,13 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
                 automaticLayout: true,
                 tabSize: 2,
                 insertSpaces: true,
+                // Find/Replace 기능 명시적 활성화
+                find: {
+                  seedSearchStringFromSelection: 'selection',
+                  autoFindInSelection: 'never',
+                  addExtraSpaceOnTop: true,
+                  loop: true,
+                },
               }}
             />
           )}
@@ -2599,3 +2333,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
   );
 };
 
+
+
+// Export ChatPanel and EditorPanel for direct use in unified editor system
+export { ChatPanel, EditorPanel };

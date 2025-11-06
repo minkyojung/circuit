@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
-import { ArrowUp, Paperclip, X, ListChecks, ChevronDown, ListTodo, Code } from 'lucide-react'
+import { ArrowUp, Paperclip, X, ListChecks, ChevronDown, ListTodo, Code, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import { useSettingsContext } from '@/contexts/SettingsContext'
 import { useClaudeMetrics } from '@/hooks/useClaudeMetrics'
@@ -20,6 +20,7 @@ import {
 import { ContextGauge } from './ContextGauge'
 import { FEATURES } from '@/config/features'
 import type { ClaudeModel } from '@/types/settings'
+import { getArchitectMode, setArchitectMode } from '@/services/projectConfigLocal'
 
 // @ts-ignore - Electron IPC
 const ipcRenderer = typeof window !== 'undefined' && (window as any).require ? (window as any).require('electron').ipcRenderer : null
@@ -29,15 +30,17 @@ export type ThinkingMode = 'normal' | 'think' | 'megathink' | 'ultrathink' | 'pl
 interface ChatInputProps {
   value: string
   onChange: (value: string) => void
-  onSubmit: (value: string, attachments: AttachedFile[], thinkingMode: ThinkingMode) => void | Promise<void>
+  onSubmit: (value: string, attachments: AttachedFile[], thinkingMode: ThinkingMode, architectMode: boolean) => void | Promise<void>
   disabled?: boolean
   placeholder?: string
   showControls?: boolean
+  isSending?: boolean
   isCancelling?: boolean
   onCancel?: () => void
   workspacePath?: string
   projectPath?: string
   onAddTodo?: (content: string) => void | Promise<void>
+  onCompact?: () => void | Promise<void>
   // Code attachment from editor selection
   codeAttachment?: {
     code: string
@@ -98,11 +101,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   disabled = false,
   placeholder = 'Ask, search, or make anything...',
   showControls = true,
+  isSending = false,
   isCancelling = false,
   onCancel,
   workspacePath,
   projectPath,
   onAddTodo,
+  onCompact,
   codeAttachment,
   onCodeAttachmentRemove,
 }) => {
@@ -110,8 +115,21 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const { metrics } = useClaudeMetrics()
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
   const [thinkingMode, setThinkingMode] = useState<ThinkingMode>('normal')
+  const [architectMode, setArchitectModeState] = useState<boolean>(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // Load architect mode from workspace config
+  useEffect(() => {
+    if (!workspacePath) return;
+
+    const loadArchitectMode = async () => {
+      const enabled = await getArchitectMode(workspacePath);
+      setArchitectModeState(enabled);
+    };
+
+    loadArchitectMode();
+  }, [workspacePath]);
 
   // Convert code attachment to AttachedFile when it changes
   useEffect(() => {
@@ -154,7 +172,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   }, [codeAttachment]) // Removed attachedFiles from deps!
 
   // Slash commands state
-  const [availableCommands, setAvailableCommands] = useState<Array<{ name: string; fileName: string }>>([])
+  const [availableCommands, setAvailableCommands] = useState<Array<{ name: string; fileName: string; description?: string }>>([])
   const [showCommandMenu, setShowCommandMenu] = useState(false)
   const [selectedCommandIndex, setSelectedCommandIndex] = useState(0)
   const commandMenuRef = useRef<HTMLDivElement>(null)
@@ -194,6 +212,24 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const togglePlanMode = useCallback(() => {
     setIsPlanMode(prev => !prev)
   }, [])
+
+  // Architect mode toggle
+  const toggleArchitectMode = useCallback(async () => {
+    if (!workspacePath) {
+      toast.error('No workspace path available');
+      return;
+    }
+
+    try {
+      const newValue = !architectMode;
+      await setArchitectMode(workspacePath, newValue);
+      setArchitectModeState(newValue);
+      toast.success(newValue ? 'Architect Mode enabled' : 'Architect Mode disabled');
+    } catch (error) {
+      console.error('[ChatInput] Failed to toggle architect mode:', error);
+      toast.error('Failed to toggle Architect Mode');
+    }
+  }, [workspacePath, architectMode])
 
   // Keyboard shortcut: Cmd/Ctrl+Shift+P for Plan mode
   useEffect(() => {
@@ -393,14 +429,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     try {
       // Use 'plan' mode if isPlanMode is true, otherwise use selected thinkingMode
       const effectiveMode = isPlanMode ? 'plan' : thinkingMode
-      await onSubmit(value, attachedFiles, effectiveMode)
+      await onSubmit(value, attachedFiles, effectiveMode, architectMode)
       setAttachedFiles([]) // Clear attachments after send
-      // Keep Plan Mode and Thinking Mode sticky - don't reset
+      // Keep Plan Mode, Thinking Mode, and Architect Mode sticky - don't reset
     } catch (error) {
       console.error('[ChatInput] Submit error:', error)
       toast.error('Failed to send message')
     }
-  }, [value, attachedFiles, thinkingMode, isPlanMode, disabled, onSubmit])
+  }, [value, attachedFiles, thinkingMode, isPlanMode, architectMode, disabled, onSubmit])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -500,41 +536,22 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     [onChange]
   )
 
-  // Handle compact action (copy command + open Claude Code)
-  const handleCompact = useCallback(() => {
-    // Step 1: Copy "/compact" to clipboard
-    navigator.clipboard.writeText('/compact').then(
-      () => {
-        console.log('[ChatInput] /compact command copied to clipboard')
+  // Handle compact action - delegates to parent component
+  const handleCompact = useCallback(async () => {
+    if (!onCompact) {
+      console.warn('[ChatInput] No onCompact handler provided')
+      return
+    }
 
-        // Step 2: Open Claude Code (if IPC available)
-        if (ipcRenderer) {
-          try {
-            ipcRenderer.send('open-claude-code', {})
-            console.log('[ChatInput] Requested to open Claude Code')
-          } catch (err) {
-            console.error('[ChatInput] Failed to open Claude Code:', err)
-          }
-        }
-
-        // Step 3: User feedback
-        toast.info('📋 /compact copied. Run it in Claude Code!', {
-          duration: 4000,
-          action: {
-            label: 'Copy again',
-            onClick: () => {
-              navigator.clipboard.writeText('/compact')
-              toast.success('Copied again!')
-            }
-          }
-        })
-      },
-      (err) => {
-        console.error('[ChatInput] Failed to copy command:', err)
-        toast.error('Failed to copy command')
-      }
-    )
-  }, [])
+    try {
+      console.log('[ChatInput] Triggering session compact...')
+      await onCompact()
+      console.log('[ChatInput] ✅ Session compact completed')
+    } catch (error) {
+      console.error('[ChatInput] Session compact failed:', error)
+      toast.error('Failed to compact session')
+    }
+  }, [onCompact])
 
   // Handle add as todo
   const handleAddAsTodo = useCallback(async () => {
@@ -552,48 +569,42 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
   return (
     <div className={INPUT_STYLES.container.maxWidth}>
-      {/* Slash Command Menu */}
-      <AnimatePresence>
-        {showCommandMenu && filteredCommands.length > 0 && (
-          <motion.div
-            ref={commandMenuRef}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-            transition={{ duration: 0.15 }}
-            className="absolute bottom-full left-0 right-0 mb-2 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-50"
-          >
-            <div className="p-2 border-b border-border">
-              <p className="text-xs text-muted-foreground">Slash Commands</p>
-            </div>
-            <div className="max-h-64 overflow-y-auto">
-              {filteredCommands.map((command, index) => (
-                <button
-                  key={command.name}
-                  onClick={() => executeCommand(command.name)}
-                  className={`w-full px-3 py-2 text-left transition-colors ${
-                    index === selectedCommandIndex
-                      ? 'bg-primary/10 text-primary'
-                      : 'hover:bg-secondary/50'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-mono">/{command.name}</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-            <div className="p-2 border-t border-border">
-              <p className="text-[10px] text-muted-foreground">
-                ↑↓ navigate • Enter select • Esc close
-              </p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* Input Card - Floating */}
       <div className="relative w-full flex flex-col border-[0.5px] border-border rounded-2xl bg-muted shadow-lg">
+        {/* Slash Command Menu */}
+        <AnimatePresence>
+          {showCommandMenu && filteredCommands.length > 0 && (
+            <motion.div
+              ref={commandMenuRef}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 10 }}
+              transition={{ duration: 0.15 }}
+              className="absolute bottom-full left-0 mb-2 w-1/2 min-w-[400px] bg-card border border-border rounded-xl shadow-lg overflow-hidden z-50"
+            >
+              <div className="p-1 max-h-64 overflow-y-auto">
+                {filteredCommands.map((command, index) => (
+                  <button
+                    key={command.name}
+                    onClick={() => executeCommand(command.name)}
+                    className={`w-full py-2 px-3 text-left cursor-pointer hover:bg-secondary/50 focus:bg-secondary/50 transition-colors rounded-md ${
+                      index === selectedCommandIndex ? 'bg-secondary' : ''
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-light flex-shrink-0">/{command.name}</span>
+                      {command.description && (
+                        <span className="text-xs text-muted-foreground/60 flex-1 truncate">
+                          {command.description}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
           {/* Attachments - Only appears when files exist */}
           <AnimatePresence>
             {attachedFiles.length > 0 && (
@@ -782,6 +793,20 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   </DropdownMenuContent>
                 </DropdownMenu>
 
+                {/* Architect Mode Toggle Button */}
+                <button
+                  onClick={toggleArchitectMode}
+                  disabled={disabled || !workspacePath}
+                  className={`inline-flex items-center justify-center ${INPUT_STYLES.controls.sourcesButton} transition-colors ${
+                    architectMode
+                      ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+                  }`}
+                  title={architectMode ? 'Architect Mode ON' : 'Architect Mode OFF'}
+                >
+                  <Sparkles size={INPUT_STYLES.controls.sourcesIconSize} strokeWidth={1.5} />
+                </button>
+
                 {/* Plan Mode Toggle Button - Feature Flag Controlled */}
                 {FEATURES.PLAN_MODE && (
                   <button
@@ -823,7 +848,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   disabled={disabled}
                 />
               )}
-              {disabled && onCancel ? (
+              {isSending && onCancel ? (
               /* Cancel button when sending */
               <button
                 onClick={onCancel}

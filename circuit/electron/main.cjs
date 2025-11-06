@@ -531,6 +531,12 @@ app.whenReady().then(async () => {
     const { registerAgentHandlers } = require('../dist-electron/agentHandlers.js');
     registerAgentHandlers();
     console.log('[main.cjs] ✅ Agent handlers registered successfully');
+
+    // Register file system handlers
+    console.log('[main.cjs] Registering file system handlers...');
+    const { registerFileSystemHandlers } = require('../dist-electron/fileSystemHandlers.js');
+    registerFileSystemHandlers();
+    console.log('[main.cjs] ✅ File system handlers registered successfully');
   } catch (error) {
     console.error('[main.cjs] ❌ CRITICAL: Failed to register handlers:', error);
     console.error('[main.cjs] Error stack:', error.stack);
@@ -1180,6 +1186,605 @@ ipcMain.handle('workspace:context-stop', async (event, workspaceId) => {
   } catch (error) {
     console.error('[Circuit] Failed to stop context tracking:', error);
     return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Search in files across workspace
+ * Uses ripgrep if available, falls back to Node.js fs
+ */
+ipcMain.handle('workspace:search-in-files', async (event, workspacePath, query, options = {}) => {
+  try {
+    const {
+      maxResults = 100,
+      maxColumns = 200,
+      contextLines = 1,
+      ignoreCase = true,
+    } = options;
+
+    // Try using ripgrep first (faster)
+    try {
+      const rgArgs = [
+        '--json',
+        '--max-count', String(maxResults),
+        '--max-columns', String(maxColumns),
+        '--context', String(contextLines),
+      ];
+
+      if (ignoreCase) {
+        rgArgs.push('--ignore-case');
+      }
+
+      rgArgs.push(query, workspacePath);
+
+      const { stdout } = await execAsync(`rg ${rgArgs.join(' ')}`, {
+        maxBuffer: 10 * 1024 * 1024, // 10MB buffer
+      });
+
+      // Parse ripgrep JSON output
+      const lines = stdout.trim().split('\n');
+      const results = [];
+
+      for (const line of lines) {
+        try {
+          const parsed = JSON.parse(line);
+          if (parsed.type === 'match') {
+            results.push({
+              path: parsed.data.path.text,
+              lineNumber: parsed.data.line_number,
+              lineContent: parsed.data.lines.text.trim(),
+              matchStart: parsed.data.submatches[0].start,
+              matchEnd: parsed.data.submatches[0].end,
+            });
+          }
+        } catch (parseError) {
+          // Skip invalid JSON lines
+          continue;
+        }
+      }
+
+      return {
+        success: true,
+        results,
+        totalMatches: results.length,
+        method: 'ripgrep'
+      };
+    } catch (rgError) {
+      // Ripgrep not available or failed, use Node.js fallback
+      console.log('[Search] Ripgrep unavailable, using Node.js fallback');
+
+      const results = [];
+      const { readdir, stat, readFile } = fs;
+
+      // Recursive file search
+      async function searchDirectory(dirPath) {
+        if (results.length >= maxResults) return;
+
+        const entries = await readdir(dirPath, { withFileTypes: true });
+
+        for (const entry of entries) {
+          if (results.length >= maxResults) break;
+
+          const fullPath = path.join(dirPath, entry.name);
+
+          // Skip common ignore patterns
+          if (entry.name === 'node_modules' ||
+              entry.name === '.git' ||
+              entry.name === 'dist' ||
+              entry.name === 'build' ||
+              entry.name === '.next') {
+            continue;
+          }
+
+          if (entry.isDirectory()) {
+            await searchDirectory(fullPath);
+          } else if (entry.isFile()) {
+            // Only search text files (basic check)
+            const ext = path.extname(entry.name).toLowerCase();
+            const textExtensions = [
+              '.ts', '.tsx', '.js', '.jsx', '.py', '.rb', '.go', '.rs',
+              '.java', '.c', '.cpp', '.h', '.hpp', '.css', '.scss', '.html',
+              '.json', '.yaml', '.yml', '.md', '.txt', '.sh', '.bash'
+            ];
+
+            if (textExtensions.includes(ext)) {
+              try {
+                const content = await readFile(fullPath, 'utf-8');
+                const lines = content.split('\n');
+
+                for (let i = 0; i < lines.length; i++) {
+                  if (results.length >= maxResults) break;
+
+                  const line = lines[i];
+                  const searchRegex = new RegExp(
+                    query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+                    ignoreCase ? 'gi' : 'g'
+                  );
+                  const match = searchRegex.exec(line);
+
+                  if (match) {
+                    results.push({
+                      path: path.relative(workspacePath, fullPath),
+                      lineNumber: i + 1,
+                      lineContent: line.trim(),
+                      matchStart: match.index,
+                      matchEnd: match.index + match[0].length,
+                    });
+                  }
+                }
+              } catch (fileError) {
+                // Skip files that can't be read
+                continue;
+              }
+            }
+          }
+        }
+      }
+
+      await searchDirectory(workspacePath);
+
+      return {
+        success: true,
+        results,
+        totalMatches: results.length,
+        method: 'nodejs'
+      };
+    }
+  } catch (error) {
+    console.error('[Search] Error:', error);
+    return {
+      success: false,
+      error: error.message,
+      results: []
+    };
+  }
+});
+
+/**
+ * Search file names in workspace (for Quick Open / Cmd+P)
+ * Fast file path search with fuzzy matching
+ */
+ipcMain.handle('workspace:search-files', async (event, workspacePath, query, options = {}) => {
+  try {
+    const {
+      maxResults = 50,
+      fuzzy = true,
+    } = options;
+
+    const results = [];
+    const { readdir, stat } = fs;
+
+    // Recursively collect all files
+    async function collectFiles(dirPath, relativePath = '') {
+      if (results.length >= maxResults * 10) return; // Collect more than needed for fuzzy ranking
+
+      try {
+        const entries = await readdir(dirPath, { withFileTypes: true });
+
+        for (const entry of entries) {
+          const fullPath = path.join(dirPath, entry.name);
+          const relPath = path.join(relativePath, entry.name);
+
+          // Skip common ignore patterns
+          if (entry.name === 'node_modules' ||
+              entry.name === '.git' ||
+              entry.name === 'dist' ||
+              entry.name === 'dist-electron' ||
+              entry.name === 'build' ||
+              entry.name === '.next' ||
+              entry.name === '.conductor' ||
+              entry.name === 'coverage' ||
+              entry.name === '.cache') {
+            continue;
+          }
+
+          if (entry.isDirectory()) {
+            await collectFiles(fullPath, relPath);
+          } else if (entry.isFile()) {
+            results.push({
+              path: relPath,
+              fullPath: fullPath,
+              name: entry.name,
+              dir: relativePath
+            });
+          }
+        }
+      } catch (error) {
+        // Skip directories we can't read
+        console.warn('[Search Files] Cannot read directory:', dirPath, error.message);
+      }
+    }
+
+    // Collect all files
+    await collectFiles(workspacePath);
+
+    // If no query, return most recent files (TODO: add recent files tracking)
+    if (!query || query.trim() === '') {
+      return {
+        success: true,
+        files: results.slice(0, maxResults),
+        totalFiles: results.length,
+      };
+    }
+
+    // Fuzzy search using simple scoring
+    // We'll use a basic implementation here since we want to avoid adding dependencies
+    const scored = results.map(file => {
+      const score = calculateFuzzyScore(file.path, query);
+      return { ...file, score };
+    }).filter(file => file.score > 0);
+
+    // Sort by score (descending)
+    scored.sort((a, b) => b.score - a.score);
+
+    return {
+      success: true,
+      files: scored.slice(0, maxResults).map(f => ({
+        path: f.path,
+        fullPath: f.fullPath,
+        name: f.name,
+        dir: f.dir,
+        score: f.score
+      })),
+      totalFiles: scored.length,
+    };
+  } catch (error) {
+    console.error('[Search Files] Error:', error);
+    return {
+      success: false,
+      error: error.message,
+      files: []
+    };
+  }
+});
+
+/**
+ * Simple fuzzy matching scorer
+ * Returns score > 0 if match found, 0 otherwise
+ * Higher score = better match
+ */
+function calculateFuzzyScore(text, query) {
+  text = text.toLowerCase();
+  query = query.toLowerCase();
+
+  // Exact match gets highest score
+  if (text === query) return 1000;
+  if (text.includes(query)) return 500;
+
+  // Fuzzy matching: all characters must appear in order
+  let textIndex = 0;
+  let queryIndex = 0;
+  let score = 0;
+  let consecutiveMatches = 0;
+
+  while (textIndex < text.length && queryIndex < query.length) {
+    if (text[textIndex] === query[queryIndex]) {
+      queryIndex++;
+      consecutiveMatches++;
+      // Bonus for consecutive matches
+      score += 10 + (consecutiveMatches * 2);
+    } else {
+      consecutiveMatches = 0;
+      // Penalty for gaps
+      score -= 1;
+    }
+    textIndex++;
+  }
+
+  // If we didn't match all query characters, no match
+  if (queryIndex < query.length) return 0;
+
+  // Bonus for matching file name vs full path
+  const fileName = text.split('/').pop() || '';
+  if (fileName.includes(query)) {
+    score += 100;
+  }
+
+  // Bonus for shorter paths (prefer files closer to root)
+  const pathDepth = text.split('/').length;
+  score -= pathDepth * 2;
+
+  return Math.max(score, 1); // Minimum score of 1 if matched
+}
+
+/**
+ * Get TypeScript diagnostics for workspace
+ * Returns all TypeScript errors and warnings
+ */
+ipcMain.handle('typescript:get-diagnostics', async (event, workspacePath) => {
+  try {
+    const ts = require('typescript');
+    const fsSync = require('fs');
+
+    // Find tsconfig.json
+    const configPath = path.join(workspacePath, 'tsconfig.json');
+
+    let parsedConfig;
+    let hasTsConfig = false;
+
+    // Check if tsconfig exists
+    try {
+      await fs.access(configPath);
+      hasTsConfig = true;
+    } catch {
+      // tsconfig.json not found - use fallback
+      hasTsConfig = false;
+    }
+
+    if (hasTsConfig) {
+      // Read and parse tsconfig
+      const configFile = ts.readConfigFile(configPath, ts.sys.readFile);
+
+      if (configFile.error) {
+        return {
+          success: false,
+          error: `Failed to read tsconfig.json: ${configFile.error.messageText}`,
+          diagnostics: [],
+          totalErrors: 0,
+          totalWarnings: 0,
+        };
+      }
+
+      parsedConfig = ts.parseJsonConfigFileContent(
+        configFile.config,
+        ts.sys,
+        workspacePath
+      );
+    } else {
+      // Fallback: scan for TypeScript and JavaScript files
+      const fileExtensions = ['.ts', '.tsx', '.js', '.jsx'];
+      const filesToCheck = [];
+
+      // Recursively find files
+      function findFiles(dir) {
+        try {
+          const entries = fsSync.readdirSync(dir, { withFileTypes: true });
+
+          for (const entry of entries) {
+            // Skip common ignore patterns
+            if (entry.name === 'node_modules' ||
+                entry.name === '.git' ||
+                entry.name === 'dist' ||
+                entry.name === 'dist-electron' ||
+                entry.name === 'build' ||
+                entry.name === '.next' ||
+                entry.name === '.conductor' ||
+                entry.name === 'coverage') {
+              continue;
+            }
+
+            const fullPath = path.join(dir, entry.name);
+
+            if (entry.isDirectory()) {
+              findFiles(fullPath);
+            } else if (entry.isFile()) {
+              const ext = path.extname(entry.name);
+              if (fileExtensions.includes(ext)) {
+                filesToCheck.push(fullPath);
+              }
+            }
+          }
+        } catch (error) {
+          // Skip directories we can't read
+        }
+      }
+
+      findFiles(workspacePath);
+
+      // Create default config
+      parsedConfig = {
+        fileNames: filesToCheck,
+        options: {
+          allowJs: true,
+          checkJs: false, // Don't check JS files by default
+          jsx: ts.JsxEmit.React,
+          target: ts.ScriptTarget.ES2020,
+          module: ts.ModuleKind.ESNext,
+          moduleResolution: ts.ModuleResolutionKind.NodeJs,
+          skipLibCheck: true,
+          noEmit: true,
+        },
+      };
+    }
+
+    // Create TypeScript program
+    const program = ts.createProgram({
+      rootNames: parsedConfig.fileNames,
+      options: parsedConfig.options,
+    });
+
+    const diagnostics = [];
+
+    // Get all diagnostics
+    const allDiagnostics = [
+      ...program.getSemanticDiagnostics(),
+      ...program.getSyntacticDiagnostics(),
+      ...program.getDeclarationDiagnostics(),
+    ];
+
+    // Process diagnostics
+    for (const diagnostic of allDiagnostics) {
+      if (diagnostic.file) {
+        // Skip node_modules
+        if (diagnostic.file.fileName.includes('node_modules')) {
+          continue;
+        }
+
+        const { line, character } = diagnostic.file.getLineAndCharacterOfPosition(
+          diagnostic.start || 0
+        );
+
+        // Determine severity
+        let severity = 'error';
+        if (diagnostic.category === ts.DiagnosticCategory.Warning) {
+          severity = 'warning';
+        } else if (diagnostic.category === ts.DiagnosticCategory.Message) {
+          severity = 'info';
+        } else if (diagnostic.category === ts.DiagnosticCategory.Suggestion) {
+          severity = 'hint';
+        }
+
+        diagnostics.push({
+          severity,
+          message: ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'),
+          file: path.relative(workspacePath, diagnostic.file.fileName),
+          line: line + 1,
+          character: character + 1,
+          code: diagnostic.code,
+        });
+      }
+    }
+
+    const totalErrors = diagnostics.filter(d => d.severity === 'error').length;
+    const totalWarnings = diagnostics.filter(d => d.severity === 'warning').length;
+
+    return {
+      success: true,
+      diagnostics,
+      totalErrors,
+      totalWarnings,
+    };
+  } catch (error) {
+    console.error('[TypeScript] Diagnostics error:', error);
+    return {
+      success: false,
+      error: error.message,
+      diagnostics: [],
+      totalErrors: 0,
+      totalWarnings: 0,
+    };
+  }
+});
+
+/**
+ * Get TypeScript outline/symbols for a file
+ * Returns structure of functions, classes, interfaces, etc.
+ */
+ipcMain.handle('typescript:get-outline', async (event, filePath) => {
+  try {
+    const ts = require('typescript');
+    const fsSync = require('fs');
+
+    // Read file
+    const sourceCode = fsSync.readFileSync(filePath, 'utf8');
+    const sourceFile = ts.createSourceFile(
+      path.basename(filePath),
+      sourceCode,
+      ts.ScriptTarget.Latest,
+      true
+    );
+
+    const symbols = [];
+
+    // Recursively visit AST nodes
+    function visit(node, parent = null) {
+      let symbol = null;
+
+      // Function Declaration
+      if (ts.isFunctionDeclaration(node) && node.name) {
+        symbol = {
+          name: node.name.text,
+          kind: 'function',
+          line: sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1,
+          children: [],
+        };
+      }
+      // Arrow Function with variable
+      else if (ts.isVariableDeclaration(node) && node.initializer &&
+               (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer)) &&
+               ts.isIdentifier(node.name)) {
+        symbol = {
+          name: node.name.text,
+          kind: 'function',
+          line: sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1,
+          children: [],
+        };
+      }
+      // Class Declaration
+      else if (ts.isClassDeclaration(node) && node.name) {
+        symbol = {
+          name: node.name.text,
+          kind: 'class',
+          line: sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1,
+          children: [],
+        };
+      }
+      // Interface Declaration
+      else if (ts.isInterfaceDeclaration(node)) {
+        symbol = {
+          name: node.name.text,
+          kind: 'interface',
+          line: sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1,
+          children: [],
+        };
+      }
+      // Type Alias
+      else if (ts.isTypeAliasDeclaration(node)) {
+        symbol = {
+          name: node.name.text,
+          kind: 'type',
+          line: sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1,
+          children: [],
+        };
+      }
+      // Method Declaration
+      else if (ts.isMethodDeclaration(node) && node.name) {
+        const name = ts.isIdentifier(node.name) ? node.name.text : node.name.getText(sourceFile);
+        symbol = {
+          name,
+          kind: 'method',
+          line: sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1,
+          children: [],
+        };
+      }
+      // Property Declaration
+      else if (ts.isPropertyDeclaration(node) && node.name) {
+        const name = ts.isIdentifier(node.name) ? node.name.text : node.name.getText(sourceFile);
+        symbol = {
+          name,
+          kind: 'property',
+          line: sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1,
+          children: [],
+        };
+      }
+      // Enum Declaration
+      else if (ts.isEnumDeclaration(node)) {
+        symbol = {
+          name: node.name.text,
+          kind: 'enum',
+          line: sourceFile.getLineAndCharacterOfPosition(node.getStart()).line + 1,
+          children: [],
+        };
+      }
+
+      if (symbol) {
+        if (parent) {
+          parent.children.push(symbol);
+        } else {
+          symbols.push(symbol);
+        }
+
+        // Visit children with this symbol as parent
+        ts.forEachChild(node, child => visit(child, symbol));
+      } else {
+        // Continue visiting children
+        ts.forEachChild(node, child => visit(child, parent));
+      }
+    }
+
+    visit(sourceFile);
+
+    return {
+      success: true,
+      symbols,
+    };
+  } catch (error) {
+    console.error('[TypeScript] Outline error:', error);
+    return {
+      success: false,
+      error: error.message,
+      symbols: [],
+    };
   }
 });
 
@@ -2006,6 +2611,39 @@ ipcMain.handle('circuit:reload-claude-code', async (event, openVSCode = true) =>
   }
 })();
 
+// Register Monaco/Language Server handlers
+(async () => {
+  try {
+    const { registerMonacoHandlers } = await import('../dist-electron/monacoHandlers.js');
+    registerMonacoHandlers();
+    console.log('[main.cjs] Monaco handlers registered');
+  } catch (error) {
+    console.error('[main.cjs] Failed to register monaco handlers:', error);
+  }
+})();
+
+// Register LSP handlers
+(async () => {
+  try {
+    const { registerLSPHandlers } = await import('../dist-electron/lspHandlers.js');
+    registerLSPHandlers();
+    console.log('[main.cjs] LSP handlers registered');
+  } catch (error) {
+    console.error('[main.cjs] Failed to register LSP handlers:', error);
+  }
+})();
+
+// Register compact handlers
+(async () => {
+  try {
+    const { registerCompactHandlers } = await import('../dist-electron/compactHandlers.js');
+    registerCompactHandlers();
+    console.log('[main.cjs] Compact handlers registered');
+  } catch (error) {
+    console.error('[main.cjs] Failed to register compact handlers:', error);
+  }
+})();
+
 // Cleanup on app quit
 app.on('before-quit', async () => {
   try {
@@ -2023,6 +2661,24 @@ app.on('before-quit', async () => {
       const terminalManager = await getTerminalManagerInstance();
       terminalManager.destroyAllSessions();
       console.log('Terminal sessions destroyed');
+    }
+
+    // Cleanup LSP clients
+    try {
+      const { cleanupLSPHandlers } = await import('../dist-electron/lspHandlers.js');
+      await cleanupLSPHandlers();
+      console.log('LSP clients stopped');
+    } catch (error) {
+      console.error('LSP cleanup error:', error);
+    }
+
+    // Cleanup compact handlers
+    try {
+      const { cleanupCompactHandlers } = await import('../dist-electron/compactHandlers.js');
+      await cleanupCompactHandlers();
+      console.log('Compact handlers stopped');
+    } catch (error) {
+      console.error('Compact cleanup error:', error);
     }
   } catch (error) {
     console.error('Cleanup error:', error);
@@ -2722,7 +3378,7 @@ ipcMain.handle('claude:start-session', async (event, workspacePath) => {
 /**
  * Send message to Claude and get response
  */
-ipcMain.on('claude:send-message', async (event, sessionId, userMessage, attachments = [], thinkingMode = 'normal') => {
+ipcMain.on('claude:send-message', async (event, sessionId, userMessage, attachments = [], thinkingMode = 'normal', architectMode = false, aiRulesSystemPrompt = undefined) => {
   try {
     const session = activeSessions.get(sessionId);
 
@@ -2735,6 +3391,12 @@ ipcMain.on('claude:send-message', async (event, sessionId, userMessage, attachme
       return;
     }
 
+    // Log architect mode status
+    if (architectMode && aiRulesSystemPrompt) {
+      console.log('[Claude] 🏗️ Architect Mode ENABLED - AI rules will be applied as system prompt');
+      console.log('[Claude] AI Rules length:', aiRulesSystemPrompt.length, 'characters');
+    }
+
     // Validate thinkingMode
     const validModes = ['normal', 'think', 'megathink', 'ultrathink', 'plan'];
     if (!validModes.includes(thinkingMode)) {
@@ -2744,10 +3406,18 @@ ipcMain.on('claude:send-message', async (event, sessionId, userMessage, attachme
     // Build multimodal content array
     const content = [];
 
-    // Add thinking mode instruction prefix
-    let thinkingInstruction = '';
+    // Build instruction prefix with architect mode + thinking mode
+    let instructionPrefix = '';
     const languageInstruction = 'IMPORTANT: Always think and analyze in ENGLISH internally, but respond in THE SAME LANGUAGE as the user\'s input (Korean→Korean, Japanese→Japanese, English→English).';
 
+    // Add Architect Mode AI rules as system instruction if enabled
+    if (architectMode && aiRulesSystemPrompt) {
+      instructionPrefix = `${aiRulesSystemPrompt}\n\n---\n\n`;
+      console.log('[Claude] 🏗️ Added Architect Mode instructions to message');
+    }
+
+    // Add thinking mode instructions
+    let thinkingInstruction = '';
     if (thinkingMode === 'think') {
       thinkingInstruction = `<thinking_instruction>Think carefully and systematically about this request before responding. Take your time to reason through the problem.\n\n${languageInstruction}</thinking_instruction>\n\n`;
     } else if (thinkingMode === 'megathink') {
@@ -2929,17 +3599,20 @@ Plan Mode ensures structured, thoughtful development. Take your time to plan wel
 </thinking_instruction>\n\n`;
     }
 
-    // Add text message with thinking instruction prefix
+    // Combine architect mode prefix + thinking instruction + user message
+    const fullPrefix = instructionPrefix + thinkingInstruction;
+
+    // Add text message with combined prefix
     if (userMessage && userMessage.trim()) {
       content.push({
         type: 'text',
-        text: thinkingInstruction + userMessage
+        text: fullPrefix + userMessage
       });
-    } else if (thinkingInstruction) {
-      // If no user message but thinking instruction exists, add it anyway
+    } else if (fullPrefix.trim()) {
+      // If no user message but instructions exist, add them anyway
       content.push({
         type: 'text',
-        text: thinkingInstruction.trim()
+        text: fullPrefix.trim()
       });
     }
 
@@ -3143,11 +3816,16 @@ Plan Mode ensures structured, thoughtful development. Take your time to plan wel
                     const fileName = input.file_path.split('/').pop();
                     detailedMessage = `Edit ${fileName}`;
                     metadata.filePath = input.file_path;
+                    // ✅ Include full Edit args for diff calculation
+                    metadata.oldString = input.old_string;
+                    metadata.newString = input.new_string;
                   }
                   else if (toolName === 'Write' && input.file_path) {
                     const fileName = input.file_path.split('/').pop();
                     detailedMessage = `Write ${fileName}`;
                     metadata.filePath = input.file_path;
+                    // ✅ Include content for diff calculation
+                    metadata.content = input.content;
                   }
                   else if (toolName === 'Bash' && input.command) {
                     const shortCmd = input.command.length > 40
@@ -3386,6 +4064,172 @@ ipcMain.handle('claude:stop-session', async (event, sessionId) => {
     return { success: true };
   } catch (error) {
     console.error('[Claude] Stop session error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Quick explain - Fast hover explanation (optimized for speed)
+ * Uses a one-shot Claude Code invocation for faster response
+ */
+ipcMain.handle('claude:quick-explain', async (event, data) => {
+  try {
+    const { word, context, language = 'typescript', aiMode = 'fast' } = data;
+    const { spawn } = require('child_process');
+
+    // Build concise prompt for fast response
+    const prompt = `Briefly explain "${word}" in this code context (1-2 sentences max):
+
+\`\`\`${language}
+${context}
+\`\`\`
+
+Response in Korean if applicable. Be concise.`;
+
+    // Configure based on AI mode
+    const config = {
+      fast: { maxTokens: 100, temperature: 0.3 },
+      balanced: { maxTokens: 150, temperature: 0.5 },
+      accurate: { maxTokens: 200, temperature: 0.7 }
+    }[aiMode] || { maxTokens: 100, temperature: 0.3 };
+
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        resolve({ success: false, error: 'Timeout' });
+      }, aiMode === 'fast' ? 2000 : aiMode === 'balanced' ? 3000 : 5000);
+
+      const claudeProcess = spawn('claude-code', [
+        '--no-streaming',
+        '--max-tokens', config.maxTokens.toString(),
+        '--temperature', config.temperature.toString()
+      ], {
+        cwd: process.cwd()
+      });
+
+      let output = '';
+      let errorOutput = '';
+
+      claudeProcess.stdout.on('data', (data) => {
+        output += data.toString();
+      });
+
+      claudeProcess.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
+
+      claudeProcess.on('close', (code) => {
+        clearTimeout(timeout);
+        if (code === 0 && output) {
+          resolve({
+            success: true,
+            explanation: output.trim()
+          });
+        } else {
+          resolve({
+            success: false,
+            error: errorOutput || 'Failed to get explanation'
+          });
+        }
+      });
+
+      // Send prompt to stdin
+      claudeProcess.stdin.write(prompt);
+      claudeProcess.stdin.end();
+    });
+  } catch (error) {
+    console.error('[Claude] Quick explain error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * AI Completion - Intelligent code completion
+ * Uses Claude Code for context-aware suggestions
+ */
+ipcMain.handle('claude:ai-completion', async (event, data) => {
+  try {
+    const {
+      prefix,           // Code before cursor
+      suffix,           // Code after cursor
+      context,          // Surrounding code
+      language = 'typescript',
+      aiMode = 'fast',
+      maxTokens = 150
+    } = data;
+
+    const { spawn } = require('child_process');
+
+    // Build prompt for completion
+    const prompt = `Complete the following ${language} code. Return ONLY the completion text (no explanations):
+
+Context:
+\`\`\`${language}
+${context}
+\`\`\`
+
+Code to complete:
+\`\`\`${language}
+${prefix}<CURSOR>${suffix}
+\`\`\`
+
+Provide a concise, single-line or multi-line completion for <CURSOR>.`;
+
+    // Configure based on AI mode
+    const config = {
+      fast: { tokens: Math.min(maxTokens, 100), temperature: 0.2, timeout: 1500 },
+      balanced: { tokens: Math.min(maxTokens, 150), temperature: 0.3, timeout: 2500 },
+      accurate: { tokens: maxTokens, temperature: 0.4, timeout: 4000 }
+    }[aiMode] || { tokens: 100, temperature: 0.2, timeout: 1500 };
+
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        resolve({ success: false, error: 'Timeout' });
+      }, config.timeout);
+
+      const claudeProcess = spawn('claude-code', [
+        '--no-streaming',
+        '--max-tokens', config.tokens.toString(),
+        '--temperature', config.temperature.toString()
+      ], {
+        cwd: process.cwd()
+      });
+
+      let output = '';
+      let errorOutput = '';
+
+      claudeProcess.stdout.on('data', (data) => {
+        output += data.toString();
+      });
+
+      claudeProcess.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
+
+      claudeProcess.on('close', (code) => {
+        clearTimeout(timeout);
+        if (code === 0 && output) {
+          // Extract completion from output (remove markdown code blocks if present)
+          let completion = output.trim();
+          completion = completion.replace(/^```[\w]*\n/, '').replace(/\n```$/, '');
+
+          resolve({
+            success: true,
+            completion: completion
+          });
+        } else {
+          resolve({
+            success: false,
+            error: errorOutput || 'Failed to get completion'
+          });
+        }
+      });
+
+      // Send prompt to stdin
+      claudeProcess.stdin.write(prompt);
+      claudeProcess.stdin.end();
+    });
+  } catch (error) {
+    console.error('[Claude] AI completion error:', error);
     return { success: false, error: error.message };
   }
 });
@@ -4091,13 +4935,44 @@ ipcMain.handle('slash-commands:list', async (event, workspacePath) => {
     // Read all files in directory
     const files = await fs.readdir(commandsPath);
 
-    // Filter for .md files and extract command names
-    const commands = files
-      .filter(file => file.endsWith('.md'))
-      .map(file => ({
-        name: file.replace(/\.md$/, ''), // Remove .md extension
-        fileName: file,
-      }));
+    // Filter for .md files and extract command names with descriptions
+    const commands = await Promise.all(
+      files
+        .filter(file => file.endsWith('.md'))
+        .map(async file => {
+          const name = file.replace(/\.md$/, '');
+          let description = '';
+
+          try {
+            // Read file content to extract description
+            const filePath = path.join(commandsPath, file);
+            const content = await fs.readFile(filePath, 'utf-8');
+
+            // Extract first non-empty, non-heading line as description
+            const lines = content.split('\n');
+            for (const line of lines) {
+              const trimmed = line.trim();
+              // Skip empty lines, markdown headings, and frontmatter
+              if (trimmed && !trimmed.startsWith('#') && !trimmed.startsWith('---')) {
+                description = trimmed;
+                // Limit description length
+                if (description.length > 100) {
+                  description = description.substring(0, 100) + '...';
+                }
+                break;
+              }
+            }
+          } catch (err) {
+            console.warn(`[Slash Commands] Could not read description for ${file}:`, err);
+          }
+
+          return {
+            name,
+            fileName: file,
+            description,
+          };
+        })
+    );
 
     return { success: true, commands };
   } catch (error) {
