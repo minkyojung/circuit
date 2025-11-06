@@ -165,7 +165,7 @@ export function ConversationTabs({
   }
 
   return (
-    <div className="flex items-center gap-1 overflow-x-auto scrollbar-thin">
+    <div className="flex items-center gap-0 overflow-x-auto scrollbar-thin">
       {conversations.map((conversation) => {
         const isActive = conversation.id === activeConversationId
 

@@ -2644,6 +2644,17 @@ ipcMain.handle('circuit:reload-claude-code', async (event, openVSCode = true) =>
   }
 })();
 
+// Register context metrics handlers
+(async () => {
+  try {
+    const { registerContextMetricsHandlers } = await import('../dist-electron/contextMetricsHandlers.js');
+    registerContextMetricsHandlers();
+    console.log('[main.cjs] Context metrics handlers registered');
+  } catch (error) {
+    console.error('[main.cjs] Failed to register context metrics handlers:', error);
+  }
+})();
+
 // Cleanup on app quit
 app.on('before-quit', async () => {
   try {

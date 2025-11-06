@@ -203,7 +203,12 @@ export class IPCEventBridge {
       tool: milestone.tool,
       filePath: milestone.filePath,
       command: milestone.command,
-      pattern: milestone.pattern
+      pattern: milestone.pattern,
+      // ✅ Include Edit tool args for diff calculation
+      oldString: (milestone as any).oldString,
+      newString: (milestone as any).newString,
+      // ✅ Include Write tool args for diff calculation
+      content: (milestone as any).content
     };
 
     // Add to thinking steps (callback will handle state update)

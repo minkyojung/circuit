@@ -106,7 +106,7 @@ export function FileTabs({
   }
 
   return (
-    <div className="flex items-center gap-0.5 overflow-x-auto scrollbar-thin border-b border-border bg-card">
+    <div className="flex items-center gap-0 overflow-x-auto scrollbar-thin border-b border-border bg-card">
       {openFiles.map((file) => {
         const isActive = file.path === activeFilePath
         const fileName = getFileName(file.path)

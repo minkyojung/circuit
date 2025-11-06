@@ -336,6 +336,9 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   const { metrics } = useClaudeMetrics();
   const [lastAutoCompactTime, setLastAutoCompactTime] = useState<number>(0);
 
+  // Context metrics (calculated from messages)
+  const [contextMetrics, setContextMetrics] = useState<any>(null);
+
   // Simply pass through agentStatesByTodoId as it's already todoId-based
   // MessageComponent will use todoId from metadata to look up the state
   const messageAgentStates = agentStatesByTodoId;
@@ -987,9 +990,36 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
     }
   }, [conversationId, sessionId, messages]);
 
+  // Calculate context metrics whenever messages change
+  useEffect(() => {
+    const calculateContextMetrics = async () => {
+      if (messages.length === 0) {
+        setContextMetrics(null);
+        return;
+      }
+
+      try {
+        const result = await ipcRenderer.invoke('context:calculate-tokens', { messages });
+
+        if (result.success && result.metrics) {
+          setContextMetrics({
+            context: result.metrics
+          });
+        }
+      } catch (error) {
+        console.error('[ChatPanel] Failed to calculate context metrics:', error);
+        setContextMetrics(null);
+      }
+    };
+
+    calculateContextMetrics();
+  }, [messages]);
+
   // Auto-compact when Context Gauge reaches 80% (shouldCompact = true)
   useEffect(() => {
-    const shouldAutoCompact = metrics?.context?.shouldCompact;
+    // Use calculated context metrics if available, fallback to useClaudeMetrics
+    const effectiveMetrics = contextMetrics || metrics;
+    const shouldAutoCompact = effectiveMetrics?.context?.shouldCompact;
 
     if (!shouldAutoCompact || !conversationId || messages.length < 20) {
       return;
@@ -1007,7 +1037,7 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
     // Trigger silent auto-compact
     console.log('[ChatPanel] Auto-compact triggered (Context Gauge at 80%+)');
     handleSessionCompact(true);
-  }, [metrics?.context?.shouldCompact, conversationId, messages.length, lastAutoCompactTime, handleSessionCompact]);
+  }, [contextMetrics, metrics?.context?.shouldCompact, conversationId, messages.length, lastAutoCompactTime, handleSessionCompact]);
 
   const handleSend = async (inputText: string, attachments: AttachedFile[], thinkingMode: import('./ChatInput').ThinkingMode, architectMode: boolean) => {
     if (!inputText.trim() && attachments.length === 0) return;
@@ -1502,6 +1532,7 @@ The plan is ready. What would you like to do?`,
             projectPath={workspace.path.split('/.conductor/workspaces/')[0]}
             onAddTodo={handleAddTodo}
             onCompact={handleSessionCompact}
+            contextMetrics={contextMetrics}
             codeAttachment={codeAttachment}
             onCodeAttachmentRemove={() => setCodeAttachment(null)}
           />

@@ -9,6 +9,7 @@ import { SettingCard } from './SettingCard';
 import { SystemRulesModal } from './SystemRulesModal';
 import { ProjectRulesEditorModal } from './ProjectRulesEditorModal';
 import { TemplatesModal } from './TemplatesModal';
+import { Button } from '@/components/ui/button';
 import { getAIRules, importCursorRules, exportCursorRules, SYSTEM_AI_RULES } from '@/services/projectConfig';
 
 interface AIRulesOverviewProps {
@@ -80,9 +81,9 @@ export const AIRulesOverview: React.FC<AIRulesOverviewProps> = ({ workspacePath 
             description="Core principles always applied to every AI conversation"
             stats={`${SYSTEM_AI_RULES.length} rules`}
             action={
-              <button className="px-3 py-1.5 text-xs border border-border rounded-md hover:bg-muted/50 transition-colors font-medium">
+              <Button size="sm" variant="outline">
                 View
-              </button>
+              </Button>
             }
             variant="primary"
             onClick={() => setShowSystemRulesModal(true)}
@@ -95,9 +96,9 @@ export const AIRulesOverview: React.FC<AIRulesOverviewProps> = ({ workspacePath 
             description="Project-specific rules added on top of system rules"
             stats={`${projectRuleCount} ${projectRuleCount === 1 ? 'rule' : 'rules'}`}
             action={
-              <button className="px-3 py-1.5 text-xs bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors font-medium">
+              <Button size="sm" variant="default">
                 Edit
-              </button>
+              </Button>
             }
             onClick={() => setShowProjectEditorModal(true)}
           />
@@ -109,9 +110,9 @@ export const AIRulesOverview: React.FC<AIRulesOverviewProps> = ({ workspacePath 
             description="Apply pre-built rule sets for React, Next.js, Python, and more"
             stats="7 templates"
             action={
-              <button className="px-3 py-1.5 text-xs border border-border rounded-md hover:bg-muted/50 transition-colors font-medium">
+              <Button size="sm" variant="outline">
                 Browse
-              </button>
+              </Button>
             }
             variant="accent"
             onClick={() => setShowTemplatesModal(true)}
@@ -124,26 +125,28 @@ export const AIRulesOverview: React.FC<AIRulesOverviewProps> = ({ workspacePath 
             description="Import and export rules from/to .cursorrules file"
             action={
               <div className="flex gap-2">
-                <button
+                <Button
+                  size="sm"
+                  variant="outline"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleImportCursorRules();
                   }}
-                  className="px-3 py-1.5 text-xs border border-border rounded-md hover:bg-muted/50 transition-colors font-medium flex items-center gap-1.5"
                 >
                   <FileDown size={12} />
                   Import
-                </button>
-                <button
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleExportCursorRules();
                   }}
-                  className="px-3 py-1.5 text-xs border border-border rounded-md hover:bg-muted/50 transition-colors font-medium flex items-center gap-1.5"
                 >
                   <FileUp size={12} />
                   Export
-                </button>
+                </Button>
               </div>
             }
             variant="muted"

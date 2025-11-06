@@ -189,13 +189,6 @@
     --input: oklch(0.92 0 0);                        /* #EBEBEB */
     --ring: oklch(0.58 0.15 250);                    /* Muted blue - Focus ring */
 
-    /* Chart colors */
-    --chart-1: oklch(0.837 0.128 66.29);
-    --chart-2: oklch(0.705 0.213 47.604);
-    --chart-3: oklch(0.646 0.222 41.116);
-    --chart-4: oklch(0.553 0.195 38.402);
-    --chart-5: oklch(0.47 0.157 37.304);
-
     /* Window glassmorphism */
     --window-glass: var(--material-regular);         /* Standard glass effect for window */
 
@@ -238,11 +231,7 @@
     /* Git status colors - Git-specific states with semantic color relationships */
     --status-merged: oklch(0.55 0.25 290);           /* Purple (unique) - PR merged */
     --status-working: oklch(0.62 0.18 60);           /* Yellow-orange (≈ warning) - changes in working tree */
-    --status-ahead: oklch(0.55 0.22 250);            /* Blue (≈ info) - commits ahead of remote */
-    --status-behind: oklch(0.55 0.28 25);            /* Red (≈ destructive) - commits behind remote */
-    --status-diverged: oklch(0.58 0.18 40);          /* Orange (unique) - branches diverged */
     --status-synced: oklch(0.55 0.22 150);           /* Green (≈ success) - in sync with remote */
-    --status-local: oklch(0.55 0.12 250);            /* Gray (unique) - local branch only */
 
     /* ===== GLASS/OVERLAY EFFECTS ===== */
     /* Glass backgrounds and borders */
@@ -368,13 +357,6 @@
     --input: var(--background-elevated-secondary);   /* #3A3A3A */
     --ring: oklch(0.65 0.18 250);                    /* Brighter blue ring */
 
-    /* Chart colors - brightened */
-    --chart-1: oklch(0.737 0.148 66.29);
-    --chart-2: oklch(0.605 0.233 47.604);
-    --chart-3: oklch(0.546 0.242 41.116);
-    --chart-4: oklch(0.453 0.215 38.402);
-    --chart-5: oklch(0.37 0.177 37.304);
-
     /* Window glassmorphism */
     --window-glass: var(--material-regular);         /* Standard glass effect - Apple-style */
 
@@ -417,11 +399,7 @@
     /* Git status colors - Git-specific states with semantic color relationships (brightened for dark mode) */
     --status-merged: oklch(0.65 0.28 290);           /* Purple (unique) - PR merged */
     --status-working: oklch(0.72 0.20 60);           /* Yellow-orange (≈ warning) - changes in working tree */
-    --status-ahead: oklch(0.65 0.25 250);            /* Blue (≈ info) - commits ahead of remote */
-    --status-behind: oklch(0.65 0.30 25);            /* Red (≈ destructive) - commits behind remote */
-    --status-diverged: oklch(0.68 0.20 40);          /* Orange (unique) - branches diverged */
     --status-synced: oklch(0.65 0.25 150);           /* Green (≈ success) - in sync with remote */
-    --status-local: oklch(0.65 0.15 250);            /* Gray (unique) - local branch only */
 
     /* ===== GLASS/OVERLAY EFFECTS (DARK) ===== */
     /* Glass hover - inverted for dark mode */
@@ -562,13 +540,6 @@
     --input: oklch(0.92 0.015 150);
     --ring: oklch(0.55 0.12 150);                         /* Sage green focus */
 
-    /* Chart colors - green-themed */
-    --chart-1: oklch(0.837 0.10 150);
-    --chart-2: oklch(0.705 0.15 140);
-    --chart-3: oklch(0.646 0.18 145);
-    --chart-4: oklch(0.553 0.15 150);
-    --chart-5: oklch(0.47 0.12 155);
-
     /* Window glassmorphism */
     --window-glass: var(--material-regular);
 
@@ -611,11 +582,7 @@
     /* Git status colors - same as light mode */
     --status-merged: oklch(0.55 0.25 290);
     --status-working: oklch(0.62 0.18 60);
-    --status-ahead: oklch(0.55 0.22 250);
-    --status-behind: oklch(0.55 0.28 25);
-    --status-diverged: oklch(0.58 0.18 40);
     --status-synced: oklch(0.55 0.22 150);
-    --status-local: oklch(0.55 0.12 250);
 
     /* Glass/Overlay effects */
     --glass-bg: var(--material-regular);
@@ -751,13 +718,6 @@
     --input: var(--background-elevated-secondary);
     --ring: oklch(0.62 0.15 150);                         /* Bright sage focus */
 
-    /* Chart colors - green-themed (brightened) */
-    --chart-1: oklch(0.737 0.15 150);
-    --chart-2: oklch(0.605 0.20 140);
-    --chart-3: oklch(0.546 0.22 145);
-    --chart-4: oklch(0.453 0.18 150);
-    --chart-5: oklch(0.37 0.15 155);
-
     /* Window glassmorphism */
     --window-glass: var(--material-regular);
 
@@ -800,11 +760,7 @@
     /* Git status colors - brightened for dark mode */
     --status-merged: oklch(0.65 0.28 290);
     --status-working: oklch(0.72 0.20 60);
-    --status-ahead: oklch(0.65 0.25 250);
-    --status-behind: oklch(0.65 0.30 25);
-    --status-diverged: oklch(0.68 0.20 40);
     --status-synced: oklch(0.65 0.25 150);
-    --status-local: oklch(0.65 0.15 250);
 
     /* Glass/Overlay effects */
     --glass-bg: var(--material-regular);
@@ -932,13 +888,6 @@
     --input: oklch(0.94 0.006 70);
     --ring: oklch(0.58 0.10 45);                          /* Terracotta focus ring */
 
-    /* Chart colors - refined muted palette */
-    --chart-1: oklch(0.65 0.11 45);                       /* Terracotta */
-    --chart-2: oklch(0.70 0.11 75);                       /* Amber */
-    --chart-3: oklch(0.60 0.12 25);                       /* Burgundy */
-    --chart-4: oklch(0.62 0.10 145);                      /* Olive */
-    --chart-5: oklch(0.58 0.09 240);                      /* Slate */
-
     /* Window glassmorphism */
     --window-glass: var(--material-regular);
 
@@ -981,11 +930,7 @@
     /* Git status colors - same as light mode */
     --status-merged: oklch(0.55 0.25 290);
     --status-working: oklch(0.62 0.18 60);
-    --status-ahead: oklch(0.55 0.22 250);
-    --status-behind: oklch(0.55 0.28 25);
-    --status-diverged: oklch(0.58 0.18 40);
     --status-synced: oklch(0.55 0.22 150);
-    --status-local: oklch(0.55 0.12 250);
 
     /* Glass/Overlay effects */
     --glass-bg: var(--material-regular);
@@ -1121,13 +1066,6 @@
     --input: var(--background-elevated-secondary);
     --ring: oklch(0.68 0.12 45);                          /* Soft coral focus ring */
 
-    /* Chart colors - refined soft palette */
-    --chart-1: oklch(0.68 0.12 45);                       /* Coral */
-    --chart-2: oklch(0.75 0.13 85);                       /* Amber */
-    --chart-3: oklch(0.62 0.16 28);                       /* Rose */
-    --chart-4: oklch(0.68 0.13 142);                      /* Sage */
-    --chart-5: oklch(0.65 0.12 230);                      /* Slate */
-
     /* Window glassmorphism */
     --window-glass: var(--material-regular);
 
@@ -1170,11 +1108,7 @@
     /* Git status colors - brightened for dark mode */
     --status-merged: oklch(0.65 0.28 290);
     --status-working: oklch(0.72 0.20 60);
-    --status-ahead: oklch(0.65 0.25 250);
-    --status-behind: oklch(0.65 0.30 25);
-    --status-diverged: oklch(0.68 0.20 40);
     --status-synced: oklch(0.65 0.25 150);
-    --status-local: oklch(0.65 0.15 250);
 
     /* Glass/Overlay effects */
     --glass-bg: var(--material-regular);
@@ -1302,13 +1236,6 @@
     --input: oklch(0.91 0.05 80);
     --ring: oklch(0.65 0.12 75);
 
-    /* Chart colors - wheat themed */
-    --chart-1: oklch(0.75 0.15 75);
-    --chart-2: oklch(0.68 0.18 60);
-    --chart-3: oklch(0.60 0.20 85);
-    --chart-4: oklch(0.55 0.15 70);
-    --chart-5: oklch(0.50 0.12 80);
-
     /* Window glassmorphism */
     --window-glass: var(--material-regular);
 
@@ -1351,11 +1278,7 @@
     /* Git status colors */
     --status-merged: oklch(0.55 0.25 290);
     --status-working: oklch(0.62 0.18 60);
-    --status-ahead: oklch(0.55 0.22 250);
-    --status-behind: oklch(0.55 0.28 25);
-    --status-diverged: oklch(0.58 0.18 40);
     --status-synced: oklch(0.55 0.22 150);
-    --status-local: oklch(0.55 0.12 250);
 
     /* Glass/Overlay effects */
     --glass-bg: var(--material-regular);
@@ -1490,13 +1413,6 @@
     --border: var(--separator-opaque);
     --input: var(--background-elevated-secondary);
     --ring: oklch(0.55 0.08 200);
-
-    /* Chart colors - slate themed */
-    --chart-1: oklch(0.65 0.12 200);
-    --chart-2: oklch(0.60 0.15 180);
-    --chart-3: oklch(0.55 0.18 190);
-    --chart-4: oklch(0.50 0.12 175);
-    --chart-5: oklch(0.45 0.10 185);
 
     /* Window glassmorphism */
     --window-glass: var(--material-regular);

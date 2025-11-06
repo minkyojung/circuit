@@ -41,6 +41,8 @@ interface ChatInputProps {
   projectPath?: string
   onAddTodo?: (content: string) => void | Promise<void>
   onCompact?: () => void | Promise<void>
+  // Context metrics (calculated from messages)
+  contextMetrics?: any
   // Code attachment from editor selection
   codeAttachment?: {
     code: string
@@ -108,11 +110,15 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   projectPath,
   onAddTodo,
   onCompact,
+  contextMetrics,
   codeAttachment,
   onCodeAttachmentRemove,
 }) => {
   const { settings, updateSettings } = useSettingsContext()
-  const { metrics } = useClaudeMetrics()
+  const { metrics: fallbackMetrics } = useClaudeMetrics()
+
+  // Use passed contextMetrics if available, fallback to useClaudeMetrics
+  const metrics = contextMetrics || fallbackMetrics
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
   const [thinkingMode, setThinkingMode] = useState<ThinkingMode>('normal')
   const [architectMode, setArchitectModeState] = useState<boolean>(false)

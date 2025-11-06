@@ -347,6 +347,13 @@ export function registerConversationHandlers(): void {
                   // Edit tool: track as modification
                   if (step.tool === 'Edit' && step.filePath) {
                     console.log('[message:save] 📝 Found Edit tool call:', step.filePath)
+                    console.log('[message:save] 🔍 DEBUG step data:', {
+                      hasOldString: !!step.oldString,
+                      hasNewString: !!step.newString,
+                      oldStringLength: step.oldString?.length || 0,
+                      newStringLength: step.newString?.length || 0,
+                      stepKeys: Object.keys(step)
+                    })
                     // ✅ Pass full Edit args including old_string and new_string
                     fileAggregator.trackFromEdit(
                       {

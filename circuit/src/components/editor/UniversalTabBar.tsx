@@ -134,7 +134,7 @@ export function UniversalTabBar({
 
   return (
     <div
-      className="flex items-center gap-1 overflow-x-auto scrollbar-thin border-b border-border bg-card px-2 py-1"
+      className="flex items-center gap-0 overflow-x-auto scrollbar-thin border-b border-border bg-card px-2 py-1"
       onDragLeave={handleDragLeave}
     >
       {tabs.map((tab, index) => (
