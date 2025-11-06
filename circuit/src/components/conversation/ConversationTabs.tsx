@@ -165,7 +165,10 @@ export function ConversationTabs({
   }
 
   return (
-    <div className="flex items-center gap-0 overflow-x-auto scrollbar-thin">
+    <div className="relative flex items-center gap-0 overflow-x-auto scrollbar-thin">
+      {/* Gradient background for glassmorphism effect */}
+      <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 via-purple-500/5 to-pink-500/5 pointer-events-none" />
+
       {conversations.map((conversation) => {
         const isActive = conversation.id === activeConversationId
 
@@ -183,6 +186,7 @@ export function ConversationTabs({
               'text-sm font-medium whitespace-nowrap',
               'rounded-md',
               'transition-all duration-200',
+              'z-10',  // Above gradient background
               // Glassmorphism effect
               'backdrop-blur-md',
               'border border-white/10',
