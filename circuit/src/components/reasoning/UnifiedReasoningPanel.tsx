@@ -43,22 +43,28 @@ export const UnifiedReasoningPanel: React.FC<UnifiedReasoningPanelProps> = ({
   // Extract file changes for collapsed view fallback
   const fileChanges = extractFileChanges(steps);
 
+  // Calculate total diff statistics
+  const totalAdditions = fileSummaryBlock?.metadata?.totalAdditions ||
+    fileChanges.reduce((sum, f) => sum + f.additions, 0);
+  const totalDeletions = fileSummaryBlock?.metadata?.totalDeletions ||
+    fileChanges.reduce((sum, f) => sum + f.deletions, 0);
+
   // Generate summary text
   const stepCount = steps.length;
   const toolSummary = summarizeToolUsage(steps);
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, ease: "easeOut" }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.2, ease: "easeOut" }}
     >
       <Collapsible
         open={isExpanded}
         onOpenChange={setIsExpanded}
         className={cn(
           "border border-border/60 rounded-lg overflow-hidden",
-          "bg-gradient-to-br from-secondary/40 via-secondary/30 to-secondary/20",
+          "bg-secondary/60",
           "backdrop-blur-sm shadow-sm",
           className
         )}
@@ -88,10 +94,22 @@ export const UnifiedReasoningPanel: React.FC<UnifiedReasoningPanelProps> = ({
               </span>
             </div>
 
-            {/* Duration */}
-            <span className="text-sm font-light opacity-60 group-hover:opacity-80 transition-opacity">
-              {duration}s
-            </span>
+            {/* Duration and Diff Stats */}
+            <div className="flex items-center gap-3">
+              {(totalAdditions > 0 || totalDeletions > 0) && (
+                <div className="flex items-center gap-2 text-xs font-mono">
+                  {totalAdditions > 0 && (
+                    <span className="text-green-500 font-medium">+{totalAdditions}</span>
+                  )}
+                  {totalDeletions > 0 && (
+                    <span className="text-red-500 font-medium">-{totalDeletions}</span>
+                  )}
+                </div>
+              )}
+              <span className="text-sm font-light opacity-60 group-hover:opacity-80 transition-opacity">
+                {duration}s
+              </span>
+            </div>
           </div>
         </CollapsibleTrigger>
 

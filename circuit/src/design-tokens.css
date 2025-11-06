@@ -276,15 +276,15 @@
   .dark {
     /* ===== APPLE-STYLE SEMANTIC COLOR SYSTEM (DARK) ===== */
 
-    /* Background Hierarchy - Base (dimmer, for background layers) - Subtle green hint */
-    --background-base-primary: oklch(0.15 0.005 150);      /* Very dark with green hint */
-    --background-base-secondary: oklch(0.18 0.004 150);    /* Dark with subtle green */
-    --background-base-tertiary: oklch(0.20 0.004 150);     /* Slightly lighter */
+    /* Background Hierarchy - Base (dimmer, for background layers) - Pure neutral gray */
+    --background-base-primary: oklch(0.15 0 0);      /* Very dark neutral gray */
+    --background-base-secondary: oklch(0.18 0 0);    /* Dark neutral gray */
+    --background-base-tertiary: oklch(0.20 0 0);     /* Slightly lighter gray */
 
-    /* Background Hierarchy - Elevated (brighter, for foreground layers) - Subtle green hint */
-    --background-elevated-primary: oklch(0.22 0.003 150);  /* Elevated with green hint */
-    --background-elevated-secondary: oklch(0.25 0.003 150); /* Elevated 2 */
-    --background-elevated-tertiary: oklch(0.28 0.003 150); /* Elevated 3 */
+    /* Background Hierarchy - Elevated (brighter, for foreground layers) - Pure neutral gray */
+    --background-elevated-primary: oklch(0.22 0 0);  /* Elevated neutral gray */
+    --background-elevated-secondary: oklch(0.25 0 0); /* Elevated 2 */
+    --background-elevated-tertiary: oklch(0.28 0 0); /* Elevated 3 */
 
     /* Default background tokens (using base for main background) */
     --background-primary: var(--background-base-secondary);      /* Main window */
@@ -307,11 +307,11 @@
     --separator-opaque: rgba(255, 255, 255, 0.1);    /* Solid dividers */
     --separator-translucent: rgba(255, 255, 255, 0.05); /* Subtle dividers */
 
-    /* Materials - Glassmorphism Hierarchy (Dark Mode) - Very subtle green hint */
-    --material-thin: rgba(26, 28, 27, 0.7);          /* Subtle glass with green hint */
-    --material-regular: rgba(26, 28, 27, 0.85);      /* Standard glass with green hint */
-    --material-thick: rgba(26, 28, 27, 0.92);        /* Strong glass with green hint */
-    --material-ultra-thick: rgba(26, 28, 27, 0.97);  /* Maximum glass with green hint */
+    /* Materials - Glassmorphism Hierarchy (Dark Mode) - Pure neutral gray */
+    --material-thin: rgba(28, 28, 28, 0.7);          /* Subtle neutral glass */
+    --material-regular: rgba(28, 28, 28, 0.85);      /* Standard neutral glass */
+    --material-thick: rgba(28, 28, 28, 0.92);        /* Strong neutral glass */
+    --material-ultra-thick: rgba(28, 28, 28, 0.97);  /* Maximum neutral glass */
 
     /* ===== LEGACY TOKENS (mapped to new system) ===== */
     --background: var(--background-primary);
