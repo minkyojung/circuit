@@ -1,20 +1,17 @@
 /**
- * TodoPanel - Right Sidebar with Problems and Terminal
+ * TodoPanel - Right Sidebar with Terminal
  *
  * Contains:
  * - Settings, Theme, Feedback buttons
  * - Commit & PR button
- * - Problems Panel (TypeScript diagnostics)
  * - Terminal
  */
 
 import { useState } from 'react'
-import { Settings, Terminal as TerminalIcon, MessageSquare, AlertCircle } from 'lucide-react'
+import { Settings, Terminal as TerminalIcon, MessageSquare } from 'lucide-react'
 import type { Workspace } from '@/types/workspace'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { Terminal } from '@/components/Terminal'
-import { ProblemsPanel } from '@/components/problems/ProblemsPanel'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import {
   SidebarHeader,
   SidebarContent,
@@ -30,7 +27,6 @@ interface TodoPanelProps {
 
 export function TodoPanel({ workspace, onCommit, onFileSelect, onOpenSettings }: TodoPanelProps) {
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState('terminal')
 
   return (
     <>
@@ -74,50 +70,24 @@ export function TodoPanel({ workspace, onCommit, onFileSelect, onOpenSettings }:
         </div>
       </SidebarHeader>
 
-      {/* Content area with Tabs */}
+      {/* Content area with Terminal */}
       <SidebarContent className="flex flex-col overflow-hidden p-0">
         {workspace ? (
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-            <TabsList className="w-full grid grid-cols-2 rounded-none border-b">
-              <TabsTrigger value="problems" className="gap-2 data-[state=active]:bg-secondary">
-                <AlertCircle size={14} />
-                Problems
-              </TabsTrigger>
-              <TabsTrigger value="terminal" className="gap-2 data-[state=active]:bg-secondary">
-                <TerminalIcon size={14} />
-                Terminal
-              </TabsTrigger>
-            </TabsList>
+          <div className="h-full flex flex-col overflow-hidden">
+            {/* Terminal Header */}
+            <div className="flex items-center gap-2 px-4 py-2 text-xs font-medium text-foreground border-b border-border">
+              <TerminalIcon size={14} />
+              <span>Terminal</span>
+              <span className="text-[10px] text-muted-foreground">
+                {workspace.displayName}
+              </span>
+            </div>
 
-            <TabsContent value="problems" className="flex-1 overflow-hidden m-0">
-              <ProblemsPanel
-                workspacePath={workspace.path}
-                onFileClick={(path, line) => {
-                  if (onFileSelect) {
-                    onFileSelect(path, line);
-                  }
-                }}
-              />
-            </TabsContent>
-
-            <TabsContent value="terminal" className="flex-1 overflow-hidden m-0">
-              <div className="h-full flex flex-col overflow-hidden">
-                {/* Terminal Header */}
-                <div className="flex items-center gap-2 px-4 py-2 text-xs font-medium text-foreground border-b border-border">
-                  <TerminalIcon size={14} />
-                  <span>Terminal</span>
-                  <span className="text-[10px] text-muted-foreground">
-                    {workspace.displayName}
-                  </span>
-                </div>
-
-                {/* Terminal Content */}
-                <div className="flex-1 overflow-hidden bg-transparent">
-                  <Terminal key={workspace.id} workspace={workspace} />
-                </div>
-              </div>
-            </TabsContent>
-          </Tabs>
+            {/* Terminal Content */}
+            <div className="flex-1 overflow-hidden bg-transparent">
+              <Terminal key={workspace.id} workspace={workspace} />
+            </div>
+          </div>
         ) : (
           <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground p-4">
             Select a workspace
