@@ -77,7 +77,7 @@ export const FileSummaryBlock: React.FC<FileSummaryBlockProps> = ({ block, onFil
                 )}
                 {getFileIcon(file.changeType, true)}
                 <span className="text-xs font-mono flex-1 truncate text-foreground/80 font-light">
-                  {file.filePath}
+                  {file.filePath.split('/').pop() || file.filePath}
                 </span>
                 <div className="flex items-center gap-1.5 text-[11px] font-mono flex-shrink-0">
                   {file.additions > 0 && (

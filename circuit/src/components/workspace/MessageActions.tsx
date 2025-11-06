@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { Copy, Check } from 'lucide-react';
+import { Copy, Check, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { RetryDropdown } from './RetryDropdown';
@@ -15,6 +15,7 @@ interface MessageActionsProps {
   content: string;
   onCopy: (messageId: string, content: string) => void;
   onRetry: (messageId: string, mode: 'normal' | 'extended') => void;
+  onExplain: (messageId: string, content: string) => void;
   copiedMessageId: string | null;
 }
 
@@ -23,6 +24,7 @@ export function MessageActions({
   content,
   onCopy,
   onRetry,
+  onExplain,
   copiedMessageId,
 }: MessageActionsProps) {
   const isCopied = copiedMessageId === messageId;
@@ -46,6 +48,20 @@ export function MessageActions({
         ) : (
           <Copy className="w-4 h-4" strokeWidth={1.5} />
         )}
+      </Button>
+
+      {/* Explain Button */}
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => onExplain(messageId, content)}
+        className={cn(
+          'h-[32px] w-[32px] hover:bg-secondary',
+          'text-muted-foreground hover:text-foreground'
+        )}
+        title="Explain this response"
+      >
+        <HelpCircle className="w-4 h-4" strokeWidth={1.5} />
       </Button>
 
       {/* Retry Dropdown */}

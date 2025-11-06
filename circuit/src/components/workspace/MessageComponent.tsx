@@ -18,6 +18,7 @@ export interface MessageComponentProps {
   currentDuration: number;
   onCopyMessage: (messageId: string, content: string) => void;
   onRetryMessage: (messageId: string, mode: 'normal' | 'extended') => void;
+  onExplainMessage: (messageId: string, content: string) => void;
   onExecuteCommand: (command: string) => Promise<void>;
   onFileReferenceClick?: (filePath: string, lineStart?: number, lineEnd?: number) => void;
   onRunAgent?: (messageId: string) => void;
@@ -33,6 +34,7 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
   currentDuration,
   onCopyMessage,
   onRetryMessage,
+  onExplainMessage,
   onExecuteCommand,
   onFileReferenceClick,
   onRunAgent,
@@ -206,7 +208,7 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
         );
       })()}
 
-      {/* Message Actions - Show for assistant messages (Copy, Retry) */}
+      {/* Message Actions - Show for assistant messages (Copy, Explain, Retry) */}
       {msg.role === 'assistant' && !isSending && (
         <div className="w-full">
           <MessageActions
@@ -214,6 +216,7 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
             content={msg.content}
             onCopy={onCopyMessage}
             onRetry={onRetryMessage}
+            onExplain={onExplainMessage}
             copiedMessageId={copiedMessageId}
           />
         </div>

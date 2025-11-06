@@ -38,7 +38,7 @@ export const FileChangeSummary: React.FC<FileChangeSummaryProps> = ({
           <div
             key={`${change.filePath}-${idx}`}
             className={cn(
-              "flex items-center gap-2.5 px-4 py-2 rounded-md",
+              "flex items-center gap-2 px-3 py-1.5 rounded-md",
               "hover:bg-secondary/50 transition-colors",
               onFileClick && "cursor-pointer"
             )}
@@ -46,24 +46,24 @@ export const FileChangeSummary: React.FC<FileChangeSummaryProps> = ({
             title={change.filePath}
           >
             {/* Success checkmark */}
-            <CheckCircle className="w-3.5 h-3.5 text-green-500 flex-shrink-0" strokeWidth={2} />
+            <CheckCircle className="w-3 h-3 text-green-500 flex-shrink-0" strokeWidth={2} />
 
             {/* Icon for change type */}
-            <Icon className="w-3.5 h-3.5 opacity-50 flex-shrink-0" strokeWidth={1.5} />
+            <Icon className="w-3 h-3 opacity-50 flex-shrink-0" strokeWidth={1.5} />
 
             {/* Tool name */}
-            <span className="text-sm font-light opacity-70 flex-shrink-0">
+            <span className="text-xs font-light opacity-70 flex-shrink-0">
               {change.changeType === 'created' ? 'Write' : 'Edit'}:
             </span>
 
             {/* File name */}
-            <span className="text-sm font-light truncate flex-1 min-w-0">
+            <span className="text-xs font-light truncate flex-1 min-w-0">
               {fileName}
             </span>
 
             {/* Diff stats */}
             {diffStats && (
-              <span className="text-xs font-mono flex-shrink-0">
+              <span className="text-[11px] font-mono flex-shrink-0">
                 {change.additions > 0 && (
                   <span className="text-green-500">+{change.additions}</span>
                 )}

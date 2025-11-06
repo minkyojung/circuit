@@ -583,6 +583,35 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
     setTimeout(() => setCopiedMessageId(null), 2000);
   }, []);
 
+  // Explain message handler
+  const handleExplainMessage = useCallback((messageId: string, content: string) => {
+    // Generate structured explanation prompt
+    const explainPrompt = `Please explain your previous response in a more structured and easy-to-understand way.
+
+Break down:
+1. What you did (specific actions taken)
+2. Why you did it that way (design decisions and rationale)
+3. The structure and flow (overall architecture)
+4. Key points to understand (core concepts)
+
+Previous response:
+${content}`;
+
+    // Set the prompt in the input
+    setInputValue(explainPrompt);
+
+    // Focus on the textarea
+    setTimeout(() => {
+      const textarea = document.querySelector('textarea');
+      if (textarea) {
+        textarea.focus();
+        textarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 100);
+
+    toast.success('Explanation prompt generated');
+  }, []);
+
   // Retry message handler
   const handleRetryMessage = useCallback(async (messageId: string, mode: 'normal' | 'extended') => {
     if (!conversationId) {
@@ -1516,6 +1545,7 @@ The plan is ready. What would you like to do?`,
                       currentDuration={currentDuration}
                       onCopyMessage={handleCopyMessage}
                       onRetryMessage={handleRetryMessage}
+                      onExplainMessage={handleExplainMessage}
                       onExecuteCommand={handleExecuteCommand}
                       onFileReferenceClick={onFileReferenceClick}
                       onRunAgent={handleRunAgentForMessage}
