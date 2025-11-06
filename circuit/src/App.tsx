@@ -1,11 +1,11 @@
 import { useState, useEffect, createContext, useContext, useMemo, useRef } from 'react'
-import { WorkspaceChatEditor } from "@/components/workspace"
 import { CommitDialog } from "@/components/workspace/CommitDialog"
-import { CommandPalette } from "@/components/CommandPalette"
 import { AppSidebar } from "@/components/AppSidebar"
 import { TodoPanel } from "@/components/TodoPanel"
 import { GitTestPanel } from "@/components/git/GitTestPanel"
 import { WorkspaceEmptyState } from "@/components/workspace/WorkspaceEmptyState"
+import { ChatPanel, EditorPanel } from "@/components/workspace/WorkspaceChatEditor"
+import { QuickOpenSearch } from "@/components/QuickOpenSearch"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -14,26 +14,45 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
-import { UnifiedTabs, type OpenFile } from "@/components/workspace/UnifiedTabs"
 import { Separator } from "@/components/ui/separator"
+import { Button } from "@/components/ui/button"
 import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from '@/components/ui/resizable'
+import {
+  Sidebar,
   SidebarInset,
   SidebarProvider,
+  SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar"
 import type { Workspace } from "@/types/workspace"
-import { PanelLeft, PanelRight, FolderGit2, Columns2, Maximize2 } from 'lucide-react'
+import { PanelLeft, PanelRight, FolderGit2, Columns2, GitBranch } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import { SettingsProvider } from '@/contexts/SettingsContext'
 import { TerminalProvider } from '@/contexts/TerminalContext'
 import { AgentProvider } from '@/contexts/AgentContext'
+import { RepositoryProvider } from '@/contexts/RepositoryContext'
 import { CompactBanner } from '@/components/CompactBanner'
 import { CompactUrgentModal } from '@/components/CompactUrgentModal'
-import { Toaster } from 'sonner'
+import { Toaster, toast } from 'sonner'
 import { FEATURES } from '@/config/features'
+import { useEditorGroups } from '@/hooks/useEditorGroups'
+import { useWorkspaceContext } from '@/hooks/useWorkspaceContext'
+import { createConversationTab, createFileTab, createSettingsTab } from '@/types/editor'
+import type { Tab } from '@/types/editor'
+import { getFileName } from '@/lib/fileUtils'
+import { EditorGroupPanel } from '@/components/editor'
+import { DEFAULT_GROUP_ID, SECONDARY_GROUP_ID } from '@/types/editor'
+import { SettingsPanel } from '@/components/SettingsPanel'
 import './App.css'
+
+// @ts-ignore - Electron IPC
+const { ipcRenderer } = window.require('electron')
 
 // Project Path Context
 interface ProjectPathContextValue {
@@ -48,25 +67,179 @@ const ProjectPathContext = createContext<ProjectPathContextValue>({
 
 export const useProjectPath = () => useContext(ProjectPathContext)
 
+// Header component that uses sidebar state
+function MainHeader({
+  selectedWorkspace,
+  repositoryName,
+  viewMode,
+  setViewMode,
+  allTabs,
+  toggleRightSidebar,
+  isRightSidebarOpen,
+  onFileSelect,
+  onWorkspaceSelect,
+  activeFilePath,
+  searchBarRef
+}: {
+  selectedWorkspace: Workspace | null
+  repositoryName: string
+  viewMode: 'chat' | 'editor' | 'split'
+  setViewMode: (mode: 'chat' | 'editor' | 'split') => void
+  allTabs: Tab[]
+  toggleRightSidebar: () => void
+  isRightSidebarOpen: boolean
+  onFileSelect: (path: string, line?: number) => void
+  onWorkspaceSelect: (workspaceId: string) => void
+  activeFilePath: string | null
+  searchBarRef: React.RefObject<HTMLInputElement>
+}) {
+  const { state: sidebarState } = useSidebar()
+
+  return (
+    <header
+      className={cn(
+        "flex h-[36px] shrink-0 items-center gap-2 border-b border-border pr-3 relative z-20",
+        sidebarState === 'collapsed' ? 'pl-[80px]' : 'pl-3'
+      )}
+      style={{ WebkitAppRegion: 'drag' } as any}
+    >
+      {/* Left side - Sidebar toggle */}
+      <div
+        className="flex items-center gap-2"
+        style={{ WebkitAppRegion: 'no-drag' } as any}
+      >
+        <SidebarTrigger />
+      </div>
+
+      {/* Center - Global Search Bar */}
+      {selectedWorkspace && (
+        <div
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 px-24"
+          style={{
+            WebkitAppRegion: 'no-drag',
+            width: 'min(400px, calc(100vw - 200px))'
+          } as any}
+        >
+          <QuickOpenSearch
+            ref={searchBarRef}
+            workspacePath={selectedWorkspace.path}
+            branchName={selectedWorkspace.branch}
+            onFileSelect={onFileSelect}
+            onWorkspaceSelect={onWorkspaceSelect}
+            activeFilePath={activeFilePath}
+          />
+        </div>
+      )}
+
+      {/* Spacer */}
+      <div className="flex-1" />
+
+      {/* Right side - Controls */}
+      {selectedWorkspace && (
+        <div
+          className="flex items-center gap-2"
+          style={{ WebkitAppRegion: 'no-drag' } as any}
+        >
+          {/* Split View Toggle */}
+          {allTabs.length > 0 && (
+            <>
+              <Button
+                onClick={() => setViewMode(viewMode === 'split' ? 'chat' : 'split')}
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  "h-7 w-7",
+                  viewMode === 'split'
+                    ? 'bg-secondary text-secondary-foreground'
+                    : 'text-muted-foreground'
+                )}
+                title={viewMode === 'split' ? 'Single View' : 'Split View'}
+              >
+                <Columns2 size={16} />
+              </Button>
+              <Separator orientation="vertical" className="h-4" />
+            </>
+          )}
+
+          {/* Toggle Right Panel */}
+          <Button
+            onClick={toggleRightSidebar}
+            variant="ghost"
+            size="icon"
+            className={cn(
+              "h-7 w-7",
+              isRightSidebarOpen
+                ? 'text-foreground'
+                : 'text-muted-foreground'
+            )}
+            title="Toggle right panel"
+          >
+            <PanelRight size={16} />
+          </Button>
+        </div>
+      )}
+    </header>
+  )
+}
+
 function App() {
   const [projectPath, setProjectPath] = useState<string>('')
   const [isLoadingPath, setIsLoadingPath] = useState<boolean>(true)
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null)
-  const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [showCommitDialog, setShowCommitDialog] = useState<boolean>(false)
-  const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false)
   const [chatPrefillMessage, setChatPrefillMessage] = useState<string | null>(null)
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState<boolean>(() => {
     const saved = localStorage.getItem('circuit-right-sidebar-state')
     return saved !== null ? JSON.parse(saved) : true // 기본값: 열림
   })
-  const [rightSidebarWidth, setRightSidebarWidth] = useState<number>(() => {
-    const saved = localStorage.getItem('circuit-right-sidebar-width')
-    return saved ? parseInt(saved) : 320 // 기본값: 320px (20rem)
-  })
-  const [isResizing, setIsResizing] = useState<boolean>(false)
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
   const [currentRepository, setCurrentRepository] = useState<any>(null)
+
+  // Ref for search bar (to trigger focus from keyboard shortcut)
+  const searchBarRef = useRef<HTMLInputElement>(null)
+
+  // Session ID for chat (one per workspace for now)
+  const [sessionId, setSessionId] = useState<string | null>(null)
+
+  // Initialize Claude session when workspace changes
+  useEffect(() => {
+    if (!selectedWorkspace) {
+      console.log('[🔥 App] No workspace selected, skipping session initialization')
+      return
+    }
+
+    console.log('[🔥 App] Initializing Claude session for workspace:', {
+      workspacePath: selectedWorkspace.path,
+      workspaceId: selectedWorkspace.id,
+      workspaceName: selectedWorkspace.name
+    })
+
+    const startSession = async () => {
+      try {
+        console.log('[App] Starting Claude session for:', selectedWorkspace.path)
+        const result = await ipcRenderer.invoke('claude:start-session', selectedWorkspace.path)
+
+        if (result.success) {
+          console.log('[App] Claude session started:', result.sessionId)
+          setSessionId(result.sessionId)
+        } else {
+          console.error('[App] Failed to start Claude session:', result.error)
+          alert(`Failed to start Claude session: ${result.error}`)
+        }
+      } catch (error) {
+        console.error('[App] Error starting Claude session:', error)
+      }
+    }
+
+    startSession()
+
+    // Cleanup: stop session when workspace changes or component unmounts
+    return () => {
+      if (sessionId) {
+        console.log('[App] Stopping Claude session:', sessionId)
+        ipcRenderer.invoke('claude:stop-session', sessionId)
+      }
+    }
+  }, [selectedWorkspace?.path])
 
   // File cursor position for jumping to line
   const [fileCursorPosition, setFileCursorPosition] = useState<{
@@ -75,14 +248,148 @@ function App() {
     lineEnd: number
   } | null>(null)
 
-  // File tabs state (lifted from WorkspaceChatEditor)
-  const [openFiles, setOpenFiles] = useState<string[]>([])
-  const [activeFilePath, setActiveFilePath] = useState<string | null>(null)
-  const [unsavedFiles, setUnsavedFiles] = useState<Set<string>>(new Set())
+  // Code selection action for editor
+  const [codeSelectionAction, setCodeSelectionAction] = useState<{
+    type: 'ask' | 'explain' | 'optimize' | 'add-tests'
+    code: string
+    filePath: string
+    lineStart: number
+    lineEnd: number
+  } | null>(null)
 
   // View mode state
   type ViewMode = 'chat' | 'editor' | 'split'
   const [viewMode, setViewMode] = useState<ViewMode>('chat')
+
+  // Panel focus state (which group is currently focused)
+  const [focusedGroupId, setFocusedGroupId] = useState<string>(DEFAULT_GROUP_ID)
+
+  // Use ref to always access the latest focusedGroupId value (avoid stale closure)
+  const focusedGroupIdRef = useRef<string>(DEFAULT_GROUP_ID)
+  useEffect(() => {
+    focusedGroupIdRef.current = focusedGroupId
+  }, [focusedGroupId])
+
+  // Context tracking for auto-compact
+  const { context: workspaceContext } = useWorkspaceContext(
+    selectedWorkspace?.id,
+    selectedWorkspace?.path
+  )
+
+  // Drag state for tab dragging between panels
+  const [draggedTab, setDraggedTab] = useState<{ tabId: string; sourceGroupId: string } | null>(null)
+
+  // ============================================================================
+  // NEW: Unified Editor Groups System
+  // ============================================================================
+
+  const {
+    editorGroups,
+    openTab,
+    closeTab,
+    activateTab,
+    moveTab,
+    updateTab,
+    reorderTabs,
+    getActiveTab,
+    findTab,
+    getAllTabs,
+    addGroup,
+    removeGroup,
+  } = useEditorGroups([
+    { id: DEFAULT_GROUP_ID, tabs: [], activeTabId: null },
+    { id: SECONDARY_GROUP_ID, tabs: [], activeTabId: null },
+  ])
+
+  // Get specific groups for rendering
+  const primaryGroup = editorGroups.find(g => g.id === DEFAULT_GROUP_ID) || editorGroups[0]
+  const secondaryGroup = editorGroups.find(g => g.id === SECONDARY_GROUP_ID) || editorGroups[1]
+
+  // Get active conversation ID for TodoPanel (from primary group's active conversation tab)
+  const activeConversationId = useMemo(() => {
+    const activeTab = getActiveTab(DEFAULT_GROUP_ID)
+    if (activeTab && activeTab.type === 'conversation') {
+      return activeTab.data.conversationId
+    }
+    return null
+  }, [primaryGroup.activeTabId, getActiveTab])
+
+  // Get active file path for symbol search
+  const activeFilePath = useMemo(() => {
+    const activeTab = getActiveTab(DEFAULT_GROUP_ID)
+    if (activeTab && activeTab.type === 'file') {
+      return activeTab.data.filePath
+    }
+    return null
+  }, [primaryGroup.activeTabId, getActiveTab])
+
+  // Render functions for panels
+  const renderChatPanel = (conversationId: string, workspaceId: string) => {
+    if (!selectedWorkspace) return null
+
+    return (
+      <ChatPanel
+        workspace={selectedWorkspace}
+        sessionId={sessionId}
+        onFileEdit={handleFileSelect}
+        prefillMessage={chatPrefillMessage}
+        externalConversationId={conversationId}
+        onPrefillCleared={() => setChatPrefillMessage(null)}
+        onConversationChange={async (convId) => {
+          // Update the conversation tab when conversation changes
+          if (convId && convId !== conversationId) {
+            try {
+              // Fetch conversation to get title
+              const result = await ipcRenderer.invoke('conversation:get', convId)
+              const conversationTitle = result?.conversation?.title || 'Chat'
+
+              const newTab = createConversationTab(convId, workspaceId, conversationTitle, selectedWorkspace?.name)
+              openTab(newTab)
+            } catch (error) {
+              console.error('[App] Error fetching conversation title:', error)
+              // Fallback to workspace name
+              const newTab = createConversationTab(convId, workspaceId, undefined, selectedWorkspace?.name)
+              openTab(newTab)
+            }
+          }
+        }}
+        onFileReferenceClick={handleFileSelect}
+        codeSelectionAction={codeSelectionAction}
+        onCodeSelectionHandled={() => setCodeSelectionAction(null)}
+      />
+    )
+  }
+
+  const renderEditorPanel = (filePath: string) => {
+    if (!selectedWorkspace) return null
+
+    // Get all file tabs for openFiles list
+    const fileTabs = getAllTabs().filter(t => t.type === 'file')
+    const openFilePaths = fileTabs.map(t => (t as any).data.filePath)
+
+    return (
+      <EditorPanel
+        workspace={selectedWorkspace}
+        sessionId={sessionId}
+        openFiles={openFilePaths}
+        selectedFile={filePath}
+        onCloseFile={(path) => {
+          // Find and close the file tab
+          const result = findTab(`file-${path}`)
+          if (result) {
+            closeTab(result.tab.id, result.groupId)
+          }
+        }}
+        onUnsavedChange={handleUnsavedChange}
+        fileCursorPosition={fileCursorPosition}
+        onCodeSelectionAction={setCodeSelectionAction}
+      />
+    )
+  }
+
+  const renderSettingsPanel = () => {
+    return <SettingsPanel workspacePath={selectedWorkspace?.path} />
+  }
 
   // Workspace navigation refs (for keyboard shortcuts)
   const workspacesRef = useRef<Workspace[]>([])
@@ -98,35 +405,6 @@ function App() {
       return newState
     })
   }
-
-  // Handle right sidebar resize
-  const handleResizeStart = (e: React.MouseEvent) => {
-    e.preventDefault()
-    setIsResizing(true)
-  }
-
-  useEffect(() => {
-    if (!isResizing) return
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const newWidth = window.innerWidth - e.clientX
-      const clampedWidth = Math.max(240, Math.min(600, newWidth)) // 15rem ~ 37.5rem
-      setRightSidebarWidth(clampedWidth)
-    }
-
-    const handleMouseUp = () => {
-      setIsResizing(false)
-      localStorage.setItem('circuit-right-sidebar-width', String(rightSidebarWidth))
-    }
-
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
-    }
-  }, [isResizing, rightSidebarWidth])
 
   // Create workspace handler for Command Palette
   const handleCreateWorkspace = async () => {
@@ -188,108 +466,501 @@ function App() {
     return projectPath.split('/').filter(Boolean).pop() || 'Unknown Repository'
   }, [currentRepository, projectPath])
 
-  // Handle file selection from sidebar or file reference pills
-  const handleFileSelect = (filePath: string, lineStart?: number, lineEnd?: number) => {
-    console.log('[App] File selected:', filePath, lineStart, lineEnd)
-    setSelectedFile(filePath)
-    setActiveFilePath(filePath)
+  // ============================================================================
+  // NEW: File/Conversation Handlers (Unified Tab System)
+  // ============================================================================
 
-    // Add to openFiles if not already there
-    if (!openFiles.includes(filePath)) {
-      setOpenFiles([...openFiles, filePath])
+  // Handle file selection from sidebar or file reference pills
+  const handleFileSelect = async (filePath: string, lineStart?: number, lineEnd?: number) => {
+    // ✅ STEP 1: Get project root (workspace root without .conductor path)
+    const workspacePath = selectedWorkspace?.path || projectPath;
+    const projectRoot = workspacePath.includes('/.conductor/')
+      ? workspacePath.split('/.conductor/')[0]
+      : workspacePath;
+
+    // ✅ STEP 2: Normalize file path to workspace-relative path
+    let normalizedPath = filePath;
+
+    // Convert absolute path to relative path
+    if (normalizedPath.startsWith('/') || normalizedPath.match(/^[A-Z]:\\/)) {
+      if (normalizedPath.startsWith(projectRoot)) {
+        normalizedPath = normalizedPath.slice(projectRoot.length);
+        if (normalizedPath.startsWith('/') || normalizedPath.startsWith('\\')) {
+          normalizedPath = normalizedPath.slice(1);
+        }
+      }
     }
 
-    // Store line selection for Monaco to use
+    // Remove "./" prefix
+    normalizedPath = normalizedPath.replace(/^\.\//, '');
+    normalizedPath = normalizedPath.replace(/^\.\\/, '');
+
+    // Normalize path separators
+    normalizedPath = normalizedPath.replace(/\\/g, '/');
+
+    console.log('[App] Normalized file path:', { original: filePath, normalized: normalizedPath, projectRoot });
+
+    // ✅ STEP 3: Validate file existence (using absolute path)
+    const absolutePath = `${projectRoot}/${normalizedPath}`;
+
+    try {
+      const exists = await ipcRenderer.invoke('file-exists', absolutePath);
+
+      if (!exists) {
+        console.warn('[App] File does not exist:', normalizedPath);
+        toast.error(`파일을 찾을 수 없습니다: ${normalizedPath}`);
+        return;
+      }
+    } catch (error) {
+      console.error('[App] Error checking file existence:', normalizedPath, error);
+      toast.error(`파일 확인 중 오류 발생: ${normalizedPath}`);
+      return;
+    }
+
+    // ✅ STEP 4: Create file tab with normalized path
+    const currentFocusedGroup = focusedGroupIdRef.current
+
+    // Pass projectRoot to createFileTab for additional normalization safety
+    const tab = createFileTab(normalizedPath, getFileName(normalizedPath), undefined, projectRoot)
+
+    // Open in currently focused group (using ref for latest value)
+    openTab(tab, currentFocusedGroup)
+
+    // ✅ STEP 5: Store line selection with normalized path
     if (lineStart) {
       setFileCursorPosition({
-        filePath,
+        filePath: normalizedPath,  // Use normalized path
         lineStart,
         lineEnd: lineEnd || lineStart
       })
     } else {
       setFileCursorPosition(null)
     }
+  }
 
-    // Switch to editor or split view when opening a file
-    if (viewMode === 'chat') {
-      setViewMode('split')
+  // Handle tab click with workspace synchronization
+  const handleTabClick = (tabId: string, groupId: string) => {
+    setFocusedGroupId(groupId)
+    activateTab(tabId, groupId)
+
+    // Sync workspace: find the tab and update selectedWorkspace
+    const tab = getAllTabs().find(t => t.id === tabId)
+    if (tab && tab.type === 'conversation') {
+      const tabWorkspaceId = tab.data.workspaceId
+      const currentWorkspaceId = selectedWorkspace?.id
+
+      // Only update if workspace changed
+      if (tabWorkspaceId !== currentWorkspaceId) {
+        const workspace = workspacesRef.current.find(w => w.id === tabWorkspaceId)
+        if (workspace) {
+          setSelectedWorkspace(workspace)
+        }
+      }
     }
   }
 
-  // Handle file close from unified tabs
-  const handleCloseFile = (filePath: string) => {
-    setOpenFiles(openFiles.filter(f => f !== filePath))
+  // Handle workspace selection with tab synchronization
+  const handleWorkspaceSelect = async (workspace: Workspace | null) => {
+    if (!workspace) {
+      setSelectedWorkspace(null)
+      return
+    }
 
-    // Remove from unsaved files
-    setUnsavedFiles(prev => {
-      const next = new Set(prev)
-      next.delete(filePath)
-      return next
-    })
+    // Update workspace state
+    setSelectedWorkspace(workspace)
 
-    // If closing active file, switch to another file
-    if (filePath === activeFilePath) {
-      const remainingFiles = openFiles.filter(f => f !== filePath)
-      if (remainingFiles.length > 0) {
-        setActiveFilePath(remainingFiles[0])
-        setSelectedFile(remainingFiles[0])
-      } else {
-        setActiveFilePath(null)
-        setSelectedFile(null)
+    // Track recent workspace access
+    try {
+      const stored = localStorage.getItem('circuit-recent-workspaces')
+      const recentWorkspaces = stored ? JSON.parse(stored) : []
+
+      // Remove existing entry for this workspace
+      const filtered = recentWorkspaces.filter((w: any) => w.id !== workspace.id)
+
+      // Add to front with current timestamp
+      const updated = [
+        {
+          id: workspace.id,
+          name: workspace.name,
+          path: workspace.path,
+          branch: workspace.branch,
+          lastAccessed: Date.now()
+        },
+        ...filtered
+      ].slice(0, 20) // Keep max 20 recent workspaces
+
+      localStorage.setItem('circuit-recent-workspaces', JSON.stringify(updated))
+    } catch (error) {
+      console.error('[App] Failed to update recent workspaces:', error)
+    }
+
+    // Find existing conversation tab for this workspace
+    const allTabs = getAllTabs()
+    const workspaceTab = allTabs.find(tab =>
+      tab.type === 'conversation' && tab.data.workspaceId === workspace.id
+    )
+
+    if (workspaceTab) {
+      // Activate existing tab
+      const tabLocation = findTab(workspaceTab.id)
+      if (tabLocation) {
+        activateTab(workspaceTab.id, tabLocation.groupId)
       }
+    } else {
+      // No tab exists - load or create conversation
+      try {
+        // Try to get active conversation for this workspace
+        const activeResult = await ipcRenderer.invoke('conversation:get-active', workspace.id)
+
+        if (activeResult.success && activeResult.conversation) {
+          // Create tab with conversation title
+          const tab = createConversationTab(
+            activeResult.conversation.id,
+            workspace.id,
+            activeResult.conversation.title,
+            workspace.name
+          )
+          openTab(tab, DEFAULT_GROUP_ID)
+        } else {
+          // No active conversation - create new one
+          const createResult = await ipcRenderer.invoke('conversation:create', workspace.id, {
+            workspaceName: workspace.name
+          })
+
+          if (createResult.success && createResult.conversation) {
+            const tab = createConversationTab(
+              createResult.conversation.id,
+              workspace.id,
+              createResult.conversation.title,
+              workspace.name
+            )
+            openTab(tab, DEFAULT_GROUP_ID)
+          }
+        }
+      } catch (error) {
+        console.error('[App] Error loading conversation for workspace:', error)
+      }
+    }
+  }
+
+  // Handle workspace selection by ID (for QuickOpenSearch)
+  const handleWorkspaceSelectById = (workspaceId: string) => {
+    const workspace = workspacesRef.current.find(w => w.id === workspaceId)
+    if (workspace) {
+      handleWorkspaceSelect(workspace)
+    }
+  }
+
+  // Handle conversation selection
+  const handleConversationSelect = (conversationId: string, workspaceId: string, title?: string) => {
+    // Use ref to get latest focusedGroupId (avoid stale closure)
+    const currentFocusedGroup = focusedGroupIdRef.current
+    // Create or activate conversation tab in focused group
+    const tab = createConversationTab(
+      conversationId,
+      workspaceId,
+      title,
+      selectedWorkspace?.name
+    )
+    openTab(tab, currentFocusedGroup)
+  }
+
+  // Handle opening settings
+  const handleOpenSettings = () => {
+    const currentFocusedGroup = focusedGroupIdRef.current
+
+    // Check if settings tab already exists
+    const allTabs = getAllTabs()
+    const settingsTab = allTabs.find(tab => tab.type === 'settings')
+
+    if (settingsTab) {
+      // Settings tab exists, activate it
+      const tabLocation = findTab(settingsTab.id)
+      if (tabLocation) {
+        activateTab(settingsTab.id, tabLocation.groupId)
+      }
+    } else {
+      // Create new settings tab
+      const tab = createSettingsTab()
+      openTab(tab, currentFocusedGroup)
+    }
+  }
+
+  // Handle new conversation creation
+  const handleCreateConversation = async () => {
+    if (!selectedWorkspace) return
+
+    try {
+      const createResult = await ipcRenderer.invoke('conversation:create', selectedWorkspace.id, {
+        workspaceName: selectedWorkspace.name
+      })
+
+      if (createResult.success && createResult.conversation) {
+        const tab = createConversationTab(
+          createResult.conversation.id,
+          selectedWorkspace.id,
+          createResult.conversation.title,
+          selectedWorkspace.name
+        )
+        // Open in currently focused group
+        openTab(tab, focusedGroupIdRef.current)
+      } else {
+        console.error('[App] Failed to create conversation:', createResult.error)
+      }
+    } catch (error) {
+      console.error('[App] Error creating conversation:', error)
+    }
+  }
+
+  // VS Code style: Duplicate active tab when switching to split view
+  useEffect(() => {
+    if (viewMode === 'split') {
+      // Get the currently active tab from primary group
+      const activeTab = primaryGroup.tabs.find(t => t.id === primaryGroup.activeTabId)
+
+      // If there's an active tab, duplicate it to secondary group
+      if (activeTab && secondaryGroup.tabs.length === 0) {
+        openTab(activeTab, SECONDARY_GROUP_ID)
+      }
+    }
+  }, [viewMode])
+
+  // Handle tab close (works for both files and conversations)
+  const handleTabClose = (tabId: string, groupId: string) => {
+    console.log('[App] Closing tab:', tabId, 'from group:', groupId)
+    closeTab(tabId, groupId)
+  }
+
+  // Handle navigating to left or right tab (focus switch)
+  const handleMoveActiveTab = (direction: 'left' | 'right') => {
+    const focusedGroupId = focusedGroupIdRef.current
+    const group = editorGroups.find((g) => g.id === focusedGroupId)
+
+    if (!group || group.tabs.length === 0) {
+      console.log('[App] No tabs to navigate')
+      return
+    }
+
+    const currentIndex = group.tabs.findIndex((t) => t.id === group.activeTabId)
+
+    if (currentIndex === -1) {
+      console.log('[App] Could not find active tab index')
+      return
+    }
+
+    // Calculate new index with wrapping
+    let newIndex: number
+    if (direction === 'left') {
+      newIndex = currentIndex === 0 ? group.tabs.length - 1 : currentIndex - 1
+    } else {
+      newIndex = currentIndex === group.tabs.length - 1 ? 0 : currentIndex + 1
+    }
+
+    // Activate the tab at new index
+    const targetTab = group.tabs[newIndex]
+    if (targetTab) {
+      activateTab(targetTab.id, focusedGroupId)
+      console.log('[App] Navigated', direction, 'to tab:', targetTab.id)
+    }
+  }
+
+  // Handle closing the currently active tab (triggered by Cmd+W)
+  const handleCloseActiveTab = async () => {
+    const focusedGroupId = focusedGroupIdRef.current
+    const group = editorGroups.find((g) => g.id === focusedGroupId)
+    const activeTab = group?.tabs.find((t) => t.id === group.activeTabId)
+
+    if (!activeTab) {
+      console.log('[App] No active tab to close')
+      return
+    }
+
+    console.log('[App] Closing active tab:', activeTab.id, 'type:', activeTab.type)
+
+    // Handle file tabs
+    if (activeTab.type === 'file') {
+      // Check for unsaved changes
+      if (activeTab.data.unsavedChanges) {
+        const fileName = getFileName(activeTab.data.filePath)
+        const confirmed = window.confirm(
+          `'${fileName}'에 저장하지 않은 변경사항이 있습니다. 닫으시겠습니까?`
+        )
+        if (!confirmed) {
+          console.log('[App] User cancelled closing file with unsaved changes')
+          return
+        }
+      }
+
+      // Close the file tab
+      closeTab(activeTab.id, focusedGroupId)
+      return
+    }
+
+    // Handle conversation tabs
+    if (activeTab.type === 'conversation') {
+      // Check if this is the last conversation tab
+      const allConversationTabs = editorGroups.flatMap((g) =>
+        g.tabs.filter((t) => t.type === 'conversation')
+      )
+
+      if (allConversationTabs.length <= 1) {
+        console.log('[App] Cannot close last conversation tab')
+        alert('마지막 conversation은 닫을 수 없습니다.')
+        return
+      }
+
+      // Delete the conversation via IPC
+      try {
+        const conversationId = activeTab.data.conversationId
+        const result = await ipcRenderer.invoke('conversation:delete', conversationId)
+
+        if (result.success) {
+          // Close the tab
+          closeTab(activeTab.id, focusedGroupId)
+          console.log('[App] Conversation deleted and tab closed:', conversationId)
+        } else {
+          console.error('[App] Failed to delete conversation:', result.error)
+          alert(`Failed to delete conversation: ${result.error || 'Unknown error'}`)
+        }
+      } catch (error) {
+        console.error('[App] Error deleting conversation:', error)
+        alert(`Error deleting conversation: ${error}`)
+      }
+      return
+    }
+
+    // Handle settings tabs
+    if (activeTab.type === 'settings') {
+      // Simply close the settings tab
+      closeTab(activeTab.id, focusedGroupId)
+      console.log('[App] Settings tab closed')
+      return
     }
   }
 
   // Handle unsaved changes notification from editor
   const handleUnsavedChange = (filePath: string, hasChanges: boolean) => {
-    setUnsavedFiles(prev => {
-      const next = new Set(prev)
-      if (hasChanges) {
-        next.add(filePath)
-      } else {
-        next.delete(filePath)
-      }
-      return next
-    })
+    // Find the file tab
+    const result = findTab(`file-${filePath}`)
+    if (result) {
+      updateTab(result.tab.id, result.groupId, {
+        data: {
+          ...result.tab.data,
+          unsavedChanges: hasChanges
+        }
+      } as any)
+    }
   }
 
-  // Auto-switch view mode based on open files
-  useEffect(() => {
-    if (openFiles.length > 0 && viewMode === 'chat') {
-      setViewMode('editor')
-    } else if (openFiles.length === 0 && viewMode !== 'chat') {
-      setViewMode('chat')
-    }
-  }, [openFiles.length])
+  // Drag and drop handlers
+  const handleTabDragStart = (tabId: string, groupId: string) => {
+    setDraggedTab({ tabId, sourceGroupId: groupId })
+  }
 
-  // Reset selected file, conversation, and file tabs when workspace changes
+  const handleTabDragEnd = () => {
+    setDraggedTab(null)
+  }
+
+  const handleTabDrop = (targetGroupId: string, targetIndex?: number) => {
+    if (!draggedTab) return
+
+    const { tabId, sourceGroupId } = draggedTab
+
+    // If dropping on the same group, ignore (let tab reordering handle it)
+    if (sourceGroupId === targetGroupId) {
+      setDraggedTab(null)
+      return
+    }
+
+    // Move tab between groups
+    moveTab(tabId, sourceGroupId, targetGroupId, targetIndex)
+    setDraggedTab(null)
+
+    // Focus the target group
+    setFocusedGroupId(targetGroupId)
+  }
+
+  // Get all tabs for header controls
+  const allTabs = getAllTabs()
+
+  // Auto-load or create default conversation when workspace is selected
   useEffect(() => {
-    setSelectedFile(null)
-    setActiveConversationId(null)
-    setOpenFiles([])
-    setActiveFilePath(null)
-    setUnsavedFiles(new Set())
+    if (!selectedWorkspace) return
+
+    const loadDefaultConversation = async () => {
+      const { ipcRenderer } = window.require('electron')
+
+      try {
+        // Get all conversations for this workspace
+        const result = await ipcRenderer.invoke('conversation:list', selectedWorkspace.id)
+
+        if (result.success && result.conversations && result.conversations.length > 0) {
+          // Load the most recently viewed or oldest conversation
+          const sortedConversations = [...result.conversations].sort(
+            (a, b) => (b.lastViewedAt || b.updatedAt) - (a.lastViewedAt || a.updatedAt)
+          )
+          const defaultConversation = sortedConversations[0]
+
+          // Create and open tab for default conversation
+          const conversationTab = createConversationTab(
+            defaultConversation.id,
+            selectedWorkspace.id,
+            defaultConversation.title,
+            selectedWorkspace.name
+          )
+          openTab(conversationTab, DEFAULT_GROUP_ID)
+        } else {
+          // No conversations exist, create a new one
+          const createResult = await ipcRenderer.invoke('conversation:create', selectedWorkspace.id, {
+            workspaceName: selectedWorkspace.name
+          })
+
+          if (createResult.success && createResult.conversation) {
+            const conversationTab = createConversationTab(
+              createResult.conversation.id,
+              selectedWorkspace.id,
+              createResult.conversation.title,
+              selectedWorkspace.name
+            )
+            openTab(conversationTab, DEFAULT_GROUP_ID)
+          }
+        }
+      } catch (error) {
+        console.error('[App] Error loading default conversation:', error)
+      }
+    }
+
+    loadDefaultConversation()
+  }, [selectedWorkspace?.id])
+
+  // Reset state when workspace changes (but not tabs - handled by loadDefaultConversation)
+  useEffect(() => {
     setViewMode('chat')
+    setFileCursorPosition(null)
+    setChatPrefillMessage(null)
+    setSessionId(null)
+    setCodeSelectionAction(null)
   }, [selectedWorkspace?.id])
 
   // Keyboard shortcuts
   useKeyboardShortcuts({
-    // Command Palette (Cmd+K)
-    'cmd+k': {
-      handler: () => setShowCommandPalette(true),
-      description: 'Open command palette',
+    // Quick Open (Cmd+P) - Focus search bar
+    'cmd+p': {
+      handler: () => searchBarRef.current?.focus(),
+      description: 'Quick Open',
+      enabled: !!selectedWorkspace,
     },
 
     // Workspace navigation (Cmd+1 through Cmd+9)
-    'cmd+1': { handler: () => workspacesRef.current[0] && setSelectedWorkspace(workspacesRef.current[0]), description: 'Switch to workspace 1' },
-    'cmd+2': { handler: () => workspacesRef.current[1] && setSelectedWorkspace(workspacesRef.current[1]), description: 'Switch to workspace 2' },
-    'cmd+3': { handler: () => workspacesRef.current[2] && setSelectedWorkspace(workspacesRef.current[2]), description: 'Switch to workspace 3' },
-    'cmd+4': { handler: () => workspacesRef.current[3] && setSelectedWorkspace(workspacesRef.current[3]), description: 'Switch to workspace 4' },
-    'cmd+5': { handler: () => workspacesRef.current[4] && setSelectedWorkspace(workspacesRef.current[4]), description: 'Switch to workspace 5' },
-    'cmd+6': { handler: () => workspacesRef.current[5] && setSelectedWorkspace(workspacesRef.current[5]), description: 'Switch to workspace 6' },
-    'cmd+7': { handler: () => workspacesRef.current[6] && setSelectedWorkspace(workspacesRef.current[6]), description: 'Switch to workspace 7' },
-    'cmd+8': { handler: () => workspacesRef.current[7] && setSelectedWorkspace(workspacesRef.current[7]), description: 'Switch to workspace 8' },
-    'cmd+9': { handler: () => workspacesRef.current[8] && setSelectedWorkspace(workspacesRef.current[8]), description: 'Switch to workspace 9' },
+    'cmd+1': { handler: () => workspacesRef.current[0] && handleWorkspaceSelect(workspacesRef.current[0]), description: 'Switch to workspace 1' },
+    'cmd+2': { handler: () => workspacesRef.current[1] && handleWorkspaceSelect(workspacesRef.current[1]), description: 'Switch to workspace 2' },
+    'cmd+3': { handler: () => workspacesRef.current[2] && handleWorkspaceSelect(workspacesRef.current[2]), description: 'Switch to workspace 3' },
+    'cmd+4': { handler: () => workspacesRef.current[3] && handleWorkspaceSelect(workspacesRef.current[3]), description: 'Switch to workspace 4' },
+    'cmd+5': { handler: () => workspacesRef.current[4] && handleWorkspaceSelect(workspacesRef.current[4]), description: 'Switch to workspace 5' },
+    'cmd+6': { handler: () => workspacesRef.current[5] && handleWorkspaceSelect(workspacesRef.current[5]), description: 'Switch to workspace 6' },
+    'cmd+7': { handler: () => workspacesRef.current[6] && handleWorkspaceSelect(workspacesRef.current[6]), description: 'Switch to workspace 7' },
+    'cmd+8': { handler: () => workspacesRef.current[7] && handleWorkspaceSelect(workspacesRef.current[7]), description: 'Switch to workspace 8' },
+    'cmd+9': { handler: () => workspacesRef.current[8] && handleWorkspaceSelect(workspacesRef.current[8]), description: 'Switch to workspace 9' },
 
     // New Workspace (Cmd+N)
     'cmd+n': {
@@ -297,11 +968,38 @@ function App() {
       description: 'New workspace',
     },
 
-    // Close current workspace (Cmd+W)
+    // Close active tab (Cmd+W)
     'cmd+w': {
-      handler: () => setSelectedWorkspace(null),
+      handler: handleCloseActiveTab,
+      description: 'Close active tab',
+      enabled: primaryGroup.tabs.length > 0,
+    },
+
+    // Move active tab left (Cmd+Shift+[)
+    'cmd+shift+[': {
+      handler: () => handleMoveActiveTab('left'),
+      description: 'Move tab left',
+      enabled: primaryGroup.tabs.length > 0,
+    },
+
+    // Move active tab right (Cmd+Shift+])
+    'cmd+shift+]': {
+      handler: () => handleMoveActiveTab('right'),
+      description: 'Move tab right',
+      enabled: primaryGroup.tabs.length > 0,
+    },
+
+    // Close current workspace (Cmd+Shift+W)
+    'cmd+shift+w': {
+      handler: () => handleWorkspaceSelect(null),
       description: 'Close workspace',
       enabled: !!selectedWorkspace,
+    },
+
+    // Open Settings (Cmd+,)
+    'cmd+,': {
+      handler: handleOpenSettings,
+      description: 'Open settings',
     },
 
     // Commit dialog (Cmd+Enter when workspace is selected)
@@ -314,14 +1012,12 @@ function App() {
     // Close dialogs with Escape
     'escape': {
       handler: () => {
-        if (showCommandPalette) {
-          setShowCommandPalette(false)
-        } else if (showCommitDialog) {
+        if (showCommitDialog) {
           setShowCommitDialog(false)
         }
       },
       description: 'Close dialog',
-      enabled: showCommandPalette || showCommitDialog,
+      enabled: showCommitDialog,
     },
   })
 
@@ -329,152 +1025,110 @@ function App() {
     <SettingsProvider>
       <TerminalProvider>
         <AgentProvider>
-          <ProjectPathContext.Provider value={{ projectPath, isLoading: isLoadingPath }}>
+          <RepositoryProvider value={currentRepository} onChange={setCurrentRepository}>
+            <ProjectPathContext.Provider value={{ projectPath, isLoading: isLoadingPath }}>
           <div
           className="h-screen overflow-hidden backdrop-blur-xl flex"
           style={{
             backgroundColor: 'var(--window-glass)'
           }}
         >
-          <SidebarProvider className="flex-1">
+          <SidebarProvider>
         <AppSidebar
           selectedWorkspaceId={selectedWorkspace?.id || null}
           selectedWorkspace={selectedWorkspace}
-          onSelectWorkspace={setSelectedWorkspace}
-          selectedFile={selectedFile}
+          onSelectWorkspace={handleWorkspaceSelect}
+          selectedFile={null}
           onFileSelect={handleFileSelect}
           onWorkspacesLoaded={setWorkspacesForShortcuts}
           onRepositoryChange={setCurrentRepository}
         />
-        <SidebarInset className={cn(
-          "bg-card transition-[border-radius] duration-300",
-          isRightSidebarOpen && "rounded-r-xl"
-        )}>
+
+      <SidebarInset className="flex-1 flex flex-col overflow-hidden bg-card">
+        {/* Header - Fixed Height */}
+        <div className="shrink-0">
           {/* Compact Warning Banner */}
           <CompactBanner
             workspaceId={selectedWorkspace?.id}
             workspacePath={selectedWorkspace?.path}
+            context={workspaceContext}
           />
 
           {/* Main Header with Breadcrumb */}
-          <header
-            className="flex h-[44px] shrink-0 items-center gap-2 border-b border-border px-3"
-            style={{ WebkitAppRegion: 'drag' } as any}
-          >
-            <div
-              className="grid items-center gap-2 min-w-0"
-              style={{
-                WebkitAppRegion: 'no-drag',
-                gridTemplateColumns: selectedWorkspace && openFiles.length > 0 ? 'auto 1fr' : '1fr'
-              } as any}
-            >
-              {/* Column 1: View mode toggle button (auto width) */}
-              {selectedWorkspace && openFiles.length > 0 && (
-                <div className="flex items-center gap-2 shrink-0">
-                  {viewMode === 'editor' && (
-                    <button
-                      onClick={() => setViewMode('split')}
-                      className={cn(
-                        "flex h-7 w-7 items-center justify-center rounded-md transition-colors",
-                        "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
-                      )}
-                      title="Show Chat"
-                    >
-                      <Columns2 size={16} />
-                    </button>
-                  )}
-                  {viewMode === 'split' && (
-                    <button
-                      onClick={() => setViewMode('editor')}
-                      className={cn(
-                        "flex h-7 w-7 items-center justify-center rounded-md transition-colors",
-                        "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
-                      )}
-                      title="Editor Only"
-                    >
-                      <Maximize2 size={16} />
-                    </button>
-                  )}
-                  <Separator orientation="vertical" className="mr-2 h-4" />
-                </div>
-              )}
+          <MainHeader
+            selectedWorkspace={selectedWorkspace}
+            repositoryName={repositoryName}
+            viewMode={viewMode}
+            setViewMode={setViewMode}
+            allTabs={allTabs}
+            toggleRightSidebar={toggleRightSidebar}
+            isRightSidebarOpen={isRightSidebarOpen}
+            onFileSelect={handleFileSelect}
+            onWorkspaceSelect={handleWorkspaceSelectById}
+            activeFilePath={activeFilePath}
+            searchBarRef={searchBarRef}
+          />
+        </div>
 
-              {/* Column 2: Tabs container (flexible with overflow) */}
-              <div className="min-w-0 overflow-x-auto">
-                <div className="max-w-4xl mx-auto">
-                  {selectedWorkspace ? (
-                    <UnifiedTabs
-                      workspaceId={selectedWorkspace.id}
-                      workspaceName={selectedWorkspace.name}
-                      activeConversationId={activeConversationId}
-                      onConversationChange={setActiveConversationId}
-                      openFiles={openFiles.map(path => ({
-                        path,
-                        unsavedChanges: unsavedFiles.has(path)
-                      }))}
-                      activeFilePath={activeFilePath}
-                      onFileChange={setActiveFilePath}
-                      onCloseFile={handleCloseFile}
-                    />
-                  ) : (
-                    <Breadcrumb>
-                      <BreadcrumbList>
-                        <BreadcrumbItem>
-                          <BreadcrumbPage className="font-medium text-muted-foreground">
-                            {repositoryName}
-                          </BreadcrumbPage>
-                        </BreadcrumbItem>
-                      </BreadcrumbList>
-                    </Breadcrumb>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Spacer */}
-            <div className="flex-1" />
-
-            {/* Right side - Toggle plans button (when workspace selected) */}
-            {selectedWorkspace && (
-              <div
-                className="flex items-center gap-2"
-                style={{ WebkitAppRegion: 'no-drag' } as any}
-              >
-                <button
-                  onClick={toggleRightSidebar}
-                  className={cn(
-                    "flex h-7 w-7 items-center justify-center rounded-md transition-colors",
-                    isRightSidebarOpen
-                      ? 'text-foreground hover:bg-sidebar-hover'
-                      : 'text-muted-foreground hover:bg-sidebar-hover hover:text-foreground'
-                  )}
-                  title="Toggle right panel"
-                >
-                  <PanelRight size={16} />
-                </button>
-              </div>
-            )}
-          </header>
-
-          {/* Main Content Area */}
-          <div className="flex flex-1 flex-col overflow-hidden">
+        {/* Main Content Area - Flex 1 */}
+        <div className="flex-1 overflow-hidden">
+          <div className="h-full flex flex-col overflow-hidden">
             {selectedWorkspace ? (
               <>
-                <WorkspaceChatEditor
-                  key={selectedWorkspace.id}
-                  workspace={selectedWorkspace}
-                  selectedFile={selectedFile}
-                  prefillMessage={chatPrefillMessage}
-                  onPrefillCleared={() => setChatPrefillMessage(null)}
-                  conversationId={activeConversationId}
-                  onConversationChange={setActiveConversationId}
-                  viewMode={viewMode}
-                  onViewModeChange={setViewMode}
-                  openFiles={openFiles}
-                  onUnsavedChange={handleUnsavedChange}
-                  onFileReferenceClick={handleFileSelect}
-                  fileCursorPosition={fileCursorPosition}
-                />
+                {viewMode === 'split' ? (
+                  /* Split View: Two independent editor groups */
+                  <ResizablePanelGroup direction="horizontal" className="h-full">
+                    <ResizablePanel defaultSize={50} minSize={30}>
+                      <EditorGroupPanel
+                        group={primaryGroup}
+                        currentWorkspaceId={selectedWorkspace?.id}
+                        isFocused={focusedGroupId === DEFAULT_GROUP_ID}
+                        onFocus={() => setFocusedGroupId(DEFAULT_GROUP_ID)}
+                        onTabClick={(tabId) => handleTabClick(tabId, DEFAULT_GROUP_ID)}
+                        onTabClose={(tabId) => closeTab(tabId, DEFAULT_GROUP_ID)}
+                        onTabDragStart={(tabId, sourceGroupId) => handleTabDragStart(tabId, sourceGroupId)}
+                        onTabDragEnd={handleTabDragEnd}
+                        onTabDrop={(tabId, targetIndex) => handleTabDrop(DEFAULT_GROUP_ID, targetIndex)}
+                        onCreateConversation={handleCreateConversation}
+                        renderConversation={renderChatPanel}
+                        renderFile={renderEditorPanel}
+                        renderSettings={renderSettingsPanel}
+                      />
+                    </ResizablePanel>
+                    <ResizableHandle />
+                    <ResizablePanel defaultSize={50} minSize={30}>
+                      <EditorGroupPanel
+                        group={secondaryGroup}
+                        currentWorkspaceId={selectedWorkspace?.id}
+                        isFocused={focusedGroupId === SECONDARY_GROUP_ID}
+                        onFocus={() => setFocusedGroupId(SECONDARY_GROUP_ID)}
+                        onTabClick={(tabId) => handleTabClick(tabId, SECONDARY_GROUP_ID)}
+                        onTabClose={(tabId) => closeTab(tabId, SECONDARY_GROUP_ID)}
+                        onTabDragStart={(tabId, sourceGroupId) => handleTabDragStart(tabId, sourceGroupId)}
+                        onTabDragEnd={handleTabDragEnd}
+                        onTabDrop={(tabId, targetIndex) => handleTabDrop(SECONDARY_GROUP_ID, targetIndex)}
+                        onCreateConversation={handleCreateConversation}
+                        renderConversation={renderChatPanel}
+                        renderFile={renderEditorPanel}
+                        renderSettings={renderSettingsPanel}
+                      />
+                    </ResizablePanel>
+                  </ResizablePanelGroup>
+                ) : (
+                  /* Single View: Show primary group with tabs */
+                  <EditorGroupPanel
+                    group={primaryGroup}
+                    currentWorkspaceId={selectedWorkspace?.id}
+                    isFocused={true}
+                    onFocus={() => setFocusedGroupId(DEFAULT_GROUP_ID)}
+                    onTabClick={(tabId) => handleTabClick(tabId, DEFAULT_GROUP_ID)}
+                    onTabClose={(tabId) => closeTab(tabId, DEFAULT_GROUP_ID)}
+                    onCreateConversation={handleCreateConversation}
+                    renderConversation={renderChatPanel}
+                    renderFile={renderEditorPanel}
+                    renderSettings={renderSettingsPanel}
+                  />
+                )}
 
                 {/* Commit Dialog */}
                 {showCommitDialog && (
@@ -494,56 +1148,33 @@ function App() {
               </>
             ) : (
               <WorkspaceEmptyState
-                onSelectWorkspace={setSelectedWorkspace}
+                onSelectWorkspace={handleWorkspaceSelect}
                 onCreateWorkspace={handleCreateWorkspace}
               />
             )}
           </div>
-        </SidebarInset>
-      </SidebarProvider>
+        </div>
+      </SidebarInset>
 
-      {/* Resize Handle - Overlapping main area border */}
+      {/* Right Sidebar - Same structure as left sidebar */}
       {isRightSidebarOpen && (
-        <div
-          onMouseDown={handleResizeStart}
-          className={cn(
-            "h-full w-1 -ml-1 cursor-col-resize hover:bg-accent transition-colors z-50 flex-shrink-0",
-            isResizing && "bg-accent"
-          )}
-        />
+        <Sidebar side="right" variant="inset" collapsible="none" className="w-[400px]">
+          <TodoPanel
+            conversationId={activeConversationId}
+            workspace={selectedWorkspace}
+            onCommit={() => setShowCommitDialog(true)}
+            onFileSelect={handleFileSelect}
+            onOpenSettings={handleOpenSettings}
+          />
+        </Sidebar>
       )}
-
-      {/* Right Sidebar - Todo Panel */}
-      <div
-        className={cn(
-          "h-full overflow-hidden",
-          isRightSidebarOpen ? "" : "w-0"
-        )}
-        style={{
-          width: isRightSidebarOpen ? `${rightSidebarWidth}px` : 0,
-          transition: isResizing ? 'none' : 'width 0.3s ease-in-out'
-        }}
-      >
-        <TodoPanel
-          conversationId={activeConversationId}
-          workspace={selectedWorkspace}
-          onCommit={() => setShowCommitDialog(true)}
-        />
-      </div>
-
-      {/* Command Palette */}
-      <CommandPalette
-        open={showCommandPalette}
-        onOpenChange={setShowCommandPalette}
-        workspaces={workspacesRef.current}
-        onSelectWorkspace={setSelectedWorkspace}
-        onCreateWorkspace={handleCreateWorkspace}
-      />
+      </SidebarProvider>
 
       {/* Compact Urgent Modal */}
       <CompactUrgentModal
         workspaceId={selectedWorkspace?.id}
         workspacePath={selectedWorkspace?.path}
+        context={workspaceContext}
       />
 
       {/* Toast Notifications */}
@@ -557,7 +1188,8 @@ function App() {
         }}
       />
         </div>
-        </ProjectPathContext.Provider>
+            </ProjectPathContext.Provider>
+          </RepositoryProvider>
         </AgentProvider>
       </TerminalProvider>
     </SettingsProvider>

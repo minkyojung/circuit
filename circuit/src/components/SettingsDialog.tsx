@@ -17,8 +17,9 @@ import {
 } from './settings/SettingPrimitives';
 import { useTheme } from '@/hooks/useTheme';
 import { cn } from '@/lib/utils';
-import type { ClaudeModel, CompletionSound, SendKeyCombo, ThemeMode, TerminalMode, TerminalRenderer } from '@/types/settings';
+import type { ClaudeModel, CompletionSound, SendKeyCombo, ThemeMode, TerminalMode, TerminalRenderer, AIMode } from '@/types/settings';
 import { MCPTimeline } from './mcp/MCPTimeline';
+import { useProjectPath } from '@/App';
 
 interface SettingsDialogProps {
   isOpen: boolean;
@@ -243,6 +244,88 @@ const ModelSettings: React.FC<SettingsPanelProps> = ({ settings, updateSettings 
 
 const AISettings: React.FC<SettingsPanelProps> = ({ settings, updateSettings }) => (
   <>
+    <SettingSection
+      title="Monaco Editor AI"
+      description="AI-powered code completion and assistance"
+    >
+      <ToggleSetting
+        label="AI Autocompletion"
+        description="Tab completion powered by Claude Code"
+        checked={settings.monaco.enableAutocompletion}
+        onChange={(checked) => updateSettings('monaco', { ...settings.monaco, enableAutocompletion: checked })}
+      />
+
+      <ToggleSetting
+        label="Hover Explanations"
+        description="Show code explanations on hover"
+        checked={settings.monaco.enableHover}
+        onChange={(checked) => updateSettings('monaco', { ...settings.monaco, enableHover: checked })}
+      />
+
+      <ToggleSetting
+        label="Inline Suggestions"
+        description="Display AI suggestions inline"
+        checked={settings.monaco.enableInlineSuggestions}
+        onChange={(checked) => updateSettings('monaco', { ...settings.monaco, enableInlineSuggestions: checked })}
+      />
+
+      <div className="flex items-center justify-between mt-3">
+        <div>
+          <label className="text-sm text-foreground">AI Mode</label>
+          <p className="text-xs text-muted-foreground mt-0.5">Speed vs accuracy tradeoff</p>
+        </div>
+        <SegmentedControl
+          value={settings.monaco.aiMode}
+          options={[
+            { value: 'fast', label: 'Fast' },
+            { value: 'balanced', label: 'Balanced' },
+            { value: 'accurate', label: 'Accurate' },
+          ]}
+          onChange={(value) => updateSettings('monaco', { ...settings.monaco, aiMode: value as AIMode })}
+        />
+      </div>
+
+      <div className="mt-2 p-3 bg-muted/30 rounded-md border border-border/50">
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          {settings.monaco.aiMode === 'fast' ? (
+            <>
+              <span className="font-medium text-foreground">Fast Mode:</span> Prioritizes speed with ~10-15% accuracy tradeoff.
+              Best for rapid coding. Response time: ~300ms.
+            </>
+          ) : settings.monaco.aiMode === 'balanced' ? (
+            <>
+              <span className="font-medium text-foreground">Balanced Mode:</span> Good balance between speed and accuracy.
+              Response time: ~500ms.
+            </>
+          ) : (
+            <>
+              <span className="font-medium text-foreground">Accurate Mode:</span> Maximum accuracy, slower response.
+              Response time: ~800ms+.
+            </>
+          )}
+        </p>
+      </div>
+
+      <SliderSetting
+        label="Completion Delay"
+        description="Delay before showing completion"
+        value={settings.monaco.completionDelay}
+        min={100}
+        max={1000}
+        step={50}
+        onChange={(value) => updateSettings('monaco', { ...settings.monaco, completionDelay: value })}
+        formatValue={(v) => `${v}ms`}
+        disabled={!settings.monaco.enableAutocompletion}
+      />
+
+      <ToggleSetting
+        label="Cache Completions"
+        description="Store frequent completions for faster response"
+        checked={settings.monaco.cacheCompletions}
+        onChange={(checked) => updateSettings('monaco', { ...settings.monaco, cacheCompletions: checked })}
+      />
+    </SettingSection>
+
     <SettingSection title="Response Behavior">
       <ToggleSetting
         label="Strip Absolute Agreement"
@@ -536,6 +619,7 @@ const MCPSettings: React.FC = () => {
 };
 
 const ArchiveSettings: React.FC = () => {
+  const { projectPath } = useProjectPath()
   const [workspaces, setWorkspaces] = React.useState<any[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
   const [searchQuery, setSearchQuery] = React.useState('')
@@ -550,15 +634,21 @@ const ArchiveSettings: React.FC = () => {
   const loadWorkspaces = async () => {
     try {
       setIsLoading(true)
-      const result = await ipcRenderer.invoke('workspace:list')
+      console.log('[ArchiveSettings] 🔍 DEBUG: projectPath =', projectPath)
+      const result = await ipcRenderer.invoke('workspace:list', projectPath)
 
-      console.log('[ArchiveSettings] Loaded workspaces:', result)
+      console.log('[ArchiveSettings] 📦 Loaded workspaces result:', result)
+      console.log('[ArchiveSettings] ✅ Result success:', result.success)
+      console.log('[ArchiveSettings] 📊 Total workspaces:', result.workspaces?.length)
 
       if (result.success && result.workspaces) {
-        console.log('[ArchiveSettings] All workspaces:', result.workspaces.map((w: any) => ({ id: w.id, archived: w.archived })))
+        console.log('[ArchiveSettings] 🗂️ All workspaces:', result.workspaces.map((w: any) => ({ id: w.id, archived: w.archived })))
         const archived = result.workspaces.filter((w: any) => w.archived)
-        console.log('[ArchiveSettings] Archived workspaces:', archived)
+        console.log('[ArchiveSettings] 📁 Archived workspaces count:', archived.length)
+        console.log('[ArchiveSettings] 📁 Archived workspaces:', archived)
         setWorkspaces(archived)
+      } else {
+        console.error('[ArchiveSettings] ❌ Failed to load or no workspaces:', result)
       }
     } catch (error) {
       console.error('Error loading workspaces:', error)
