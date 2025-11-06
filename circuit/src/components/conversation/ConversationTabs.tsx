@@ -220,13 +220,14 @@ export function ConversationTabs({
               </span>
             )}
 
-            {/* Close button - only show on hover */}
+            {/* Close button - always visible */}
             {conversations.length > 1 && !isEditing && (
               <button
                 onClick={(e) => handleCloseTab(e, conversation.id)}
                 className={cn(
-                  'ml-1 p-0.5 rounded hover:bg-destructive/20 hover:text-destructive transition-all',
-                  'opacity-0 group-hover:opacity-100'
+                  'ml-1 p-0.5 rounded transition-all',
+                  'text-muted-foreground/40 hover:text-foreground hover:bg-secondary',
+                  'opacity-100'
                 )}
               >
                 <X size={14} />
