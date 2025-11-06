@@ -5,6 +5,7 @@
 import { ipcMain, IpcMainInvokeEvent } from 'electron'
 import { ConversationStorage, Conversation, Message, Block, BlockBookmark, BlockExecution } from './conversationStorage'
 import { parseMessageToBlocks, Block as ParsedBlock } from './messageParser'
+import { FileChangeAggregator } from './fileChangeAggregator'
 import { exec } from 'child_process'
 import { promisify } from 'util'
 import { randomUUID } from 'crypto'
@@ -273,7 +274,7 @@ export function registerConversationHandlers(): void {
    */
   ipcMain.handle(
     'message:save',
-    async (_event: IpcMainInvokeEvent, message: Message) => {
+    async (_event: IpcMainInvokeEvent, message: Message, workspacePath?: string) => {
       try {
         if (!storage) throw new Error('Storage not initialized')
 
@@ -308,6 +309,75 @@ export function registerConversationHandlers(): void {
         // They are stored in metadata.thinkingSteps and displayed in ReasoningAccordion only
         // This prevents duplicate rendering and reduces message body clutter
         let allBlocks: ParsedBlock[] = [...parseResult.blocks]
+
+        // Track file changes from diff blocks and tool calls (only for assistant messages)
+        if (message.role === 'assistant') {
+          // ✅ Use workspacePath directly as projectRoot
+          // Note: workspace.path is the absolute path to the worktree directory,
+          // which is the actual project root for file operations
+          let projectRoot = ''
+          if (workspacePath) {
+            projectRoot = workspacePath  // ✅ Don't strip .conductor - workspace IS the project root
+            console.log('[message:save] 📁 Using projectRoot:', projectRoot)
+          } else {
+            console.warn('[message:save] ⚠️  No workspacePath provided, file path normalization disabled')
+          }
+
+          const fileAggregator = new FileChangeAggregator(projectRoot)
+
+          // Track changes from diff blocks
+          for (const block of allBlocks) {
+            if (block.type === 'diff') {
+              fileAggregator.trackFromDiffBlock(block as any)
+            }
+          }
+
+          // Track changes from metadata.thinkingSteps (Edit/Write tool calls)
+          if (message.metadata) {
+            try {
+              const metadata = typeof message.metadata === 'string'
+                ? JSON.parse(message.metadata)
+                : message.metadata
+
+              const thinkingSteps = metadata?.thinkingSteps || []
+              console.log('[message:save] 🔍 Checking', thinkingSteps.length, 'thinking steps for file changes')
+
+              for (const step of thinkingSteps) {
+                if (step.type === 'tool-use') {
+                  // Edit tool: track as modification
+                  if (step.tool === 'Edit' && step.filePath) {
+                    console.log('[message:save] 📝 Found Edit tool call:', step.filePath)
+                    fileAggregator.trackFromEdit(
+                      { file_path: step.filePath },
+                      undefined,
+                      undefined
+                    )
+                  }
+                  // Write tool: track as creation or modification
+                  else if (step.tool === 'Write' && step.filePath) {
+                    console.log('[message:save] ✍️  Found Write tool call:', step.filePath)
+                    fileAggregator.trackFromWrite(
+                      { file_path: step.filePath, content: '' },
+                      undefined,
+                      undefined
+                    )
+                  }
+                }
+              }
+            } catch (e) {
+              console.warn('[message:save] Failed to parse thinkingSteps:', e)
+            }
+          }
+
+          // Add file summary block if there are changes
+          if (fileAggregator.hasChanges()) {
+            const summaryBlock = fileAggregator.createFileSummaryBlock(message.id)
+            if (summaryBlock) {
+              console.log('[message:save] 📊 Adding file summary block with', fileAggregator.getFileCount(), 'files')
+              allBlocks.push(summaryBlock as any)
+            }
+          }
+        }
 
         // Convert blocks to storage format (metadata as JSON string)
         const blocksForStorage = allBlocks.map(block => ({

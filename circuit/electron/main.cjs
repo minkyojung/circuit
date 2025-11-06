@@ -2622,6 +2622,28 @@ ipcMain.handle('circuit:reload-claude-code', async (event, openVSCode = true) =>
   }
 })();
 
+// Register LSP handlers
+(async () => {
+  try {
+    const { registerLSPHandlers } = await import('../dist-electron/lspHandlers.js');
+    registerLSPHandlers();
+    console.log('[main.cjs] LSP handlers registered');
+  } catch (error) {
+    console.error('[main.cjs] Failed to register LSP handlers:', error);
+  }
+})();
+
+// Register compact handlers
+(async () => {
+  try {
+    const { registerCompactHandlers } = await import('../dist-electron/compactHandlers.js');
+    registerCompactHandlers();
+    console.log('[main.cjs] Compact handlers registered');
+  } catch (error) {
+    console.error('[main.cjs] Failed to register compact handlers:', error);
+  }
+})();
+
 // Cleanup on app quit
 app.on('before-quit', async () => {
   try {
@@ -2639,6 +2661,24 @@ app.on('before-quit', async () => {
       const terminalManager = await getTerminalManagerInstance();
       terminalManager.destroyAllSessions();
       console.log('Terminal sessions destroyed');
+    }
+
+    // Cleanup LSP clients
+    try {
+      const { cleanupLSPHandlers } = await import('../dist-electron/lspHandlers.js');
+      await cleanupLSPHandlers();
+      console.log('LSP clients stopped');
+    } catch (error) {
+      console.error('LSP cleanup error:', error);
+    }
+
+    // Cleanup compact handlers
+    try {
+      const { cleanupCompactHandlers } = await import('../dist-electron/compactHandlers.js');
+      await cleanupCompactHandlers();
+      console.log('Compact handlers stopped');
+    } catch (error) {
+      console.error('Compact cleanup error:', error);
     }
   } catch (error) {
     console.error('Cleanup error:', error);
@@ -3338,7 +3378,7 @@ ipcMain.handle('claude:start-session', async (event, workspacePath) => {
 /**
  * Send message to Claude and get response
  */
-ipcMain.on('claude:send-message', async (event, sessionId, userMessage, attachments = [], thinkingMode = 'normal') => {
+ipcMain.on('claude:send-message', async (event, sessionId, userMessage, attachments = [], thinkingMode = 'normal', architectMode = false, aiRulesSystemPrompt = undefined) => {
   try {
     const session = activeSessions.get(sessionId);
 
@@ -3351,6 +3391,12 @@ ipcMain.on('claude:send-message', async (event, sessionId, userMessage, attachme
       return;
     }
 
+    // Log architect mode status
+    if (architectMode && aiRulesSystemPrompt) {
+      console.log('[Claude] 🏗️ Architect Mode ENABLED - AI rules will be applied as system prompt');
+      console.log('[Claude] AI Rules length:', aiRulesSystemPrompt.length, 'characters');
+    }
+
     // Validate thinkingMode
     const validModes = ['normal', 'think', 'megathink', 'ultrathink', 'plan'];
     if (!validModes.includes(thinkingMode)) {
@@ -3360,10 +3406,18 @@ ipcMain.on('claude:send-message', async (event, sessionId, userMessage, attachme
     // Build multimodal content array
     const content = [];
 
-    // Add thinking mode instruction prefix
-    let thinkingInstruction = '';
+    // Build instruction prefix with architect mode + thinking mode
+    let instructionPrefix = '';
     const languageInstruction = 'IMPORTANT: Always think and analyze in ENGLISH internally, but respond in THE SAME LANGUAGE as the user\'s input (Korean→Korean, Japanese→Japanese, English→English).';
 
+    // Add Architect Mode AI rules as system instruction if enabled
+    if (architectMode && aiRulesSystemPrompt) {
+      instructionPrefix = `${aiRulesSystemPrompt}\n\n---\n\n`;
+      console.log('[Claude] 🏗️ Added Architect Mode instructions to message');
+    }
+
+    // Add thinking mode instructions
+    let thinkingInstruction = '';
     if (thinkingMode === 'think') {
       thinkingInstruction = `<thinking_instruction>Think carefully and systematically about this request before responding. Take your time to reason through the problem.\n\n${languageInstruction}</thinking_instruction>\n\n`;
     } else if (thinkingMode === 'megathink') {
@@ -3545,17 +3599,20 @@ Plan Mode ensures structured, thoughtful development. Take your time to plan wel
 </thinking_instruction>\n\n`;
     }
 
-    // Add text message with thinking instruction prefix
+    // Combine architect mode prefix + thinking instruction + user message
+    const fullPrefix = instructionPrefix + thinkingInstruction;
+
+    // Add text message with combined prefix
     if (userMessage && userMessage.trim()) {
       content.push({
         type: 'text',
-        text: thinkingInstruction + userMessage
+        text: fullPrefix + userMessage
       });
-    } else if (thinkingInstruction) {
-      // If no user message but thinking instruction exists, add it anyway
+    } else if (fullPrefix.trim()) {
+      // If no user message but instructions exist, add them anyway
       content.push({
         type: 'text',
-        text: thinkingInstruction.trim()
+        text: fullPrefix.trim()
       });
     }
 

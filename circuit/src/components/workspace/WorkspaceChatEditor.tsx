@@ -5,6 +5,7 @@ import type { Message } from '@/types/conversation';
 import Editor, { loader } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
 import { ChevronDown } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -25,6 +26,8 @@ import { useSettingsContext } from '@/contexts/SettingsContext';
 import { useIPCEvents } from '@/hooks/useIPCEvents';
 import type { IPCEventCallbacks } from '@/services/IPCEventBridge';
 import { TodoConfirmationDialog } from '@/components/todo';
+import { useLanguageService } from '@/hooks/useLanguageService';
+import { useClaudeMetrics } from '@/hooks/useClaudeMetrics';
 import { MessageComponent } from './MessageComponent';
 import { ChatEmptyState } from './ChatEmptyState';
 import { MarkdownPreview } from './MarkdownPreview';
@@ -35,7 +38,7 @@ import type { TodoGenerationResult, TodoDraft, ExecutionMode } from '@/types/tod
 import { FEATURES } from '@/config/features';
 import { getLanguageFromFilePath } from '@/lib/fileUtils';
 import { cn } from '@/lib/utils';
-import { getAIRulesContext } from '@/services/projectConfig';
+import { getAIRulesContext } from '@/services/projectConfigLocal';
 
 // Configure Monaco Editor to use local files instead of CDN
 // The vite-plugin-monaco-editor plugin handles web worker configuration automatically
@@ -328,6 +331,10 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
 
   // Agent context
   const { startAgent, agents: agentStatesByTodoId } = useAgent();
+
+  // Metrics for auto-compact
+  const { metrics } = useClaudeMetrics();
+  const [lastAutoCompactTime, setLastAutoCompactTime] = useState<number>(0);
 
   // Simply pass through agentStatesByTodoId as it's already todoId-based
   // MessageComponent will use todoId from metadata to look up the state
@@ -806,10 +813,10 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
         role: 'user',
         content: content.trim(),
         timestamp,
-        metadata: JSON.stringify({
+        metadata: {
           isTask: true,
           todoId: todoId  // Store todoId in metadata
-        }),
+        },
       };
 
       // Add message to UI immediately
@@ -837,7 +844,131 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
     }
   }, [conversationId, createTodosFromDrafts, todos.length, workspace.id, onConversationChange]);
 
-  const handleSend = async (inputText: string, attachments: AttachedFile[], thinkingMode: import('./ChatInput').ThinkingMode) => {
+  // Handle session compact - summarize old messages to reduce token usage
+  const handleSessionCompact = useCallback(async (silent: boolean = false) => {
+    if (!conversationId) {
+      console.warn('[ChatPanel] No conversation to compact');
+      if (!silent) toast.error('No active conversation to compact');
+      return;
+    }
+
+    if (messages.length < 20) {
+      console.warn('[ChatPanel] Not enough messages to compact (need at least 20)');
+      if (!silent) toast.info('Not enough messages to compact (minimum 20 messages needed)');
+      return;
+    }
+
+    try {
+      console.log(`[ChatPanel] Starting ${silent ? 'auto' : 'manual'} session compact...`, messages.length, 'messages');
+
+      // Show loading toast only for manual compact
+      const loadingToast = silent ? null : toast.loading('Compacting session...');
+
+      // Call IPC handler to generate summary
+      const result = await ipcRenderer.invoke('session:compact', {
+        sessionId: sessionId,
+        messages: messages,
+        keepRecentCount: 10,
+      });
+
+      if (!result.success) {
+        if (loadingToast) toast.dismiss(loadingToast);
+        if (!silent) toast.error(`Failed to compact: ${result.error}`);
+        console.error('[ChatPanel] Compact failed:', result.error);
+        return;
+      }
+
+      console.log('[ChatPanel] Compact successful:', {
+        originalCount: result.originalMessageCount,
+        keptCount: result.keptMessageCount,
+        tokensBefore: result.tokensBeforeEstimate,
+        tokensAfter: result.tokensAfterEstimate,
+        savings: Math.round((1 - result.tokensAfterEstimate / result.tokensBeforeEstimate) * 100) + '%',
+      });
+
+      // Create summary message
+      const timestamp = Date.now();
+      const summaryMessage: Message = {
+        id: `summary-${timestamp}`,
+        conversationId: conversationId,
+        role: 'assistant',
+        content: `## Session Summary\n\n${result.summary}\n\n---\n\n*This summary replaces ${result.originalMessageCount} earlier messages to reduce token usage.*${silent ? ' (Auto-compacted)' : ''}`,
+        timestamp,
+        metadata: {
+          isCompactSummary: true,
+          originalMessageCount: result.originalMessageCount,
+          tokensBeforeEstimate: result.tokensBeforeEstimate,
+          tokensAfterEstimate: result.tokensAfterEstimate,
+        },
+      };
+
+      // Keep recent messages
+      const recentMessages = messages.slice(-result.keptMessageCount);
+
+      // Update messages: [summary] + [recent messages]
+      const newMessages = [summaryMessage, ...recentMessages];
+      setMessages(newMessages);
+
+      // Save summary message to database
+      await ipcRenderer.invoke('message:create', summaryMessage);
+
+      // Delete old messages from database (keep only summary + recent)
+      const messagesToDelete = messages.slice(0, -result.keptMessageCount);
+      for (const msg of messagesToDelete) {
+        await ipcRenderer.invoke('message:delete', msg.id);
+      }
+
+      if (loadingToast) toast.dismiss(loadingToast);
+
+      // Show success toast
+      if (!silent) {
+        toast.success(
+          `Session compacted: ${result.originalMessageCount} messages → ${result.keptMessageCount + 1} messages (${Math.round((1 - result.tokensAfterEstimate / result.tokensBeforeEstimate) * 100)}% tokens saved)`,
+          { duration: 5000 }
+        );
+      } else {
+        // Silent mode: show subtle notification
+        toast.info(
+          `Context auto-compacted (${Math.round((1 - result.tokensAfterEstimate / result.tokensBeforeEstimate) * 100)}% tokens saved)`,
+          { duration: 3000 }
+        );
+      }
+
+      // Update last auto-compact time if this was an auto-compact
+      if (silent) {
+        setLastAutoCompactTime(Date.now());
+      }
+
+      console.log(`[ChatPanel] ✅ Session compact completed successfully (${silent ? 'auto' : 'manual'})`);
+    } catch (error) {
+      console.error('[ChatPanel] Session compact failed:', error);
+      if (!silent) toast.error('Failed to compact session. Please try again.');
+    }
+  }, [conversationId, sessionId, messages]);
+
+  // Auto-compact when Context Gauge reaches 80% (shouldCompact = true)
+  useEffect(() => {
+    const shouldAutoCompact = metrics?.context?.shouldCompact;
+
+    if (!shouldAutoCompact || !conversationId || messages.length < 20) {
+      return;
+    }
+
+    // Prevent compact if we did it recently (within 5 minutes)
+    const MIN_COMPACT_INTERVAL = 5 * 60 * 1000; // 5 minutes
+    const timeSinceLastCompact = Date.now() - lastAutoCompactTime;
+
+    if (lastAutoCompactTime > 0 && timeSinceLastCompact < MIN_COMPACT_INTERVAL) {
+      console.log('[ChatPanel] Skipping auto-compact (too soon since last compact)');
+      return;
+    }
+
+    // Trigger silent auto-compact
+    console.log('[ChatPanel] Auto-compact triggered (Context Gauge at 80%+)');
+    handleSessionCompact(true);
+  }, [metrics?.context?.shouldCompact, conversationId, messages.length, lastAutoCompactTime, handleSessionCompact]);
+
+  const handleSend = async (inputText: string, attachments: AttachedFile[], thinkingMode: import('./ChatInput').ThinkingMode, architectMode: boolean) => {
     if (!inputText.trim() && attachments.length === 0) return;
     if (!sessionId) return;
 
@@ -864,10 +995,10 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
     setInput('');
 
     // Execute prompt directly
-    await executePrompt(finalInput, attachments, thinkingMode);
+    await executePrompt(finalInput, attachments, thinkingMode, architectMode);
   };
 
-  const executePrompt = async (inputText: string, attachments: AttachedFile[], thinkingMode: import('./ChatInput').ThinkingMode) => {
+  const executePrompt = async (inputText: string, attachments: AttachedFile[], thinkingMode: import('./ChatInput').ThinkingMode, architectMode: boolean) => {
     if (isSending || !sessionId) return;
 
     // Track current thinking mode for plan detection
@@ -895,21 +1026,9 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
       }
     }
 
-    // Get AI coding rules and prepend to input
-    let enhancedInput = inputText;
-    try {
-      const aiRulesContext = await getAIRulesContext(workspace.path);
-      if (aiRulesContext) {
-        // Prepend AI rules to user message
-        enhancedInput = `${aiRulesContext}\n\n---\n\n${inputText}`;
-        console.log('[ChatPanel] 📝 Added AI coding rules to message');
-      }
-    } catch (error) {
-      console.warn('[ChatPanel] Failed to load AI rules, continuing without them:', error);
-    }
-
-    // Build content - no need to include file list in content anymore
-    const content = enhancedInput;
+    // NO LONGER prepending AI rules to user message - they will be sent as system prompt instead
+    // Build content with just the user input
+    const content = inputText;
 
     const userMessage: Message = {
       id: `msg-${Date.now()}`,
@@ -937,7 +1056,6 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
       });
       return [...prev, userMessage];
     });
-    const currentInput = enhancedInput;
     setInput('');
     setIsSending(true);
 
@@ -958,15 +1076,30 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
     // Store pending user message for response handlers
     pendingUserMessageRef.current = userMessage;
 
+    // Load AI rules context if architect mode is enabled
+    let aiRulesSystemPrompt: string | undefined = undefined;
+    if (architectMode) {
+      try {
+        aiRulesSystemPrompt = await getAIRulesContext(workspace.path);
+        if (aiRulesSystemPrompt) {
+          console.log('[ChatPanel] 🏗️ Architect Mode enabled - AI rules will be sent as system prompt');
+        }
+      } catch (error) {
+        console.warn('[ChatPanel] Failed to load AI rules for Architect Mode:', error);
+      }
+    }
+
     // Send message (non-blocking) - response will arrive via event listeners
     console.log('[ChatPanel] 📨 Sending message to Claude:', {
       sessionId,
-      messageLength: currentInput.length,
+      messageLength: inputText.length,
       attachmentsCount: attachments.length,
       thinkingMode,
+      architectMode,
+      hasAIRules: !!aiRulesSystemPrompt,
       currentSessionIdRef: sessionIdRef.current
     });
-    ipcRenderer.send('claude:send-message', sessionId, currentInput, attachments, thinkingMode);
+    ipcRenderer.send('claude:send-message', sessionId, inputText, attachments, thinkingMode, architectMode, aiRulesSystemPrompt);
     console.log('[ChatPanel] 📨 Message sent, waiting for IPC events...');
   };
 
@@ -1327,6 +1460,7 @@ The plan is ready. What would you like to do?`,
             workspacePath={workspace.path}
             projectPath={workspace.path.split('/.conductor/workspaces/')[0]}
             onAddTodo={handleAddTodo}
+            onCompact={handleSessionCompact}
             codeAttachment={codeAttachment}
             onCodeAttachmentRemove={() => setCodeAttachment(null)}
           />
@@ -1398,6 +1532,46 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
 
   // Monaco editor instance ref
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+
+  // Get project root path (workspace.path is a worktree, we need the actual project root)
+  // Example: /path/to/project/.conductor/workspaces/duck -> /path/to/project
+  const projectRoot = useMemo(() => {
+    const parts = workspace.path.split('/.conductor/workspaces/');
+    return parts[0]; // Return the project root without worktree path
+  }, [workspace.path]);
+
+  // ✅ Normalize active file path to workspace-relative path
+  // This ensures consistent tab IDs and file loading regardless of path format
+  const normalizedActiveFile = useMemo(() => {
+    if (!activeFile) return null;
+
+    let normalized = activeFile;
+
+    // Convert absolute path to relative path
+    if (normalized.startsWith('/') || normalized.match(/^[A-Z]:\\/)) {
+      if (normalized.startsWith(projectRoot)) {
+        normalized = normalized.slice(projectRoot.length);
+        if (normalized.startsWith('/') || normalized.startsWith('\\')) {
+          normalized = normalized.slice(1);
+        }
+      }
+    }
+
+    // Remove "./" prefix
+    normalized = normalized.replace(/^\.\//, '');
+    normalized = normalized.replace(/^\.\\/, '');
+
+    // Normalize path separators
+    normalized = normalized.replace(/\\/g, '/');
+
+    return normalized;
+  }, [activeFile, projectRoot]);
+
+  // Language service for TypeScript/diagnostics (using LSP for full project analysis)
+  const { languageService, isInitialized: isLanguageServiceInitialized, mode: languageServiceMode } = useLanguageService({
+    workspacePath: projectRoot, // Use project root, not worktree path
+    mode: 'lsp', // Use LSP for project-wide diagnostics
+  });
 
   // Floating action bar state
   const [floatingActionsVisible, setFloatingActionsVisible] = useState(false);
@@ -1488,167 +1662,8 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
     }
   }, [currentSelection, activeFile, handleAddTests]);
 
-  // Load TypeScript configuration and type definitions from workspace
-  useEffect(() => {
-    const loadTsConfig = async () => {
-      try {
-        console.log('[EditorPanel] Loading TypeScript configuration...');
-        const result = await ipcRenderer.invoke('monaco:load-tsconfig', workspace.path);
-
-        // Set up default compiler options first
-        const defaultOptions = {
-          target: monaco.languages.typescript.ScriptTarget.ES2020,
-          allowNonTsExtensions: true,
-          moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
-          module: monaco.languages.typescript.ModuleKind.ESNext,
-          noEmit: true,
-          esModuleInterop: true,
-          jsx: monaco.languages.typescript.JsxEmit.React,
-          reactNamespace: 'React',
-          allowJs: true,
-          typeRoots: ['node_modules/@types'],
-        };
-
-        if (result.success && result.compilerOptions) {
-          console.log('[EditorPanel] Applying TypeScript compiler options to Monaco');
-
-          // Merge with project config
-          const mergedOptions = {
-            ...defaultOptions,
-            ...result.compilerOptions,
-          };
-
-          // Apply to TypeScript
-          monaco.languages.typescript.typescriptDefaults.setCompilerOptions(mergedOptions);
-
-          // Apply to JavaScript as well (for .js/.jsx files)
-          monaco.languages.typescript.javascriptDefaults.setCompilerOptions(mergedOptions);
-
-          console.log('[EditorPanel] ✅ TypeScript configuration applied successfully');
-        } else {
-          console.log('[EditorPanel] No tsconfig.json found, using default Monaco settings');
-
-          // Apply defaults
-          monaco.languages.typescript.typescriptDefaults.setCompilerOptions(defaultOptions);
-          monaco.languages.typescript.javascriptDefaults.setCompilerOptions(defaultOptions);
-        }
-
-        // Enable diagnostics
-        monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
-          noSemanticValidation: false,
-          noSyntaxValidation: false,
-          onlyVisible: false,
-        });
-
-        monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
-          noSemanticValidation: false,
-          noSyntaxValidation: false,
-          onlyVisible: false,
-        });
-      } catch (error) {
-        console.error('[EditorPanel] Error loading TypeScript configuration:', error);
-      }
-    };
-
-    const loadTypeDefinitions = async () => {
-      try {
-        console.log('[EditorPanel] Loading type definitions from node_modules...');
-
-        // Add basic React types inline (fallback if @types/react not available)
-        const basicReactTypes = `
-declare namespace React {
-  type ReactNode = string | number | boolean | null | undefined | ReactElement | ReactFragment;
-  type ReactElement = any;
-  type ReactFragment = any;
-
-  interface FunctionComponent<P = {}> {
-    (props: P): ReactNode;
-  }
-
-  type FC<P = {}> = FunctionComponent<P>;
-
-  function useEffect(effect: () => void | (() => void), deps?: any[]): void;
-  function useState<S>(initialState: S | (() => S)): [S, (newState: S) => void];
-  function useRef<T>(initialValue: T): { current: T };
-  function useCallback<T extends (...args: any[]) => any>(callback: T, deps: any[]): T;
-  function useMemo<T>(factory: () => T, deps: any[]): T;
-}
-
-declare module 'react' {
-  export = React;
-}
-`;
-
-        monaco.languages.typescript.typescriptDefaults.addExtraLib(
-          basicReactTypes,
-          'file:///node_modules/@types/react/index.d.ts'
-        );
-        console.log('[EditorPanel] ✅ Added basic React type definitions');
-
-        // Get list of available type packages
-        const typesResult = await ipcRenderer.invoke('monaco:list-type-definitions', workspace.path);
-
-        if (!typesResult.success || !typesResult.types || typesResult.types.length === 0) {
-          console.log('[EditorPanel] No type definitions found in node_modules/@types (using fallback types)');
-          return;
-        }
-
-        console.log(`[EditorPanel] Found ${typesResult.types.length} type definition packages`);
-
-        // Load common/important type definitions from @types
-        const importantTypes = ['react', 'react-dom', 'node'];
-        const typesToLoad = typesResult.types.filter((t: string) => importantTypes.includes(t));
-
-        console.log(`[EditorPanel] Loading ${typesToLoad.length} @types definitions:`, typesToLoad);
-
-        for (const packageName of typesToLoad) {
-          try {
-            const typeDefResult = await ipcRenderer.invoke('monaco:load-type-definition', workspace.path, packageName);
-
-            if (typeDefResult.success && typeDefResult.content) {
-              // Add type definition to Monaco
-              monaco.languages.typescript.typescriptDefaults.addExtraLib(
-                typeDefResult.content,
-                `file:///node_modules/@types/${packageName}/index.d.ts`
-              );
-              console.log(`[EditorPanel] ✅ Loaded type definitions for @types/${packageName}`);
-            }
-          } catch (err) {
-            console.warn(`[EditorPanel] Failed to load type definitions for ${packageName}:`, err);
-          }
-        }
-
-        // Load package types for frameworks (Next.js, etc.)
-        const frameworkPackages = ['next'];
-        console.log('[EditorPanel] Loading framework type definitions...');
-
-        for (const packageName of frameworkPackages) {
-          try {
-            const packageTypesResult = await ipcRenderer.invoke('monaco:load-package-types', workspace.path, packageName);
-
-            if (packageTypesResult.success && packageTypesResult.content) {
-              monaco.languages.typescript.typescriptDefaults.addExtraLib(
-                packageTypesResult.content,
-                `file:///node_modules/${packageName}/index.d.ts`
-              );
-              console.log(`[EditorPanel] ✅ Loaded type definitions for ${packageName}`);
-            } else {
-              console.log(`[EditorPanel] Package ${packageName} types not available`);
-            }
-          } catch (err) {
-            console.warn(`[EditorPanel] Failed to load package types for ${packageName}:`, err);
-          }
-        }
-
-        console.log('[EditorPanel] ✅ All type definitions loaded successfully');
-      } catch (error) {
-        console.error('[EditorPanel] Error loading type definitions:', error);
-      }
-    };
-
-    loadTsConfig();
-    loadTypeDefinitions();
-  }, [workspace.path]);
+  // Note: TypeScript configuration and type definitions are now loaded
+  // automatically by the useLanguageService hook (MonacoLanguageService)
 
   // Set active file when selectedFile changes (from sidebar)
   useEffect(() => {
@@ -1665,60 +1680,137 @@ declare module 'react' {
     }
   }, [openFiles.length]);
 
-  const fileContent = activeFile ? fileContents.get(activeFile) || '' : '';
-  const hasUnsavedChanges = activeFile ? unsavedChanges.get(activeFile) || false : false;
-  const isMarkdown = activeFile?.toLowerCase().endsWith('.md') || activeFile?.toLowerCase().endsWith('.markdown');
+  // ✅ Use normalized path for file content lookup
+  const fileContent = normalizedActiveFile ? fileContents.get(normalizedActiveFile) || '' : '';
+  const hasUnsavedChanges = normalizedActiveFile ? unsavedChanges.get(normalizedActiveFile) || false : false;
+  const isMarkdown = normalizedActiveFile?.toLowerCase().endsWith('.md') || normalizedActiveFile?.toLowerCase().endsWith('.markdown');
+
+  // Track opened files in LSP
+  const openedLSPFiles = useRef<Set<string>>(new Set());
+
+  // Cleanup: Close all LSP documents on unmount
+  useEffect(() => {
+    return () => {
+      if (languageService && languageServiceMode === 'lsp') {
+        openedLSPFiles.current.forEach(async (file) => {
+          try {
+            const fileUri = `file:///${file}`;
+            await (languageService as any).closeDocument(fileUri);
+            console.log('[EditorPanel] ✅ LSP: Document closed on unmount:', file);
+          } catch (error) {
+            console.error('[EditorPanel] LSP cleanup error:', error);
+          }
+        });
+        openedLSPFiles.current.clear();
+      }
+    };
+  }, [languageService, languageServiceMode]);
 
   // Load file contents when active file changes
   useEffect(() => {
-    if (!activeFile) {
+    if (!normalizedActiveFile) {
       return;
     }
 
-    // If file content already loaded, skip
-    if (fileContents.has(activeFile)) {
+    // ✅ Use normalized path for cache check
+    if (fileContents.has(normalizedActiveFile)) {
+      console.log('[EditorPanel] File content already loaded (cache hit):', normalizedActiveFile);
       return;
     }
 
     const loadFileContent = async () => {
       setIsLoadingFile(true);
       try {
-        console.log('[EditorPanel] Loading file:', activeFile);
-        const result = await ipcRenderer.invoke('workspace:read-file', workspace.path, activeFile);
+        console.log('[EditorPanel] Loading file (normalized):', normalizedActiveFile);
+        // ✅ Use normalized path for IPC call
+        const result = await ipcRenderer.invoke('workspace:read-file', workspace.path, normalizedActiveFile);
 
         if (result.success) {
-          setFileContents(prev => new Map(prev).set(activeFile, result.content));
+          // ✅ Store with normalized path as key
+          setFileContents(prev => new Map(prev).set(normalizedActiveFile, result.content));
+
+          // Notify LSP that document was opened
+          if (languageService && isLanguageServiceInitialized && languageServiceMode === 'lsp') {
+            // ✅ Use normalized path for LSP URI
+            const fileUri = `file:///${normalizedActiveFile}`;
+            const languageId = getLanguageFromFilePath(normalizedActiveFile);
+
+            // Map Monaco language IDs to LSP language IDs
+            const lspLanguageId = languageId === 'typescriptreact' ? 'typescriptreact' :
+                                   languageId === 'typescript' ? 'typescript' :
+                                   languageId === 'javascriptreact' ? 'javascriptreact' :
+                                   languageId === 'javascript' ? 'javascript' : 'typescript';
+
+            await (languageService as any).openDocument(fileUri, lspLanguageId, result.content);
+            // ✅ Track with normalized path
+            openedLSPFiles.current.add(normalizedActiveFile);
+            console.log('[EditorPanel] ✅ LSP: Document opened:', normalizedActiveFile);
+          }
         } else {
           console.error('[EditorPanel] Failed to load file:', result.error);
-          setFileContents(prev => new Map(prev).set(activeFile, `// Error loading file: ${result.error}`));
+          // ✅ Store error with normalized path
+          setFileContents(prev => new Map(prev).set(normalizedActiveFile, `// Error loading file: ${result.error}`));
         }
       } catch (error) {
         console.error('[EditorPanel] Error loading file:', error);
-        setFileContents(prev => new Map(prev).set(activeFile, `// Error: ${error}`));
+        // ✅ Store error with normalized path
+        setFileContents(prev => new Map(prev).set(normalizedActiveFile, `// Error: ${error}`));
       } finally {
         setIsLoadingFile(false);
       }
     };
 
     loadFileContent();
-  }, [activeFile, workspace.path]);
+  }, [normalizedActiveFile, workspace.path, languageService, isLanguageServiceInitialized, languageServiceMode]);
+
+  // Close documents when files are removed from openFiles
+  useEffect(() => {
+    if (!languageService || !isLanguageServiceInitialized || languageServiceMode !== 'lsp') {
+      return;
+    }
+
+    // Find files that were opened in LSP but are no longer in openFiles
+    const currentOpenFiles = new Set(openFiles);
+    const filesToClose: string[] = [];
+
+    openedLSPFiles.current.forEach(file => {
+      if (!currentOpenFiles.has(file)) {
+        filesToClose.push(file);
+      }
+    });
+
+    // Close documents in LSP
+    filesToClose.forEach(async (file) => {
+      try {
+        const fileUri = `file:///${file}`;
+        await (languageService as any).closeDocument(fileUri);
+        openedLSPFiles.current.delete(file);
+        console.log('[EditorPanel] ✅ LSP: Document closed:', file);
+      } catch (error) {
+        console.error('[EditorPanel] LSP close error:', error);
+      }
+    });
+  }, [openFiles, languageService, isLanguageServiceInitialized, languageServiceMode]);
 
   // Save file
   const handleSaveFile = async () => {
-    if (!activeFile || !hasUnsavedChanges) return;
+    if (!normalizedActiveFile || !hasUnsavedChanges) return;
 
     setIsSaving(true);
     try {
-      console.log('[EditorPanel] Saving file:', activeFile);
-      const content = fileContents.get(activeFile) || '';
-      const result = await ipcRenderer.invoke('workspace:write-file', workspace.path, activeFile, content);
+      console.log('[EditorPanel] Saving file (normalized):', normalizedActiveFile);
+      // ✅ Use normalized path for file content lookup
+      const content = fileContents.get(normalizedActiveFile) || '';
+      // ✅ Use normalized path for IPC call
+      const result = await ipcRenderer.invoke('workspace:write-file', workspace.path, normalizedActiveFile, content);
 
       if (result.success) {
         console.log('[EditorPanel] File saved successfully');
-        setUnsavedChanges(prev => new Map(prev).set(activeFile, false));
+        // ✅ Update unsaved changes with normalized path
+        setUnsavedChanges(prev => new Map(prev).set(normalizedActiveFile, false));
 
         // Notify parent that file is saved (no unsaved changes)
-        onUnsavedChange?.(activeFile, false);
+        onUnsavedChange?.(normalizedActiveFile, false);
       } else {
         console.error('[EditorPanel] Failed to save file:', result.error);
         alert(`Failed to save file: ${result.error}`);
@@ -1732,16 +1824,41 @@ declare module 'react' {
   };
 
   // Handle content change
-  const handleContentChange = (value: string | undefined) => {
-    if (!activeFile || value === undefined) return;
+  // Debounced LSP update
+  const updateLSPDebounced = useRef<NodeJS.Timeout | null>(null);
 
-    const currentContent = fileContents.get(activeFile) || '';
+  const handleContentChange = (value: string | undefined) => {
+    if (!normalizedActiveFile || value === undefined) return;
+
+    // ✅ Use normalized path for file content lookup
+    const currentContent = fileContents.get(normalizedActiveFile) || '';
     if (value !== currentContent) {
-      setFileContents(prev => new Map(prev).set(activeFile, value));
-      setUnsavedChanges(prev => new Map(prev).set(activeFile, true));
+      // ✅ Store with normalized path
+      setFileContents(prev => new Map(prev).set(normalizedActiveFile, value));
+      setUnsavedChanges(prev => new Map(prev).set(normalizedActiveFile, true));
 
       // Notify parent about unsaved changes
-      onUnsavedChange?.(activeFile, true);
+      onUnsavedChange?.(normalizedActiveFile, true);
+
+      // Notify LSP about document changes (debounced to avoid too many updates)
+      if (languageService && isLanguageServiceInitialized && languageServiceMode === 'lsp') {
+        // Clear previous timeout
+        if (updateLSPDebounced.current) {
+          clearTimeout(updateLSPDebounced.current);
+        }
+
+        // Set new timeout (500ms delay)
+        updateLSPDebounced.current = setTimeout(async () => {
+          try {
+            // ✅ Use normalized path for LSP URI
+            const fileUri = `file:///${normalizedActiveFile}`;
+            await (languageService as any).updateDocument(fileUri, value);
+            console.log('[EditorPanel] ✅ LSP: Document updated:', normalizedActiveFile);
+          } catch (error) {
+            console.error('[EditorPanel] LSP update error:', error);
+          }
+        }, 500);
+      }
     }
   };
 
@@ -1771,19 +1888,21 @@ declare module 'react' {
         uri: model.uri.toString()
       });
 
-      // Trigger diagnostics for this file
-      // This ensures TypeScript checks the file with current settings
-      setTimeout(() => {
-        const markers = monaco.editor.getModelMarkers({ resource: model.uri });
-        console.log(`[EditorPanel] Current diagnostics for ${activeFile}: ${markers.length} issues`);
-
-        // Force Monaco to re-validate by triggering a model change event
-        // We do this by getting the current value and setting it back
-        const currentValue = model.getValue();
-        model.setValue(currentValue);
-
-        console.log('[EditorPanel] ✅ Triggered diagnostics refresh for mounted file');
-      }, 100); // Small delay to ensure TypeScript worker is ready
+      // Refresh diagnostics using language service
+      if (languageService && isLanguageServiceInitialized) {
+        setTimeout(async () => {
+          try {
+            await languageService.refreshDiagnostics(model.uri.toString());
+            const diagnostics = await languageService.getDiagnostics(model.uri.toString());
+            console.log(`[EditorPanel] Current diagnostics for ${activeFile}: ${diagnostics.length} issues`);
+            console.log('[EditorPanel] ✅ Diagnostics refreshed via language service');
+          } catch (error) {
+            console.error('[EditorPanel] Failed to refresh diagnostics:', error);
+          }
+        }, 100); // Small delay to ensure TypeScript worker is ready
+      } else {
+        console.log('[EditorPanel] Language service not yet initialized');
+      }
     }
 
     // Listen for selection changes to show/hide floating actions
@@ -2179,8 +2298,8 @@ declare module 'react' {
           ) : (
             <Editor
               height="100%"
-              path={activeFile || undefined} // ✅ URI for Monaco model
-              language={getLanguageFromFilePath(activeFile || '')}
+              path={normalizedActiveFile || undefined} // ✅ Use normalized path for Monaco model URI
+              language={getLanguageFromFilePath(normalizedActiveFile || '')}
               value={fileContent}
               onChange={handleContentChange}
               onMount={handleEditorDidMount}

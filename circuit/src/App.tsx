@@ -38,7 +38,7 @@ import { TerminalProvider } from '@/contexts/TerminalContext'
 import { AgentProvider } from '@/contexts/AgentContext'
 import { CompactBanner } from '@/components/CompactBanner'
 import { CompactUrgentModal } from '@/components/CompactUrgentModal'
-import { Toaster } from 'sonner'
+import { Toaster, toast } from 'sonner'
 import { FEATURES } from '@/config/features'
 import { useEditorGroups } from '@/hooks/useEditorGroups'
 import { useWorkspaceContext } from '@/hooks/useWorkspaceContext'
@@ -470,20 +470,65 @@ function App() {
   // ============================================================================
 
   // Handle file selection from sidebar or file reference pills
-  const handleFileSelect = (filePath: string, lineStart?: number, lineEnd?: number) => {
-    // Use ref to get latest focusedGroupId (avoid stale closure)
+  const handleFileSelect = async (filePath: string, lineStart?: number, lineEnd?: number) => {
+    // ✅ STEP 1: Get project root (workspace root without .conductor path)
+    const workspacePath = selectedWorkspace?.path || projectPath;
+    const projectRoot = workspacePath.includes('/.conductor/')
+      ? workspacePath.split('/.conductor/')[0]
+      : workspacePath;
+
+    // ✅ STEP 2: Normalize file path to workspace-relative path
+    let normalizedPath = filePath;
+
+    // Convert absolute path to relative path
+    if (normalizedPath.startsWith('/') || normalizedPath.match(/^[A-Z]:\\/)) {
+      if (normalizedPath.startsWith(projectRoot)) {
+        normalizedPath = normalizedPath.slice(projectRoot.length);
+        if (normalizedPath.startsWith('/') || normalizedPath.startsWith('\\')) {
+          normalizedPath = normalizedPath.slice(1);
+        }
+      }
+    }
+
+    // Remove "./" prefix
+    normalizedPath = normalizedPath.replace(/^\.\//, '');
+    normalizedPath = normalizedPath.replace(/^\.\\/, '');
+
+    // Normalize path separators
+    normalizedPath = normalizedPath.replace(/\\/g, '/');
+
+    console.log('[App] Normalized file path:', { original: filePath, normalized: normalizedPath, projectRoot });
+
+    // ✅ STEP 3: Validate file existence (using absolute path)
+    const absolutePath = `${projectRoot}/${normalizedPath}`;
+
+    try {
+      const exists = await ipcRenderer.invoke('file-exists', absolutePath);
+
+      if (!exists) {
+        console.warn('[App] File does not exist:', normalizedPath);
+        toast.error(`파일을 찾을 수 없습니다: ${normalizedPath}`);
+        return;
+      }
+    } catch (error) {
+      console.error('[App] Error checking file existence:', normalizedPath, error);
+      toast.error(`파일 확인 중 오류 발생: ${normalizedPath}`);
+      return;
+    }
+
+    // ✅ STEP 4: Create file tab with normalized path
     const currentFocusedGroup = focusedGroupIdRef.current
 
-    // Create or activate file tab
-    const tab = createFileTab(filePath, getFileName(filePath))
+    // Pass projectRoot to createFileTab for additional normalization safety
+    const tab = createFileTab(normalizedPath, getFileName(normalizedPath), undefined, projectRoot)
 
     // Open in currently focused group (using ref for latest value)
     openTab(tab, currentFocusedGroup)
 
-    // Store line selection for Monaco to use
+    // ✅ STEP 5: Store line selection with normalized path
     if (lineStart) {
       setFileCursorPosition({
-        filePath,
+        filePath: normalizedPath,  // Use normalized path
         lineStart,
         lineEnd: lineEnd || lineStart
       })

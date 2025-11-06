@@ -24,6 +24,9 @@ export interface ProcessMessageOptions {
   pendingAssistantMessageId: string | null;
   pendingUserMessage: Message | null;
 
+  // Workspace context (for file path normalization)
+  workspacePath?: string;
+
   // Callbacks
   onMessageUpdate: (id: string, updates: Partial<Message>) => void;
   onMessageAdd: (message: Message) => void;
@@ -103,7 +106,14 @@ export class MessageProcessor {
       });
 
       // Save assistant message to database (with thinking steps in metadata)
-      const saveResult = await ipcRenderer.invoke('message:save', assistantMessage);
+      // ✅ Pass workspacePath for file path normalization
+      const saveResult = await ipcRenderer.invoke('message:save', assistantMessage, options.workspacePath);
+      console.log('[MessageProcessor] 📦 Save result:', {
+        success: saveResult.success,
+        blockCount: saveResult.blockCount,
+        blocks: saveResult.blocks,
+        hasFileSummary: saveResult.blocks?.some((b: any) => b.type === 'file-summary')
+      });
       if (saveResult.success && saveResult.blocks) {
         onMessageUpdate(assistantMessageId, { blocks: saveResult.blocks });
       }
@@ -148,7 +158,14 @@ export class MessageProcessor {
     });
 
     // Save assistant message to database
-    const saveResult = await ipcRenderer.invoke('message:save', newAssistantMessage);
+    // ✅ Pass workspacePath for file path normalization
+    const saveResult = await ipcRenderer.invoke('message:save', newAssistantMessage, options.workspacePath);
+    console.log('[MessageProcessor] 📦 Save result:', {
+      success: saveResult.success,
+      blockCount: saveResult.blockCount,
+      blocks: saveResult.blocks,
+      hasFileSummary: saveResult.blocks?.some((b: any) => b.type === 'file-summary')
+    });
     if (saveResult.success && saveResult.blocks) {
       onMessageUpdate(newAssistantMessage.id, { blocks: saveResult.blocks });
     }

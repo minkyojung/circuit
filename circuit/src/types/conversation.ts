@@ -38,6 +38,17 @@ export interface Message {
     planConfirmed?: boolean
     planCancelled?: boolean
     cancelled?: boolean  // Message was cancelled by user
+    // Task-related
+    isTask?: boolean
+    todoId?: string
+    // Session compact-related
+    isCompactSummary?: boolean
+    originalMessageCount?: number
+    tokensBeforeEstimate?: number
+    tokensAfterEstimate?: number
+    // Plan mode retry
+    planRetryAttempt?: number
+    planGenerationFailed?: boolean
   }
   blocks?: Block[]  // New: Block-based message structure
 }

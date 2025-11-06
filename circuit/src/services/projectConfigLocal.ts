@@ -5,6 +5,7 @@
 
 import type { ProjectConfig, AIRule } from '../types/project';
 import { DEFAULT_PROJECT_CONFIG } from '../types/project';
+import { SYSTEM_AI_RULES } from './projectConfig';
 
 /**
  * Get localStorage key for workspace
@@ -261,18 +262,23 @@ export async function getAIRules(workspacePath: string): Promise<AIRule[]> {
 
 /**
  * Get enabled AI rules as formatted string for AI context
+ * Includes both system-level "The Architect" rules and project-specific rules
  */
 export async function getAIRulesContext(workspacePath: string): Promise<string> {
+  // Get user-defined rules
   const rules = await getAIRules(workspacePath);
-  const enabledRules = rules.filter((r) => r.enabled);
+  const enabledUserRules = rules.filter((r) => r.enabled);
 
-  if (enabledRules.length === 0) {
+  // Combine system rules + user rules
+  const allRules = [...SYSTEM_AI_RULES, ...enabledUserRules.map((r) => r.content)];
+
+  if (allRules.length === 0) {
     return '';
   }
 
-  const rulesText = enabledRules.map((rule, index) => `${index + 1}. ${rule.content}`).join('\n');
+  const rulesText = allRules.map((rule, index) => `${index + 1}. ${rule}`).join('\n');
 
-  return `# Project Coding Rules\n\nFollow these rules when writing code for this project:\n\n${rulesText}`;
+  return `# AI Coding Guidelines\n\nFollow these principles and rules when writing code:\n\n${rulesText}`;
 }
 
 // ============================================================================
@@ -325,4 +331,51 @@ export async function initializeProjectConfig(workspacePath: string): Promise<Pr
   });
 
   return config;
+}
+
+// ============================================================================
+// Architect Mode Management
+// ============================================================================
+
+/**
+ * Get architect mode status
+ */
+export async function getArchitectMode(workspacePath: string): Promise<boolean> {
+  let config = await loadProjectConfig(workspacePath);
+
+  // Create config if it doesn't exist
+  if (!config) {
+    config = await createProjectConfig(workspacePath);
+  }
+
+  return config.ai.architectMode ?? false;
+}
+
+/**
+ * Set architect mode
+ */
+export async function setArchitectMode(
+  workspacePath: string,
+  enabled: boolean
+): Promise<boolean> {
+  let config = await loadProjectConfig(workspacePath);
+
+  // Create config if it doesn't exist
+  if (!config) {
+    config = await createProjectConfig(workspacePath);
+  }
+
+  config.ai.architectMode = enabled;
+  await saveProjectConfig(workspacePath, config);
+
+  return true;
+}
+
+/**
+ * Toggle architect mode
+ */
+export async function toggleArchitectMode(workspacePath: string): Promise<boolean> {
+  const current = await getArchitectMode(workspacePath);
+  await setArchitectMode(workspacePath, !current);
+  return !current;
 }

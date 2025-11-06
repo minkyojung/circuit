@@ -141,17 +141,45 @@ export function createConversationTab(
 export function createFileTab(
   filePath: string,
   title?: string,
-  unsavedChanges?: boolean
+  unsavedChanges?: boolean,
+  projectRoot?: string
 ): FileTab {
+  // ✅ Normalize file path if projectRoot is provided
+  let normalizedPath = filePath;
+  if (projectRoot) {
+    // Import normalizeFilePath dynamically to avoid circular dependencies
+    // For now, implement inline normalization
+    let normalized = filePath;
+
+    // Convert absolute path to relative path
+    if (normalized.startsWith('/') || normalized.match(/^[A-Z]:\\/)) {
+      if (normalized.startsWith(projectRoot)) {
+        normalized = normalized.slice(projectRoot.length);
+        if (normalized.startsWith('/') || normalized.startsWith('\\')) {
+          normalized = normalized.slice(1);
+        }
+      }
+    }
+
+    // Remove "./" prefix
+    normalized = normalized.replace(/^\.\//, '');
+    normalized = normalized.replace(/^\.\\/, '');
+
+    // Normalize path separators
+    normalized = normalized.replace(/\\/g, '/');
+
+    normalizedPath = normalized;
+  }
+
   // Extract filename from path if title not provided
-  const fileName = title || filePath.split('/').pop() || filePath
+  const fileName = title || normalizedPath.split('/').pop() || normalizedPath
 
   return {
-    id: `file-${filePath}`,
+    id: `file-${normalizedPath}`,  // ✅ Use normalized path for ID
     type: 'file',
     title: fileName,
     data: {
-      filePath,
+      filePath: normalizedPath,  // ✅ Store normalized path
       unsavedChanges: unsavedChanges || false,
     },
   }

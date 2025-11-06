@@ -301,6 +301,7 @@ export class IPCEventBridge {
       thinkingDuration: duration,
       pendingAssistantMessageId: this.deps.pendingAssistantMessageId,
       pendingUserMessage: pending,
+      workspacePath: this.deps.workspacePathRef.current,  // ✅ Pass workspace path for file normalization
       onMessageUpdate: this.callbacks.onMessageUpdate,
       onMessageAdd: this.callbacks.onMessageAdd,
       onOpenReasoningId: this.callbacks.onOpenReasoningIdUpdate,
@@ -363,12 +364,15 @@ export class IPCEventBridge {
     // Step 6: Parse file changes and auto-open
     // ========================================================================
 
-    const editedFiles = FileChangeDetector.processFileChanges(
-      result.message,
-      this.callbacks.onFileEdit
-    );
-
-    console.log('[IPCEventBridge] Detected file changes:', editedFiles);
+    // ⚠️ DISABLED: Auto-opening files is too aggressive
+    // Users should explicitly click pill buttons or file references to open files
+    //
+    // const editedFiles = await FileChangeDetector.processFileChanges(
+    //   result.message,
+    //   this.deps.workspacePathRef.current,
+    //   this.callbacks.onFileEdit
+    // );
+    // console.log('[IPCEventBridge] Detected file changes:', editedFiles);
 
     // ========================================================================
     // Step 7: Clear thinking steps for next message

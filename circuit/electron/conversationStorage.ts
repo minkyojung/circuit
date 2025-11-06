@@ -114,7 +114,7 @@ export interface Todo {
 export class ConversationStorage {
   private db: Database.Database | null = null
   private dbPath: string
-  private schemaVersion = 5  // Updated to v5 for FTS removal
+  private schemaVersion = 6  // Updated to v6 for additional block types
 
   constructor() {
     const userData = app.getPath('userData')
@@ -449,6 +449,62 @@ export class ConversationStorage {
       } catch (error) {
         console.error('[ConversationStorage] Migration v5 error:', error)
         // Continue - error might be due to missing tables
+      }
+    }
+
+    // Migration v6: Add new block types (tool, checklist, file-summary)
+    if (currentVersion < 6) {
+      console.log('[ConversationStorage] Running migration v6: Add new block types')
+
+      try {
+        // Step 1: Rename existing table
+        this.db.exec(`ALTER TABLE blocks RENAME TO blocks_old;`)
+
+        // Step 2: Create new table with updated CHECK constraint
+        this.db.exec(`
+          CREATE TABLE blocks (
+            id TEXT PRIMARY KEY,
+            message_id TEXT NOT NULL,
+            type TEXT NOT NULL CHECK(type IN (
+              'text', 'code', 'command', 'file', 'diff',
+              'error', 'result', 'diagram', 'link', 'quote', 'list', 'table',
+              'tool', 'checklist', 'file-summary'
+            )),
+            content TEXT NOT NULL,
+            metadata TEXT,
+            order_index INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE
+          );
+        `)
+
+        // Step 3: Copy data from old table
+        this.db.exec(`
+          INSERT INTO blocks (id, message_id, type, content, metadata, order_index, created_at)
+          SELECT id, message_id, type, content, metadata, order_index, created_at
+          FROM blocks_old;
+        `)
+
+        // Step 4: Drop old table
+        this.db.exec(`DROP TABLE blocks_old;`)
+
+        // Step 5: Recreate indexes
+        this.db.exec(`
+          CREATE INDEX idx_blocks_message ON blocks(message_id, order_index);
+          CREATE INDEX idx_blocks_type ON blocks(type);
+          CREATE INDEX idx_blocks_created ON blocks(created_at);
+        `)
+
+        // Record migration
+        this.db.prepare(`
+          INSERT INTO schema_version (version, name, applied_at)
+          VALUES (?, ?, ?)
+        `).run(6, 'add_block_types', Date.now())
+
+        console.log('[ConversationStorage] Migration v6 complete')
+      } catch (error) {
+        console.error('[ConversationStorage] Migration v6 error:', error)
+        throw error
       }
     }
   }

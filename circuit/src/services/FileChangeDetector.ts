@@ -5,18 +5,21 @@
  * Extracted from WorkspaceChatEditor.tsx handleResponseComplete
  */
 
+// @ts-ignore
+const { ipcRenderer } = window.require('electron');
+
 export class FileChangeDetector {
   /**
    * Parse Claude response to detect edited files
-   * Returns array of file paths mentioned in the response
+   * Returns array of file paths mentioned in the response (only files that exist)
    */
-  static parseFileChanges(response: string): string[] {
-    const files: string[] = [];
+  static async parseFileChanges(response: string, workspaceRoot: string): Promise<string[]> {
+    const candidateFiles: string[] = [];
 
     // Pattern 1: <file_path>path/to/file.ts</file_path>
     const filePathMatches = response.matchAll(/<file_path>(.*?)<\/file_path>/g);
     for (const match of filePathMatches) {
-      files.push(match[1]);
+      candidateFiles.push(match[1]);
     }
 
     // Pattern 2: "I'll edit src/App.tsx" or "수정했습니다" with README.md
@@ -25,8 +28,8 @@ export class FileChangeDetector {
     );
     for (const match of editMentions) {
       const filePath = match[1];
-      if (!files.includes(filePath)) {
-        files.push(filePath);
+      if (!candidateFiles.includes(filePath)) {
+        candidateFiles.push(filePath);
       }
     }
 
@@ -37,12 +40,12 @@ export class FileChangeDetector {
       const filePath = match[1];
       // Only include if it looks like a real file (not just any word.extension)
       if (
-        !files.includes(filePath) &&
+        !candidateFiles.includes(filePath) &&
         (filePath.includes('/') ||
           filePath.toUpperCase() === filePath ||
           filePath.includes('README'))
       ) {
-        files.push(filePath);
+        candidateFiles.push(filePath);
       }
     }
 
@@ -52,27 +55,52 @@ export class FileChangeDetector {
     );
     for (const match of codeBlockMatches) {
       const filePath = match[1];
-      if (!files.includes(filePath)) {
-        files.push(filePath);
+      if (!candidateFiles.includes(filePath)) {
+        candidateFiles.push(filePath);
       }
     }
 
-    console.log('[FileChangeDetector] Detected files:', files);
-    return files;
+    console.log('[FileChangeDetector] Candidate files found:', candidateFiles);
+
+    // ✅ NEW: Validate file existence
+    const validFiles: string[] = [];
+    for (const file of candidateFiles) {
+      // Build absolute path
+      const absolutePath = file.startsWith('/') || file.match(/^[A-Z]:\\/)
+        ? file
+        : `${workspaceRoot}/${file}`;
+
+      try {
+        // Check if file exists using Electron IPC
+        const exists = await ipcRenderer.invoke('file-exists', absolutePath);
+        if (exists) {
+          validFiles.push(file);
+          console.log('[FileChangeDetector] ✅ File exists:', file);
+        } else {
+          console.warn('[FileChangeDetector] ⚠️ File does not exist, ignoring:', file);
+        }
+      } catch (error) {
+        console.error('[FileChangeDetector] Error checking file existence:', file, error);
+      }
+    }
+
+    console.log('[FileChangeDetector] Valid files to open:', validFiles);
+    return validFiles;
   }
 
   /**
    * Process file changes and trigger onFileEdit callback for each file
    */
-  static processFileChanges(
+  static async processFileChanges(
     response: string,
+    workspaceRoot: string,
     onFileEdit: (filePath: string) => void
-  ): string[] {
-    const editedFiles = this.parseFileChanges(response);
+  ): Promise<string[]> {
+    const editedFiles = await this.parseFileChanges(response, workspaceRoot);
 
-    console.log('[FileChangeDetector] Processing', editedFiles.length, 'file changes');
+    console.log('[FileChangeDetector] Processing', editedFiles.length, 'valid file changes');
 
-    // Auto-open edited files
+    // Auto-open edited files (only files that exist)
     editedFiles.forEach((file) => {
       console.log('[FileChangeDetector] Auto-opening:', file);
       onFileEdit(file);

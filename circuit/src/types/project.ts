@@ -149,6 +149,9 @@ export interface ProjectConfig {
 
     // Files/directories to exclude from AI context
     excludeFromContext: string[];
+
+    // Architect mode: enables "The Architect" system prompt
+    architectMode: boolean;
   };
 
   // Environment configuration
@@ -186,6 +189,7 @@ export const DEFAULT_PROJECT_CONFIG: Omit<ProjectConfig, 'createdAt' | 'updatedA
       'coverage',
       '.git',
     ],
+    architectMode: false, // Disabled by default
   },
   environment: {},
 };
