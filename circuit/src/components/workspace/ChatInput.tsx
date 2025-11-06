@@ -876,7 +876,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 className={`${INPUT_STYLES.sendButton.size} ${INPUT_STYLES.sendButton.borderRadius} flex items-center justify-center transition-all shrink-0 ${
                   (!value.trim() && attachedFiles.length === 0) || disabled
                     ? 'bg-muted/50 text-muted-foreground/40 cursor-not-allowed'
-                    : 'bg-foreground text-background hover:bg-foreground/90'
+                    : 'bg-primary text-primary-foreground hover:bg-primary/90'
                 }`}
                 title="Send message (Cmd/Ctrl+Enter)"
               >

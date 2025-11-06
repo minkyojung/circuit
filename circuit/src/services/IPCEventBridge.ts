@@ -32,7 +32,6 @@ export interface IPCEventCallbacks {
   onThinkingStepAdd: (step: ThinkingStep) => void;
   onMessageThinkingStepsUpdate: (messageId: string, data: { steps: ThinkingStep[], duration: number }) => void;
   onCurrentDurationUpdate: (duration: number) => void;
-  onOpenReasoningIdUpdate: (id: string | null) => void;
 
   // Sending state
   onIsSendingUpdate: (sending: boolean) => void;
@@ -158,9 +157,6 @@ export class IPCEventBridge {
       // Add to messages state immediately
       this.callbacks.onMessageAdd(emptyAssistantMessage);
       this.callbacks.onPendingAssistantMessageIdUpdate(assistantMessageId);
-
-      // Auto-open reasoning dropdown for real-time visibility
-      this.callbacks.onOpenReasoningIdUpdate(assistantMessageId);
 
       // Initialize messageThinkingSteps for this message
       this.callbacks.onMessageThinkingStepsUpdate(assistantMessageId, {
@@ -309,7 +305,6 @@ export class IPCEventBridge {
       workspacePath: this.deps.workspacePathRef.current,  // ✅ Pass workspace path for file normalization
       onMessageUpdate: this.callbacks.onMessageUpdate,
       onMessageAdd: this.callbacks.onMessageAdd,
-      onOpenReasoningId: this.callbacks.onOpenReasoningIdUpdate,
       onMessageThinkingStepsUpdate: this.callbacks.onMessageThinkingStepsUpdate,
     });
 
@@ -355,18 +350,7 @@ export class IPCEventBridge {
     });
 
     // ========================================================================
-    // Step 5: Auto-open reasoning
-    // ========================================================================
-
-    const hasThinkingSteps = currentThinkingSteps.length > 0;
-    MessageProcessor.autoOpenReasoning(
-      assistantMessageId,
-      hasThinkingSteps,
-      this.callbacks.onOpenReasoningIdUpdate
-    );
-
-    // ========================================================================
-    // Step 6: Parse file changes and auto-open
+    // Step 5: Parse file changes and auto-open
     // ========================================================================
 
     // ⚠️ DISABLED: Auto-opening files is too aggressive

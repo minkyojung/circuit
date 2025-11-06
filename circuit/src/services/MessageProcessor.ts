@@ -30,7 +30,6 @@ export interface ProcessMessageOptions {
   // Callbacks
   onMessageUpdate: (id: string, updates: Partial<Message>) => void;
   onMessageAdd: (message: Message) => void;
-  onOpenReasoningId: (id: string | null) => void;
   onMessageThinkingStepsUpdate: (
     messageId: string,
     data: { steps: ThinkingStep[]; duration: number }
@@ -59,7 +58,6 @@ export class MessageProcessor {
       pendingUserMessage,
       onMessageUpdate,
       onMessageAdd,
-      onOpenReasoningId,
       onMessageThinkingStepsUpdate,
     } = options;
 
@@ -179,20 +177,4 @@ export class MessageProcessor {
     };
   }
 
-  /**
-   * Auto-open reasoning accordion for completed message if it has thinking steps
-   * Use setTimeout to ensure messageThinkingSteps has been updated in the next render
-   */
-  static autoOpenReasoning(
-    assistantMessageId: string,
-    hasThinkingSteps: boolean,
-    onOpenReasoningId: (id: string | null) => void
-  ) {
-    if (hasThinkingSteps) {
-      setTimeout(() => {
-        onOpenReasoningId(assistantMessageId);
-        console.log('[MessageProcessor] ✅ Auto-opened reasoning for completed message');
-      }, 100);
-    }
-  }
 }

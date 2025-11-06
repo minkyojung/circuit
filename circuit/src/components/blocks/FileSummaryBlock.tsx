@@ -12,9 +12,11 @@ import { cn } from '../../lib/utils'
 interface FileSummaryBlockProps {
   block: Block
   onFileClick?: (filePath: string, lineStart?: number, lineEnd?: number) => void
+  /** Compact mode: renders without outer border and header, suitable for embedding */
+  compact?: boolean
 }
 
-export const FileSummaryBlock: React.FC<FileSummaryBlockProps> = ({ block, onFileClick }) => {
+export const FileSummaryBlock: React.FC<FileSummaryBlockProps> = ({ block, onFileClick, compact = false }) => {
   const [isExpanded, setIsExpanded] = useState(true)
   const [expandedFiles, setExpandedFiles] = useState<Set<number>>(new Set())
 
@@ -39,6 +41,86 @@ export const FileSummaryBlock: React.FC<FileSummaryBlockProps> = ({ block, onFil
     setExpandedFiles(newExpanded)
   }
 
+  // Compact mode: render file list directly without wrapper
+  if (compact) {
+    return (
+      <div className="py-1">
+        {files.map((file, idx) => {
+          const isFileExpanded = expandedFiles.has(idx)
+          const hasDiffLines = file.diffLines && file.diffLines.length > 0
+
+          return (
+            <div key={idx} className="">
+              {/* File header */}
+              <div
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (hasDiffLines) {
+                    toggleFileExpansion(idx)
+                  } else if (onFileClick && file.filePath) {
+                    onFileClick(file.filePath)
+                  }
+                }}
+                className={cn(
+                  "flex items-center gap-2 px-3 py-2 rounded-md hover:bg-secondary/50 transition-colors",
+                  (hasDiffLines || onFileClick) && "cursor-pointer"
+                )}
+              >
+                {hasDiffLines && (
+                  <ChevronRight
+                    className={cn(
+                      "w-3.5 h-3.5 transition-transform text-muted-foreground flex-shrink-0",
+                      isFileExpanded && "rotate-90"
+                    )}
+                  />
+                )}
+                {getFileIcon(file.changeType)}
+                <span className="text-sm font-mono flex-1 truncate text-foreground/80">
+                  {file.filePath}
+                </span>
+                <div className="flex items-center gap-2 text-xs font-mono flex-shrink-0">
+                  {file.additions > 0 && (
+                    <span className="text-green-500">+{file.additions}</span>
+                  )}
+                  {file.deletions > 0 && (
+                    <span className="text-red-500">-{file.deletions}</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Diff lines (if expanded) */}
+              {isFileExpanded && hasDiffLines && (
+                <div className="ml-9 mt-1 mb-2 bg-background/50 rounded border border-border/30 overflow-hidden">
+                  <div className="max-h-[300px] overflow-y-auto text-xs font-mono">
+                    {file.diffLines?.map((line, lineIdx) => (
+                      <div
+                        key={lineIdx}
+                        className={cn(
+                          "px-3 py-0.5 leading-relaxed",
+                          line.type === 'add' && "bg-green-500/10 text-green-400",
+                          line.type === 'remove' && "bg-red-500/10 text-red-400",
+                          line.type === 'unchanged' && "text-muted-foreground/60"
+                        )}
+                      >
+                        <span className="select-none mr-2 inline-block w-4">
+                          {line.type === 'add' && '+'}
+                          {line.type === 'remove' && '-'}
+                          {line.type === 'unchanged' && ' '}
+                        </span>
+                        {line.content}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
+  // Default mode: render with border and header
   return (
     <div className="mt-4 mb-2 border border-border rounded-lg overflow-hidden bg-background/50">
       {/* Header */}

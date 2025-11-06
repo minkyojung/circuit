@@ -36,6 +36,7 @@ import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import { SettingsProvider } from '@/contexts/SettingsContext'
 import { TerminalProvider } from '@/contexts/TerminalContext'
 import { AgentProvider } from '@/contexts/AgentContext'
+import { RepositoryProvider } from '@/contexts/RepositoryContext'
 import { CompactBanner } from '@/components/CompactBanner'
 import { CompactUrgentModal } from '@/components/CompactUrgentModal'
 import { Toaster, toast } from 'sonner'
@@ -1024,7 +1025,8 @@ function App() {
     <SettingsProvider>
       <TerminalProvider>
         <AgentProvider>
-          <ProjectPathContext.Provider value={{ projectPath, isLoading: isLoadingPath }}>
+          <RepositoryProvider value={currentRepository} onChange={setCurrentRepository}>
+            <ProjectPathContext.Provider value={{ projectPath, isLoading: isLoadingPath }}>
           <div
           className="h-screen overflow-hidden backdrop-blur-xl flex"
           style={{
@@ -1186,7 +1188,8 @@ function App() {
         }}
       />
         </div>
-        </ProjectPathContext.Provider>
+            </ProjectPathContext.Provider>
+          </RepositoryProvider>
         </AgentProvider>
       </TerminalProvider>
     </SettingsProvider>

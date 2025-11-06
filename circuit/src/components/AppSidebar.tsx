@@ -133,6 +133,35 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
     onRepositoryChange?.(repository)
   }, [repository?.id])
 
+  // Listen for workspace list changes (archive/unarchive/delete)
+  useEffect(() => {
+    const handleWorkspaceListChanged = async (event: any, changedRepositoryPath: string) => {
+      console.log('[AppSidebar] 🔔 Workspace list changed for:', changedRepositoryPath)
+      console.log('[AppSidebar] 📂 Current repository path:', currentRepository?.path)
+
+      // Only reload if the changed repository matches our current repository
+      if (currentRepository && changedRepositoryPath === currentRepository.path) {
+        console.log('[AppSidebar] ♻️ Reloading workspaces...')
+        // Reload workspaces for the current repository
+        try {
+          const result: WorkspaceListResult = await ipcRenderer.invoke('workspace:list', currentRepository.path)
+          if (result.success && result.workspaces) {
+            setWorkspaces(result.workspaces)
+            onWorkspacesLoaded?.(result.workspaces)
+          }
+        } catch (error) {
+          console.error('[AppSidebar] Error reloading workspaces:', error)
+        }
+      }
+    }
+
+    ipcRenderer.on('workspace:list-changed', handleWorkspaceListChanged)
+
+    return () => {
+      ipcRenderer.removeListener('workspace:list-changed', handleWorkspaceListChanged)
+    }
+  }, [currentRepository?.path, onWorkspacesLoaded])
+
   // Load statuses for all workspaces
   const loadStatuses = useCallback(async (workspaceList: Workspace[]) => {
     const statusPromises = workspaceList.map(async (workspace) => {

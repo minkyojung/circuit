@@ -19,6 +19,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { cn } from '@/lib/utils';
 import type { ClaudeModel, CompletionSound, SendKeyCombo, ThemeMode, TerminalMode, TerminalRenderer, AIMode } from '@/types/settings';
 import { MCPTimeline } from './mcp/MCPTimeline';
+import { useProjectPath } from '@/App';
 
 interface SettingsDialogProps {
   isOpen: boolean;
@@ -618,6 +619,7 @@ const MCPSettings: React.FC = () => {
 };
 
 const ArchiveSettings: React.FC = () => {
+  const { projectPath } = useProjectPath()
   const [workspaces, setWorkspaces] = React.useState<any[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
   const [searchQuery, setSearchQuery] = React.useState('')
@@ -632,15 +634,21 @@ const ArchiveSettings: React.FC = () => {
   const loadWorkspaces = async () => {
     try {
       setIsLoading(true)
-      const result = await ipcRenderer.invoke('workspace:list')
+      console.log('[ArchiveSettings] 🔍 DEBUG: projectPath =', projectPath)
+      const result = await ipcRenderer.invoke('workspace:list', projectPath)
 
-      console.log('[ArchiveSettings] Loaded workspaces:', result)
+      console.log('[ArchiveSettings] 📦 Loaded workspaces result:', result)
+      console.log('[ArchiveSettings] ✅ Result success:', result.success)
+      console.log('[ArchiveSettings] 📊 Total workspaces:', result.workspaces?.length)
 
       if (result.success && result.workspaces) {
-        console.log('[ArchiveSettings] All workspaces:', result.workspaces.map((w: any) => ({ id: w.id, archived: w.archived })))
+        console.log('[ArchiveSettings] 🗂️ All workspaces:', result.workspaces.map((w: any) => ({ id: w.id, archived: w.archived })))
         const archived = result.workspaces.filter((w: any) => w.archived)
-        console.log('[ArchiveSettings] Archived workspaces:', archived)
+        console.log('[ArchiveSettings] 📁 Archived workspaces count:', archived.length)
+        console.log('[ArchiveSettings] 📁 Archived workspaces:', archived)
         setWorkspaces(archived)
+      } else {
+        console.error('[ArchiveSettings] ❌ Failed to load or no workspaces:', result)
       }
     } catch (error) {
       console.error('Error loading workspaces:', error)

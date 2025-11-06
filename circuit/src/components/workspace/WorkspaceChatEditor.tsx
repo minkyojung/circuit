@@ -383,8 +383,6 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   // Copy state
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
 
-  // Reasoning toggle state
-  const [openReasoningId, setOpenReasoningId] = useState<string | null>(null);
 
   // Real-time duration for in-progress message
   const [currentDuration, setCurrentDuration] = useState<number>(0);
@@ -585,10 +583,6 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
     setTimeout(() => setCopiedMessageId(null), 2000);
   }, []);
 
-  // Toggle reasoning accordion handler
-  const handleToggleReasoning = useCallback((messageId: string) => {
-    setOpenReasoningId((prev) => (prev === messageId ? null : messageId));
-  }, []);
 
   // Execute command handler
   const handleExecuteCommand = useCallback(async (command: string) => {
@@ -689,7 +683,6 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
     onMessageThinkingStepsUpdate: (msgId, data) =>
       setMessageThinkingSteps((prev) => ({ ...prev, [msgId]: data })),
     onCurrentDurationUpdate: setCurrentDuration,
-    onOpenReasoningIdUpdate: setOpenReasoningId,
 
     // Sending state
     onIsSendingUpdate: setIsSending,
@@ -1306,13 +1299,19 @@ The plan is ready. What would you like to do?`,
   // Memoize filtered blocks for each message to avoid expensive JSON parsing on every render
   const messagesWithFilteredBlocks = useMemo(() => {
     return messages.map(msg => {
-      // Skip if no blocks or no metadata requiring filtering
-      if (!msg.blocks || msg.blocks.length === 0 || (!msg.metadata?.planResult && !msg.metadata?.todoWriteResult)) {
+      // Skip if no blocks
+      if (!msg.blocks || msg.blocks.length === 0) {
         return { ...msg, filteredBlocks: msg.blocks };
       }
 
-      // Filter out plan/todoWrite JSON blocks
+      // Filter out file-summary blocks (shown in UnifiedReasoningPanel) and plan/todoWrite JSON blocks
       const filteredBlocks = msg.blocks.filter(block => {
+        // Remove file-summary blocks (now shown in UnifiedReasoningPanel)
+        if (block.type === 'file-summary') {
+          return false;
+        }
+
+        // Remove plan/todoWrite JSON blocks
         if (block.type === 'code' && block.metadata?.language === 'json') {
           try {
             const parsed = JSON.parse(block.content);
@@ -1355,15 +1354,13 @@ The plan is ready. What would you like to do?`,
     const msg = filteredMessages[index];
     if (!msg) return 200;
 
-    // Check if reasoning is open for this message
-    const isReasoningOpen = openReasoningId === msg.id;
+    // Check if message has reasoning (collapsed by default, showing file changes)
     const hasReasoning = messageThinkingSteps[msg.id]?.steps?.length > 0;
-
-    // If reasoning accordion is open, estimate based on number of steps
-    if (isReasoningOpen && hasReasoning) {
-      const stepCount = messageThinkingSteps[msg.id].steps.length;
-      // Each step is ~40px, plus base message height of 150px, plus accordion header ~50px
-      return 150 + 50 + (stepCount * 40);
+    if (hasReasoning) {
+      // Collapsed reasoning panel shows file changes only
+      // Estimate: base height (150px) + panel header (50px) + file changes (~40px each)
+      const fileChangeCount = 3; // Conservative estimate
+      return 150 + 50 + (fileChangeCount * 40);
     }
 
     // Estimate based on number of blocks (code blocks, etc.)
@@ -1385,7 +1382,7 @@ The plan is ready. What would you like to do?`,
 
     // Default minimum height
     return 150;
-  }, [filteredMessages, messageThinkingSteps, openReasoningId]);
+  }, [filteredMessages, messageThinkingSteps]);
 
   const virtualizer = useVirtualizer({
     count: filteredMessages.length,
@@ -1395,10 +1392,6 @@ The plan is ready. What would you like to do?`,
   });
 
   // Auto-scroll is disabled - users can manually scroll using the "Scroll to Bottom" button
-
-  // When reasoning accordion is toggled, the estimateSize function recalculates
-  // because openReasoningId is in its dependencies. This triggers virtualizer
-  // to remeasure all items automatically. No manual measure() call needed.
 
   return (
     <div className="h-full bg-card relative">
@@ -1445,11 +1438,9 @@ The plan is ready. What would you like to do?`,
                       isSending={isSending}
                       pendingAssistantMessageId={pendingAssistantMessageId}
                       messageThinkingSteps={messageThinkingSteps}
-                      openReasoningId={openReasoningId}
                       copiedMessageId={copiedMessageId}
                       currentDuration={currentDuration}
                       onCopyMessage={handleCopyMessage}
-                      onToggleReasoning={handleToggleReasoning}
                       onExecuteCommand={handleExecuteCommand}
                       onFileReferenceClick={onFileReferenceClick}
                       onRunAgent={handleRunAgentForMessage}

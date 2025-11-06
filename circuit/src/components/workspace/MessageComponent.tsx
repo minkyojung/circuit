@@ -1,12 +1,11 @@
 import React from 'react';
 import type { Message } from '@/types/conversation';
 import type { ThinkingStep } from '@/types/thinking';
-import { Paperclip, ChevronDown, Copy, Check, Play, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { Paperclip, Copy, Check, Play, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { BlockList } from '@/components/blocks';
 import { InlineTodoProgress } from '@/components/blocks/InlineTodoProgress';
-import { ReasoningAccordion } from '@/components/reasoning/ReasoningAccordion';
-import { summarizeToolUsage } from '@/lib/thinkingUtils';
+import { UnifiedReasoningPanel } from '@/components/reasoning/UnifiedReasoningPanel';
 import { cn } from '@/lib/utils';
 
 export interface MessageComponentProps {
@@ -14,11 +13,9 @@ export interface MessageComponentProps {
   isSending: boolean;
   pendingAssistantMessageId: string | null;
   messageThinkingSteps: Record<string, { steps: ThinkingStep[]; duration: number }>;
-  openReasoningId: string | null;
   copiedMessageId: string | null;
   currentDuration: number;
   onCopyMessage: (messageId: string, content: string) => void;
-  onToggleReasoning: (messageId: string) => void;
   onExecuteCommand: (command: string) => Promise<void>;
   onFileReferenceClick?: (filePath: string, lineStart?: number, lineEnd?: number) => void;
   onRunAgent?: (messageId: string) => void;
@@ -30,11 +27,9 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
   isSending,
   pendingAssistantMessageId,
   messageThinkingSteps,
-  openReasoningId,
   copiedMessageId,
   currentDuration,
   onCopyMessage,
-  onToggleReasoning,
   onExecuteCommand,
   onFileReferenceClick,
   onRunAgent,
@@ -65,7 +60,7 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
       <div
         className={`max-w-[75%] ${
           msg.role === 'user'
-            ? 'bg-secondary px-3 py-2 rounded-xl border border-border'
+            ? 'bg-[#E8EEEB] dark:bg-[#1E2B26] px-3 py-2 rounded-xl border border-border'
             : ''
         }`}
       >
@@ -110,51 +105,25 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
           </div>
         )}
 
-        {/* Reasoning button - Show for assistant messages with reasoning steps */}
-        {msg.role === 'assistant' && (messageThinkingSteps[msg.id]?.steps?.length > 0 || (isSending && msg.id === pendingAssistantMessageId)) && (
-          <div className="mb-3 flex items-center gap-2">
-            <button
-              onClick={() => onToggleReasoning(msg.id)}
-              className="flex items-center gap-1 text-base text-muted-foreground/60 hover:text-foreground transition-all"
-            >
-              <span className="opacity-80 hover:opacity-100">
-                {isSending && msg.id === pendingAssistantMessageId
-                  ? `${currentDuration}s • ${summarizeToolUsage(messageThinkingSteps[msg.id]?.steps || [])}`
-                  : `${messageThinkingSteps[msg.id].duration}s • ${summarizeToolUsage(messageThinkingSteps[msg.id].steps)}`
-                }
-              </span>
-              <ChevronDown className={`w-4 h-4 opacity-80 transition-transform ${openReasoningId === msg.id ? 'rotate-180' : ''}`} strokeWidth={1.5} />
-            </button>
-          </div>
-        )}
-
-        {/* Reasoning content (collapsible) - Above message content */}
-        {(() => {
-          // Show reasoning if accordion is open AND messageThinkingSteps exists (even if steps is empty initially)
-          const shouldShowReasoning = msg.role === 'assistant' &&
-            openReasoningId === msg.id &&
-            messageThinkingSteps[msg.id] !== undefined;
-
-          if (!shouldShowReasoning) return null;
+        {/* Unified Reasoning Panel - Show for assistant messages with reasoning steps */}
+        {msg.role === 'assistant' && messageThinkingSteps[msg.id] !== undefined && (() => {
+          // Find file-summary block for collapsed view
+          const fileSummaryBlock = msg.blocks?.find(b => b.type === 'file-summary');
 
           return (
-            <AnimatePresence>
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.15 }}
-                className="overflow-hidden"
-              >
-                <div className="mb-3 pl-1">
-                  <ReasoningAccordion
-                    steps={messageThinkingSteps[msg.id].steps}
-                    isLive={isSending && msg.id === pendingAssistantMessageId}
-                    duration={isSending && msg.id === pendingAssistantMessageId ? currentDuration : messageThinkingSteps[msg.id].duration}
-                  />
-                </div>
-              </motion.div>
-            </AnimatePresence>
+            <div className="mb-3">
+              <UnifiedReasoningPanel
+                steps={messageThinkingSteps[msg.id]?.steps || []}
+                duration={
+                  isSending && msg.id === pendingAssistantMessageId
+                    ? currentDuration
+                    : messageThinkingSteps[msg.id]?.duration || 0
+                }
+                isLive={isSending && msg.id === pendingAssistantMessageId}
+                fileSummaryBlock={fileSummaryBlock}
+                onFileClick={onFileReferenceClick}
+              />
+            </div>
           );
         })()}
 
@@ -266,7 +235,6 @@ export const MessageComponent = React.memo(
       prevProps.msg.filteredBlocks === nextProps.msg.filteredBlocks &&
       prevProps.isSending === nextProps.isSending &&
       prevProps.pendingAssistantMessageId === nextProps.pendingAssistantMessageId &&
-      prevProps.openReasoningId === nextProps.openReasoningId &&
       prevProps.copiedMessageId === nextProps.copiedMessageId &&
       prevProps.currentDuration === nextProps.currentDuration &&
       // Compare messageThinkingSteps for this specific message only

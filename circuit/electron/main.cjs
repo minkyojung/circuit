@@ -2790,9 +2790,13 @@ async function generateWorkspaceName(projectPath) {
 async function getWorkspaceMetadata(projectPath) {
   try {
     const metadataPath = path.join(projectPath, '.conductor', 'workspace-metadata.json');
+    console.log('[getWorkspaceMetadata] 📍 Full metadata path:', metadataPath);
     const data = await fs.readFile(metadataPath, 'utf-8');
-    return JSON.parse(data);
+    const parsed = JSON.parse(data);
+    console.log('[getWorkspaceMetadata] ✅ Successfully loaded metadata, keys:', Object.keys(parsed));
+    return parsed;
   } catch (error) {
+    console.log('[getWorkspaceMetadata] ⚠️ Could not load metadata:', error.message);
     // If file doesn't exist, return empty metadata
     return {};
   }
@@ -2907,7 +2911,9 @@ async function listWorktrees(projectPath) {
     }
 
     // Load metadata
+    console.log('[listWorktrees] 📂 Loading metadata from:', projectPath);
     const metadata = await getWorkspaceMetadata(projectPath);
+    console.log('[listWorktrees] 📋 Loaded metadata:', metadata);
 
     // Transform to our workspace format
     const workspacePromises = worktrees
@@ -3246,7 +3252,13 @@ ipcMain.handle('workspace:list', async (event, repositoryPath) => {
   try {
     // Use provided repository path, fallback to default for backward compatibility
     const projectPath = repositoryPath || path.resolve(__dirname, '../../../..');
+    console.log('[Workspace] 🔍 List request - repositoryPath:', repositoryPath);
+    console.log('[Workspace] 📂 Using projectPath:', projectPath);
+    console.log('[Workspace] 🏠 __dirname:', __dirname);
+
     const workspaces = await listWorktrees(projectPath);
+    console.log('[Workspace] 📊 Found workspaces:', workspaces.length);
+    console.log('[Workspace] 📁 Workspaces:', workspaces.map(w => ({ id: w.id, name: w.name, archived: w.archived })));
 
     return { success: true, workspaces };
   } catch (error) {
@@ -3263,6 +3275,11 @@ ipcMain.handle('workspace:delete', async (event, workspaceId, repositoryPath) =>
     // Use provided repository path, fallback to default for backward compatibility
     const projectPath = repositoryPath || path.resolve(__dirname, '../../../..');
     await deleteWorktree(projectPath, workspaceId);
+
+    // Notify all windows that workspace list changed
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('workspace:list-changed', projectPath);
+    }
 
     return { success: true };
   } catch (error) {
@@ -3285,6 +3302,11 @@ ipcMain.handle('workspace:archive', async (event, workspaceId, repositoryPath) =
     const projectPath = repositoryPath || path.resolve(__dirname, '../../../..');
     await archiveWorkspace(projectPath, workspaceId);
 
+    // Notify all windows that workspace list changed
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('workspace:list-changed', projectPath);
+    }
+
     return { success: true };
   } catch (error) {
     console.error('[Workspace] Archive error:', error);
@@ -3295,15 +3317,26 @@ ipcMain.handle('workspace:archive', async (event, workspaceId, repositoryPath) =
 /**
  * Unarchive a workspace
  */
-ipcMain.handle('workspace:unarchive', async (event, workspaceId) => {
+ipcMain.handle('workspace:unarchive', async (event, workspaceId, repositoryPath) => {
   try {
     // Validate workspaceId to prevent path traversal
     if (!workspaceId || typeof workspaceId !== 'string' || workspaceId.includes('..') || workspaceId.includes('/') || workspaceId.includes('\\')) {
       return { success: false, error: 'Invalid workspace ID' };
     }
 
-    const projectPath = path.resolve(__dirname, '../../../..');
+    // Use provided repository path, fallback to default for backward compatibility
+    const projectPath = repositoryPath || path.resolve(__dirname, '../../../..');
+    console.log('[Workspace] 🔓 Unarchive request - workspaceId:', workspaceId, 'repositoryPath:', repositoryPath);
+    console.log('[Workspace] 📂 Using projectPath:', projectPath);
+
     await unarchiveWorkspace(projectPath, workspaceId);
+
+    console.log('[Workspace] ✅ Unarchive successful');
+
+    // Notify all windows that workspace list changed
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('workspace:list-changed', projectPath);
+    }
 
     return { success: true };
   } catch (error) {
