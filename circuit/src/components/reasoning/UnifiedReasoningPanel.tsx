@@ -58,7 +58,7 @@ export const UnifiedReasoningPanel: React.FC<UnifiedReasoningPanelProps> = ({
       onOpenChange={setIsExpanded}
       className={cn(
         "border border-border rounded-lg overflow-hidden",
-        "bg-accent/50",
+        "bg-[var(--chat-input-inner)]",
         "shadow-md",
         className
       )}
