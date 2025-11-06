@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { FileDown, FileUp, Sparkles } from 'lucide-react';
+import { FileDown, FileUp, Sparkles, ChevronDown, ChevronRight } from 'lucide-react';
 import { SettingSection } from './SettingPrimitives';
 import {
   getAIRules,
@@ -12,6 +12,7 @@ import {
   deleteAIRule,
   importCursorRules,
   exportCursorRules,
+  SYSTEM_AI_RULES,
 } from '@/services/projectConfig';
 
 // Import templates
@@ -42,6 +43,7 @@ export const AIRulesSection: React.FC<AIRulesSectionProps> = ({ workspacePath })
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState('');
+  const [showSystemRules, setShowSystemRules] = useState(false);
 
   // Use fallback workspace path if not provided
   const effectiveWorkspacePath = workspacePath || 'default-workspace';
@@ -163,6 +165,37 @@ export const AIRulesSection: React.FC<AIRulesSectionProps> = ({ workspacePath })
       title="AI Coding Rules"
       description="Define how AI should write code for this project (one rule per line)"
     >
+      {/* System Rules (Collapsible) */}
+      <div className="mb-4 border border-primary/20 rounded-md overflow-hidden bg-primary/5">
+        <button
+          onClick={() => setShowSystemRules(!showSystemRules)}
+          className="w-full px-3 py-2 flex items-center justify-between text-sm font-medium text-foreground hover:bg-primary/10 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            {showSystemRules ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            <span>System Rules (Always Applied)</span>
+          </div>
+          <span className="text-xs text-muted-foreground">{SYSTEM_AI_RULES.length} rules</span>
+        </button>
+        {showSystemRules && (
+          <div className="px-3 py-2 bg-muted/30 border-t border-primary/10">
+            <div className="space-y-2">
+              {SYSTEM_AI_RULES.map((rule, index) => (
+                <div key={index} className="flex gap-2 text-xs">
+                  <span className="text-muted-foreground font-mono">{index + 1}.</span>
+                  <p className="text-foreground/80 leading-relaxed">{rule}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 pt-3 border-t border-border/50">
+              <p className="text-xs text-muted-foreground italic">
+                💡 These system rules are always applied to guide AI behavior. They are based on "The Architect" philosophy.
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Template Selection */}
       <div className="mb-3">
         <label className="block text-xs font-medium text-foreground mb-1.5">
@@ -197,7 +230,7 @@ export const AIRulesSection: React.FC<AIRulesSectionProps> = ({ workspacePath })
       {/* Rules Textarea */}
       <div className="space-y-2">
         <label className="block text-xs font-medium text-foreground">
-          Coding Rules (one per line)
+          Project-Specific Rules (one per line)
         </label>
         <textarea
           value={rulesText}
@@ -212,7 +245,7 @@ Extract complex logic into custom hooks
           spellCheck={false}
         />
         <p className="text-xs text-muted-foreground">
-          {rulesText.split('\n').filter((line) => line.trim()).length} rules
+          {rulesText.split('\n').filter((line) => line.trim()).length} project rules
         </p>
       </div>
 
@@ -247,9 +280,9 @@ Extract complex logic into custom hooks
       {/* Info Box */}
       <div className="mt-4 p-3 bg-muted/30 rounded-md border border-border/50">
         <p className="text-xs text-muted-foreground leading-relaxed">
-          <span className="font-medium text-foreground">How it works:</span> These rules are
-          automatically included in every AI conversation. The AI will follow these guidelines when
-          generating or modifying code for your project.
+          <span className="font-medium text-foreground">How it works:</span> System rules (above) are
+          always applied to every AI conversation. Your project-specific rules are added on top to
+          customize behavior for this workspace.
         </p>
       </div>
     </SettingSection>

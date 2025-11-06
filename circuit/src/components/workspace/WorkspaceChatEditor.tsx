@@ -1762,18 +1762,14 @@ declare module 'react' {
   const handleEditorDidMount = (editor: monaco.editor.IStandaloneCodeEditor) => {
     editorRef.current = editor;
 
-    // Ensure the model has the correct language
+    // Log model info for debugging
     const model = editor.getModel();
     if (model && activeFile) {
-      const expectedLanguage = getLanguageFromFilePath(activeFile);
-      const currentLanguage = model.getLanguageId();
-
-      if (currentLanguage !== expectedLanguage) {
-        console.log(`[EditorPanel] Fixing language: ${currentLanguage} -> ${expectedLanguage} for ${activeFile}`);
-        monaco.editor.setModelLanguage(model, expectedLanguage);
-      } else {
-        console.log(`[EditorPanel] Model language correctly set to: ${expectedLanguage} for ${activeFile}`);
-      }
+      console.log(`[EditorPanel] Model mounted:`, {
+        file: activeFile,
+        language: model.getLanguageId(),
+        uri: model.uri.toString()
+      });
     }
 
     // Listen for selection changes to show/hide floating actions
@@ -2169,8 +2165,7 @@ declare module 'react' {
           ) : (
             <Editor
               height="100%"
-              key={activeFile} // Force remount on file change
-              defaultLanguage={getLanguageFromFilePath(activeFile || '')}
+              path={activeFile || undefined} // ✅ URI for Monaco model
               language={getLanguageFromFilePath(activeFile || '')}
               value={fileContent}
               onChange={handleContentChange}

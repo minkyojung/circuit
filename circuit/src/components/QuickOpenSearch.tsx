@@ -95,13 +95,7 @@ export const QuickOpenSearch = forwardRef<HTMLInputElement, QuickOpenSearchProps
 
     // Generate responsive placeholder
     const getPlaceholder = () => {
-      if (containerWidth < 280) {
-        return `${branchName} - Quick Open`;
-      } else if (containerWidth < 350) {
-        return `${branchName} - Quick Open (%, @, #)`;
-      } else {
-        return `${branchName} - Quick Open (% content, @ workspaces, # symbols)`;
-      }
+      return branchName;
     };
 
     // Determine search mode
