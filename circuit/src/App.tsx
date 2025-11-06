@@ -98,7 +98,7 @@ function MainHeader({
     <header
       className={cn(
         "flex h-[36px] shrink-0 items-center gap-2 border-b border-border pr-3 relative z-20",
-        sidebarState === 'collapsed' ? 'pl-[72px]' : 'pl-3'
+        sidebarState === 'collapsed' ? 'pl-[80px]' : 'pl-3'
       )}
       style={{ WebkitAppRegion: 'drag' } as any}
     >
