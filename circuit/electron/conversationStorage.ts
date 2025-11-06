@@ -780,6 +780,32 @@ export class ConversationStorage {
   }
 
   /**
+   * Delete all messages after a specific message in a conversation
+   * Used for retry functionality
+   */
+  deleteMessagesAfter(conversationId: string, afterMessageId: string): void {
+    if (!this.db) throw new Error('Database not initialized')
+
+    // Get the timestamp of the reference message
+    const referenceMessage = this.db
+      .prepare('SELECT timestamp FROM messages WHERE id = ?')
+      .get(afterMessageId) as { timestamp: number } | undefined
+
+    if (!referenceMessage) {
+      throw new Error(`Message ${afterMessageId} not found`)
+    }
+
+    // Delete all messages in the same conversation with timestamp > reference timestamp
+    this.db
+      .prepare(`
+        DELETE FROM messages
+        WHERE conversation_id = ?
+        AND timestamp > ?
+      `)
+      .run(conversationId, referenceMessage.timestamp)
+  }
+
+  /**
    * Get message count for a conversation
    */
   getMessageCount(conversationId: string): number {

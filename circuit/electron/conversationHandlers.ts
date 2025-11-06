@@ -468,6 +468,32 @@ export function registerConversationHandlers(): void {
   )
 
   /**
+   * Delete all messages after a specific message
+   * Used for retry functionality
+   */
+  ipcMain.handle(
+    'db:messages:delete-after',
+    async (_event: IpcMainInvokeEvent, conversationId: string, afterMessageId: string) => {
+      try {
+        if (!storage) throw new Error('Storage not initialized')
+
+        console.log('[db:messages:delete-after] Deleting messages after:', afterMessageId, 'in conversation:', conversationId)
+        storage.deleteMessagesAfter(conversationId, afterMessageId)
+
+        return {
+          success: true
+        }
+      } catch (error: any) {
+        console.error('[db:messages:delete-after] Error:', error)
+        return {
+          success: false,
+          error: error.message
+        }
+      }
+    }
+  )
+
+  /**
    * Get message count for a conversation
    */
   ipcMain.handle(
