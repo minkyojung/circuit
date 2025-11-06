@@ -113,8 +113,11 @@ function MainHeader({
       {/* Center - Global Search Bar */}
       {selectedWorkspace && (
         <div
-          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-          style={{ WebkitAppRegion: 'no-drag' } as any}
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 px-24"
+          style={{
+            WebkitAppRegion: 'no-drag',
+            width: 'min(400px, calc(100vw - 200px))'
+          } as any}
         >
           <QuickOpenSearch
             ref={searchBarRef}

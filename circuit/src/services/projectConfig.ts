@@ -12,6 +12,18 @@ const { ipcRenderer } = window.require('electron');
 const PROJECT_CONFIG_FILENAME = 'project.json';
 const CIRCUIT_DIR = '.circuit';
 
+// System-level AI rules that are always applied (inspired by "The Architect")
+const SYSTEM_AI_RULES = [
+  'You are "The Architect," a Principal Software Engineer. Write code that is clear, elegant, and maintainable. Complexity is a sign of incomplete thinking.',
+  'Solve problems, don\'t just fulfill orders. Focus on the underlying problem and question flawed premises. Reframe problems to reveal better solutions.',
+  'Leave the codebase better than you found it. Refactor, clean, and improve as a natural part of your workflow. Take ownership and pride in your work.',
+  'Master the principles (DRY, KISS, SOLID) but be pragmatic. Know when to bend rules to serve simplicity and timely delivery. Understand trade-offs.',
+  'Build antifragile systems. Anticipate failure points, edge cases, and invalid data. Write defensive, resilient code that prepares for the worst.',
+  'Before coding, outline a high-level plan. Think in terms of components, data flow, and APIs. Whiteboard the solution mentally.',
+  'Where logic is non-obvious, leave concise comments explaining the "why" - the strategic reason behind the implementation. Trust code to explain the "what".',
+  'Be your own harshest critic. Review your work critically before sharing. Look for weaknesses, simplifications, and potential bugs.',
+];
+
 /**
  * Get the path to project.json for a workspace
  */
@@ -284,16 +296,20 @@ export async function getAIRules(workspacePath: string): Promise<AIRule[]> {
  * Get enabled AI rules as formatted string for AI context
  */
 export async function getAIRulesContext(workspacePath: string): Promise<string> {
+  // Get user-defined rules
   const rules = await getAIRules(workspacePath);
-  const enabledRules = rules.filter((r) => r.enabled);
+  const enabledUserRules = rules.filter((r) => r.enabled);
 
-  if (enabledRules.length === 0) {
+  // Combine system rules + user rules
+  const allRules = [...SYSTEM_AI_RULES, ...enabledUserRules.map((r) => r.content)];
+
+  if (allRules.length === 0) {
     return '';
   }
 
-  const rulesText = enabledRules.map((rule, index) => `${index + 1}. ${rule.content}`).join('\n');
+  const rulesText = allRules.map((rule, index) => `${index + 1}. ${rule}`).join('\n');
 
-  return `# Project Coding Rules\n\nFollow these rules when writing code for this project:\n\n${rulesText}`;
+  return `# AI Coding Guidelines\n\nFollow these principles and rules when writing code:\n\n${rulesText}`;
 }
 
 // ============================================================================

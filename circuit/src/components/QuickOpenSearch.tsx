@@ -70,12 +70,39 @@ export const QuickOpenSearch = forwardRef<HTMLInputElement, QuickOpenSearchProps
     const [isSearching, setIsSearching] = useState(false);
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [showResults, setShowResults] = useState(false);
+    const [containerWidth, setContainerWidth] = useState(400);
 
     const inputRef = useRef<HTMLInputElement>(null);
     const resultsRef = useRef<HTMLDivElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
 
     // Expose focus method
     useImperativeHandle(ref, () => inputRef.current as HTMLInputElement);
+
+    // Track container width for responsive placeholder
+    useEffect(() => {
+      if (!containerRef.current) return;
+
+      const resizeObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          setContainerWidth(entry.contentRect.width);
+        }
+      });
+
+      resizeObserver.observe(containerRef.current);
+      return () => resizeObserver.disconnect();
+    }, []);
+
+    // Generate responsive placeholder
+    const getPlaceholder = () => {
+      if (containerWidth < 280) {
+        return `${branchName} - Quick Open`;
+      } else if (containerWidth < 350) {
+        return `${branchName} - Quick Open (%, @, #)`;
+      } else {
+        return `${branchName} - Quick Open (% content, @ workspaces, # symbols)`;
+      }
+    };
 
     // Determine search mode
     const isSymbolSearch = query.startsWith('#');
@@ -328,7 +355,7 @@ export const QuickOpenSearch = forwardRef<HTMLInputElement, QuickOpenSearchProps
     }, [showResults]);
 
     return (
-      <div className="relative w-[400px]">
+      <div ref={containerRef} className="relative w-full">
         {/* Search Input */}
         <div className="relative">
           <input
@@ -338,7 +365,7 @@ export const QuickOpenSearch = forwardRef<HTMLInputElement, QuickOpenSearchProps
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             onFocus={() => setShowResults(query.length > 0)}
-            placeholder={`${branchName} - Quick Open (% content, @ workspaces, # symbols)`}
+            placeholder={getPlaceholder()}
             className={cn(
               "w-full px-3 py-1 text-sm transition-all rounded-md",
               "border-0 outline-none",
