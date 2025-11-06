@@ -57,9 +57,9 @@ export const UnifiedReasoningPanel: React.FC<UnifiedReasoningPanelProps> = ({
       open={isExpanded}
       onOpenChange={setIsExpanded}
       className={cn(
-        "border border-border/60 rounded-lg overflow-hidden",
-        "bg-muted/90",
-        "backdrop-blur-sm shadow-sm",
+        "border border-border rounded-lg overflow-hidden",
+        "bg-accent/50",
+        "shadow-md",
         className
       )}
     >
