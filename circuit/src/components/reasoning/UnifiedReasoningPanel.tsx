@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
 import {
   Collapsible,
   CollapsibleContent,
@@ -54,21 +53,16 @@ export const UnifiedReasoningPanel: React.FC<UnifiedReasoningPanelProps> = ({
   const toolSummary = summarizeToolUsage(steps);
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.2, ease: "easeOut" }}
+    <Collapsible
+      open={isExpanded}
+      onOpenChange={setIsExpanded}
+      className={cn(
+        "border border-border/60 rounded-lg overflow-hidden",
+        "bg-secondary/60",
+        "backdrop-blur-sm shadow-sm",
+        className
+      )}
     >
-      <Collapsible
-        open={isExpanded}
-        onOpenChange={setIsExpanded}
-        className={cn(
-          "border border-border/60 rounded-lg overflow-hidden",
-          "bg-secondary/60",
-          "backdrop-blur-sm shadow-sm",
-          className
-        )}
-      >
         {/* Header with summary */}
         <CollapsibleTrigger className="w-full group">
           <div className="flex items-center justify-between px-4 py-3 hover:bg-secondary/20 transition-all duration-200">
@@ -114,43 +108,28 @@ export const UnifiedReasoningPanel: React.FC<UnifiedReasoningPanelProps> = ({
         </CollapsibleTrigger>
 
         {/* Default view (always visible when collapsed): File changes summary */}
-        <AnimatePresence mode="wait">
-          {!isExpanded && (
-            <motion.div
-              key="collapsed"
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.2, ease: "easeInOut" }}
-              className="border-t border-border/50"
-            >
-              {fileSummaryBlock ? (
-                // Use FileSummaryBlock in compact mode (no header, no border)
-                <FileSummaryBlock
-                  block={fileSummaryBlock}
-                  onFileClick={onFileClick}
-                  compact={true}
-                />
-              ) : (
-                // Fallback to extracted file changes from thinking steps
-                <FileChangeSummary
-                  fileChanges={fileChanges}
-                  onFileClick={onFileClick}
-                />
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {!isExpanded && (
+          <div className="border-t border-border/50">
+            {fileSummaryBlock ? (
+              // Use FileSummaryBlock in compact mode (no header, no border)
+              <FileSummaryBlock
+                block={fileSummaryBlock}
+                onFileClick={onFileClick}
+                compact={true}
+              />
+            ) : (
+              // Fallback to extracted file changes from thinking steps
+              <FileChangeSummary
+                fileChanges={fileChanges}
+                onFileClick={onFileClick}
+              />
+            )}
+          </div>
+        )}
 
         {/* Expanded view: Full reasoning timeline */}
         <CollapsibleContent>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2, delay: 0.1 }}
-            className="border-t border-border/50"
-          >
+          <div className="border-t border-border/50">
             <div className="px-2 py-2">
               <ReasoningAccordion
                 steps={steps}
@@ -158,10 +137,9 @@ export const UnifiedReasoningPanel: React.FC<UnifiedReasoningPanelProps> = ({
                 duration={duration}
               />
             </div>
-          </motion.div>
+          </div>
         </CollapsibleContent>
-      </Collapsible>
-    </motion.div>
+    </Collapsible>
   );
 };
 
