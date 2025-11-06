@@ -14,7 +14,7 @@ import {
   SliderSetting,
   SegmentedControl,
 } from './settings/SettingPrimitives';
-import { AIRulesSection } from './settings/AIRulesSection';
+import { AIRulesOverview } from './settings/AIRulesOverview';
 import { useTheme } from '@/hooks/useTheme';
 import { cn } from '@/lib/utils';
 import type { ClaudeModel, CompletionSound, SendKeyCombo, ThemeMode, TerminalMode, TerminalRenderer, AIMode } from '@/types/settings';
@@ -213,8 +213,8 @@ const ModelSettings: React.FC<SettingsPanelProps> = ({ settings, updateSettings 
 
 const AISettings: React.FC<SettingsPanelProps> = ({ settings, updateSettings, workspacePath }) => (
   <>
-    {/* AI Coding Rules Section */}
-    <AIRulesSection workspacePath={workspacePath || 'default-workspace'} />
+    {/* AI Coding Rules Section - New Card-Based UI */}
+    <AIRulesOverview workspacePath={workspacePath || 'default-workspace'} />
 
     <SettingSection
       title="Monaco Editor AI"

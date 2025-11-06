@@ -1770,6 +1770,20 @@ declare module 'react' {
         language: model.getLanguageId(),
         uri: model.uri.toString()
       });
+
+      // Trigger diagnostics for this file
+      // This ensures TypeScript checks the file with current settings
+      setTimeout(() => {
+        const markers = monaco.editor.getModelMarkers({ resource: model.uri });
+        console.log(`[EditorPanel] Current diagnostics for ${activeFile}: ${markers.length} issues`);
+
+        // Force Monaco to re-validate by triggering a model change event
+        // We do this by getting the current value and setting it back
+        const currentValue = model.getValue();
+        model.setValue(currentValue);
+
+        console.log('[EditorPanel] ✅ Triggered diagnostics refresh for mounted file');
+      }, 100); // Small delay to ensure TypeScript worker is ready
     }
 
     // Listen for selection changes to show/hide floating actions

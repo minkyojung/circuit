@@ -18,6 +18,7 @@
 import { nanoid } from 'nanoid'
 import type { UIMessage as BaseUIMessage } from 'ai'
 import type { Message, Block, BlockMetadata } from '@/types/conversation'
+import { FileChangeAggregator } from './fileChangeAggregator'
 
 // Note: messageParser is in electron/ folder but we import it here for type conversion
 // This creates a shared parsing logic between frontend and backend
@@ -233,6 +234,9 @@ export function aiMessageToBlocks(
   const blocks: Block[] = []
   let order = 0
 
+  // Initialize file change aggregator
+  const fileAggregator = new FileChangeAggregator()
+
   // 1. Convert text content to blocks
   const content = getMessageContent(aiMessage)
   if (content) {
@@ -246,6 +250,13 @@ export function aiMessageToBlocks(
     }))
 
     blocks.push(...contentBlocks)
+
+    // Track diff blocks for file change summary
+    contentBlocks.forEach(block => {
+      if (block.type === 'diff') {
+        fileAggregator.trackFromDiffBlock(block)
+      }
+    })
   }
 
   // 2. Convert tool invocations to blocks
@@ -254,10 +265,32 @@ export function aiMessageToBlocks(
     for (const tool of toolInvocations) {
       const toolBlock = toolInvocationToBlock(tool, aiMessage.id, order++)
       blocks.push(toolBlock)
+
+      // Track file changes from Edit/Write tool calls
+      if (tool.toolName === 'Edit' && tool.state === 'output-available') {
+        fileAggregator.trackFromEdit(tool.args, tool.result, tool.toolCallId)
+      } else if (tool.toolName === 'Write' && tool.state === 'output-available') {
+        fileAggregator.trackFromWrite(tool.args, tool.result, tool.toolCallId)
+      } else if (tool.toolName === 'Bash' && tool.state === 'output-available' && tool.result) {
+        // Check if result contains git diff output
+        const resultStr = typeof tool.result === 'string' ? tool.result : JSON.stringify(tool.result)
+        if (resultStr.includes('diff --git')) {
+          fileAggregator.trackFromGitDiff(resultStr)
+        }
+      }
     }
   }
 
-  // 3. Handle experimental features (future)
+  // 3. Add file summary block if there are file changes
+  // Only add for assistant messages
+  if (aiMessage.role === 'assistant' && fileAggregator.hasChanges()) {
+    const summaryBlock = fileAggregator.createFileSummaryBlock(aiMessage.id)
+    if (summaryBlock) {
+      blocks.push(summaryBlock)
+    }
+  }
+
+  // 4. Handle experimental features (future)
   // - annotations
   // - data
   // - experimental_attachments
@@ -421,6 +454,11 @@ function formatBlockContent(block: Block): string {
 
     case 'diff':
       return `\`\`\`diff\n${block.content}\n\`\`\``
+
+    case 'file-summary':
+      // Don't include file summary in AI message content
+      // It's a UI-only element
+      return ''
 
     default:
       return block.content

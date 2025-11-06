@@ -11,6 +11,7 @@ import { TextBlock } from './TextBlock'
 import { CodeBlock } from './CodeBlock'
 import { CommandBlock } from './CommandBlock'
 import { DiffBlock } from './DiffBlock'
+import { FileSummaryBlock } from './FileSummaryBlock'
 import { DiagramBlock } from './DiagramBlock'
 import { ChecklistBlock } from './ChecklistBlock'
 import { TableBlock } from './TableBlock'
@@ -246,6 +247,9 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
 
     case 'diff':
       return renderWithBlockId(<DiffBlock {...commonProps} />)
+
+    case 'file-summary':
+      return renderWithBlockId(<FileSummaryBlock block={block} onFileClick={onFileReferenceClick} />)
 
     case 'tool': {
       const displayName = getToolDisplayName(block.metadata.toolName)
