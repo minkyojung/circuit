@@ -66,7 +66,7 @@ export const UnifiedReasoningPanel: React.FC<UnifiedReasoningPanelProps> = ({
         {/* Header with summary */}
         <CollapsibleTrigger className="w-full group">
           <div className="flex items-center justify-between px-4 py-3 hover:bg-secondary/20 transition-all duration-200">
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-4">
               {/* Chevron icon */}
               <ChevronDown
                 className={cn(
@@ -130,7 +130,7 @@ export const UnifiedReasoningPanel: React.FC<UnifiedReasoningPanelProps> = ({
         {/* Expanded view: Full reasoning timeline */}
         <CollapsibleContent>
           <div className="border-t border-border/50">
-            <div className="px-2 py-2">
+            <div className="px-4 py-3">
               <ReasoningAccordion
                 steps={steps}
                 isLive={isLive}
