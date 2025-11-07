@@ -598,7 +598,7 @@ Previous response:
 ${content}`;
 
     // Set the prompt in the input
-    setInputValue(explainPrompt);
+    setInput(explainPrompt);
 
     // Focus on the textarea
     setTimeout(() => {
