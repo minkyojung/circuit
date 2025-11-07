@@ -1544,7 +1544,6 @@ The plan is ready. What would you like to do?`,
                       copiedMessageId={copiedMessageId}
                       currentDuration={currentDuration}
                       onCopyMessage={handleCopyMessage}
-                      onRetryMessage={handleRetryMessage}
                       onExplainMessage={handleExplainMessage}
                       onExecuteCommand={handleExecuteCommand}
                       onFileReferenceClick={onFileReferenceClick}

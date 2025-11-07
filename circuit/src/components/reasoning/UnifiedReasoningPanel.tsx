@@ -9,8 +9,7 @@ import type { ThinkingStep } from '@/types/thinking';
 import type { Block } from '@/types/conversation';
 import { ReasoningAccordion } from './ReasoningAccordion';
 import { FileChangeSummary } from './FileChangeSummary';
-import { FileSummaryBlock } from '@/components/blocks/FileSummaryBlock';
-import { extractFileChanges } from '@/lib/reasoningUtils';
+import { extractFileChanges, convertFileSummaryBlockToFileChanges } from '@/lib/reasoningUtils';
 import { summarizeToolUsage } from '@/lib/thinkingUtils';
 import { cn } from '@/lib/utils';
 
@@ -39,14 +38,14 @@ export const UnifiedReasoningPanel: React.FC<UnifiedReasoningPanelProps> = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // Extract file changes for collapsed view fallback
-  const fileChanges = extractFileChanges(steps);
+  // Unified file changes: prefer FileSummaryBlock data, fallback to extracted from steps
+  const fileChanges = fileSummaryBlock
+    ? convertFileSummaryBlockToFileChanges(fileSummaryBlock)
+    : extractFileChanges(steps);
 
   // Calculate total diff statistics
-  const totalAdditions = fileSummaryBlock?.metadata?.totalAdditions ||
-    fileChanges.reduce((sum, f) => sum + f.additions, 0);
-  const totalDeletions = fileSummaryBlock?.metadata?.totalDeletions ||
-    fileChanges.reduce((sum, f) => sum + f.deletions, 0);
+  const totalAdditions = fileChanges.reduce((sum, f) => sum + f.additions, 0);
+  const totalDeletions = fileChanges.reduce((sum, f) => sum + f.deletions, 0);
 
   // Generate summary text
   const stepCount = steps.length;
@@ -110,20 +109,10 @@ export const UnifiedReasoningPanel: React.FC<UnifiedReasoningPanelProps> = ({
         {/* Default view (always visible when collapsed): File changes summary */}
         {!isExpanded && (
           <div className="border-t border-border/50">
-            {fileSummaryBlock ? (
-              // Use FileSummaryBlock in compact mode (no header, no border)
-              <FileSummaryBlock
-                block={fileSummaryBlock}
-                onFileClick={onFileClick}
-                compact={true}
-              />
-            ) : (
-              // Fallback to extracted file changes from thinking steps
-              <FileChangeSummary
-                fileChanges={fileChanges}
-                onFileClick={onFileClick}
-              />
-            )}
+            <FileChangeSummary
+              fileChanges={fileChanges}
+              onFileClick={onFileClick}
+            />
           </div>
         )}
 

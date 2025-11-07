@@ -5,16 +5,14 @@
  */
 
 import React from 'react';
-import { Copy, Check, HelpCircle } from 'lucide-react';
+import { Copy, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { RetryDropdown } from './RetryDropdown';
 
 interface MessageActionsProps {
   messageId: string;
   content: string;
   onCopy: (messageId: string, content: string) => void;
-  onRetry: (messageId: string, mode: 'normal' | 'extended') => void;
   onExplain: (messageId: string, content: string) => void;
   copiedMessageId: string | null;
 }
@@ -23,7 +21,6 @@ export function MessageActions({
   messageId,
   content,
   onCopy,
-  onRetry,
   onExplain,
   copiedMessageId,
 }: MessageActionsProps) {
@@ -50,24 +47,20 @@ export function MessageActions({
         )}
       </Button>
 
-      {/* Explain Button */}
-      <Button
-        variant="ghost"
-        size="icon"
+      {/* Explain Button - Text style like ChatInput */}
+      <button
         onClick={() => onExplain(messageId, content)}
         className={cn(
-          'h-[32px] w-[32px] hover:bg-secondary',
-          'text-muted-foreground hover:text-foreground'
+          'inline-flex items-center gap-1',
+          'h-[32px] px-2 py-1.5 text-sm rounded-md',
+          'text-muted-foreground hover:text-foreground',
+          'hover:bg-secondary',
+          'transition-colors'
         )}
         title="Explain this response"
       >
-        <HelpCircle className="w-4 h-4" strokeWidth={1.5} />
-      </Button>
-
-      {/* Retry Dropdown */}
-      <RetryDropdown
-        onRetry={(mode) => onRetry(messageId, mode)}
-      />
+        <span className="font-light">Explain</span>
+      </button>
     </div>
   );
 }

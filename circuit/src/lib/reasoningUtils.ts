@@ -4,6 +4,7 @@
 
 import type { ThinkingStep } from '@/types/thinking';
 import type { FileChange } from './fileChangeAggregator';
+import type { Block } from '@/types/conversation';
 
 /**
  * Extracts file changes (Edit/Write operations) from thinking steps
@@ -101,4 +102,21 @@ export function formatDiffStats(additions: number, deletions: number): string {
  */
 export function getFileName(filePath: string): string {
   return filePath.split('/').pop() || filePath;
+}
+
+/**
+ * Convert FileSummaryBlock to FileChange[] format
+ * Provides a unified data structure for file change display
+ */
+export function convertFileSummaryBlockToFileChanges(block: Block): FileChange[] {
+  if (block.type !== 'file-summary' || !block.metadata?.files) {
+    return [];
+  }
+
+  return block.metadata.files.map(file => ({
+    filePath: file.filePath,
+    changeType: file.changeType,
+    additions: file.additions,
+    deletions: file.deletions,
+  }));
 }
