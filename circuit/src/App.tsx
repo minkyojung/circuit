@@ -48,6 +48,8 @@ import { TerminalProvider } from '@/contexts/TerminalContext'
 import { AgentProvider } from '@/contexts/AgentContext'
 import { RepositoryProvider } from '@/contexts/RepositoryContext'
 import { CompactBanner } from '@/components/CompactBanner'
+import { OnboardingDialog } from '@/components/onboarding/OnboardingDialog'
+import { isOnboardingComplete } from '@/lib/onboarding'
 import { CompactUrgentModal } from '@/components/CompactUrgentModal'
 import { Toaster, toast } from 'sonner'
 import { FEATURES } from '@/config/features'
@@ -194,6 +196,7 @@ function MainHeader({
 }
 
 function App() {
+  const [showOnboarding, setShowOnboarding] = useState<boolean>(() => !isOnboardingComplete())
   const [projectPath, setProjectPath] = useState<string>('')
   const [isLoadingPath, setIsLoadingPath] = useState<boolean>(true)
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null)
@@ -1120,7 +1123,29 @@ function App() {
     },
   })
 
+  // Handle onboarding completion
+  const handleOnboardingComplete = (repository?: string, workspaceId?: string) => {
+    setShowOnboarding(false)
+    if (repository && workspaceId) {
+      // Refresh workspaces to show newly created workspace
+      window.location.reload()
+    }
+  }
+
+  const handleOnboardingSkip = () => {
+    setShowOnboarding(false)
+  }
+
   return (
+    <>
+      {/* Onboarding Dialog */}
+      <OnboardingDialog
+        open={showOnboarding}
+        onComplete={handleOnboardingComplete}
+        onSkip={handleOnboardingSkip}
+      />
+
+      {/* Main App */}
     <SettingsProvider>
       <TerminalProvider>
         <AgentProvider>
@@ -1316,6 +1341,7 @@ function App() {
         </AgentProvider>
       </TerminalProvider>
     </SettingsProvider>
+    </>
   )
 }
 

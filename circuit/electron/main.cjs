@@ -885,6 +885,143 @@ class MCPServer {
 // Active servers
 const activeServers = new Map();
 
+// IPC Handlers for Onboarding
+ipcMain.handle('check-claude-code', async () => {
+  try {
+    const claudePath = path.join(os.homedir(), '.claude', 'local', 'claude');
+    const { execFile } = require('child_process');
+    const { promisify } = require('util');
+    const execFileAsync = promisify(execFile);
+
+    const { stdout } = await execFileAsync(claudePath, ['--version']);
+    return {
+      installed: true,
+      version: stdout.trim(),
+    };
+  } catch (error) {
+    return {
+      installed: false,
+      version: null,
+    };
+  }
+});
+
+ipcMain.handle('check-git', async () => {
+  try {
+    const { execFile } = require('child_process');
+    const { promisify } = require('util');
+    const execFileAsync = promisify(execFile);
+
+    const { stdout } = await execFileAsync('git', ['--version']);
+    return {
+      installed: true,
+      version: stdout.trim().replace('git version ', ''),
+    };
+  } catch (error) {
+    return {
+      installed: false,
+      version: null,
+    };
+  }
+});
+
+ipcMain.handle('check-node', async () => {
+  try {
+    const { execFile } = require('child_process');
+    const { promisify } = require('util');
+    const execFileAsync = promisify(execFile);
+
+    const { stdout } = await execFileAsync('node', ['--version']);
+    return {
+      installed: true,
+      version: stdout.trim(),
+    };
+  } catch (error) {
+    return {
+      installed: false,
+      version: null,
+    };
+  }
+});
+
+ipcMain.handle('get-macos-version', async () => {
+  try {
+    return `macOS ${os.release()}`;
+  } catch (error) {
+    return 'macOS (unknown version)';
+  }
+});
+
+ipcMain.handle('dialog:open-folder', async () => {
+  const { dialog } = require('electron');
+  return dialog.showOpenDialog({
+    properties: ['openDirectory'],
+    title: 'Select Git Repository',
+  });
+});
+
+ipcMain.handle('git:check-repository', async (event, folderPath) => {
+  const { execFile } = require('child_process');
+  const { promisify } = require('util');
+  const execFileAsync = promisify(execFile);
+
+  try {
+    // Check if .git exists
+    const gitPath = path.join(folderPath, '.git');
+    if (!fs.existsSync(gitPath)) {
+      return { isRepository: false };
+    }
+
+    // Get default branch
+    let defaultBranch = 'main';
+    try {
+      const { stdout: branchOut } = await execFileAsync('git', ['branch', '--show-current'], { cwd: folderPath });
+      if (branchOut.trim()) {
+        defaultBranch = branchOut.trim();
+      }
+    } catch (err) {
+      // Try to get from config
+      try {
+        const { stdout: initBranch } = await execFileAsync('git', ['config', '--get', 'init.defaultBranch'], { cwd: folderPath });
+        if (initBranch.trim()) {
+          defaultBranch = initBranch.trim();
+        }
+      } catch {}
+    }
+
+    // Get branch count
+    let branchCount = 0;
+    try {
+      const { stdout: branchList } = await execFileAsync('git', ['branch', '-a'], { cwd: folderPath });
+      branchCount = branchList.trim().split('\n').length;
+    } catch {}
+
+    // Get last commit
+    let lastCommit = null;
+    try {
+      const { stdout: commitOut } = await execFileAsync('git', ['log', '-1', '--pretty=%s (%ar)'], { cwd: folderPath });
+      lastCommit = commitOut.trim();
+    } catch {}
+
+    // Get remote
+    let remote = null;
+    try {
+      const { stdout: remoteOut } = await execFileAsync('git', ['remote', 'get-url', 'origin'], { cwd: folderPath });
+      remote = remoteOut.trim();
+    } catch {}
+
+    return {
+      isRepository: true,
+      defaultBranch,
+      branchCount,
+      lastCommit,
+      remote,
+    };
+  } catch (error) {
+    return { isRepository: false, error: error.message };
+  }
+});
+
 // IPC Handlers
 ipcMain.handle('mcp:start-server', async (event, config) => {
   try {
