@@ -1622,7 +1622,7 @@ The plan is ready. What would you like to do?`,
 
       {/* Scroll to Bottom Button */}
       {!isAtBottom && messages.length > 0 && (
-        <div className="absolute bottom-[180px] left-1/2 -translate-x-1/2 pointer-events-none z-50">
+        <div className="absolute bottom-[260px] left-1/2 -translate-x-1/2 pointer-events-none z-50">
           <button
             onClick={scrollToBottom}
             className="pointer-events-auto flex items-center justify-center w-6 h-6 rounded-full bg-muted text-foreground border-2 border-border shadow-lg hover:bg-muted/80 transition-all duration-200"
@@ -1634,7 +1634,7 @@ The plan is ready. What would you like to do?`,
       )}
 
       {/* Enhanced Chat Input - Floating */}
-      <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-0 bg-card pointer-events-none">
+      <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-0 pointer-events-none z-50">
         <div className="pointer-events-auto max-w-4xl mx-auto">
           <ChatInput
             value={input}

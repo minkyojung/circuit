@@ -87,7 +87,7 @@ const INPUT_STYLES = {
     button: 'h-6 px-3 py-1 text-sm scale-[0.8] origin-left',
   },
   textarea: {
-    padding: 'px-4 pt-4 pb-0',
+    padding: 'p-0',
     minHeight: 'min-h-[108px]',
     fontSize: 'text-base font-light',
   },
@@ -623,7 +623,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   return (
     <div className={INPUT_STYLES.container.maxWidth}>
       {/* Input Card - Floating */}
-      <div className="relative w-full flex flex-col border-[0.5px] border-border rounded-2xl bg-muted shadow-lg">
+      <div
+        className="relative w-full flex flex-col border-[0.5px] border-border rounded-2xl bg-muted p-5 gap-3 shadow-[0_-20px_40px_rgba(0,0,0,0.15),0_4px_6px_rgba(0,0,0,0.05)] dark:shadow-[0_-20px_40px_rgba(0,0,0,0.5),0_4px_6px_rgba(0,0,0,0.2)]"
+      >
         {/* Slash Command Menu */}
         <AnimatePresence>
           {showCommandMenu && filteredCommands.length > 0 && (
@@ -668,9 +670,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 transition={{ duration: 0.2, ease: 'easeInOut' }}
                 className="overflow-hidden"
               >
-                <div className="pt-3 pb-2">
+                <div>
                   {/* Attachments Pills - Arc-inspired design */}
-                  <div className="flex flex-wrap gap-2 px-4">
+                  <div className="flex flex-wrap gap-2">
                     {attachedFiles.map((file) => {
                       // Handle message reference attachments
                       if (file.type === 'message/reference' && file.message) {
@@ -822,7 +824,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           />
 
           {/* Control Bar */}
-          <div className="flex items-center justify-between px-4 pb-3">
+          <div className="flex items-center justify-between">
             {/* Left: Control buttons */}
             {showControls && (
               <div className={`flex ${INPUT_STYLES.controls.gap} items-center`}>
