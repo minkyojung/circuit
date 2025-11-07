@@ -21,10 +21,8 @@ mac:
         - arm64
   hardenedRuntime: true
   gatekeeperAssess: false
-
-  # TODO: Enable after obtaining Apple Developer ID
-  # entitlements: ./build/entitlements.mac.plist
-  # entitlementsInherit: ./build/entitlements.mac.plist
+  entitlements: ./build/entitlements.mac.plist
+  entitlementsInherit: ./build/entitlements.mac.plist
 
   # TODO: Enable notarization after setting up Apple Developer account
   # notarize:
