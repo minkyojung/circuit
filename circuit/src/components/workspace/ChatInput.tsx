@@ -22,7 +22,6 @@ import { FEATURES } from '@/config/features'
 import type { ClaudeModel } from '@/types/settings'
 import { getArchitectMode, setArchitectMode } from '@/services/projectConfigLocal'
 
-// @ts-ignore - Electron IPC
 const ipcRenderer = typeof window !== 'undefined' && (window as any).require ? (window as any).require('electron').ipcRenderer : null
 
 export type ThinkingMode = 'normal' | 'think' | 'megathink' | 'ultrathink' | 'plan'
@@ -395,7 +394,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         setShowCommandMenu(false)
 
         // Submit the command content as a message
-        await onSubmit(result.content, attachedFiles, thinkingMode)
+        await onSubmit(result.content, attachedFiles, thinkingMode, architectMode)
 
         toast.success(`Executed /${commandName}`)
       } else {

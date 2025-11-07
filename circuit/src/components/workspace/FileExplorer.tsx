@@ -358,9 +358,9 @@ const FileTreeItem = React.memo(
     const childrenEqual =
       prevProps.node.children === nextProps.node.children || // Same reference
       (prevProps.node.children?.length === nextProps.node.children?.length && // Same length
-       prevProps.node.children?.every((child, i) =>
+       (prevProps.node.children?.every((child, i) =>
          child.path === nextProps.node.children?.[i]?.path
-       ));
+       ) ?? true));
 
     return (
       prevProps.node.path === nextProps.node.path &&

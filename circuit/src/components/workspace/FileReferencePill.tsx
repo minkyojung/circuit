@@ -12,7 +12,7 @@ import { toast } from 'sonner'
 import { useProjectPath } from '@/App'
 
 // @ts-ignore
-const { ipcRenderer } = window.require('electron')
+const ipcRenderer = window.electron.ipcRenderer;
 
 interface FileReferencePillProps {
   filePath: string

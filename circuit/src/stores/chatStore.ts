@@ -8,7 +8,7 @@ import { create } from 'zustand';
 import type { Message } from '@/types/conversation';
 
 // @ts-ignore
-const { ipcRenderer } = window.require('electron');
+const ipcRenderer = window.electron.ipcRenderer;
 
 interface ChatStore {
   // Conversation state

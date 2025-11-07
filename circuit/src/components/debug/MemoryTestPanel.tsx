@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label'
 import type { Workspace } from '@/types/workspace'
 
 // @ts-ignore
-const { ipcRenderer } = window.require('electron')
+const ipcRenderer = window.electron.ipcRenderer;
 
 interface MemoryTestPanelProps {
   workspace: Workspace | null

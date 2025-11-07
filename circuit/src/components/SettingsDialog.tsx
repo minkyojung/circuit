@@ -624,8 +624,7 @@ const ArchiveSettings: React.FC = () => {
   const [isLoading, setIsLoading] = React.useState(true)
   const [searchQuery, setSearchQuery] = React.useState('')
 
-  // @ts-ignore - Electron IPC
-  const { ipcRenderer } = window.require('electron')
+  const ipcRenderer = window.electron.ipcRenderer;
 
   React.useEffect(() => {
     loadWorkspaces()

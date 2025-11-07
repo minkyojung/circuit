@@ -14,7 +14,7 @@ import type {
   TodoProgressUpdate
 } from '../types/todo'
 
-const { ipcRenderer } = window.require('electron')
+const ipcRenderer = window.electron.ipcRenderer;
 
 interface TodoContextType {
   // State

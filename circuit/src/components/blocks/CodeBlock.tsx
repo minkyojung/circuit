@@ -13,7 +13,7 @@ import { toast } from 'sonner'
 import { type BundledLanguage } from 'shiki'
 import { highlightCode } from '@/components/ai-elements/code-block'
 
-const { ipcRenderer } = window.require('electron')
+const ipcRenderer = window.electron.ipcRenderer;
 
 interface CodeBlockProps {
   block: Block

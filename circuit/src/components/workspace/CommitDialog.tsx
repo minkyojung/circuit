@@ -3,8 +3,7 @@ import type { Workspace } from '@/types/workspace';
 import { X, GitCommit, GitPullRequest, Loader2, ExternalLink, GitMerge, AlertTriangle } from 'lucide-react';
 import { ConflictResolverDialog } from './ConflictResolverDialog';
 
-// @ts-ignore - Electron IPC
-const { ipcRenderer } = window.require('electron');
+const ipcRenderer = window.electron.ipcRenderer;
 
 interface CommitDialogProps {
   workspace: Workspace;

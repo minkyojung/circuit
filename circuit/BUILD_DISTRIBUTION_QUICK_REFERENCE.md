@@ -1,4 +1,4 @@
-# Circuit macOS Distribution - Quick Reference
+# Octave macOS Distribution - Quick Reference
 
 ## Current State
 - **Type**: Electron 38.3.0 + React 19 + Vite 7 + TypeScript
@@ -61,8 +61,8 @@ npm run package          # Run electron-builder
 
 3. Electron Packaging
    electron-builder
-   └─→ Circuit.app (macOS bundle)
-   └─→ Circuit.dmg (optional)
+   └─→ Octave.app (macOS bundle)
+   └─→ Octave.dmg (optional)
 ```
 
 ## Key Files
@@ -88,7 +88,7 @@ npm run package          # Run electron-builder
 6. Test with: npm run build && npm run package
 
 ## File Locations
-- Source: `/Users/williamjung/conductor/circuit-1/.conductor/victoria/circuit/`
+- Source: `/Users/williamjung/conductor/octave-1/.octave/victoria/octave/`
 - Main process: `electron/main.cjs`
 - React app: `src/`
 - Built output: `dist/` and `dist-electron/`

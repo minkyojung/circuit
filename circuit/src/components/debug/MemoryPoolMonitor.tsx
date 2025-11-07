@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils'
 import type { Workspace } from '@/types/workspace'
 
 // @ts-ignore
-const { ipcRenderer } = window.require('electron')
+const ipcRenderer = window.electron.ipcRenderer;
 
 interface CacheEntry {
   projectPath: string

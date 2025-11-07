@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/alert-dialog'
 
 // @ts-ignore
-const { ipcRenderer } = window.require('electron')
+const ipcRenderer = window.electron.ipcRenderer;
 
 interface ConversationTabsProps {
   workspaceId: string | null

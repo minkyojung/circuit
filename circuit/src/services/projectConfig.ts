@@ -1,16 +1,16 @@
 /**
  * Project Configuration Service
- * Manages .circuit/project.json file for workspace-level project settings
+ * Manages .octave/project.json file for workspace-level project settings
  */
 
 import type { ProjectConfig, AIRule, ProjectType, Framework } from '../types/project';
 import { DEFAULT_PROJECT_CONFIG } from '../types/project';
 
 // @ts-ignore
-const { ipcRenderer } = window.require('electron');
+const ipcRenderer = window.electron.ipcRenderer;
 
 const PROJECT_CONFIG_FILENAME = 'project.json';
-const CIRCUIT_DIR = '.circuit';
+const OCTAVE_DIR = '.octave';
 
 // System-level AI rules that are always applied (inspired by "The Architect")
 export const SYSTEM_AI_RULES = [
@@ -28,18 +28,18 @@ export const SYSTEM_AI_RULES = [
  * Get the path to project.json for a workspace
  */
 function getProjectConfigPath(workspacePath: string): string {
-  return `${workspacePath}/${CIRCUIT_DIR}/${PROJECT_CONFIG_FILENAME}`;
+  return `${workspacePath}/${OCTAVE_DIR}/${PROJECT_CONFIG_FILENAME}`;
 }
 
 /**
- * Get the path to .circuit directory for a workspace
+ * Get the path to .octave directory for a workspace
  */
-function getCircuitDir(workspacePath: string): string {
-  return `${workspacePath}/${CIRCUIT_DIR}`;
+function getOctaveDir(workspacePath: string): string {
+  return `${workspacePath}/${OCTAVE_DIR}`;
 }
 
 /**
- * Load project configuration from .circuit/project.json
+ * Load project configuration from .octave/project.json
  * If file doesn't exist, returns undefined
  */
 export async function loadProjectConfig(
@@ -66,20 +66,20 @@ export async function loadProjectConfig(
 }
 
 /**
- * Save project configuration to .circuit/project.json
- * Creates .circuit directory if it doesn't exist
+ * Save project configuration to .octave/project.json
+ * Creates .octave directory if it doesn't exist
  */
 export async function saveProjectConfig(
   workspacePath: string,
   config: ProjectConfig
 ): Promise<boolean> {
   try {
-    // Ensure .circuit directory exists
-    const circuitDir = getCircuitDir(workspacePath);
-    const dirExists = await ipcRenderer.invoke('directory-exists', circuitDir);
+    // Ensure .octave directory exists
+    const octaveDir = getOctaveDir(workspacePath);
+    const dirExists = await ipcRenderer.invoke('directory-exists', octaveDir);
 
     if (!dirExists) {
-      await ipcRenderer.invoke('create-directory', circuitDir);
+      await ipcRenderer.invoke('create-directory', octaveDir);
     }
 
     // Update timestamp
@@ -378,8 +378,8 @@ export async function exportCursorRules(workspacePath: string): Promise<boolean>
 
     // Format as .cursorrules file
     const lines = [
-      '# Circuit AI Coding Rules',
-      '# Exported from Circuit project configuration',
+      '# Octave AI Coding Rules',
+      '# Exported from Octave project configuration',
       '',
       ...enabledRules.map((r) => r.content),
     ];

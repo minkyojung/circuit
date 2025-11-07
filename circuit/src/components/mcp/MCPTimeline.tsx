@@ -18,8 +18,7 @@ import { Inline } from '../ui/inline';
 import { Button } from '../ui/button';
 import { cn } from '@/lib/utils';
 
-// @ts-ignore - Electron IPC
-const { ipcRenderer } = window.require('electron');
+const ipcRenderer = window.electron.ipcRenderer;
 
 interface MCPCall {
   id: string;

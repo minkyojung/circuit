@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import type { Workspace } from '@/types/workspace';
 import { X, AlertTriangle, Loader2, Check } from 'lucide-react';
 
-// @ts-ignore - Electron IPC
-const { ipcRenderer } = window.require('electron');
+// Use secure IPC bridge
+const ipcRenderer = window.electron.ipcRenderer;
 
 interface ConflictAnalysis {
   explanation: string;

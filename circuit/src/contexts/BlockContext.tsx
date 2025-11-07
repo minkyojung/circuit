@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, ReactNode, useRef, useEffect } from 'react';
+import { createContext, useContext, useState, useCallback, type ReactNode, useRef, useEffect } from 'react';
 import type { TerminalBlock } from '@/types/terminal';
 import { getBlockManager } from '@/lib/terminal/blockManager';
 

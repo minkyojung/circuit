@@ -3,7 +3,7 @@
  * Used for individual settings items with title, description, and action
  */
 
-import React, { ReactNode } from 'react';
+import React, { type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
 interface SettingCardProps {

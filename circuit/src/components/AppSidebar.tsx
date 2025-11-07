@@ -28,8 +28,7 @@ import { Button } from '@/components/ui/button'
 import { motion, AnimatePresence } from 'framer-motion'
 import { listItemVariants } from '@/lib/motion-tokens'
 
-// @ts-ignore - Electron IPC
-const { ipcRenderer } = window.require('electron')
+const ipcRenderer = window.electron.ipcRenderer;
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   selectedWorkspaceId: string | null

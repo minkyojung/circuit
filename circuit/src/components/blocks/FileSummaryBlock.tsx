@@ -195,7 +195,7 @@ export const FileSummaryBlock: React.FC<FileSummaryBlockProps> = ({ block, onFil
                 {isFileExpanded && hasDiffLines && (
                   <div className="bg-background/70 border-t border-border/30 max-h-96 overflow-y-auto">
                     <div className="font-mono text-xs">
-                      {file.diffLines.map((line, lineIdx) => (
+                      {file.diffLines?.map((line, lineIdx) => (
                         <div
                           key={lineIdx}
                           className={cn(

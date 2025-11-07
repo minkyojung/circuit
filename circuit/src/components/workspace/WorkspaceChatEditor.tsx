@@ -44,8 +44,7 @@ import { getAIRulesContext } from '@/services/projectConfigLocal';
 // The vite-plugin-monaco-editor plugin handles web worker configuration automatically
 loader.config({ monaco });
 
-// @ts-ignore - Electron IPC
-const { ipcRenderer } = window.require('electron');
+const ipcRenderer = window.electron.ipcRenderer;
 
 interface WorkspaceChatEditorProps {
   workspace: Workspace;
@@ -428,7 +427,7 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
       }
 
       if (prompt) {
-        executePrompt(prompt, [], 'normal');
+        executePrompt(prompt, [], 'normal', false);
       }
     }
 
@@ -949,6 +948,11 @@ Break down:
         }
       }
 
+      // Ensure activeConversationId is not null
+      if (!activeConversationId) {
+        throw new Error('Failed to get or create conversation');
+      }
+
       const timestamp = Date.now();
       const messageId = `msg-${timestamp}`;
       const todoId = `todo-${messageId}-0`;  // Pre-generate todoId
@@ -1448,7 +1452,7 @@ The plan is ready. What would you like to do?`,
     const executionPrompt = modePrompts[mode];
 
     // Execute with mode-specific prompt instead of original prompt
-    await executePrompt(executionPrompt, pendingPrompt.attachments, 'normal');
+    await executePrompt(executionPrompt, pendingPrompt.attachments, 'normal', false);
 
     // Clear pending state
     setPendingPrompt(null);
@@ -2195,6 +2199,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
       ],
       run: (ed) => {
         const selection = ed.getSelection();
+        if (!selection) return;
         const selectedText = ed.getModel()?.getValueInRange(selection);
 
         if (selectedText && activeFile) {
@@ -2210,6 +2215,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
       contextMenuOrder: 2,
       run: (ed) => {
         const selection = ed.getSelection();
+        if (!selection) return;
         const selectedText = ed.getModel()?.getValueInRange(selection);
 
         if (selectedText && activeFile) {
@@ -2225,6 +2231,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
       contextMenuOrder: 3,
       run: (ed) => {
         const selection = ed.getSelection();
+        if (!selection) return;
         const selectedText = ed.getModel()?.getValueInRange(selection);
 
         if (selectedText && activeFile) {
@@ -2240,6 +2247,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
       contextMenuOrder: 4,
       run: (ed) => {
         const selection = ed.getSelection();
+        if (!selection) return;
         const selectedText = ed.getModel()?.getValueInRange(selection);
 
         if (selectedText && activeFile) {

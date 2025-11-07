@@ -1,6 +1,6 @@
-# Circuit UX Roadmap - Frictionless Developer Experience
+# Octave UX Roadmap - Frictionless Developer Experience
 
-> **Mission**: Make test monitoring **always visible but never intrusive**
+> **Mission**: Make workspace management **always visible but never intrusive**
 
 ## Design Principles
 
@@ -12,7 +12,7 @@
 
 ---
 
-## Phase 7: Circuit Peek - Corner-Anchored Mini Panel 🎯 NEXT
+## Phase 7: Octave Peek - Corner-Anchored Mini Panel 🎯 NEXT
 
 ### Overview
 A Monologue-style corner-anchored panel that stays minimal as a dot, expands on hover/events, and provides ambient test status without stealing focus.
@@ -285,22 +285,22 @@ panel.registerTrigger('custom:event', (data) => {
 
 ---
 
-## Phase 8: Circuit Cmd+Tab Enhancement
+## Phase 8: Octave Cmd+Tab Enhancement
 
 ### Overview
-Show Circuit test status directly in macOS App Switcher (Cmd+Tab) with quick actions.
+Show Octave test status directly in macOS App Switcher (Cmd+Tab) with quick actions.
 
 ### Visual Design
 ```
 Cmd+Tab pressed:
 ┌────────────────────────────────────────────┐
-│ [VS Code]  [Safari]  [Circuit●]  [Slack]  │
+│ [VS Code]  [Safari]  [Octave●]  [Slack]  │
 └────────────────────────────────────────────┘
                        ↓
-              Tab to Circuit icon
+              Tab to Octave icon
                        ↓
 ┌──────────────────────────────────────────────┐
-│              [Circuit●]                       │
+│              [Octave●]                       │
 │  ┌──────────────────────────────────┐        │
 │  │ 🔴 2 tests failed                │        │
 │  │                                  │        │
@@ -336,8 +336,8 @@ app.on('browser-window-created', (event, window) => {
   window.setThumbnailClip({ x: 0, y: 0, width: 400, height: 300 })
   window.setThumbnailToolTip(
     testResult.success
-      ? `Circuit: All ${testResult.total} tests passed`
-      : `Circuit: ${testResult.failed} tests failed`
+      ? `Octave: All ${testResult.total} tests passed`
+      : `Octave: ${testResult.failed} tests failed`
   )
 })
 ```
@@ -425,11 +425,11 @@ previewWindow.webContents.on('paint', (event, dirty, image) => {
 
 ## Future Ideas (Beyond Phase 8)
 
-### Circuit Widget (macOS Sonoma)
+### Octave Widget (macOS Sonoma)
 Desktop widget showing test status
 - Requires WidgetKit (Swift)
 - Always visible on desktop
-- Click to open Circuit
+- Click to open Octave
 
 ### VS Code Extension
 Inline integration with editor
@@ -445,7 +445,7 @@ Test history + statistics
 
 ### Shortcuts App Integration
 Trigger tests via Shortcuts.app
-- "Run Circuit Tests"
+- "Run Octave Tests"
 - "Get AI Fix for Last Failure"
 - Automation support
 

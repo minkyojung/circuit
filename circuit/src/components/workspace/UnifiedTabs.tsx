@@ -41,7 +41,7 @@ import YamlIcon from 'material-icon-theme/icons/yaml.svg?react'
 import DefaultIcon from 'material-icon-theme/icons/file.svg?react'
 
 // @ts-ignore
-const { ipcRenderer } = window.require('electron')
+const ipcRenderer = window.electron.ipcRenderer;
 
 // Icon map
 const iconComponentMap: Record<string, React.ComponentType<React.SVGProps<SVGSVGElement>>> = {

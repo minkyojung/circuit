@@ -11,7 +11,7 @@ import type { ThinkingStep } from '@/types/thinking';
 import type { AttachedFile } from '@/components/workspace/ChatInput';
 
 // @ts-ignore
-const { ipcRenderer } = window.require('electron');
+const ipcRenderer = window.electron.ipcRenderer;
 
 // ============================================================================
 // Type Definitions
@@ -479,7 +479,7 @@ export class IPCEventBridge {
 
     try {
       // ========================================================================
-      // Step 1: Write todos to .circuit/todos.json file
+      // Step 1: Write todos to .octave/todos.json file
       // ========================================================================
 
       const todosData = {
@@ -503,11 +503,11 @@ export class IPCEventBridge {
       await ipcRenderer.invoke(
         'workspace:write-file',
         this.deps.workspacePathRef.current,
-        '.circuit/todos.json',
+        '.octave/todos.json',
         JSON.stringify(todosData, null, 2)
       );
 
-      console.log('[IPCEventBridge] ✅ Wrote todos to .circuit/todos.json');
+      console.log('[IPCEventBridge] ✅ Wrote todos to .octave/todos.json');
 
       // ========================================================================
       // Step 2: Save todos to database for real-time progress tracking
@@ -550,11 +550,11 @@ export class IPCEventBridge {
       // ========================================================================
 
       const modePrompts = {
-        auto: `I've created a task plan in .circuit/todos.json with ${data.todos.length} task${data.todos.length === 1 ? '' : 's'}.
+        auto: `I've created a task plan in .octave/todos.json with ${data.todos.length} task${data.todos.length === 1 ? '' : 's'}.
 
 Please execute ALL tasks in order automatically. Use the TodoWrite tool to update task status as you progress. Show progress for each task.`,
 
-        manual: `I've created a task plan in .circuit/todos.json with ${data.todos.length} task${data.todos.length === 1 ? '' : 's'}.
+        manual: `I've created a task plan in .octave/todos.json with ${data.todos.length} task${data.todos.length === 1 ? '' : 's'}.
 
 I'll control execution manually. Respond to commands like:
 - "next" or "continue" - Execute next pending task

@@ -124,29 +124,58 @@ async function getTerminalManagerInstance() {
 }
 
 /**
- * Install circuit-proxy to ~/.circuit/bin/
- * This proxy allows Claude Code to access all MCP servers via a single MCP interface
+ * Migrate ~/.circuit to ~/.octave (one-time migration for rebrand)
  */
-async function installCircuitProxy() {
+async function migrateUserCircuitToOctave() {
   try {
     const circuitDir = path.join(os.homedir(), '.circuit');
-    const binDir = path.join(circuitDir, 'bin');
-    const proxyDestPath = path.join(binDir, 'circuit-proxy');
+    const octaveDir = path.join(os.homedir(), '.octave');
+
+    // Check if ~/.circuit exists and ~/.octave doesn't
+    const circuitExists = await fs.access(circuitDir).then(() => true).catch(() => false);
+    const octaveExists = await fs.access(octaveDir).then(() => true).catch(() => false);
+
+    if (circuitExists && !octaveExists) {
+      console.log('[Migration] 🔄 Migrating ~/.circuit to ~/.octave...');
+      await fs.rename(circuitDir, octaveDir);
+      console.log('[Migration] ✅ User directory migration complete: ~/.circuit → ~/.octave');
+      return true;
+    }
+
+    return false;
+  } catch (error) {
+    console.error('[Migration] ❌ User directory migration failed:', error);
+    return false;
+  }
+}
+
+/**
+ * Install octave-proxy to ~/.octave/bin/
+ * This proxy allows Claude Code to access all MCP servers via a single MCP interface
+ */
+async function installOctaveProxy() {
+  try {
+    // Try migration first
+    await migrateUserCircuitToOctave();
+
+    const octaveDir = path.join(os.homedir(), '.octave');
+    const binDir = path.join(octaveDir, 'bin');
+    const proxyDestPath = path.join(binDir, 'octave-proxy');
 
     // Create directories
     await fs.mkdir(binDir, { recursive: true });
 
     // Copy the proxy script
-    const proxySourcePath = path.join(__dirname, 'circuit-proxy.js');
+    const proxySourcePath = path.join(__dirname, 'octave-proxy.js');
     await fs.copyFile(proxySourcePath, proxyDestPath);
 
     // Make it executable
     await fs.chmod(proxyDestPath, 0o755);
 
-    console.log('[Circuit] Proxy installed to:', proxyDestPath);
+    console.log('[Octave] Proxy installed to:', proxyDestPath);
     return { success: true, path: proxyDestPath };
   } catch (error) {
-    console.error('[Circuit] Failed to install proxy:', error);
+    console.error('[Octave] Failed to install proxy:', error);
     return { success: false, error: error.message };
   }
 }
@@ -161,7 +190,7 @@ async function installMemoryServer(manager) {
 
     // Uninstall if already exists (to ensure latest path)
     if (manager.servers.has(serverId)) {
-      console.log('[Circuit] Uninstalling existing Memory server...');
+      console.log('[Octave] Uninstalling existing Memory server...');
       await manager.uninstall(serverId);
     }
 
@@ -172,8 +201,8 @@ async function installMemoryServer(manager) {
 
     // Install Memory server (built file is in dist-electron)
     const memoryServerPath = path.join(__dirname, '../dist-electron/memory-server.js');
-    console.log('[Circuit] Installing Memory server from:', memoryServerPath);
-    console.log('[Circuit] Memory server project path:', projectPath);
+    console.log('[Octave] Installing Memory server from:', memoryServerPath);
+    console.log('[Octave] Memory server project path:', projectPath);
 
     await manager.install(serverId, {
       command: 'node',
@@ -184,10 +213,10 @@ async function installMemoryServer(manager) {
       autoStart: true,
     });
 
-    console.log('[Circuit] Memory server installed for project:', projectPath);
+    console.log('[Octave] Memory server installed for project:', projectPath);
     return { success: true };
   } catch (error) {
-    console.error('[Circuit] Failed to install Memory server:', error);
+    console.error('[Octave] Failed to install Memory server:', error);
     return { success: false, error: error.message };
   }
 }
@@ -202,7 +231,7 @@ async function installVercelServer(manager) {
 
     // Uninstall if already exists
     if (manager.servers.has(serverId)) {
-      console.log('[Circuit] Uninstalling existing Vercel server...');
+      console.log('[Octave] Uninstalling existing Vercel server...');
       await manager.uninstall(serverId);
     }
 
@@ -212,13 +241,13 @@ async function installVercelServer(manager) {
     const vercelTeamId = process.env.VERCEL_TEAM_ID || '';
 
     if (!vercelToken) {
-      console.warn('[Circuit] VERCEL_TOKEN not set - Vercel MCP will not work');
-      console.warn('[Circuit] Set VERCEL_TOKEN environment variable to use Vercel features');
+      console.warn('[Octave] VERCEL_TOKEN not set - Vercel MCP will not work');
+      console.warn('[Octave] Set VERCEL_TOKEN environment variable to use Vercel features');
     }
 
     // Install Vercel server (built file is in dist-electron)
     const vercelServerPath = path.join(__dirname, '../dist-electron/vercel-mcp-server.js');
-    console.log('[Circuit] Installing Vercel server from:', vercelServerPath);
+    console.log('[Octave] Installing Vercel server from:', vercelServerPath);
 
     await manager.install(serverId, {
       command: 'node',
@@ -230,10 +259,10 @@ async function installVercelServer(manager) {
       autoStart: true,
     });
 
-    console.log('[Circuit] Vercel server installed');
+    console.log('[Octave] Vercel server installed');
     return { success: true };
   } catch (error) {
-    console.error('[Circuit] Failed to install Vercel server:', error);
+    console.error('[Octave] Failed to install Vercel server:', error);
     return { success: false, error: error.message };
   }
 }
@@ -261,8 +290,11 @@ function createWindow() {
       }
     }),
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: process.env.VITE_DEV_SERVER_URL
+        ? path.join(__dirname, '../dist-electron/preload.js')
+        : path.join(__dirname, 'preload.js'),
     },
   });
 
@@ -550,8 +582,8 @@ app.whenReady().then(async () => {
 
   // Initialize MCP Manager and API Server
   try {
-    // Install circuit-proxy
-    await installCircuitProxy();
+    // Install octave-proxy
+    await installOctaveProxy();
 
     // Start Circuit HTTP API Server
     const apiServer = await getAPIServerInstance();
@@ -884,6 +916,240 @@ class MCPServer {
 // Active servers
 const activeServers = new Map();
 
+// IPC Handlers for Onboarding
+
+// Claude Code Authentication
+ipcMain.handle('check-claude-auth', async () => {
+  try {
+    const { checkClaudeAuth } = await import('../dist-electron/claude-auth.js');
+    const result = await checkClaudeAuth();
+    return { success: true, auth: result };
+  } catch (error) {
+    console.error('[IPC] check-claude-auth failed:', error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+});
+
+ipcMain.handle('claude:open-app', async () => {
+  try {
+    const { openClaudeApp } = await import('../dist-electron/claude-auth.js');
+    const result = await openClaudeApp();
+    return result;
+  } catch (error) {
+    console.error('[IPC] claude:open-app failed:', error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+});
+
+// Legacy handler for backward compatibility
+ipcMain.handle('check-claude-code', async () => {
+  try {
+    const { checkClaudeAuth } = await import('../dist-electron/claude-auth.js');
+    const result = await checkClaudeAuth();
+    return {
+      installed: result.installed,
+      version: result.version,
+    };
+  } catch (error) {
+    return {
+      installed: false,
+      version: null,
+    };
+  }
+});
+
+// Git Configuration
+ipcMain.handle('check-git-config', async () => {
+  try {
+    const { checkGitConfig } = await import('../dist-electron/git-auth.js');
+    const result = await checkGitConfig();
+    return { success: true, config: result };
+  } catch (error) {
+    console.error('[IPC] check-git-config failed:', error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+});
+
+ipcMain.handle('git:configure', async (event, { name, email }) => {
+  try {
+    const { configureGit } = await import('../dist-electron/git-auth.js');
+    const result = await configureGit(name, email);
+    return result;
+  } catch (error) {
+    console.error('[IPC] git:configure failed:', error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+});
+
+// GitHub Authentication
+ipcMain.handle('check-github-auth', async () => {
+  try {
+    const { checkGitHubAuth } = await import('../dist-electron/git-auth.js');
+    const result = await checkGitHubAuth();
+    return { success: true, auth: result };
+  } catch (error) {
+    console.error('[IPC] check-github-auth failed:', error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+});
+
+ipcMain.handle('github:generate-ssh-key', async (event, email) => {
+  try {
+    const { generateSSHKey } = await import('../dist-electron/git-auth.js');
+    const result = await generateSSHKey(email);
+    return result;
+  } catch (error) {
+    console.error('[IPC] github:generate-ssh-key failed:', error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+});
+
+ipcMain.handle('github:test-ssh', async () => {
+  try {
+    const { testGitHubSSHConnection } = await import('../dist-electron/git-auth.js');
+    const result = await testGitHubSSHConnection();
+    return result;
+  } catch (error) {
+    console.error('[IPC] github:test-ssh failed:', error);
+    return {
+      authenticated: false,
+      error: error.message,
+    };
+  }
+});
+
+// Legacy handler for backward compatibility
+ipcMain.handle('check-git', async () => {
+  try {
+    const { checkGitInstalled } = await import('../dist-electron/git-auth.js');
+    const result = await checkGitInstalled();
+    return {
+      installed: result.installed,
+      version: result.version,
+    };
+  } catch (error) {
+    return {
+      installed: false,
+      version: null,
+    };
+  }
+});
+
+ipcMain.handle('check-node', async () => {
+  try {
+    const { execFile } = require('child_process');
+    const { promisify } = require('util');
+    const execFileAsync = promisify(execFile);
+
+    const { stdout } = await execFileAsync('node', ['--version']);
+    return {
+      installed: true,
+      version: stdout.trim(),
+    };
+  } catch (error) {
+    return {
+      installed: false,
+      version: null,
+    };
+  }
+});
+
+ipcMain.handle('get-macos-version', async () => {
+  try {
+    return `macOS ${os.release()}`;
+  } catch (error) {
+    return 'macOS (unknown version)';
+  }
+});
+
+ipcMain.handle('dialog:open-folder', async () => {
+  const { dialog } = require('electron');
+  return dialog.showOpenDialog({
+    properties: ['openDirectory'],
+    title: 'Select Git Repository',
+  });
+});
+
+ipcMain.handle('git:check-repository', async (event, folderPath) => {
+  const { execFile } = require('child_process');
+  const { promisify } = require('util');
+  const execFileAsync = promisify(execFile);
+
+  try {
+    // Check if .git exists
+    const gitPath = path.join(folderPath, '.git');
+    if (!fs.existsSync(gitPath)) {
+      return { isRepository: false };
+    }
+
+    // Get default branch
+    let defaultBranch = 'main';
+    try {
+      const { stdout: branchOut } = await execFileAsync('git', ['branch', '--show-current'], { cwd: folderPath });
+      if (branchOut.trim()) {
+        defaultBranch = branchOut.trim();
+      }
+    } catch (err) {
+      // Try to get from config
+      try {
+        const { stdout: initBranch } = await execFileAsync('git', ['config', '--get', 'init.defaultBranch'], { cwd: folderPath });
+        if (initBranch.trim()) {
+          defaultBranch = initBranch.trim();
+        }
+      } catch {}
+    }
+
+    // Get branch count
+    let branchCount = 0;
+    try {
+      const { stdout: branchList } = await execFileAsync('git', ['branch', '-a'], { cwd: folderPath });
+      branchCount = branchList.trim().split('\n').length;
+    } catch {}
+
+    // Get last commit
+    let lastCommit = null;
+    try {
+      const { stdout: commitOut } = await execFileAsync('git', ['log', '-1', '--pretty=%s (%ar)'], { cwd: folderPath });
+      lastCommit = commitOut.trim();
+    } catch {}
+
+    // Get remote
+    let remote = null;
+    try {
+      const { stdout: remoteOut } = await execFileAsync('git', ['remote', 'get-url', 'origin'], { cwd: folderPath });
+      remote = remoteOut.trim();
+    } catch {}
+
+    return {
+      isRepository: true,
+      defaultBranch,
+      branchCount,
+      lastCommit,
+      remote,
+    };
+  } catch (error) {
+    return { isRepository: false, error: error.message };
+  }
+});
+
 // IPC Handlers
 ipcMain.handle('mcp:start-server', async (event, config) => {
   try {
@@ -1113,12 +1379,12 @@ ipcMain.handle('circuit:get-project-path', async () => {
     // That's 5 levels up: electron -> circuit -> hyderabad -> .conductor -> circuit-1
     const projectPath = path.resolve(electronDir, '../../../..');
 
-    console.log('[Circuit] Electron dir:', electronDir);
-    console.log('[Circuit] Resolved project path:', projectPath);
+    console.log('[Octave] Electron dir:', electronDir);
+    console.log('[Octave] Resolved project path:', projectPath);
 
     return { success: true, projectPath };
   } catch (error) {
-    console.error('[Circuit] Failed to get project path:', error);
+    console.error('[Octave] Failed to get project path:', error);
     return { success: false, error: error.message };
   }
 });
@@ -1132,7 +1398,7 @@ ipcMain.handle('circuit:get-project-path', async () => {
  */
 ipcMain.handle('workspace:context-start', async (event, workspaceId, workspacePath) => {
   try {
-    console.log('[Circuit] Starting context tracking for workspace:', workspaceId, workspacePath);
+    console.log('[Octave] Starting context tracking for workspace:', workspaceId, workspacePath);
     const tracker = await getWorkspaceContextTrackerInstance();
 
     // Event listeners are set up globally in getWorkspaceContextTrackerInstance()
@@ -1144,14 +1410,14 @@ ipcMain.handle('workspace:context-start', async (event, workspaceId, workspacePa
     if (!context) {
       // No context yet - we're in "waiting for session" mode
       // This is NOT an error, it's a valid state
-      console.log('[Circuit] Workspace is waiting for Claude Code session to start');
+      console.log('[Octave] Workspace is waiting for Claude Code session to start');
       return { success: true, waiting: true, context: null };
     }
 
     // Context found immediately
     return { success: true, waiting: false, context };
   } catch (error) {
-    console.error('[Circuit] Failed to start context tracking:', error);
+    console.error('[Octave] Failed to start context tracking:', error);
     return { success: false, error: error.message };
   }
 });
@@ -1170,7 +1436,7 @@ ipcMain.handle('workspace:context-get', async (event, workspaceId, workspacePath
 
     return { success: true, context };
   } catch (error) {
-    console.error('[Circuit] Failed to get context:', error);
+    console.error('[Octave] Failed to get context:', error);
     return { success: false, error: error.message };
   }
 });
@@ -1184,7 +1450,7 @@ ipcMain.handle('workspace:context-stop', async (event, workspaceId) => {
     await tracker.stopTracking(workspaceId);
     return { success: true };
   } catch (error) {
-    console.error('[Circuit] Failed to stop context tracking:', error);
+    console.error('[Octave] Failed to stop context tracking:', error);
     return { success: false, error: error.message };
   }
 });
@@ -1372,7 +1638,7 @@ ipcMain.handle('workspace:search-files', async (event, workspacePath, query, opt
               entry.name === 'dist-electron' ||
               entry.name === 'build' ||
               entry.name === '.next' ||
-              entry.name === '.conductor' ||
+              entry.name === '.octave' ||
               entry.name === 'coverage' ||
               entry.name === '.cache') {
             continue;
@@ -1548,7 +1814,7 @@ ipcMain.handle('typescript:get-diagnostics', async (event, workspacePath) => {
                 entry.name === 'dist-electron' ||
                 entry.name === 'build' ||
                 entry.name === '.next' ||
-                entry.name === '.conductor' ||
+                entry.name === '.octave' ||
                 entry.name === 'coverage') {
               continue;
             }
@@ -2487,11 +2753,11 @@ ipcMain.handle('circuit:reload-claude-code', async (event, openVSCode = true) =>
     // Try to reload VS Code using the 'code' CLI
     try {
       await execPromise('code --command workbench.action.reloadWindow');
-      console.log('[Circuit] Claude Code reload command sent');
+      console.log('[Octave] Claude Code reload command sent');
       return { success: true };
     } catch (cliError) {
       // If 'code' CLI is not available, try AppleScript
-      console.log('[Circuit] Code CLI not available, trying AppleScript...');
+      console.log('[Octave] Code CLI not available, trying AppleScript...');
 
       if (openVSCode) {
         // Option 1: Activate VS Code and reload
@@ -2510,10 +2776,10 @@ ipcMain.handle('circuit:reload-claude-code', async (event, openVSCode = true) =>
 
         try {
           await execPromise(`osascript -e '${script}'`);
-          console.log('[Circuit] VS Code activated and reloaded via AppleScript');
+          console.log('[Octave] VS Code activated and reloaded via AppleScript');
           return { success: true };
         } catch (err) {
-          console.error('[Circuit] AppleScript failed:', err);
+          console.error('[Octave] AppleScript failed:', err);
           return { success: false, error: 'Failed to activate VS Code' };
         }
       } else {
@@ -2533,7 +2799,7 @@ ipcMain.handle('circuit:reload-claude-code', async (event, openVSCode = true) =>
 
         const { stdout } = await execPromise(`osascript -e '${script}'`);
         if (stdout.trim() === 'success') {
-          console.log('[Circuit] Claude Code reload via AppleScript (no activation)');
+          console.log('[Octave] Claude Code reload via AppleScript (no activation)');
           return { success: true };
         } else {
           return { success: false, error: 'VS Code is not running' };
@@ -2541,7 +2807,7 @@ ipcMain.handle('circuit:reload-claude-code', async (event, openVSCode = true) =>
       }
     }
   } catch (error) {
-    console.error('[Circuit] Failed to reload Claude Code:', error);
+    console.error('[Octave] Failed to reload Claude Code:', error);
     return { success: false, error: error.message };
   }
 });
@@ -3179,7 +3445,7 @@ async function getFileTree(worktreePath) {
 
       for (const entry of entries) {
         // Skip .git and node_modules
-        if (entry.name === '.git' || entry.name === 'node_modules' || entry.name === '.conductor') {
+        if (entry.name === '.git' || entry.name === 'node_modules' || entry.name === '.octave') {
           continue;
         }
 

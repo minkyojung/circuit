@@ -1,7 +1,7 @@
-# Circuit Mac App - Build & Distribution Analysis
+# Octave Mac App - Build & Distribution Analysis
 
 ## Executive Summary
-Circuit is an Electron-based macOS developer tool that monitors tests and applies AI-suggested fixes automatically. The project uses modern web technologies (React, Vite, TypeScript) paired with Electron for desktop distribution. Currently, there is **minimal distribution configuration** - electron-builder is installed but not configured.
+Octave is an Electron-based macOS developer tool that monitors tests and applies AI-suggested fixes automatically. The project uses modern web technologies (React, Vite, TypeScript) paired with Electron for desktop distribution. Currently, there is **minimal distribution configuration** - electron-builder is installed but not configured.
 
 ---
 
@@ -16,7 +16,7 @@ Circuit is an Electron-based macOS developer tool that monitors tests and applie
 
 ### Project Structure
 ```
-circuit/
+octave/
 ├── electron/
 │   ├── main.cjs                    # Main Electron entry point
 │   ├── *.ts                        # Electron process handlers (MCP, IPC, etc.)
@@ -163,7 +163,7 @@ For a production macOS app, you need:
    - Installed in Keychain
    - Referenced in electron-builder config
 
-2. **Entitlements File** (circuit.entitlements)
+2. **Entitlements File** (octave.entitlements)
    - Define app capabilities (network access, file access, etc.)
    - Required for sandboxing
 
@@ -174,8 +174,8 @@ For a production macOS app, you need:
 
 4. **electron-builder.yml Configuration**
    ```yaml
-   appId: com.example.circuit
-   productName: Circuit
+   appId: com.example.octave
+   productName: Octave
    
    mac:
      category: public.app-category.developer-tools
@@ -356,11 +356,11 @@ webPreferences: {
 | Aspect | Current | Needed |
 |--------|---------|--------|
 | **electron-builder config** | None | electron-builder.yml or package.json config |
-| **App ID** | Not set | com.example.circuit (reverse domain) |
+| **App ID** | Not set | com.example.octave (reverse domain) |
 | **Code Signing** | No | Developer ID certificate + signingIdentity |
 | **Notarization** | No | Apple ID + notarization credentials |
-| **Entitlements** | No | circuit.entitlements file |
-| **Icon** | Missing | circuit.icns (1024x1024 PNG recommended) |
+| **Entitlements** | No | octave.entitlements file |
+| **Icon** | Missing | octave.icns (1024x1024 PNG recommended) |
 | **DMG Creation** | No | Configuration for distribution DMG |
 | **App Store Ready** | No | Sandboxing + additional requirements |
 | **Security Settings** | Weak | contextIsolation: true, nodeIntegration: false |
@@ -399,9 +399,9 @@ webPreferences: {
 ## FILE PATHS
 
 ### Key Project Files
-- Main entry: `/Users/williamjung/conductor/circuit-1/.conductor/victoria/circuit/electron/main.cjs`
-- React app: `/Users/williamjung/conductor/circuit-1/.conductor/victoria/circuit/src/App.tsx`
-- Build config (missing): `/Users/williamjung/conductor/circuit-1/.conductor/victoria/circuit/electron-builder.yml`
-- Package.json: `/Users/williamjung/conductor/circuit-1/.conductor/victoria/circuit/package.json`
-- Vite config: `/Users/williamjung/conductor/circuit-1/.conductor/victoria/circuit/vite.config.ts`
+- Main entry: `/Users/williamjung/conductor/octave-1/.octave/victoria/octave/electron/main.cjs`
+- React app: `/Users/williamjung/conductor/octave-1/.octave/victoria/octave/src/App.tsx`
+- Build config (missing): `/Users/williamjung/conductor/octave-1/.octave/victoria/octave/electron-builder.yml`
+- Package.json: `/Users/williamjung/conductor/octave-1/.octave/victoria/octave/package.json`
+- Vite config: `/Users/williamjung/conductor/octave-1/.octave/victoria/octave/vite.config.ts`
 

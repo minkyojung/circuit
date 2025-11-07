@@ -10,8 +10,7 @@ import { AlertCircle, AlertTriangle, RefreshCw, ChevronRight, Info } from 'lucid
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
-// @ts-ignore - Electron IPC
-const { ipcRenderer } = window.require('electron');
+const ipcRenderer = window.electron.ipcRenderer;
 
 interface Diagnostic {
   severity: 'error' | 'warning' | 'info' | 'hint';

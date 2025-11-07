@@ -13,8 +13,7 @@ import type { BranchGraph, EnrichedCommit } from '@/types/git';
 import { buildBranchGraph } from '@/lib/gitGraph/graphBuilder';
 import { Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 
-// @ts-ignore - Electron IPC
-const { ipcRenderer } = window.require('electron');
+const ipcRenderer = window.electron.ipcRenderer;
 
 interface GitGraphV3Props {
   workspacePath: string;

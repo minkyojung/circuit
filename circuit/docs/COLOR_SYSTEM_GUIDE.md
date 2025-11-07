@@ -1,11 +1,11 @@
-# Circuit Design System - Color Usage Guide
+# Octave Design System - Color Usage Guide
 
 > **Last Updated**: 2025-10-31
 > **Design System Version**: 2.0
 
 ## Overview
 
-Circuit's color system is built on **Apple Human Interface Guidelines** with OKLCH color space for perceptual uniformity. This guide helps you choose the right color tokens for your components.
+Octave's color system is built on **Apple Human Interface Guidelines** with OKLCH color space for perceptual uniformity. This guide helps you choose the right color tokens for your components.
 
 ---
 
@@ -162,8 +162,8 @@ Use these for Git-related status displays.
 
 | Token | Purpose | Usage |
 |-------|---------|-------|
-| `--circuit-orange` | Circuit brand color | Accent highlights, CTAs |
-| `--circuit-error` | Error states | Alias to `--destructive` |
+| `--octave-orange` | Octave brand color | Accent highlights, CTAs |
+| `--octave-error` | Error states | Alias to `--destructive` |
 
 ---
 
