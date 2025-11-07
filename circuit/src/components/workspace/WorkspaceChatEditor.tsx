@@ -395,6 +395,12 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
     lineEnd: number
   } | null>(null);
 
+  // Message attachment state for "Explain" action
+  const [messageAttachment, setMessageAttachment] = useState<{
+    messageId: string
+    content: string
+  } | null>(null);
+
   // Handle code selection actions from editor
   useEffect(() => {
     if (!codeSelectionAction) return;
@@ -585,20 +591,22 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
 
   // Explain message handler
   const handleExplainMessage = useCallback((messageId: string, content: string) => {
-    // Generate structured explanation prompt
+    // Set short prompt in the input
     const explainPrompt = `Please explain your previous response in a more structured and easy-to-understand way.
 
 Break down:
 1. What you did (specific actions taken)
 2. Why you did it that way (design decisions and rationale)
 3. The structure and flow (overall architecture)
-4. Key points to understand (core concepts)
+4. Key points to understand (core concepts)`;
 
-Previous response:
-${content}`;
-
-    // Set the prompt in the input
     setInput(explainPrompt);
+
+    // Attach the message as a reference
+    setMessageAttachment({
+      messageId,
+      content,
+    });
 
     // Focus on the textarea
     setTimeout(() => {
@@ -609,7 +617,7 @@ ${content}`;
       }
     }, 100);
 
-    toast.success('Explanation prompt generated');
+    toast.success('Message attached for explanation');
   }, []);
 
   // Retry message handler
@@ -1158,6 +1166,21 @@ ${content}`;
       setCodeAttachment(null);
     }
 
+    // Append message reference attachments
+    const messageAttachments = attachments.filter(a => a.type === 'message/reference' && a.message);
+
+    if (messageAttachments.length > 0) {
+      const messageBlocks = messageAttachments.map(a => {
+        if (!a.message) return '';
+        return `\n\nPrevious response:\n${a.message.content}`;
+      }).join('\n\n');
+
+      finalInput = `${finalInput}${messageBlocks}`;
+
+      // Clear message attachment state
+      setMessageAttachment(null);
+    }
+
     // Clear input immediately (improved UX)
     setInput('');
 
@@ -1630,6 +1653,8 @@ The plan is ready. What would you like to do?`,
             contextMetrics={contextMetrics}
             codeAttachment={codeAttachment}
             onCodeAttachmentRemove={() => setCodeAttachment(null)}
+            messageAttachment={messageAttachment}
+            onMessageAttachmentRemove={() => setMessageAttachment(null)}
           />
         </div>
       </div>

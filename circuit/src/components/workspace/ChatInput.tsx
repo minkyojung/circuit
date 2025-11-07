@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
-import { ArrowUp, Paperclip, X, ListChecks, ChevronDown, ListTodo, Code, Sparkles } from 'lucide-react'
+import { ArrowUp, Paperclip, X, ListChecks, ChevronDown, ListTodo, Code, Sparkles, MessageCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { useSettingsContext } from '@/contexts/SettingsContext'
 import { useClaudeMetrics } from '@/hooks/useClaudeMetrics'
@@ -51,6 +51,12 @@ interface ChatInputProps {
     lineEnd: number
   } | null
   onCodeAttachmentRemove?: () => void
+  // Message reference attachment
+  messageAttachment?: {
+    messageId: string
+    content: string
+  } | null
+  onMessageAttachmentRemove?: () => void
 }
 
 export interface AttachedFile {
@@ -65,6 +71,11 @@ export interface AttachedFile {
     filePath: string
     lineStart: number
     lineEnd: number
+  }
+  // For message reference attachments
+  message?: {
+    id: string
+    content: string
   }
 }
 
@@ -113,6 +124,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   contextMetrics,
   codeAttachment,
   onCodeAttachmentRemove,
+  messageAttachment,
+  onMessageAttachmentRemove,
 }) => {
   const { settings, updateSettings } = useSettingsContext()
   const { metrics: fallbackMetrics } = useClaudeMetrics()
@@ -176,6 +189,40 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       return [...prev, codeFile]
     })
   }, [codeAttachment]) // Removed attachedFiles from deps!
+
+  // Convert message attachment to AttachedFile when it changes
+  useEffect(() => {
+    if (!messageAttachment) {
+      // Remove message attachment from attachedFiles if it was removed
+      setAttachedFiles(prev => prev.filter(f => f.type !== 'message/reference'))
+      return
+    }
+
+    // Create AttachedFile from message attachment
+    const messageAttachmentId = `message-${messageAttachment.messageId}`
+
+    // Check if this message attachment already exists
+    setAttachedFiles(prev => {
+      const exists = prev.some(f => f.id === messageAttachmentId)
+      if (exists) {
+        return prev // No change
+      }
+
+      const messageFile: AttachedFile = {
+        id: messageAttachmentId,
+        name: 'Previous message',
+        type: 'message/reference',
+        size: messageAttachment.content.length,
+        url: '', // Not used for messages
+        message: {
+          id: messageAttachment.messageId,
+          content: messageAttachment.content,
+        }
+      }
+
+      return [...prev, messageFile]
+    })
+  }, [messageAttachment])
 
   // Slash commands state
   const [availableCommands, setAvailableCommands] = useState<Array<{ name: string; fileName: string; description?: string }>>([])
@@ -625,6 +672,45 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   {/* Attachments Pills - Arc-inspired design */}
                   <div className="flex flex-wrap gap-2 px-4">
                     {attachedFiles.map((file) => {
+                      // Handle message reference attachments
+                      if (file.type === 'message/reference' && file.message) {
+                        return (
+                          <div
+                            key={file.id}
+                            className="group flex items-center gap-2 pl-2 pr-2 py-2 rounded-xl bg-card transition-all"
+                          >
+                            {/* Message icon - Green */}
+                            <div className="flex-shrink-0">
+                              <div className="w-6 h-[30px] rounded-md bg-green-500/20 flex items-center justify-center">
+                                <MessageCircle className="w-3 h-3 text-green-400" strokeWidth={2} />
+                              </div>
+                            </div>
+
+                            {/* Message info - Vertical layout */}
+                            <div className="flex flex-col justify-center min-w-0 gap-1">
+                              <span className="text-sm font-light text-foreground max-w-[160px] truncate leading-tight">
+                                Previous message
+                              </span>
+                              <span className="text-[10px] text-muted-foreground font-medium leading-tight">
+                                {(file.message.content.length / 1000).toFixed(1)}k chars
+                              </span>
+                            </div>
+
+                            {/* Remove button */}
+                            <button
+                              onClick={() => {
+                                handleRemoveFile(file.id)
+                                onMessageAttachmentRemove?.()
+                              }}
+                              className="ml-0.5 p-0.5 rounded-md transition-colors opacity-60 group-hover:opacity-100 hover:text-foreground hover:bg-secondary/30 dark:hover:text-white dark:hover:bg-secondary/20"
+                              aria-label="Remove message reference"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        )
+                      }
+
                       // Handle code attachments differently
                       if (file.type === 'code/selection' && file.code) {
                         const pathParts = file.code.filePath.split('/')
