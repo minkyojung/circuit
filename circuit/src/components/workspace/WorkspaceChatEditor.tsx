@@ -1525,7 +1525,7 @@ The plan is ready. What would you like to do?`,
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="absolute inset-0 bottom-[240px] overflow-auto p-3"
+        className="absolute inset-0 bottom-[160px] overflow-auto p-3"
       >
         {isLoadingConversation ? (
           <div className="space-y-5 max-w-4xl mx-auto">
@@ -1622,7 +1622,7 @@ The plan is ready. What would you like to do?`,
 
       {/* Scroll to Bottom Button */}
       {!isAtBottom && messages.length > 0 && (
-        <div className="absolute bottom-[260px] left-1/2 -translate-x-1/2 pointer-events-none z-50">
+        <div className="absolute bottom-[180px] left-1/2 -translate-x-1/2 pointer-events-none z-50">
           <button
             onClick={scrollToBottom}
             className="pointer-events-auto flex items-center justify-center w-6 h-6 rounded-full bg-muted text-foreground border-2 border-border shadow-lg hover:bg-muted/80 transition-all duration-200"
