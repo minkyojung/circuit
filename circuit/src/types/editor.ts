@@ -138,48 +138,30 @@ export function createConversationTab(
   }
 }
 
+/**
+ * Create a file tab
+ *
+ * IMPORTANT: filePath MUST be pre-normalized by PathResolver
+ * This function does NOT perform path normalization
+ *
+ * @param filePath - Workspace-relative path (e.g., "src/App.tsx")
+ * @param title - Display title (defaults to filename)
+ * @param unsavedChanges - Whether file has unsaved changes
+ */
 export function createFileTab(
   filePath: string,
   title?: string,
-  unsavedChanges?: boolean,
-  projectRoot?: string
+  unsavedChanges?: boolean
 ): FileTab {
-  // ✅ Normalize file path if projectRoot is provided
-  let normalizedPath = filePath;
-  if (projectRoot) {
-    // Import normalizeFilePath dynamically to avoid circular dependencies
-    // For now, implement inline normalization
-    let normalized = filePath;
-
-    // Convert absolute path to relative path
-    if (normalized.startsWith('/') || normalized.match(/^[A-Z]:\\/)) {
-      if (normalized.startsWith(projectRoot)) {
-        normalized = normalized.slice(projectRoot.length);
-        if (normalized.startsWith('/') || normalized.startsWith('\\')) {
-          normalized = normalized.slice(1);
-        }
-      }
-    }
-
-    // Remove "./" prefix
-    normalized = normalized.replace(/^\.\//, '');
-    normalized = normalized.replace(/^\.\\/, '');
-
-    // Normalize path separators
-    normalized = normalized.replace(/\\/g, '/');
-
-    normalizedPath = normalized;
-  }
-
   // Extract filename from path if title not provided
-  const fileName = title || normalizedPath.split('/').pop() || normalizedPath
+  const fileName = title || filePath.split('/').pop() || filePath
 
   return {
-    id: `file-${normalizedPath}`,  // ✅ Use normalized path for ID
+    id: `file-${filePath}`,
     type: 'file',
     title: fileName,
     data: {
-      filePath: normalizedPath,  // ✅ Store normalized path
+      filePath,
       unsavedChanges: unsavedChanges || false,
     },
   }

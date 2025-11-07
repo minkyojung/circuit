@@ -48,6 +48,7 @@ import type { Tab } from '@/types/editor'
 import { getFileName } from '@/lib/fileUtils'
 import { EditorGroupPanel } from '@/components/editor'
 import { DEFAULT_GROUP_ID, SECONDARY_GROUP_ID } from '@/types/editor'
+import { PathResolver } from '@/lib/pathResolver'
 import { SettingsPanel } from '@/components/SettingsPanel'
 import './App.css'
 
@@ -194,6 +195,9 @@ function App() {
   })
   const [currentRepository, setCurrentRepository] = useState<any>(null)
 
+  // Path resolver for consistent file path normalization
+  const [pathResolver, setPathResolver] = useState<PathResolver | null>(null)
+
   // Ref for search bar (to trigger focus from keyboard shortcut)
   const searchBarRef = useRef<HTMLInputElement>(null)
 
@@ -239,6 +243,22 @@ function App() {
         ipcRenderer.invoke('claude:stop-session', sessionId)
       }
     }
+  }, [selectedWorkspace?.path])
+
+  // Update PathResolver when workspace changes
+  useEffect(() => {
+    if (!selectedWorkspace) {
+      setPathResolver(null)
+      return
+    }
+
+    const workspacePath = selectedWorkspace.path
+    const projectRoot = workspacePath.includes('/.conductor/')
+      ? workspacePath.split('/.conductor/')[0]
+      : workspacePath
+
+    console.log('[App] Initializing PathResolver:', { workspacePath, projectRoot })
+    setPathResolver(new PathResolver(projectRoot))
   }, [selectedWorkspace?.path])
 
   // File cursor position for jumping to line
@@ -472,37 +492,25 @@ function App() {
 
   // Handle file selection from sidebar or file reference pills
   const handleFileSelect = async (filePath: string, lineStart?: number, lineEnd?: number) => {
-    // ✅ STEP 1: Get project root (workspace root without .conductor path)
-    const workspacePath = selectedWorkspace?.path || projectPath;
-    const projectRoot = workspacePath.includes('/.conductor/')
-      ? workspacePath.split('/.conductor/')[0]
-      : workspacePath;
-
-    // ✅ STEP 2: Normalize file path to workspace-relative path
-    let normalizedPath = filePath;
-
-    // Convert absolute path to relative path
-    if (normalizedPath.startsWith('/') || normalizedPath.match(/^[A-Z]:\\/)) {
-      if (normalizedPath.startsWith(projectRoot)) {
-        normalizedPath = normalizedPath.slice(projectRoot.length);
-        if (normalizedPath.startsWith('/') || normalizedPath.startsWith('\\')) {
-          normalizedPath = normalizedPath.slice(1);
-        }
-      }
+    // Guard: PathResolver must be initialized
+    if (!pathResolver) {
+      console.error('[App] PathResolver not initialized - cannot open file');
+      toast.error('파일 경로 변환기가 초기화되지 않았습니다');
+      return;
     }
 
-    // Remove "./" prefix
-    normalizedPath = normalizedPath.replace(/^\.\//, '');
-    normalizedPath = normalizedPath.replace(/^\.\\/, '');
+    // ✅ STEP 1: Normalize file path using PathResolver
+    const normalizedPath = pathResolver.normalize(filePath);
+    const absolutePath = pathResolver.toAbsolute(normalizedPath);
 
-    // Normalize path separators
-    normalizedPath = normalizedPath.replace(/\\/g, '/');
+    console.log('[App] Opening file:', {
+      original: filePath,
+      normalized: normalizedPath,
+      absolute: absolutePath,
+      projectRoot: pathResolver.getProjectRoot()
+    });
 
-    console.log('[App] Normalized file path:', { original: filePath, normalized: normalizedPath, projectRoot });
-
-    // ✅ STEP 3: Validate file existence (using absolute path)
-    const absolutePath = `${projectRoot}/${normalizedPath}`;
-
+    // ✅ STEP 2: Validate file existence
     try {
       const exists = await ipcRenderer.invoke('file-exists', absolutePath);
 
@@ -517,24 +525,22 @@ function App() {
       return;
     }
 
-    // ✅ STEP 4: Create file tab with normalized path
-    const currentFocusedGroup = focusedGroupIdRef.current
+    // ✅ STEP 3: Create file tab with normalized path
+    const currentFocusedGroup = focusedGroupIdRef.current;
+    const tab = createFileTab(normalizedPath, getFileName(normalizedPath));
 
-    // Pass projectRoot to createFileTab for additional normalization safety
-    const tab = createFileTab(normalizedPath, getFileName(normalizedPath), undefined, projectRoot)
+    // Open in currently focused group
+    openTab(tab, currentFocusedGroup);
 
-    // Open in currently focused group (using ref for latest value)
-    openTab(tab, currentFocusedGroup)
-
-    // ✅ STEP 5: Store line selection with normalized path
+    // ✅ STEP 4: Store line selection with normalized path
     if (lineStart) {
       setFileCursorPosition({
-        filePath: normalizedPath,  // Use normalized path
+        filePath: normalizedPath,
         lineStart,
         lineEnd: lineEnd || lineStart
-      })
+      });
     } else {
-      setFileCursorPosition(null)
+      setFileCursorPosition(null);
     }
   }
 
