@@ -24,9 +24,13 @@ mac:
   entitlements: ./build/entitlements.mac.plist
   entitlementsInherit: ./build/entitlements.mac.plist
 
-  # TODO: Enable notarization after setting up Apple Developer account
-  # notarize:
-  #   teamId: YOUR_TEAM_ID
+  # Code signing identity
+  identity: "Developer ID Application: Minkyo Jung (6DQK5MQC4H)"
+
+  # Notarization configuration
+  # Requires environment variables: APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD
+  notarize:
+    teamId: 6DQK5MQC4H
 
 # DMG Configuration
 dmg:
