@@ -293,18 +293,18 @@ export function MemoryForm({
                     <div className="w-20 h-1.5 bg-[var(--glass-border)] rounded-full overflow-hidden">
                       <div
                         className={`h-full transition-all duration-300 ${
-                          value.length < 50 ? 'bg-red-400 w-1/4' :
-                          value.length < 100 ? 'bg-yellow-400 w-1/2' :
-                          value.length < 200 ? 'bg-blue-400 w-3/4' :
-                          'bg-green-400 w-full'
+                          value.length < 50 ? 'bg-destructive w-1/4' :
+                          value.length < 100 ? 'bg-warning w-1/2' :
+                          value.length < 200 ? 'bg-info w-3/4' :
+                          'bg-success w-full'
                         }`}
                       />
                     </div>
                     <span className={`text-xs ${
-                      value.length < 50 ? 'text-red-400' :
-                      value.length < 100 ? 'text-yellow-400' :
-                      value.length < 200 ? 'text-blue-400' :
-                      'text-green-400'
+                      value.length < 50 ? 'text-destructive' :
+                      value.length < 100 ? 'text-warning' :
+                      value.length < 200 ? 'text-info' :
+                      'text-success'
                     }`}>
                       {value.length < 50 ? 'Brief' :
                        value.length < 100 ? 'Okay' :

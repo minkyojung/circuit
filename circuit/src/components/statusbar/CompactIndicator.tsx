@@ -9,16 +9,7 @@ import React from 'react';
 import { AlertCircle, AlertTriangle, AlertOctagon } from 'lucide-react';
 import { useAutoCompact } from '@/hooks/useAutoCompact';
 import { cn } from '@/lib/utils';
-
-interface ContextMetrics {
-  current: number;
-  limit: number;
-  percentage: number;
-  lastCompact: string | null;
-  sessionStart: string;
-  prunableTokens: number;
-  shouldCompact: boolean;
-}
+import type { ContextMetrics } from '@/types/metrics';
 
 interface CompactIndicatorProps {
   workspaceId?: string;

@@ -15,6 +15,26 @@ export type ThemeMode = 'light' | 'dark' | 'system' | 'green-light' | 'green-dar
 export type CompactMode = 'immediate' | 'idle' | 'prompt';
 export type TerminalMode = 'classic' | 'modern';
 export type TerminalRenderer = 'canvas' | 'webgl' | 'dom';
+export type AIMode = 'fast' | 'balanced' | 'accurate';
+
+/**
+ * Monaco Editor AI settings
+ * Controls AI-powered features in the code editor
+ */
+export interface MonacoAISettings {
+  // Feature toggles
+  enableAutocompletion: boolean;    // AI-powered Tab completion
+  enableHover: boolean;              // AI code explanations on hover
+  enableInlineSuggestions: boolean;  // Show inline AI suggestions
+
+  // Performance settings
+  aiMode: AIMode;                    // Speed vs accuracy tradeoff
+  completionDelay: number;           // Delay before showing completion (ms)
+
+  // Advanced
+  cacheCompletions: boolean;         // Cache frequent completions
+  maxTokens: number;                 // Max tokens for completions
+}
 
 /**
  * Terminal settings
@@ -113,6 +133,9 @@ export interface CircuitSettings {
     threshold: number; // Character count threshold
   };
 
+  // Monaco Editor AI features
+  monaco: MonacoAISettings;
+
   // Terminal configuration
   terminal: TerminalSettings;
 
@@ -147,6 +170,15 @@ export const defaultSettings: CircuitSettings = {
   attachments: {
     autoConvertLongText: true,
     threshold: 5000,
+  },
+  monaco: {
+    enableAutocompletion: true,
+    enableHover: true,
+    enableInlineSuggestions: true,
+    aiMode: 'fast', // Default to fast (10-15% accuracy loss acceptable)
+    completionDelay: 300, // 300ms delay
+    cacheCompletions: true,
+    maxTokens: 150, // Keep completions concise
   },
   terminal: {
     mode: 'classic', // Start with classic mode for safety

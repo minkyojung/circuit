@@ -106,7 +106,7 @@ export function FileTabs({
   }
 
   return (
-    <div className="flex items-center gap-0.5 overflow-x-auto scrollbar-thin border-b border-border bg-card">
+    <div className="flex items-center gap-0 overflow-x-auto scrollbar-thin border-b border-border bg-card">
       {openFiles.map((file) => {
         const isActive = file.path === activeFilePath
         const fileName = getFileName(file.path)
@@ -143,8 +143,8 @@ export function FileTabs({
                 'ml-1 w-4 h-4 flex items-center justify-center rounded transition-all flex-shrink-0',
                 file.unsavedChanges
                   ? 'text-foreground hover:bg-secondary'
-                  : 'hover:bg-destructive/20 hover:text-destructive',
-                isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                  : 'text-muted-foreground/40 hover:text-foreground hover:bg-secondary',
+                'opacity-100'
               )}
               title={file.unsavedChanges ? 'Unsaved changes - Click to close' : 'Close file'}
             >

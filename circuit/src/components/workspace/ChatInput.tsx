@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
-import { ArrowUp, Paperclip, X, ListChecks, ChevronDown, ListTodo, Code, Sparkles } from 'lucide-react'
+import { ArrowUp, Paperclip, X, ListChecks, ChevronDown, ListTodo, Code, Sparkles, MessageCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { useSettingsContext } from '@/contexts/SettingsContext'
 import { useClaudeMetrics } from '@/hooks/useClaudeMetrics'
@@ -41,6 +41,8 @@ interface ChatInputProps {
   projectPath?: string
   onAddTodo?: (content: string) => void | Promise<void>
   onCompact?: () => void | Promise<void>
+  // Context metrics (calculated from messages)
+  contextMetrics?: any
   // Code attachment from editor selection
   codeAttachment?: {
     code: string
@@ -49,6 +51,12 @@ interface ChatInputProps {
     lineEnd: number
   } | null
   onCodeAttachmentRemove?: () => void
+  // Message reference attachment
+  messageAttachment?: {
+    messageId: string
+    content: string
+  } | null
+  onMessageAttachmentRemove?: () => void
 }
 
 export interface AttachedFile {
@@ -64,6 +72,11 @@ export interface AttachedFile {
     lineStart: number
     lineEnd: number
   }
+  // For message reference attachments
+  message?: {
+    id: string
+    content: string
+  }
 }
 
 const INPUT_STYLES = {
@@ -74,7 +87,7 @@ const INPUT_STYLES = {
     button: 'h-6 px-3 py-1 text-sm scale-[0.8] origin-left',
   },
   textarea: {
-    padding: 'px-4 pt-4 pb-0',
+    padding: 'p-0',
     minHeight: 'min-h-[108px]',
     fontSize: 'text-base font-light',
   },
@@ -108,11 +121,17 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   projectPath,
   onAddTodo,
   onCompact,
+  contextMetrics,
   codeAttachment,
   onCodeAttachmentRemove,
+  messageAttachment,
+  onMessageAttachmentRemove,
 }) => {
   const { settings, updateSettings } = useSettingsContext()
-  const { metrics } = useClaudeMetrics()
+  const { metrics: fallbackMetrics } = useClaudeMetrics()
+
+  // Use passed contextMetrics if available, fallback to useClaudeMetrics
+  const metrics = contextMetrics || fallbackMetrics
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
   const [thinkingMode, setThinkingMode] = useState<ThinkingMode>('normal')
   const [architectMode, setArchitectModeState] = useState<boolean>(false)
@@ -170,6 +189,40 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       return [...prev, codeFile]
     })
   }, [codeAttachment]) // Removed attachedFiles from deps!
+
+  // Convert message attachment to AttachedFile when it changes
+  useEffect(() => {
+    if (!messageAttachment) {
+      // Remove message attachment from attachedFiles if it was removed
+      setAttachedFiles(prev => prev.filter(f => f.type !== 'message/reference'))
+      return
+    }
+
+    // Create AttachedFile from message attachment
+    const messageAttachmentId = `message-${messageAttachment.messageId}`
+
+    // Check if this message attachment already exists
+    setAttachedFiles(prev => {
+      const exists = prev.some(f => f.id === messageAttachmentId)
+      if (exists) {
+        return prev // No change
+      }
+
+      const messageFile: AttachedFile = {
+        id: messageAttachmentId,
+        name: 'Previous message',
+        type: 'message/reference',
+        size: messageAttachment.content.length,
+        url: '', // Not used for messages
+        message: {
+          id: messageAttachment.messageId,
+          content: messageAttachment.content,
+        }
+      }
+
+      return [...prev, messageFile]
+    })
+  }, [messageAttachment])
 
   // Slash commands state
   const [availableCommands, setAvailableCommands] = useState<Array<{ name: string; fileName: string; description?: string }>>([])
@@ -570,7 +623,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   return (
     <div className={INPUT_STYLES.container.maxWidth}>
       {/* Input Card - Floating */}
-      <div className="relative w-full flex flex-col border-[0.5px] border-border rounded-2xl bg-muted shadow-lg">
+      <div
+        className="relative w-full flex flex-col border-[0.5px] border-border rounded-2xl bg-muted p-4 gap-3 shadow-[0_-8px_40px_rgba(0,0,0,0.05),0_4px_6px_rgba(0,0,0,0.03)] dark:shadow-[0_-8px_40px_rgba(0,0,0,0.25),0_4px_6px_rgba(0,0,0,0.1)]"
+      >
         {/* Slash Command Menu */}
         <AnimatePresence>
           {showCommandMenu && filteredCommands.length > 0 && (
@@ -615,10 +670,49 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 transition={{ duration: 0.2, ease: 'easeInOut' }}
                 className="overflow-hidden"
               >
-                <div className="pt-3 pb-2">
+                <div>
                   {/* Attachments Pills - Arc-inspired design */}
-                  <div className="flex flex-wrap gap-2 px-4">
+                  <div className="flex flex-wrap gap-2">
                     {attachedFiles.map((file) => {
+                      // Handle message reference attachments
+                      if (file.type === 'message/reference' && file.message) {
+                        return (
+                          <div
+                            key={file.id}
+                            className="group flex items-center gap-2 pl-2 pr-2 py-2 rounded-xl bg-card transition-all"
+                          >
+                            {/* Message icon - Green */}
+                            <div className="flex-shrink-0">
+                              <div className="w-6 h-[30px] rounded-md bg-green-500/20 flex items-center justify-center">
+                                <MessageCircle className="w-3 h-3 text-green-400" strokeWidth={2} />
+                              </div>
+                            </div>
+
+                            {/* Message info - Vertical layout */}
+                            <div className="flex flex-col justify-center min-w-0 gap-1">
+                              <span className="text-sm font-light text-foreground max-w-[160px] truncate leading-tight">
+                                Previous message
+                              </span>
+                              <span className="text-[10px] text-muted-foreground font-medium leading-tight">
+                                {(file.message.content.length / 1000).toFixed(1)}k chars
+                              </span>
+                            </div>
+
+                            {/* Remove button */}
+                            <button
+                              onClick={() => {
+                                handleRemoveFile(file.id)
+                                onMessageAttachmentRemove?.()
+                              }}
+                              className="ml-0.5 p-0.5 rounded-md transition-colors opacity-60 group-hover:opacity-100 hover:text-foreground hover:bg-secondary/30 dark:hover:text-white dark:hover:bg-secondary/20"
+                              aria-label="Remove message reference"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        )
+                      }
+
                       // Handle code attachments differently
                       if (file.type === 'code/selection' && file.code) {
                         const pathParts = file.code.filePath.split('/')
@@ -730,7 +824,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           />
 
           {/* Control Bar */}
-          <div className="flex items-center justify-between px-4 pb-3">
+          <div className="flex items-center justify-between">
             {/* Left: Control buttons */}
             {showControls && (
               <div className={`flex ${INPUT_STYLES.controls.gap} items-center`}>
@@ -799,7 +893,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   disabled={disabled || !workspacePath}
                   className={`inline-flex items-center justify-center ${INPUT_STYLES.controls.sourcesButton} transition-colors ${
                     architectMode
-                      ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                      ? 'bg-[#192621] text-white hover:bg-[#223330] border border-[#2A3D35]'
                       : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
                   }`}
                   title={architectMode ? 'Architect Mode ON' : 'Architect Mode OFF'}
@@ -870,7 +964,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 className={`${INPUT_STYLES.sendButton.size} ${INPUT_STYLES.sendButton.borderRadius} flex items-center justify-center transition-all shrink-0 ${
                   (!value.trim() && attachedFiles.length === 0) || disabled
                     ? 'bg-muted/50 text-muted-foreground/40 cursor-not-allowed'
-                    : 'bg-foreground text-background hover:bg-foreground/90'
+                    : 'bg-[#192621] text-white hover:bg-[#223330] border border-[#2A3D35]'
                 }`}
                 title="Send message (Cmd/Ctrl+Enter)"
               >

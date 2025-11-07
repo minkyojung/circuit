@@ -28,7 +28,9 @@ describe('aiSDKAdapter', () => {
       const aiMessage: AIMessage = {
         id: 'msg-1',
         role: 'assistant',
-        content: 'Hello, world!',
+        parts: [
+          { type: 'text', text: 'Hello, world!' }
+        ],
         createdAt: new Date('2024-01-01'),
       }
 
@@ -44,7 +46,10 @@ describe('aiSDKAdapter', () => {
       const aiMessage: AIMessage = {
         id: 'msg-2',
         role: 'assistant',
-        content: `Here's some code:
+        parts: [
+          {
+            type: 'text',
+            text: `Here's some code:
 
 \`\`\`typescript
 function hello() {
@@ -52,7 +57,9 @@ function hello() {
 }
 \`\`\`
 
-That's it!`,
+That's it!`
+          }
+        ],
         createdAt: new Date('2024-01-01'),
       }
 
@@ -70,23 +77,24 @@ That's it!`,
       const aiMessage: AIMessage = {
         id: 'msg-3',
         role: 'assistant',
-        content: 'Let me search for that.',
-        createdAt: new Date('2024-01-01'),
-        toolInvocations: [
+        parts: [
+          { type: 'text', text: 'Let me search for that.' },
           {
+            type: 'tool-call',
             toolCallId: 'call-1',
             toolName: 'search',
             state: 'call',
-            args: { query: 'test' },
+            input: { query: 'test' },
           },
         ],
+        createdAt: new Date('2024-01-01'),
       }
 
       const blocks = aiMessageToBlocks(aiMessage, 'conv-1')
 
       const toolBlock = blocks.find(b => b.metadata.toolCallId === 'call-1')
       expect(toolBlock).toBeDefined()
-      expect(toolBlock?.type).toBe('command')
+      expect(toolBlock?.type).toBe('tool')  // AI SDK adapter creates 'tool' blocks
       expect(toolBlock?.content).toContain('search')
       expect(toolBlock?.content).toContain('test')
     })
@@ -95,38 +103,46 @@ That's it!`,
       const aiMessage: AIMessage = {
         id: 'msg-4',
         role: 'assistant',
-        content: 'Here are the search results.',
-        createdAt: new Date('2024-01-01'),
-        toolInvocations: [
+        parts: [
+          { type: 'text', text: 'Here are the search results.' },
           {
+            type: 'tool-result',
             toolCallId: 'call-2',
             toolName: 'search',
-            state: 'result',
-            args: { query: 'test' },
-            result: { items: ['result1', 'result2'] },
+            state: 'output-available',
+            input: { query: 'test' },
+            output: { items: ['result1', 'result2'] },
           },
         ],
+        createdAt: new Date('2024-01-01'),
       }
 
       const blocks = aiMessageToBlocks(aiMessage, 'conv-1')
 
       const toolBlock = blocks.find(b => b.metadata.toolCallId === 'call-2')
       expect(toolBlock).toBeDefined()
-      expect(toolBlock?.content).toContain('Result:')
-      expect(toolBlock?.metadata.executedAt).toBeDefined()
+      // Tool content is formatted as toolName(args), result is in metadata
+      expect(toolBlock?.content).toContain('search')
+      expect(toolBlock?.metadata.result).toBeDefined()
+      expect(toolBlock?.metadata.result).toEqual({ items: ['result1', 'result2'] })
     })
 
     it('should maintain block order', () => {
       const aiMessage: AIMessage = {
         id: 'msg-5',
         role: 'assistant',
-        content: `First paragraph.
+        parts: [
+          {
+            type: 'text',
+            text: `First paragraph.
 
 \`\`\`js
 const x = 1;
 \`\`\`
 
-Second paragraph.`,
+Second paragraph.`
+          }
+        ],
         createdAt: new Date('2024-01-01'),
       }
 
@@ -144,13 +160,13 @@ Second paragraph.`,
         {
           id: 'msg-1',
           role: 'user',
-          content: 'Hello',
+          parts: [{ type: 'text', text: 'Hello' }],
           createdAt: new Date('2024-01-01'),
         },
         {
           id: 'msg-2',
           role: 'assistant',
-          content: 'Hi there!',
+          parts: [{ type: 'text', text: 'Hi there!' }],
           createdAt: new Date('2024-01-01'),
         },
       ]
@@ -187,7 +203,10 @@ Second paragraph.`,
 
       expect(aiMessage.id).toBe('msg-1')
       expect(aiMessage.role).toBe('assistant')
-      expect(aiMessage.content).toBe('Hello, world!')
+      // AI SDK v5 uses parts array
+      expect(aiMessage.parts).toBeDefined()
+      expect(aiMessage.parts[0].type).toBe('text')
+      expect(aiMessage.parts[0].text).toBe('Hello, world!')
     })
 
     it('should convert code blocks with proper markdown', () => {
@@ -214,9 +233,12 @@ Second paragraph.`,
 
       const aiMessage = blocksToAIMessage(blocks, 'assistant')
 
-      expect(aiMessage.content).toContain('```javascript')
-      expect(aiMessage.content).toContain('const x = 1;')
-      expect(aiMessage.content).toContain('```')
+      // AI SDK v5 uses parts array
+      expect(aiMessage.parts).toBeDefined()
+      expect(aiMessage.parts[0].type).toBe('text')
+      expect(aiMessage.parts[0].text).toContain('```javascript')
+      expect(aiMessage.parts[0].text).toContain('const x = 1;')
+      expect(aiMessage.parts[0].text).toContain('```')
     })
 
     it('should reconstruct tool invocations from blocks', () => {
@@ -224,11 +246,13 @@ Second paragraph.`,
         {
           id: 'block-1',
           messageId: 'msg-3',
-          type: 'command',
-          content: 'Tool: search\n{"query": "test"}',
+          type: 'tool',  // Must be 'tool' type, not 'command'
+          content: 'search({"query":"test"})',
           metadata: {
             toolName: 'search',
             toolCallId: 'call-1',
+            args: { query: 'test' },
+            state: 'input-available',
           },
           order: 0,
           createdAt: new Date('2024-01-01').toISOString(),
@@ -237,10 +261,13 @@ Second paragraph.`,
 
       const aiMessage = blocksToAIMessage(blocks, 'assistant')
 
-      expect(aiMessage.toolInvocations).toBeDefined()
-      expect(aiMessage.toolInvocations).toHaveLength(1)
-      expect(aiMessage.toolInvocations?.[0].toolName).toBe('search')
-      expect(aiMessage.toolInvocations?.[0].toolCallId).toBe('call-1')
+      // AI SDK v5 uses parts array, not toolInvocations
+      expect(aiMessage.parts).toBeDefined()
+      // Tool parts have type 'tool-{toolName}' in AI SDK v5
+      const toolParts = aiMessage.parts.filter(p => p.type.startsWith('tool-'))
+      expect(toolParts).toHaveLength(1)
+      expect(toolParts[0].toolName || toolParts[0].type.replace('tool-', '')).toBe('search')
+      expect(toolParts[0].toolCallId).toBe('call-1')
     })
 
     it('should throw error for empty block array', () => {
@@ -273,7 +300,10 @@ Second paragraph.`,
 
       expect(aiMessage.id).toBe('msg-1')
       expect(aiMessage.role).toBe('assistant')
-      expect(aiMessage.content).toBe('Hello')
+      // AI SDK v5 uses parts array
+      expect(aiMessage.parts).toBeDefined()
+      expect(aiMessage.parts[0].type).toBe('text')
+      expect(aiMessage.parts[0].text).toBe('Hello')
     })
 
     it('should fallback to raw content when no blocks', () => {
@@ -287,7 +317,10 @@ Second paragraph.`,
 
       const aiMessage = messageToAIMessage(message)
 
-      expect(aiMessage.content).toBe('Raw content')
+      // AI SDK v5 uses parts array even for fallback
+      expect(aiMessage.parts).toBeDefined()
+      expect(aiMessage.parts[0].type).toBe('text')
+      expect(aiMessage.parts[0].text).toBe('Raw content')
     })
   })
 
@@ -423,14 +456,17 @@ Second paragraph.`,
       const original: AIMessage = {
         id: 'msg-1',
         role: 'assistant',
-        content: 'Hello, world!',
+        parts: [{ type: 'text', text: 'Hello, world!' }],
         createdAt: new Date('2024-01-01'),
       }
 
       const blocks = aiMessageToBlocks(original, 'conv-1')
       const converted = blocksToAIMessage(blocks, 'assistant')
 
-      expect(converted.content).toBe(original.content)
+      // AI SDK v5 uses parts array, not content
+      expect(converted.parts).toBeDefined()
+      expect(converted.parts[0].type).toBe('text')
+      expect(converted.parts[0].text).toBe('Hello, world!')
       expect(converted.role).toBe(original.role)
     })
 
@@ -438,22 +474,30 @@ Second paragraph.`,
       const original: AIMessage = {
         id: 'msg-2',
         role: 'assistant',
-        content: `Text before
+        parts: [
+          {
+            type: 'text',
+            text: `Text before
 
 \`\`\`typescript
 const x = 1;
 \`\`\`
 
-Text after`,
+Text after`
+          }
+        ],
         createdAt: new Date('2024-01-01'),
       }
 
       const blocks = aiMessageToBlocks(original, 'conv-1')
       const converted = blocksToAIMessage(blocks, 'assistant')
 
+      // AI SDK v5 uses parts array
+      expect(converted.parts).toBeDefined()
+      expect(converted.parts[0].type).toBe('text')
       // Should contain code block markers
-      expect(converted.content).toContain('```typescript')
-      expect(converted.content).toContain('const x = 1;')
+      expect(converted.parts[0].text).toContain('```typescript')
+      expect(converted.parts[0].text).toContain('const x = 1;')
     })
   })
 })

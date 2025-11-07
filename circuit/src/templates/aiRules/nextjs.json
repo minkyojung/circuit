@@ -1,0 +1,17 @@
+{
+  "name": "Next.js App Router Best Practices",
+  "description": "Next.js 14+ with App Router and Server Components",
+  "projectTypes": ["next"],
+  "rules": [
+    "Use App Router (app/) directory structure, not Pages Router",
+    "Server Components by default, only use 'use client' when necessary",
+    "Implement proper loading.tsx and error.tsx for each route",
+    "Use Next.js Image component for all images with proper sizing",
+    "Fetch data in Server Components using async/await, not useEffect",
+    "Use Server Actions for form submissions and mutations",
+    "Implement proper metadata exports for SEO in every page",
+    "Use route groups () for layout organization without URL changes",
+    "Leverage parallel routes and intercepting routes for advanced UX",
+    "Always validate environment variables with Zod or similar"
+  ]
+}

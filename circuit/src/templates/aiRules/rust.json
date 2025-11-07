@@ -1,0 +1,17 @@
+{
+  "name": "Rust Development Best Practices",
+  "description": "Idiomatic Rust with safety and performance",
+  "projectTypes": ["rust"],
+  "rules": [
+    "Follow Rust API Guidelines and idiomatic patterns",
+    "Use Result<T, E> for all fallible operations, avoid panic! in library code",
+    "Implement proper error handling with thiserror or anyhow",
+    "Prefer owned types (String) in APIs, &str for internal use",
+    "Use builder pattern for complex struct initialization",
+    "Leverage type system for compile-time guarantees (newtype pattern)",
+    "Document all public APIs with /// doc comments and examples",
+    "Use cargo clippy suggestions and fix all warnings",
+    "Implement Display and Debug traits for custom types",
+    "Prefer iterators over loops, use collect() sparingly"
+  ]
+}

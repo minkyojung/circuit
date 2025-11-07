@@ -7,6 +7,7 @@
 import React, { type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import type { LucideIcon } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 
 // ============================================================================
 // SettingSection - Section header with icon and description
@@ -24,6 +25,9 @@ export const SettingSection: React.FC<SettingSectionProps> = ({
   description,
   children,
 }) => {
+  // Convert children to array to add dividers
+  const childrenArray = React.Children.toArray(children);
+
   return (
     <div className="space-y-3">
       <div>
@@ -32,7 +36,14 @@ export const SettingSection: React.FC<SettingSectionProps> = ({
           <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
         )}
       </div>
-      <div className="space-y-2.5">{children}</div>
+      {/* Apple-style grouped card */}
+      <div className="bg-card border border-border rounded-lg overflow-hidden divide-y divide-border/50">
+        {childrenArray.map((child, index) => (
+          <div key={index} className="px-4 py-2.5">
+            {child}
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
@@ -55,14 +66,14 @@ export const SettingRow: React.FC<SettingRowProps> = ({
   className,
 }) => {
   return (
-    <div className={cn('flex items-center justify-between gap-4', className)}>
+    <div className={cn('flex items-start justify-between gap-4', className)}>
       <div className="flex-1 min-w-0">
-        <label className="text-sm font-medium text-foreground">{label}</label>
+        <label className="text-sm font-medium text-foreground leading-6">{label}</label>
         {description && (
-          <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
+          <p className="text-xs text-muted-foreground mt-0.5 leading-tight">{description}</p>
         )}
       </div>
-      <div className="flex-shrink-0">{children}</div>
+      <div className="flex-shrink-0 h-6 flex items-center">{children}</div>
     </div>
   );
 };
@@ -88,26 +99,11 @@ export const ToggleSetting: React.FC<ToggleSettingProps> = ({
 }) => {
   return (
     <SettingRow label={label} description={description}>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
+      <Switch
+        checked={checked}
+        onCheckedChange={onChange}
         disabled={disabled}
-        onClick={() => onChange(!checked)}
-        className={cn(
-          'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-          checked ? 'bg-primary' : 'bg-input',
-          disabled && 'opacity-50 cursor-not-allowed'
-        )}
-      >
-        <span
-          className={cn(
-            'inline-block h-4 w-4 transform rounded-full bg-white dark:bg-white shadow-sm transition-transform',
-            checked ? 'translate-x-6' : 'translate-x-1'
-          )}
-        />
-      </button>
+      />
     </SettingRow>
   );
 };

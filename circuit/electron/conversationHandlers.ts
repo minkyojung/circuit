@@ -5,6 +5,7 @@
 import { ipcMain, IpcMainInvokeEvent } from 'electron'
 import { ConversationStorage, Conversation, Message, Block, BlockBookmark, BlockExecution } from './conversationStorage'
 import { parseMessageToBlocks, Block as ParsedBlock } from './messageParser'
+import { FileChangeAggregator } from './fileChangeAggregator'
 import { exec } from 'child_process'
 import { promisify } from 'util'
 import { randomUUID } from 'crypto'
@@ -96,12 +97,38 @@ export function registerConversationHandlers(): void {
 
   /**
    * Create a new conversation
+   * @param workspaceId - Workspace ID
+   * @param options - { workspaceName?: string, title?: string }
    */
   ipcMain.handle(
     'conversation:create',
-    async (_event: IpcMainInvokeEvent, workspaceId: string, title?: string) => {
+    async (_event: IpcMainInvokeEvent, workspaceId: string, options?: { workspaceName?: string; title?: string } | string) => {
       try {
         if (!storage) throw new Error('Storage not initialized')
+
+        // Handle legacy API: second parameter might be a string (title)
+        let workspaceName: string | undefined
+        let title: string | undefined
+
+        if (typeof options === 'string') {
+          // Legacy: conversation:create(workspaceId, title)
+          title = options
+        } else if (options) {
+          // New: conversation:create(workspaceId, { workspaceName, title })
+          workspaceName = options.workspaceName
+          title = options.title
+        }
+
+        // Generate title if not provided
+        if (!title && workspaceName) {
+          const now = new Date()
+          const dateStr = now.toLocaleDateString('ko-KR', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+          }).replace(/\. /g, '-').replace('.', '')  // "2025-01-15"
+          title = `${workspaceName} ${dateStr}`
+        }
 
         const conversation = storage.create(workspaceId, title)
 
@@ -247,7 +274,7 @@ export function registerConversationHandlers(): void {
    */
   ipcMain.handle(
     'message:save',
-    async (_event: IpcMainInvokeEvent, message: Message) => {
+    async (_event: IpcMainInvokeEvent, message: Message, workspacePath?: string) => {
       try {
         if (!storage) throw new Error('Storage not initialized')
 
@@ -282,6 +309,80 @@ export function registerConversationHandlers(): void {
         // They are stored in metadata.thinkingSteps and displayed in ReasoningAccordion only
         // This prevents duplicate rendering and reduces message body clutter
         let allBlocks: ParsedBlock[] = [...parseResult.blocks]
+
+        // Track file changes from diff blocks and tool calls (only for assistant messages)
+        if (message.role === 'assistant') {
+          // ✅ Use workspacePath directly as projectRoot
+          // Note: workspace.path is the absolute path to the worktree directory,
+          // which is the actual project root for file operations
+          let projectRoot = ''
+          if (workspacePath) {
+            projectRoot = workspacePath  // ✅ Don't strip .conductor - workspace IS the project root
+            console.log('[message:save] 📁 Using projectRoot:', projectRoot)
+          } else {
+            console.warn('[message:save] ⚠️  No workspacePath provided, file path normalization disabled')
+          }
+
+          const fileAggregator = new FileChangeAggregator(projectRoot)
+
+          // Track changes from diff blocks
+          for (const block of allBlocks) {
+            if (block.type === 'diff') {
+              fileAggregator.trackFromDiffBlock(block as any)
+            }
+          }
+
+          // Track changes from metadata.thinkingSteps (Edit/Write tool calls)
+          if (message.metadata) {
+            try {
+              const metadata = typeof message.metadata === 'string'
+                ? JSON.parse(message.metadata)
+                : message.metadata
+
+              const thinkingSteps = metadata?.thinkingSteps || []
+              console.log('[message:save] 🔍 Checking', thinkingSteps.length, 'thinking steps for file changes')
+
+              for (const step of thinkingSteps) {
+                if (step.type === 'tool-use') {
+                  // Edit tool: track as modification
+                  if (step.tool === 'Edit' && step.filePath) {
+                    fileAggregator.trackFromEdit(
+                      {
+                        file_path: step.filePath,
+                        old_string: step.oldString || '',
+                        new_string: step.newString || ''
+                      },
+                      undefined,
+                      undefined
+                    )
+                  }
+                  // Write tool: track as creation or modification
+                  else if (step.tool === 'Write' && step.filePath) {
+                    fileAggregator.trackFromWrite(
+                      {
+                        file_path: step.filePath,
+                        content: step.content || ''
+                      },
+                      undefined,
+                      undefined
+                    )
+                  }
+                }
+              }
+            } catch (e) {
+              console.warn('[message:save] Failed to parse thinkingSteps:', e)
+            }
+          }
+
+          // Add file summary block if there are changes
+          if (fileAggregator.hasChanges()) {
+            const summaryBlock = fileAggregator.createFileSummaryBlock(message.id)
+            if (summaryBlock) {
+              console.log('[message:save] 📊 Adding file summary block with', fileAggregator.getFileCount(), 'files')
+              allBlocks.push(summaryBlock as any)
+            }
+          }
+        }
 
         // Convert blocks to storage format (metadata as JSON string)
         const blocksForStorage = allBlocks.map(block => ({
@@ -347,6 +448,32 @@ export function registerConversationHandlers(): void {
         }
       } catch (error: any) {
         console.error('[message:delete] Error:', error)
+        return {
+          success: false,
+          error: error.message
+        }
+      }
+    }
+  )
+
+  /**
+   * Delete all messages after a specific message
+   * Used for retry functionality
+   */
+  ipcMain.handle(
+    'db:messages:delete-after',
+    async (_event: IpcMainInvokeEvent, conversationId: string, afterMessageId: string) => {
+      try {
+        if (!storage) throw new Error('Storage not initialized')
+
+        console.log('[db:messages:delete-after] Deleting messages after:', afterMessageId, 'in conversation:', conversationId)
+        storage.deleteMessagesAfter(conversationId, afterMessageId)
+
+        return {
+          success: true
+        }
+      } catch (error: any) {
+        console.error('[db:messages:delete-after] Error:', error)
         return {
           success: false,
           error: error.message

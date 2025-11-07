@@ -17,6 +17,16 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
   ResizablePanelGroup,
   ResizablePanel,
   ResizableHandle,
@@ -48,6 +58,7 @@ import type { Tab } from '@/types/editor'
 import { getFileName } from '@/lib/fileUtils'
 import { EditorGroupPanel } from '@/components/editor'
 import { DEFAULT_GROUP_ID, SECONDARY_GROUP_ID } from '@/types/editor'
+import { PathResolver } from '@/lib/pathResolver'
 import { SettingsPanel } from '@/components/SettingsPanel'
 import './App.css'
 
@@ -194,6 +205,16 @@ function App() {
   })
   const [currentRepository, setCurrentRepository] = useState<any>(null)
 
+  // State for conversation deletion confirmation modal
+  const [pendingDeleteConversation, setPendingDeleteConversation] = useState<{
+    conversationId: string
+    tabId: string
+    groupId: string
+  } | null>(null)
+
+  // Path resolver for consistent file path normalization
+  const [pathResolver, setPathResolver] = useState<PathResolver | null>(null)
+
   // Ref for search bar (to trigger focus from keyboard shortcut)
   const searchBarRef = useRef<HTMLInputElement>(null)
 
@@ -239,6 +260,26 @@ function App() {
         ipcRenderer.invoke('claude:stop-session', sessionId)
       }
     }
+  }, [selectedWorkspace?.path])
+
+  // Update PathResolver when workspace changes
+  useEffect(() => {
+    if (!selectedWorkspace) {
+      setPathResolver(null)
+      return
+    }
+
+    // ✅ For worktree-based workspaces, workspace.path IS the projectRoot
+    // Example: /project/.conductor/workspaces/duck is the working directory for "duck" branch
+    // Files are at: /project/.conductor/workspaces/duck/src/App.tsx
+    const projectRoot = selectedWorkspace.path
+
+    console.log('[App] Initializing PathResolver:', {
+      workspaceId: selectedWorkspace.id,
+      workspacePath: selectedWorkspace.path,
+      projectRoot
+    })
+    setPathResolver(new PathResolver(projectRoot))
   }, [selectedWorkspace?.path])
 
   // File cursor position for jumping to line
@@ -374,8 +415,9 @@ function App() {
         openFiles={openFilePaths}
         selectedFile={filePath}
         onCloseFile={(path) => {
-          // Find and close the file tab
-          const result = findTab(`file-${path}`)
+          // Find and close the file tab (using workspace-scoped ID)
+          const tabId = `file-${selectedWorkspace.id}-${path}`
+          const result = findTab(tabId)
           if (result) {
             closeTab(result.tab.id, result.groupId)
           }
@@ -472,37 +514,33 @@ function App() {
 
   // Handle file selection from sidebar or file reference pills
   const handleFileSelect = async (filePath: string, lineStart?: number, lineEnd?: number) => {
-    // ✅ STEP 1: Get project root (workspace root without .conductor path)
-    const workspacePath = selectedWorkspace?.path || projectPath;
-    const projectRoot = workspacePath.includes('/.conductor/')
-      ? workspacePath.split('/.conductor/')[0]
-      : workspacePath;
-
-    // ✅ STEP 2: Normalize file path to workspace-relative path
-    let normalizedPath = filePath;
-
-    // Convert absolute path to relative path
-    if (normalizedPath.startsWith('/') || normalizedPath.match(/^[A-Z]:\\/)) {
-      if (normalizedPath.startsWith(projectRoot)) {
-        normalizedPath = normalizedPath.slice(projectRoot.length);
-        if (normalizedPath.startsWith('/') || normalizedPath.startsWith('\\')) {
-          normalizedPath = normalizedPath.slice(1);
-        }
-      }
+    // Guard: PathResolver must be initialized
+    if (!pathResolver) {
+      console.error('[App] PathResolver not initialized - cannot open file');
+      toast.error('파일 경로 변환기가 초기화되지 않았습니다');
+      return;
     }
 
-    // Remove "./" prefix
-    normalizedPath = normalizedPath.replace(/^\.\//, '');
-    normalizedPath = normalizedPath.replace(/^\.\\/, '');
+    // Guard: Workspace must be selected
+    if (!selectedWorkspace) {
+      console.error('[App] No workspace selected - cannot open file');
+      toast.error('워크스페이스가 선택되지 않았습니다');
+      return;
+    }
 
-    // Normalize path separators
-    normalizedPath = normalizedPath.replace(/\\/g, '/');
+    // ✅ STEP 1: Normalize file path using PathResolver
+    const normalizedPath = pathResolver.normalize(filePath);
+    const absolutePath = pathResolver.toAbsolute(normalizedPath);
 
-    console.log('[App] Normalized file path:', { original: filePath, normalized: normalizedPath, projectRoot });
+    console.log('[App] Opening file:', {
+      original: filePath,
+      normalized: normalizedPath,
+      absolute: absolutePath,
+      workspaceId: selectedWorkspace.id,
+      projectRoot: pathResolver.getProjectRoot()
+    });
 
-    // ✅ STEP 3: Validate file existence (using absolute path)
-    const absolutePath = `${projectRoot}/${normalizedPath}`;
-
+    // ✅ STEP 2: Validate file existence
     try {
       const exists = await ipcRenderer.invoke('file-exists', absolutePath);
 
@@ -517,24 +555,26 @@ function App() {
       return;
     }
 
-    // ✅ STEP 4: Create file tab with normalized path
-    const currentFocusedGroup = focusedGroupIdRef.current
+    // ✅ STEP 3: Create file tab with workspace-scoped identity
+    const currentFocusedGroup = focusedGroupIdRef.current;
+    const tab = createFileTab(
+      normalizedPath,
+      selectedWorkspace.id,  // ✅ Workspace-scoped tab ID
+      getFileName(normalizedPath)
+    );
 
-    // Pass projectRoot to createFileTab for additional normalization safety
-    const tab = createFileTab(normalizedPath, getFileName(normalizedPath), undefined, projectRoot)
+    // Open in currently focused group
+    openTab(tab, currentFocusedGroup);
 
-    // Open in currently focused group (using ref for latest value)
-    openTab(tab, currentFocusedGroup)
-
-    // ✅ STEP 5: Store line selection with normalized path
+    // ✅ STEP 4: Store line selection with normalized path
     if (lineStart) {
       setFileCursorPosition({
-        filePath: normalizedPath,  // Use normalized path
+        filePath: normalizedPath,
         lineStart,
         lineEnd: lineEnd || lineStart
-      })
+      });
     } else {
-      setFileCursorPosition(null)
+      setFileCursorPosition(null);
     }
   }
 
@@ -725,9 +765,50 @@ function App() {
     }
   }, [viewMode])
 
-  // Handle tab close (works for both files and conversations)
+  // Handle tab close with confirmation for conversation tabs
   const handleTabClose = (tabId: string, groupId: string) => {
-    console.log('[App] Closing tab:', tabId, 'from group:', groupId)
+    const result = findTab(tabId)
+    if (!result) return
+
+    const { tab } = result
+
+    // Handle conversation tabs - show confirmation modal
+    if (tab.type === 'conversation') {
+      // Check if this is the last conversation tab
+      const allConversationTabs = editorGroups.flatMap((g) =>
+        g.tabs.filter((t) => t.type === 'conversation')
+      )
+
+      if (allConversationTabs.length <= 1) {
+        console.log('[App] Cannot close last conversation tab')
+        alert('Cannot close the last conversation tab.')
+        return
+      }
+
+      // Show confirmation modal
+      const conversationId = tab.data.conversationId
+      setPendingDeleteConversation({
+        conversationId,
+        tabId: tab.id,
+        groupId
+      })
+      console.log('[App] Showing delete confirmation for conversation:', conversationId)
+      return
+    }
+
+    // Handle file tabs - check for unsaved changes
+    if (tab.type === 'file' && tab.data.unsavedChanges) {
+      const fileName = getFileName(tab.data.filePath)
+      const confirmed = window.confirm(
+        `'${fileName}' has unsaved changes. Do you want to close it?`
+      )
+      if (!confirmed) {
+        console.log('[App] User cancelled closing file with unsaved changes')
+        return
+      }
+    }
+
+    // Close the tab (for file tabs and settings tabs)
     closeTab(tabId, groupId)
   }
 
@@ -783,7 +864,7 @@ function App() {
       if (activeTab.data.unsavedChanges) {
         const fileName = getFileName(activeTab.data.filePath)
         const confirmed = window.confirm(
-          `'${fileName}'에 저장하지 않은 변경사항이 있습니다. 닫으시겠습니까?`
+          `'${fileName}' has unsaved changes. Do you want to close it?`
         )
         if (!confirmed) {
           console.log('[App] User cancelled closing file with unsaved changes')
@@ -805,27 +886,18 @@ function App() {
 
       if (allConversationTabs.length <= 1) {
         console.log('[App] Cannot close last conversation tab')
-        alert('마지막 conversation은 닫을 수 없습니다.')
+        alert('Cannot close the last conversation tab.')
         return
       }
 
-      // Delete the conversation via IPC
-      try {
-        const conversationId = activeTab.data.conversationId
-        const result = await ipcRenderer.invoke('conversation:delete', conversationId)
-
-        if (result.success) {
-          // Close the tab
-          closeTab(activeTab.id, focusedGroupId)
-          console.log('[App] Conversation deleted and tab closed:', conversationId)
-        } else {
-          console.error('[App] Failed to delete conversation:', result.error)
-          alert(`Failed to delete conversation: ${result.error || 'Unknown error'}`)
-        }
-      } catch (error) {
-        console.error('[App] Error deleting conversation:', error)
-        alert(`Error deleting conversation: ${error}`)
-      }
+      // Show confirmation modal before deleting
+      const conversationId = activeTab.data.conversationId
+      setPendingDeleteConversation({
+        conversationId,
+        tabId: activeTab.id,
+        groupId: focusedGroupId
+      })
+      console.log('[App] Showing delete confirmation for conversation:', conversationId)
       return
     }
 
@@ -835,6 +907,33 @@ function App() {
       closeTab(activeTab.id, focusedGroupId)
       console.log('[App] Settings tab closed')
       return
+    }
+  }
+
+  // Confirm and execute conversation deletion
+  const confirmDeleteConversation = async () => {
+    if (!pendingDeleteConversation) return
+
+    const { conversationId, tabId, groupId } = pendingDeleteConversation
+
+    try {
+      console.log('[App] Confirming deletion of conversation:', conversationId)
+      const result = await ipcRenderer.invoke('conversation:delete', conversationId)
+
+      if (result.success) {
+        // Close the tab
+        closeTab(tabId, groupId)
+        console.log('[App] Conversation deleted and tab closed:', conversationId)
+      } else {
+        console.error('[App] Failed to delete conversation:', result.error)
+        alert(`Failed to delete conversation: ${result.error || 'Unknown error'}`)
+      }
+    } catch (error) {
+      console.error('[App] Error deleting conversation:', error)
+      alert(`Error deleting conversation: ${error}`)
+    } finally {
+      // Clear the pending deletion state
+      setPendingDeleteConversation(null)
     }
   }
 
@@ -1085,7 +1184,7 @@ function App() {
                         isFocused={focusedGroupId === DEFAULT_GROUP_ID}
                         onFocus={() => setFocusedGroupId(DEFAULT_GROUP_ID)}
                         onTabClick={(tabId) => handleTabClick(tabId, DEFAULT_GROUP_ID)}
-                        onTabClose={(tabId) => closeTab(tabId, DEFAULT_GROUP_ID)}
+                        onTabClose={(tabId) => handleTabClose(tabId, DEFAULT_GROUP_ID)}
                         onTabDragStart={(tabId, sourceGroupId) => handleTabDragStart(tabId, sourceGroupId)}
                         onTabDragEnd={handleTabDragEnd}
                         onTabDrop={(tabId, targetIndex) => handleTabDrop(DEFAULT_GROUP_ID, targetIndex)}
@@ -1103,7 +1202,7 @@ function App() {
                         isFocused={focusedGroupId === SECONDARY_GROUP_ID}
                         onFocus={() => setFocusedGroupId(SECONDARY_GROUP_ID)}
                         onTabClick={(tabId) => handleTabClick(tabId, SECONDARY_GROUP_ID)}
-                        onTabClose={(tabId) => closeTab(tabId, SECONDARY_GROUP_ID)}
+                        onTabClose={(tabId) => handleTabClose(tabId, SECONDARY_GROUP_ID)}
                         onTabDragStart={(tabId, sourceGroupId) => handleTabDragStart(tabId, sourceGroupId)}
                         onTabDragEnd={handleTabDragEnd}
                         onTabDrop={(tabId, targetIndex) => handleTabDrop(SECONDARY_GROUP_ID, targetIndex)}
@@ -1122,7 +1221,7 @@ function App() {
                     isFocused={true}
                     onFocus={() => setFocusedGroupId(DEFAULT_GROUP_ID)}
                     onTabClick={(tabId) => handleTabClick(tabId, DEFAULT_GROUP_ID)}
-                    onTabClose={(tabId) => closeTab(tabId, DEFAULT_GROUP_ID)}
+                    onTabClose={(tabId) => handleTabClose(tabId, DEFAULT_GROUP_ID)}
                     onCreateConversation={handleCreateConversation}
                     renderConversation={renderChatPanel}
                     renderFile={renderEditorPanel}
@@ -1187,6 +1286,30 @@ function App() {
           },
         }}
       />
+
+      {/* Conversation Delete Confirmation Dialog */}
+      <AlertDialog
+        open={pendingDeleteConversation !== null}
+        onOpenChange={(open) => !open && setPendingDeleteConversation(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Conversation</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this conversation and all its messages. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteConversation}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
         </div>
             </ProjectPathContext.Provider>
           </RepositoryProvider>

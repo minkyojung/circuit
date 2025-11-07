@@ -11,6 +11,7 @@ import { TextBlock } from './TextBlock'
 import { CodeBlock } from './CodeBlock'
 import { CommandBlock } from './CommandBlock'
 import { DiffBlock } from './DiffBlock'
+import { FileSummaryBlock } from './FileSummaryBlock'
 import { DiagramBlock } from './DiagramBlock'
 import { ChecklistBlock } from './ChecklistBlock'
 import { TableBlock } from './TableBlock'
@@ -54,13 +55,13 @@ const getErrorSeverity = (errorType?: string): 'critical' | 'error' | 'warning' 
 const getErrorIcon = (severity: 'critical' | 'error' | 'warning' | 'info') => {
   switch (severity) {
     case 'critical':
-      return { icon: XCircle, color: 'text-red-600', bg: 'bg-red-500/10', border: 'border-red-500/50' }
+      return { icon: XCircle, color: 'text-destructive', bg: 'bg-destructive/10', border: 'border-destructive/50' }
     case 'error':
-      return { icon: AlertCircle, color: 'text-red-500', bg: 'bg-red-500/10', border: 'border-red-500/50' }
+      return { icon: AlertCircle, color: 'text-destructive', bg: 'bg-destructive/10', border: 'border-destructive/50' }
     case 'warning':
-      return { icon: AlertTriangle, color: 'text-yellow-500', bg: 'bg-yellow-500/10', border: 'border-yellow-500/50' }
+      return { icon: AlertTriangle, color: 'text-warning', bg: 'bg-warning/10', border: 'border-warning/50' }
     case 'info':
-      return { icon: Info, color: 'text-blue-500', bg: 'bg-blue-500/10', border: 'border-blue-500/50' }
+      return { icon: Info, color: 'text-info', bg: 'bg-info/10', border: 'border-info/50' }
   }
 }
 
@@ -188,9 +189,9 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
           {block.metadata.suggestedFix && (
             <div className="mt-3 p-3 bg-background/50 rounded border border-border/50">
               <div className="flex items-start gap-2">
-                <Info size={14} className="shrink-0 mt-0.5 text-blue-500" />
+                <Info size={14} className="shrink-0 mt-0.5 text-info" />
                 <div className="flex-1">
-                  <p className="text-xs font-semibold text-blue-500 mb-1">Suggested Fix:</p>
+                  <p className="text-xs font-semibold text-info mb-1">Suggested Fix:</p>
                   <p className="text-xs text-muted-foreground">{block.metadata.suggestedFix}</p>
                 </div>
               </div>
@@ -246,6 +247,9 @@ export const BlockRenderer: React.FC<BlockRendererProps> = ({
 
     case 'diff':
       return renderWithBlockId(<DiffBlock {...commonProps} />)
+
+    case 'file-summary':
+      return renderWithBlockId(<FileSummaryBlock block={block} onFileClick={onFileReferenceClick} />)
 
     case 'tool': {
       const displayName = getToolDisplayName(block.metadata.toolName)

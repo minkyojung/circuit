@@ -336,6 +336,9 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   const { metrics } = useClaudeMetrics();
   const [lastAutoCompactTime, setLastAutoCompactTime] = useState<number>(0);
 
+  // Context metrics (calculated from messages)
+  const [contextMetrics, setContextMetrics] = useState<any>(null);
+
   // Simply pass through agentStatesByTodoId as it's already todoId-based
   // MessageComponent will use todoId from metadata to look up the state
   const messageAgentStates = agentStatesByTodoId;
@@ -371,6 +374,10 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
 
+  // Track scroll positions per workspace
+  const scrollPositionsRef = useRef<Map<string, number>>(new Map());
+  const previousWorkspaceIdRef = useRef<string | null>(null);
+
   // Track if component is mounted to prevent setState on unmounted component
   const isMountedRef = useRef(true);
 
@@ -380,8 +387,6 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   // Copy state
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
 
-  // Reasoning toggle state
-  const [openReasoningId, setOpenReasoningId] = useState<string | null>(null);
 
   // Real-time duration for in-progress message
   const [currentDuration, setCurrentDuration] = useState<number>(0);
@@ -392,6 +397,12 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
     filePath: string
     lineStart: number
     lineEnd: number
+  } | null>(null);
+
+  // Message attachment state for "Explain" action
+  const [messageAttachment, setMessageAttachment] = useState<{
+    messageId: string
+    content: string
   } | null>(null);
 
   // Handle code selection actions from editor
@@ -424,6 +435,42 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
     // Clear the action after handling
     onCodeSelectionHandled?.();
   }, [codeSelectionAction, onCodeSelectionHandled]);
+
+  // Save scroll position when workspace changes (before unmount/switch)
+  useEffect(() => {
+    const currentWorkspaceId = workspace.id;
+    const previousWorkspaceId = previousWorkspaceIdRef.current;
+
+    // Save scroll position of previous workspace
+    if (previousWorkspaceId && previousWorkspaceId !== currentWorkspaceId && scrollContainerRef.current) {
+      const scrollTop = scrollContainerRef.current.scrollTop;
+      scrollPositionsRef.current.set(previousWorkspaceId, scrollTop);
+      console.log('[Scroll] Saved scroll position for workspace', previousWorkspaceId, ':', scrollTop);
+    }
+
+    // Update previous workspace ID
+    previousWorkspaceIdRef.current = currentWorkspaceId;
+  }, [workspace.id]);
+
+  // Restore scroll position after messages are loaded
+  useEffect(() => {
+    // Only restore after loading is complete and messages are rendered
+    if (!isLoadingConversation && messages.length > 0) {
+      const currentWorkspaceId = workspace.id;
+      const savedScrollPosition = scrollPositionsRef.current.get(currentWorkspaceId);
+
+      if (savedScrollPosition !== undefined && scrollContainerRef.current) {
+        console.log('[Scroll] Restoring scroll position for workspace', currentWorkspaceId, ':', savedScrollPosition);
+
+        // Use setTimeout to ensure virtualizer has finished rendering
+        setTimeout(() => {
+          if (scrollContainerRef.current) {
+            scrollContainerRef.current.scrollTop = savedScrollPosition;
+          }
+        }, 100);
+      }
+    }
+  }, [isLoadingConversation, workspace.id]);
 
   // Load conversation when workspace or externalConversationId changes
   useEffect(() => {
@@ -582,10 +629,111 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
     setTimeout(() => setCopiedMessageId(null), 2000);
   }, []);
 
-  // Toggle reasoning accordion handler
-  const handleToggleReasoning = useCallback((messageId: string) => {
-    setOpenReasoningId((prev) => (prev === messageId ? null : messageId));
+  // Explain message handler
+  const handleExplainMessage = useCallback((messageId: string, content: string) => {
+    // Set short prompt in the input
+    const explainPrompt = `Please explain your previous response in a more structured and easy-to-understand way.
+
+Break down:
+1. What you did (specific actions taken)
+2. Why you did it that way (design decisions and rationale)
+3. The structure and flow (overall architecture)
+4. Key points to understand (core concepts)`;
+
+    setInput(explainPrompt);
+
+    // Attach the message as a reference
+    setMessageAttachment({
+      messageId,
+      content,
+    });
+
+    // Focus on the textarea
+    setTimeout(() => {
+      const textarea = document.querySelector('textarea');
+      if (textarea) {
+        textarea.focus();
+        textarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 100);
+
+    toast.success('Message attached for explanation');
   }, []);
+
+  // Retry message handler
+  const handleRetryMessage = useCallback(async (messageId: string, mode: 'normal' | 'extended') => {
+    if (!conversationId) {
+      console.error('[ChatPanel] Cannot retry: No conversation ID');
+      return;
+    }
+
+    console.log('[ChatPanel] Retrying message:', messageId, 'with mode:', mode);
+
+    // Find the assistant message and the user message before it
+    const messageIndex = messages.findIndex(m => m.id === messageId);
+    if (messageIndex === -1 || messageIndex === 0) {
+      console.error('[ChatPanel] Cannot find message or no previous message');
+      return;
+    }
+
+    // Find the previous user message
+    let userMessageIndex = messageIndex - 1;
+    while (userMessageIndex >= 0 && messages[userMessageIndex].role !== 'user') {
+      userMessageIndex--;
+    }
+
+    if (userMessageIndex < 0) {
+      console.error('[ChatPanel] Cannot find previous user message');
+      return;
+    }
+
+    const userMessage = messages[userMessageIndex];
+
+    // Extract attachments from metadata
+    const attachments: AttachedFile[] = [];
+    if (userMessage.metadata?.attachments) {
+      try {
+        const metadataAttachments = typeof userMessage.metadata.attachments === 'string'
+          ? JSON.parse(userMessage.metadata.attachments)
+          : userMessage.metadata.attachments;
+
+        attachments.push(...metadataAttachments);
+      } catch (error) {
+        console.error('[ChatPanel] Failed to parse attachments:', error);
+      }
+    }
+
+    // Delete all messages after the user message
+    const messagesToKeep = messages.slice(0, userMessageIndex + 1);
+
+    try {
+      // Update database to remove messages after the user message
+      await ipcRenderer.invoke('db:messages:delete-after', conversationId, userMessage.id);
+
+      // Update local state
+      setMessages(messagesToKeep);
+
+      // Set thinking mode based on retry mode
+      const newThinkingMode = mode === 'extended' ? 'extended' : 'normal';
+
+      // Resend the message
+      console.log('[ChatPanel] Resending message with mode:', newThinkingMode);
+      ipcRenderer.send(
+        'claude:send-message',
+        sessionId,
+        userMessage.content,
+        attachments,
+        newThinkingMode,
+        false, // architectMode - use default
+        undefined // aiRulesSystemPrompt - use default
+      );
+
+      toast.success(mode === 'extended' ? 'Retrying with extended thinking...' : 'Retrying message...');
+    } catch (error) {
+      console.error('[ChatPanel] Failed to retry message:', error);
+      toast.error('Failed to retry message');
+    }
+  }, [conversationId, messages, sessionId]);
 
   // Execute command handler
   const handleExecuteCommand = useCallback(async (command: string) => {
@@ -686,7 +834,6 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
     onMessageThinkingStepsUpdate: (msgId, data) =>
       setMessageThinkingSteps((prev) => ({ ...prev, [msgId]: data })),
     onCurrentDurationUpdate: setCurrentDuration,
-    onOpenReasoningIdUpdate: setOpenReasoningId,
 
     // Sending state
     onIsSendingUpdate: setIsSending,
@@ -844,7 +991,7 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
     }
   }, [conversationId, createTodosFromDrafts, todos.length, workspace.id, onConversationChange]);
 
-  // Handle session compact - summarize old messages to reduce token usage
+  // Handle session compact - summarize old messages to reduce token usage (Enhanced)
   const handleSessionCompact = useCallback(async (silent: boolean = false) => {
     if (!conversationId) {
       console.warn('[ChatPanel] No conversation to compact');
@@ -859,16 +1006,18 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
     }
 
     try {
-      console.log(`[ChatPanel] Starting ${silent ? 'auto' : 'manual'} session compact...`, messages.length, 'messages');
+      console.log(`[ChatPanel] 🗜️  Starting ${silent ? 'auto' : 'manual'} session compact...`);
+      console.log('[ChatPanel] Messages:', messages.length, '| Strategy: Keep initial 3 + important + recent 10');
 
       // Show loading toast only for manual compact
-      const loadingToast = silent ? null : toast.loading('Compacting session...');
+      const loadingToast = silent ? null : toast.loading('Analyzing and compacting session...');
 
-      // Call IPC handler to generate summary
+      // Call enhanced IPC handler with smart preservation
       const result = await ipcRenderer.invoke('session:compact', {
         sessionId: sessionId,
         messages: messages,
         keepRecentCount: 10,
+        keepInitialCount: 3,  // ✅ NEW: Keep first 3 messages (project context)
       });
 
       if (!result.success) {
@@ -878,58 +1027,97 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
         return;
       }
 
-      console.log('[ChatPanel] Compact successful:', {
+      // ✅ Enhanced logging
+      console.log('[ChatPanel] 📊 Compact result:', {
         originalCount: result.originalMessageCount,
+        summarizedCount: result.summarizedMessageCount,
         keptCount: result.keptMessageCount,
+        preservedImportant: result.preservedMessages?.length || 0,
         tokensBefore: result.tokensBeforeEstimate,
         tokensAfter: result.tokensAfterEstimate,
         savings: Math.round((1 - result.tokensAfterEstimate / result.tokensBeforeEstimate) * 100) + '%',
       });
 
-      // Create summary message
+      // ✅ Enhanced summary message with more context
       const timestamp = Date.now();
       const summaryMessage: Message = {
         id: `summary-${timestamp}`,
         conversationId: conversationId,
         role: 'assistant',
-        content: `## Session Summary\n\n${result.summary}\n\n---\n\n*This summary replaces ${result.originalMessageCount} earlier messages to reduce token usage.*${silent ? ' (Auto-compacted)' : ''}`,
+        content: `## 📝 Session Summary\n\n${result.summary}\n\n---\n\n*This summary consolidates **${result.summarizedMessageCount}** messages (out of ${result.originalMessageCount} total). ${result.preservedMessages?.length || 0} important messages preserved separately.*${silent ? ' 🤖 (Auto-compacted)' : ''}`,
         timestamp,
         metadata: {
           isCompactSummary: true,
           originalMessageCount: result.originalMessageCount,
+          summarizedMessageCount: result.summarizedMessageCount,
           tokensBeforeEstimate: result.tokensBeforeEstimate,
           tokensAfterEstimate: result.tokensAfterEstimate,
         },
       };
 
-      // Keep recent messages
-      const recentMessages = messages.slice(-result.keptMessageCount);
+      // ✅ Build messages array from current state
+      // Backend already selected: initial + important + recent
+      // We need to reconstruct this from message IDs
 
-      // Update messages: [summary] + [recent messages]
-      const newMessages = [summaryMessage, ...recentMessages];
+      // Simple approach: Find messages that were kept
+      // Backend returns: keptMessageCount (initial + important + recent count)
+      // We'll reconstruct by taking first 3, last 10, and any in between that match IDs
+
+      const preservedIds = new Set(result.preservedMessages?.map((m: Message) => m.id) || []);
+      const recentMessages = messages.slice(-10);  // Last 10
+      const initialMessages = messages.slice(0, 3);  // First 3
+
+      // Find preserved important messages (not in initial or recent)
+      const preservedImportant = messages.filter(msg =>
+        preservedIds.has(msg.id) &&
+        !initialMessages.some(m => m.id === msg.id) &&
+        !recentMessages.some(m => m.id === msg.id)
+      );
+
+      // Build final message array: [initial] + [summary] + [preserved important] + [recent]
+      const newMessages = [
+        ...initialMessages,
+        summaryMessage,
+        ...preservedImportant,
+        ...recentMessages,
+      ];
+
       setMessages(newMessages);
 
       // Save summary message to database
       await ipcRenderer.invoke('message:create', summaryMessage);
 
-      // Delete old messages from database (keep only summary + recent)
-      const messagesToDelete = messages.slice(0, -result.keptMessageCount);
+      // Delete summarized messages from database
+      // Backend told us which were kept, so delete everything except those + summary
+      const keptIds = new Set([
+        ...initialMessages.map(m => m.id),
+        summaryMessage.id,
+        ...preservedImportant.map(m => m.id),
+        ...recentMessages.map(m => m.id),
+      ]);
+
+      const messagesToDelete = messages.filter(msg => !keptIds.has(msg.id));
+
+      console.log(`[ChatPanel] 🗑️  Deleting ${messagesToDelete.length} summarized messages from DB...`);
+
       for (const msg of messagesToDelete) {
         await ipcRenderer.invoke('message:delete', msg.id);
       }
 
       if (loadingToast) toast.dismiss(loadingToast);
 
-      // Show success toast
+      // ✅ Enhanced success toast with more detail
+      const savedPercentage = Math.round((1 - result.tokensAfterEstimate / result.tokensBeforeEstimate) * 100);
+      const keptTotal = initialMessages.length + 1 + preservedImportant.length + recentMessages.length;
+
       if (!silent) {
         toast.success(
-          `Session compacted: ${result.originalMessageCount} messages → ${result.keptMessageCount + 1} messages (${Math.round((1 - result.tokensAfterEstimate / result.tokensBeforeEstimate) * 100)}% tokens saved)`,
-          { duration: 5000 }
+          `✅ Session compacted: ${result.originalMessageCount} → ${keptTotal} messages (${savedPercentage}% tokens saved)\n${result.summarizedMessageCount} messages summarized, ${preservedImportant.length} important kept`,
+          { duration: 6000 }
         );
       } else {
-        // Silent mode: show subtle notification
         toast.info(
-          `Context auto-compacted (${Math.round((1 - result.tokensAfterEstimate / result.tokensBeforeEstimate) * 100)}% tokens saved)`,
+          `🤖 Auto-compact: ${savedPercentage}% tokens saved`,
           { duration: 3000 }
         );
       }
@@ -941,14 +1129,41 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
 
       console.log(`[ChatPanel] ✅ Session compact completed successfully (${silent ? 'auto' : 'manual'})`);
     } catch (error) {
-      console.error('[ChatPanel] Session compact failed:', error);
+      console.error('[ChatPanel] ❌ Session compact failed:', error);
       if (!silent) toast.error('Failed to compact session. Please try again.');
     }
   }, [conversationId, sessionId, messages]);
 
+  // Calculate context metrics whenever messages change
+  useEffect(() => {
+    const calculateContextMetrics = async () => {
+      if (messages.length === 0) {
+        setContextMetrics(null);
+        return;
+      }
+
+      try {
+        const result = await ipcRenderer.invoke('context:calculate-tokens', { messages });
+
+        if (result.success && result.metrics) {
+          setContextMetrics({
+            context: result.metrics
+          });
+        }
+      } catch (error) {
+        console.error('[ChatPanel] Failed to calculate context metrics:', error);
+        setContextMetrics(null);
+      }
+    };
+
+    calculateContextMetrics();
+  }, [messages]);
+
   // Auto-compact when Context Gauge reaches 80% (shouldCompact = true)
   useEffect(() => {
-    const shouldAutoCompact = metrics?.context?.shouldCompact;
+    // Use calculated context metrics if available, fallback to useClaudeMetrics
+    const effectiveMetrics = contextMetrics || metrics;
+    const shouldAutoCompact = effectiveMetrics?.context?.shouldCompact;
 
     if (!shouldAutoCompact || !conversationId || messages.length < 20) {
       return;
@@ -966,7 +1181,7 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
     // Trigger silent auto-compact
     console.log('[ChatPanel] Auto-compact triggered (Context Gauge at 80%+)');
     handleSessionCompact(true);
-  }, [metrics?.context?.shouldCompact, conversationId, messages.length, lastAutoCompactTime, handleSessionCompact]);
+  }, [contextMetrics, metrics?.context?.shouldCompact, conversationId, messages.length, lastAutoCompactTime, handleSessionCompact]);
 
   const handleSend = async (inputText: string, attachments: AttachedFile[], thinkingMode: import('./ChatInput').ThinkingMode, architectMode: boolean) => {
     if (!inputText.trim() && attachments.length === 0) return;
@@ -989,6 +1204,21 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
 
       // Clear code attachment state
       setCodeAttachment(null);
+    }
+
+    // Append message reference attachments
+    const messageAttachments = attachments.filter(a => a.type === 'message/reference' && a.message);
+
+    if (messageAttachments.length > 0) {
+      const messageBlocks = messageAttachments.map(a => {
+        if (!a.message) return '';
+        return `\n\nPrevious response:\n${a.message.content}`;
+      }).join('\n\n');
+
+      finalInput = `${finalInput}${messageBlocks}`;
+
+      // Clear message attachment state
+      setMessageAttachment(null);
     }
 
     // Clear input immediately (improved UX)
@@ -1235,13 +1465,19 @@ The plan is ready. What would you like to do?`,
   // Memoize filtered blocks for each message to avoid expensive JSON parsing on every render
   const messagesWithFilteredBlocks = useMemo(() => {
     return messages.map(msg => {
-      // Skip if no blocks or no metadata requiring filtering
-      if (!msg.blocks || msg.blocks.length === 0 || (!msg.metadata?.planResult && !msg.metadata?.todoWriteResult)) {
+      // Skip if no blocks
+      if (!msg.blocks || msg.blocks.length === 0) {
         return { ...msg, filteredBlocks: msg.blocks };
       }
 
-      // Filter out plan/todoWrite JSON blocks
+      // Filter out file-summary blocks (shown in UnifiedReasoningPanel) and plan/todoWrite JSON blocks
       const filteredBlocks = msg.blocks.filter(block => {
+        // Remove file-summary blocks (now shown in UnifiedReasoningPanel)
+        if (block.type === 'file-summary') {
+          return false;
+        }
+
+        // Remove plan/todoWrite JSON blocks
         if (block.type === 'code' && block.metadata?.language === 'json') {
           try {
             const parsed = JSON.parse(block.content);
@@ -1284,15 +1520,13 @@ The plan is ready. What would you like to do?`,
     const msg = filteredMessages[index];
     if (!msg) return 200;
 
-    // Check if reasoning is open for this message
-    const isReasoningOpen = openReasoningId === msg.id;
+    // Check if message has reasoning (collapsed by default, showing file changes)
     const hasReasoning = messageThinkingSteps[msg.id]?.steps?.length > 0;
-
-    // If reasoning accordion is open, estimate based on number of steps
-    if (isReasoningOpen && hasReasoning) {
-      const stepCount = messageThinkingSteps[msg.id].steps.length;
-      // Each step is ~40px, plus base message height of 150px, plus accordion header ~50px
-      return 150 + 50 + (stepCount * 40);
+    if (hasReasoning) {
+      // Collapsed reasoning panel shows file changes only
+      // Estimate: base height (150px) + panel header (50px) + file changes (~40px each)
+      const fileChangeCount = 3; // Conservative estimate
+      return 150 + 50 + (fileChangeCount * 40);
     }
 
     // Estimate based on number of blocks (code blocks, etc.)
@@ -1314,7 +1548,7 @@ The plan is ready. What would you like to do?`,
 
     // Default minimum height
     return 150;
-  }, [filteredMessages, messageThinkingSteps, openReasoningId]);
+  }, [filteredMessages, messageThinkingSteps]);
 
   const virtualizer = useVirtualizer({
     count: filteredMessages.length,
@@ -1325,17 +1559,13 @@ The plan is ready. What would you like to do?`,
 
   // Auto-scroll is disabled - users can manually scroll using the "Scroll to Bottom" button
 
-  // When reasoning accordion is toggled, the estimateSize function recalculates
-  // because openReasoningId is in its dependencies. This triggers virtualizer
-  // to remeasure all items automatically. No manual measure() call needed.
-
   return (
     <div className="h-full bg-card relative">
       {/* Messages Area - with space for floating input */}
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="absolute inset-0 bottom-[240px] overflow-auto p-3"
+        className="absolute inset-0 bottom-[160px] overflow-auto p-3"
       >
         {isLoadingConversation ? (
           <div className="space-y-5 max-w-4xl mx-auto">
@@ -1374,11 +1604,10 @@ The plan is ready. What would you like to do?`,
                       isSending={isSending}
                       pendingAssistantMessageId={pendingAssistantMessageId}
                       messageThinkingSteps={messageThinkingSteps}
-                      openReasoningId={openReasoningId}
                       copiedMessageId={copiedMessageId}
                       currentDuration={currentDuration}
                       onCopyMessage={handleCopyMessage}
-                      onToggleReasoning={handleToggleReasoning}
+                      onExplainMessage={handleExplainMessage}
                       onExecuteCommand={handleExecuteCommand}
                       onFileReferenceClick={onFileReferenceClick}
                       onRunAgent={handleRunAgentForMessage}
@@ -1445,7 +1674,7 @@ The plan is ready. What would you like to do?`,
       )}
 
       {/* Enhanced Chat Input - Floating */}
-      <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-0 bg-card pointer-events-none">
+      <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-0 pointer-events-none z-50">
         <div className="pointer-events-auto max-w-4xl mx-auto">
           <ChatInput
             value={input}
@@ -1461,8 +1690,11 @@ The plan is ready. What would you like to do?`,
             projectPath={workspace.path.split('/.conductor/workspaces/')[0]}
             onAddTodo={handleAddTodo}
             onCompact={handleSessionCompact}
+            contextMetrics={contextMetrics}
             codeAttachment={codeAttachment}
             onCodeAttachmentRemove={() => setCodeAttachment(null)}
+            messageAttachment={messageAttachment}
+            onMessageAttachmentRemove={() => setMessageAttachment(null)}
           />
         </div>
       </div>

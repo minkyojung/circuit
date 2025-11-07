@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import type { Repository } from '@/types/workspace';
 import { DotMatrixAvatar } from './DotMatrixAvatar';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -315,12 +316,12 @@ export const RepositorySwitcher: React.FC<RepositorySwitcherProps> = ({
             <div className="space-y-2">
               <h4 className="text-sm font-medium">Quick Actions</h4>
               <div className="grid grid-cols-2 gap-2">
-                <button className="px-3 py-2 text-sm rounded-md border border-border hover:bg-accent transition-colors">
+                <Button variant="outline" size="sm" className="w-full">
                   Open in Finder
-                </button>
-                <button className="px-3 py-2 text-sm rounded-md border border-border hover:bg-accent transition-colors">
+                </Button>
+                <Button variant="outline" size="sm" className="w-full">
                   Open in Terminal
-                </button>
+                </Button>
               </div>
             </div>
           </div>

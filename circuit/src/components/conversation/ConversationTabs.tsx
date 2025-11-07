@@ -8,6 +8,8 @@
 import { useState, useEffect } from 'react'
 import { Plus, X, Circle, CircleCheck } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useConversationDeletion } from '@/hooks/useConversationDeletion'
+import type { Conversation } from '@/types/conversation'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,15 +23,6 @@ import {
 
 // @ts-ignore
 const { ipcRenderer } = window.require('electron')
-
-interface Conversation {
-  id: string
-  workspaceId: string
-  title: string
-  createdAt: number
-  updatedAt: number
-  lastViewedAt?: number // Optional: for tracking read/unread state
-}
 
 interface ConversationTabsProps {
   workspaceId: string | null
@@ -47,7 +40,6 @@ export function ConversationTabs({
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState('')
-  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!workspaceId) {
@@ -82,44 +74,28 @@ export function ConversationTabs({
     }
   }
 
+  // Use conversation deletion hook
+  const { deletingId, setDeletingId, isDeleting, confirmDelete } = useConversationDeletion({
+    workspaceId,
+    conversations,
+    activeConversationId,
+    onConversationChange,
+    loadConversations
+  })
+
   const handleCloseTab = (e: React.MouseEvent, conversationId: string) => {
     e.stopPropagation()
     setDeletingId(conversationId)
-  }
-
-  const confirmDelete = async () => {
-    if (!deletingId) return
-
-    try {
-      const result = await ipcRenderer.invoke('conversation:delete', deletingId)
-      if (result.success) {
-        // If deleting active conversation, switch to first available
-        if (deletingId === activeConversationId && conversations.length > 1) {
-          const otherConversation = conversations.find(c => c.id !== deletingId)
-          if (otherConversation) {
-            onConversationChange(otherConversation.id)
-          }
-        }
-
-        await loadConversations()
-      } else {
-        console.error('[ConversationTabs] Failed to delete:', result.error)
-        alert(`Failed to delete conversation: ${result.error || 'Unknown error'}`)
-      }
-    } catch (error) {
-      console.error('[ConversationTabs] Error deleting conversation:', error)
-      alert(`Error deleting conversation: ${error}`)
-    } finally {
-      setDeletingId(null)
-    }
   }
 
   const handleCreateConversation = async () => {
     if (!workspaceId || !workspaceName) return
 
     try {
-      // Create conversation with auto-generated name
-      const result = await ipcRenderer.invoke('conversation:create', workspaceId)
+      // Create conversation with workspace name + date
+      const result = await ipcRenderer.invoke('conversation:create', workspaceId, {
+        workspaceName
+      })
 
       if (result.success && result.conversation) {
         console.log('[ConversationTabs] Created conversation:', result.conversation.id)
@@ -189,7 +165,10 @@ export function ConversationTabs({
   }
 
   return (
-    <div className="flex items-center gap-1 overflow-x-auto scrollbar-thin">
+    <div className="relative flex items-center gap-0 overflow-x-auto scrollbar-thin">
+      {/* Gradient background for glassmorphism effect */}
+      <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 via-purple-500/5 to-pink-500/5 pointer-events-none" />
+
       {conversations.map((conversation) => {
         const isActive = conversation.id === activeConversationId
 
@@ -203,12 +182,18 @@ export function ConversationTabs({
           <div
             key={conversation.id}
             className={cn(
-              'group relative flex items-center gap-2 px-2 py-[7px] transition-colors',
+              'group relative flex items-center gap-2 px-2 py-[7px]',
               'text-sm font-medium whitespace-nowrap',
               'rounded-md',
+              'transition-all duration-200',
+              'z-10',  // Above gradient background
+              // Glassmorphism effect
+              'backdrop-blur-md',
+              'border border-white/10',
+              'shadow-sm',
               isActive
-                ? 'bg-secondary text-secondary-foreground'
-                : 'bg-transparent text-muted-foreground hover:bg-secondary/50 hover:text-secondary-foreground'
+                ? 'bg-white/10 text-foreground shadow-md border-white/20'
+                : 'bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground hover:shadow-md'
             )}
           >
             {/* Icon - read/unread indicator */}
@@ -244,13 +229,14 @@ export function ConversationTabs({
               </span>
             )}
 
-            {/* Close button - only show on hover */}
+            {/* Close button - always visible */}
             {conversations.length > 1 && !isEditing && (
               <button
                 onClick={(e) => handleCloseTab(e, conversation.id)}
                 className={cn(
-                  'ml-1 p-0.5 rounded hover:bg-destructive/20 hover:text-destructive transition-all',
-                  'opacity-0 group-hover:opacity-100'
+                  'ml-1 p-0.5 rounded transition-all',
+                  'text-muted-foreground/40 hover:text-foreground hover:bg-secondary',
+                  'opacity-100'
                 )}
               >
                 <X size={14} />
@@ -276,7 +262,7 @@ export function ConversationTabs({
       <AlertDialog open={deletingId !== null} onOpenChange={(open) => !open && setDeletingId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Conversation?</AlertDialogTitle>
+            <AlertDialogTitle>Delete Conversation</AlertDialogTitle>
             <AlertDialogDescription>
               This will permanently delete this conversation and all its messages. This action cannot be undone.
             </AlertDialogDescription>

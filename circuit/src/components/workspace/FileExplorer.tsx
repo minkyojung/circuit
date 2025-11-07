@@ -197,30 +197,30 @@ const FileTreeItemComponent: React.FC<{
               </SidebarMenuButton>
             </CollapsibleTrigger>
           </div>
-          <CollapsibleContent className="overflow-hidden transition-all duration-300 ease-in-out data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0">
-            {node.children?.map((child, index) => (
-              <motion.div
-                key={child.path}
-                initial={isOpen ? { opacity: 0, y: -5 } : false}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{
-                  duration: 0.15,
-                  delay: isOpen ? index * 0.02 : 0,
-                  ease: "easeOut"
-                }}
-              >
-                <FileTreeItem
-                  node={child}
-                  depth={depth + 1}
-                  onSelect={onSelect}
-                  selectedFile={selectedFile}
-                  searchQuery={searchQuery}
-                  collapseKey={collapseKey}
-                />
-              </motion.div>
-            ))}
-          </CollapsibleContent>
         </SidebarMenuItem>
+        <CollapsibleContent className="overflow-hidden transition-all duration-300 ease-in-out data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0">
+          {node.children?.map((child, index) => (
+            <motion.div
+              key={child.path}
+              initial={isOpen ? { opacity: 0, y: -5 } : false}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{
+                duration: 0.15,
+                delay: isOpen ? index * 0.02 : 0,
+                ease: "easeOut"
+              }}
+            >
+              <FileTreeItem
+                node={child}
+                depth={depth + 1}
+                onSelect={onSelect}
+                selectedFile={selectedFile}
+                searchQuery={searchQuery}
+                collapseKey={collapseKey}
+              />
+            </motion.div>
+          ))}
+        </CollapsibleContent>
       </Collapsible>
     )
   }

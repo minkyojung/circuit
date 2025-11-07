@@ -1,0 +1,17 @@
+{
+  "name": "Node.js API Development",
+  "description": "RESTful API and backend services with Node.js",
+  "projectTypes": ["node", "typescript"],
+  "rules": [
+    "Use Express or Fastify for HTTP server framework",
+    "Implement proper error handling middleware with try-catch async wrappers",
+    "Always validate request body/params with Zod, Joi, or class-validator",
+    "Use environment variables for all configuration, never hardcode secrets",
+    "Implement rate limiting and request throttling for public endpoints",
+    "Use async/await instead of callbacks or raw promises",
+    "Structure code with controllers, services, and repositories pattern",
+    "Implement proper logging with structured JSON logs (Winston, Pino)",
+    "Use dependency injection for better testability",
+    "Always return consistent error response format with status codes"
+  ]
+}

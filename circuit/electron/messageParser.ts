@@ -44,7 +44,8 @@ export type BlockType =
   | 'list'       // List (generic)
   | 'checklist'  // Checklist with checkboxes
   | 'table'      // Table data
-  | 'tool';      // Tool invocation (AI SDK integration)
+  | 'tool'       // Tool invocation (AI SDK integration)
+  | 'file-summary'; // Summary of file changes in a message
 
 /**
  * Metadata specific to each block type.
@@ -108,6 +109,18 @@ export interface BlockMetadata {
   status?: 'pending' | 'running' | 'success' | 'error';
   suggestedFix?: string;  // Error blocks
   errorCode?: string | number;  // Error blocks
+
+  // File summary blocks
+  files?: Array<{
+    filePath: string;
+    changeType: 'created' | 'modified' | 'deleted';
+    additions: number;
+    deletions: number;
+    toolCallId?: string;
+  }>;
+  totalAdditions?: number;
+  totalDeletions?: number;
+  totalFiles?: number;
 }
 
 /**

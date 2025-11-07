@@ -9,6 +9,8 @@ import { useState, useEffect } from 'react'
 import { Plus, X, Circle, CircleCheck } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Separator } from '@/components/ui/separator'
+import { useConversationDeletion } from '@/hooks/useConversationDeletion'
+import type { Conversation } from '@/types/conversation'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -66,15 +68,6 @@ const getFileIconComponent = (filename: string): React.ComponentType<React.SVGPr
   return iconComponentMap[iconName] || DefaultIcon
 }
 
-interface Conversation {
-  id: string
-  workspaceId: string
-  title: string
-  createdAt: number
-  updatedAt: number
-  lastViewedAt?: number
-}
-
 export interface OpenFile {
   path: string
   unsavedChanges?: boolean
@@ -107,7 +100,6 @@ export function UnifiedTabs({
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingTitle, setEditingTitle] = useState('')
-  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [closeFileDialogOpen, setCloseFileDialogOpen] = useState(false)
   const [fileToClose, setFileToClose] = useState<string | null>(null)
 
@@ -143,35 +135,18 @@ export function UnifiedTabs({
     }
   }
 
+  // Use conversation deletion hook
+  const { deletingId, setDeletingId, isDeleting, confirmDelete } = useConversationDeletion({
+    workspaceId,
+    conversations,
+    activeConversationId,
+    onConversationChange,
+    loadConversations
+  })
+
   const handleCloseConversation = (e: React.MouseEvent, conversationId: string) => {
     e.stopPropagation()
     setDeletingId(conversationId)
-  }
-
-  const confirmDelete = async () => {
-    if (!deletingId) return
-
-    try {
-      const result = await ipcRenderer.invoke('conversation:delete', deletingId)
-      if (result.success) {
-        if (deletingId === activeConversationId && conversations.length > 1) {
-          const otherConversation = conversations.find(c => c.id !== deletingId)
-          if (otherConversation) {
-            onConversationChange(otherConversation.id)
-          }
-        }
-
-        await loadConversations()
-      } else {
-        console.error('[UnifiedTabs] Failed to delete:', result.error)
-        alert(`Failed to delete conversation: ${result.error || 'Unknown error'}`)
-      }
-    } catch (error) {
-      console.error('[UnifiedTabs] Error deleting conversation:', error)
-      alert(`Error deleting conversation: ${error}`)
-    } finally {
-      setDeletingId(null)
-    }
   }
 
   const handleCreateConversation = async () => {
@@ -404,7 +379,7 @@ export function UnifiedTabs({
       <AlertDialog open={deletingId !== null} onOpenChange={(open) => !open && setDeletingId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Conversation?</AlertDialogTitle>
+            <AlertDialogTitle>Delete Conversation</AlertDialogTitle>
             <AlertDialogDescription>
               This will permanently delete this conversation and all its messages. This action cannot be undone.
             </AlertDialogDescription>

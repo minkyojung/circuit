@@ -13,6 +13,7 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useSettingsContext } from '@/contexts/SettingsContext';
+import type { ContextMetrics } from '@/types/metrics';
 
 export type CompactLevel = 'normal' | 'warning' | 'recommend' | 'urgent';
 
@@ -20,16 +21,6 @@ interface CompactState {
   level: CompactLevel;
   lastNotified: number | null;
   userDismissed: boolean;
-}
-
-interface ContextMetrics {
-  current: number;
-  limit: number;
-  percentage: number;
-  lastCompact: string | null;
-  sessionStart: string;
-  prunableTokens: number;
-  shouldCompact: boolean;
 }
 
 interface UseAutoCompactOptions {
