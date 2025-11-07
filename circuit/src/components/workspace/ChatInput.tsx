@@ -395,7 +395,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         setShowCommandMenu(false)
 
         // Submit the command content as a message
-        await onSubmit(result.content, attachedFiles, thinkingMode)
+        await onSubmit(result.content, attachedFiles, thinkingMode, architectMode)
 
         toast.success(`Executed /${commandName}`)
       } else {

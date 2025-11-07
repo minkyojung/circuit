@@ -1,12 +1,12 @@
-import { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useRef, useCallback, type ReactNode } from 'react'
 import { Terminal as XTermTerminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
 import FontFaceObserver from 'fontfaceobserver'
 
-// @ts-ignore - Electron IPC
-const { ipcRenderer } = window.require('electron')
+// Use the secure Electron API exposed via preload script
+const ipcRenderer = window.electron.ipcRenderer
 
 interface TerminalAddons {
   fitAddon: FitAddon

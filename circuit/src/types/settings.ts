@@ -10,7 +10,7 @@ export type ClaudeModel =
   | 'claude-haiku-4-20250918';
 
 export type SendKeyCombo = 'enter' | 'cmd-enter' | 'shift-enter';
-export type CompletionSound = 'chime' | 'ding' | 'pop' | 'none';
+export type CompletionSound = 'none' | 'subtle' | 'classic' | 'modern';
 export type ThemeMode = 'light' | 'dark' | 'system' | 'green-light' | 'green-dark' | 'warm-light' | 'warm-dark' | 'straw-light' | 'slate-dark';
 export type CompactMode = 'immediate' | 'idle' | 'prompt';
 export type TerminalMode = 'classic' | 'modern';
@@ -158,7 +158,7 @@ export const defaultSettings: CircuitSettings = {
     sessionComplete: true,
   },
   sounds: {
-    completionSound: 'chime',
+    completionSound: 'subtle',
     volume: 50,
   },
   input: {

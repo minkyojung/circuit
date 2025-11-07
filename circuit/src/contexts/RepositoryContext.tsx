@@ -2,7 +2,7 @@
  * RepositoryContext - Manages currently selected repository across the app
  */
 
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
 import type { Repository } from '@/types/workspace';
 
 interface RepositoryContextValue {

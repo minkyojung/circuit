@@ -44,6 +44,7 @@ export interface Message {
     // Session compact-related
     isCompactSummary?: boolean
     originalMessageCount?: number
+    summarizedMessageCount?: number
     tokensBeforeEstimate?: number
     tokensAfterEstimate?: number
     // Plan mode retry

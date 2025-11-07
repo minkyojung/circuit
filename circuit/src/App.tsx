@@ -102,7 +102,7 @@ function MainHeader({
   onFileSelect: (path: string, line?: number) => void
   onWorkspaceSelect: (workspaceId: string) => void
   activeFilePath: string | null
-  searchBarRef: React.RefObject<HTMLInputElement>
+  searchBarRef: React.RefObject<HTMLInputElement | null>
 }) {
   const { state: sidebarState } = useSidebar()
 
