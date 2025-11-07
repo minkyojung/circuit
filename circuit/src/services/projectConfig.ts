@@ -7,7 +7,7 @@ import type { ProjectConfig, AIRule, ProjectType, Framework } from '../types/pro
 import { DEFAULT_PROJECT_CONFIG } from '../types/project';
 
 // @ts-ignore
-const { ipcRenderer } = window.require('electron');
+const ipcRenderer = window.electron.ipcRenderer;
 
 const PROJECT_CONFIG_FILENAME = 'project.json';
 const CIRCUIT_DIR = '.circuit';

@@ -64,8 +64,7 @@ import { PathResolver } from '@/lib/pathResolver'
 import { SettingsPanel } from '@/components/SettingsPanel'
 import './App.css'
 
-// @ts-ignore - Electron IPC
-const { ipcRenderer } = window.require('electron')
+const ipcRenderer = window.electron.ipcRenderer;
 
 // Project Path Context
 interface ProjectPathContextValue {
@@ -453,7 +452,7 @@ function App() {
 
   // Create workspace handler for Command Palette
   const handleCreateWorkspace = async () => {
-    const { ipcRenderer } = window.require('electron')
+    const ipcRenderer = window.electron.ipcRenderer;
     try {
       const result = await ipcRenderer.invoke('workspace:create')
       if (result.success && result.workspace) {
@@ -472,7 +471,7 @@ function App() {
   useEffect(() => {
     const loadProjectPath = async () => {
       try {
-        const { ipcRenderer } = window.require('electron')
+        const ipcRenderer = window.electron.ipcRenderer;
         const result = await ipcRenderer.invoke('circuit:get-project-path')
 
         if (result.success) {
@@ -990,7 +989,7 @@ function App() {
     if (!selectedWorkspace) return
 
     const loadDefaultConversation = async () => {
-      const { ipcRenderer } = window.require('electron')
+      const ipcRenderer = window.electron.ipcRenderer;
 
       try {
         // Get all conversations for this workspace

@@ -5,8 +5,7 @@ import { Plus, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-// @ts-ignore - Electron IPC
-const { ipcRenderer } = window.require('electron');
+const ipcRenderer = window.electron.ipcRenderer;
 
 interface WorkspaceManagerProps {
   onSelectWorkspace: (workspace: Workspace) => void;

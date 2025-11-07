@@ -44,8 +44,7 @@ import { getAIRulesContext } from '@/services/projectConfigLocal';
 // The vite-plugin-monaco-editor plugin handles web worker configuration automatically
 loader.config({ monaco });
 
-// @ts-ignore - Electron IPC
-const { ipcRenderer } = window.require('electron');
+const ipcRenderer = window.electron.ipcRenderer;
 
 interface WorkspaceChatEditorProps {
   workspace: Workspace;

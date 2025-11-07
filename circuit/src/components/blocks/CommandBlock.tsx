@@ -14,7 +14,7 @@ import type { Block } from '../../types/conversation'
 import { Copy, Check, Play, Loader2, AlertCircle, Bookmark, BookmarkCheck } from 'lucide-react'
 import { toast } from 'sonner'
 
-const { ipcRenderer } = window.require('electron')
+const ipcRenderer = window.electron.ipcRenderer;
 
 interface CommandBlockProps {
   block: Block

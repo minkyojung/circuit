@@ -28,14 +28,12 @@ export async function readCircuitConfig(projectPath: string): Promise<CircuitCon
   }
 
   try {
-    // Node.js fs module을 사용해서 파일 읽기
-    const fs = window.require('fs')
-    const path = window.require('path')
-
-    const configPath = path.join(projectPath, '.circuit', 'circuit.config.md')
+    // Use secure IPC bridge for file operations
+    const configPath = `${projectPath}/.circuit/circuit.config.md`
 
     // 파일 존재 여부 확인
-    if (!fs.existsSync(configPath)) {
+    const exists = await window.electron.fs.fileExists(configPath)
+    if (!exists) {
       return {
         projectPath,
         configExists: false,
@@ -44,7 +42,7 @@ export async function readCircuitConfig(projectPath: string): Promise<CircuitCon
     }
 
     // 파일 읽기
-    const configContent = fs.readFileSync(configPath, 'utf-8')
+    const configContent = await window.electron.fs.readFile(configPath)
 
     // Strategy 추출 (간단한 파싱)
     const strategyMatch = configContent.match(/Strategy:\s*(\w+)/i)

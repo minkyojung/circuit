@@ -6,8 +6,7 @@ import { useState } from 'react';
 import { Sparkles, Loader2, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-// @ts-ignore - Electron IPC
-const { ipcRenderer } = window.require('electron');
+const ipcRenderer = window.electron.ipcRenderer;
 
 interface CommitInterfaceProps {
   workspacePath: string;

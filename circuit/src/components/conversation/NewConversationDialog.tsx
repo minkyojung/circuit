@@ -18,7 +18,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
 // @ts-ignore
-const { ipcRenderer } = window.require('electron')
+const ipcRenderer = window.electron.ipcRenderer;
 
 interface NewConversationDialogProps {
   workspaceId: string

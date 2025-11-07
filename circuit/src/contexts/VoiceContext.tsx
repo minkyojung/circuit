@@ -8,8 +8,7 @@ import type {
   AgentTask
 } from '@/types/voice'
 
-// @ts-ignore - Electron IPC
-const { ipcRenderer } = window.require('electron')
+const ipcRenderer = window.electron.ipcRenderer;
 
 interface VoiceContextType {
   // 음성 입력 상태

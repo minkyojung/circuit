@@ -24,8 +24,7 @@ import type {
 } from './types';
 import { TypeDefinitionLoader } from './TypeDefinitionLoader';
 
-// @ts-ignore - Electron IPC
-const { ipcRenderer } = window.require('electron');
+const ipcRenderer = window.electron.ipcRenderer;
 
 export class MonacoLanguageService implements ILanguageService {
   private config: LanguageConfig | null = null;

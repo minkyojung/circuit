@@ -6,8 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { GitCommit } from '@/types/git';
 import { Loader2 } from 'lucide-react';
 
-// @ts-ignore - Electron IPC
-const { ipcRenderer } = window.require('electron');
+const ipcRenderer = window.electron.ipcRenderer;
 
 interface GitGraphCanvasProps {
   workspacePath: string;

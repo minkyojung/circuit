@@ -9,7 +9,7 @@ import type { Message } from '@/types/conversation';
 import type { ThinkingStep } from '@/types/thinking';
 
 // @ts-ignore
-const { ipcRenderer } = window.require('electron');
+const ipcRenderer = window.electron.ipcRenderer;
 
 export interface ProcessMessageOptions {
   // Response data

@@ -6,7 +6,7 @@
  */
 
 // @ts-ignore
-const { ipcRenderer } = window.require('electron');
+const ipcRenderer = window.electron.ipcRenderer;
 
 export class FileChangeDetector {
   /**

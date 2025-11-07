@@ -14,8 +14,7 @@
 
 import type { TypeDefinition } from './types';
 
-// @ts-ignore - Electron IPC
-const { ipcRenderer } = window.require('electron');
+const ipcRenderer = window.electron.ipcRenderer;
 
 export class TypeDefinitionLoader {
   private cache = new Map<string, TypeDefinition>();

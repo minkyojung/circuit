@@ -13,7 +13,7 @@ import { FileText, Clock, Folder, Braces, Box, Type, Hash } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // @ts-ignore
-const { ipcRenderer } = window.require('electron');
+const ipcRenderer = window.electron.ipcRenderer;
 
 // ============================================================================
 // Types

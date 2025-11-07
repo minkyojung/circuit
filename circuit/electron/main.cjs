@@ -263,7 +263,9 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js'),
+      preload: process.env.VITE_DEV_SERVER_URL
+        ? path.join(__dirname, '../dist-electron/preload.js')
+        : path.join(__dirname, 'preload.js'),
     },
   });
 

@@ -11,7 +11,7 @@ import type { ThinkingStep } from '@/types/thinking';
 import type { AttachedFile } from '@/components/workspace/ChatInput';
 
 // @ts-ignore
-const { ipcRenderer } = window.require('electron');
+const ipcRenderer = window.electron.ipcRenderer;
 
 // ============================================================================
 // Type Definitions

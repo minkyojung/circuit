@@ -17,7 +17,7 @@ import type { Message } from '@/types/conversation';
 import type { TodoGenerationResult } from '@/types/todo';
 
 // @ts-ignore
-const { ipcRenderer } = window.require('electron');
+const ipcRenderer = window.electron.ipcRenderer;
 
 export interface TodoWriteProcessOptions {
   // Message data

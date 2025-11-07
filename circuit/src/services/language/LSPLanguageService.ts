@@ -16,8 +16,7 @@ import type {
   LSPServerType,
 } from './types';
 
-// @ts-ignore - Electron IPC
-const { ipcRenderer } = window.require('electron');
+const ipcRenderer = window.electron.ipcRenderer;
 
 /**
  * LSP Language Service
