@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
 import {
   Collapsible,
@@ -37,6 +37,13 @@ export const UnifiedReasoningPanel: React.FC<UnifiedReasoningPanelProps> = ({
   onFileClick,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+
+  // Auto-expand when live (working)
+  useEffect(() => {
+    if (isLive) {
+      setIsExpanded(true);
+    }
+  }, [isLive]);
 
   // Unified file changes: prefer FileSummaryBlock data, fallback to extracted from steps
   const fileChanges = fileSummaryBlock

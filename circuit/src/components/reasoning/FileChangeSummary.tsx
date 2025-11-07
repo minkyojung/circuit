@@ -38,16 +38,6 @@ export const FileChangeSummary: React.FC<FileChangeSummaryProps> = ({
         const deletions = change.deletions || 0;
         const hasDiffStats = additions > 0 || deletions > 0;
 
-        // Debug: log to console if diff stats are missing
-        if (!hasDiffStats) {
-          console.log('[FileChangeSummary] No diff stats:', {
-            filePath: change.filePath,
-            additions,
-            deletions,
-            rawChange: change
-          });
-        }
-
         return (
           <div
             key={`${change.filePath}-${idx}`}

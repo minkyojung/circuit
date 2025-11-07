@@ -346,15 +346,6 @@ export function registerConversationHandlers(): void {
                 if (step.type === 'tool-use') {
                   // Edit tool: track as modification
                   if (step.tool === 'Edit' && step.filePath) {
-                    console.log('[message:save] 📝 Found Edit tool call:', step.filePath)
-                    console.log('[message:save] 🔍 DEBUG step data:', {
-                      hasOldString: !!step.oldString,
-                      hasNewString: !!step.newString,
-                      oldStringLength: step.oldString?.length || 0,
-                      newStringLength: step.newString?.length || 0,
-                      stepKeys: Object.keys(step)
-                    })
-                    // ✅ Pass full Edit args including old_string and new_string
                     fileAggregator.trackFromEdit(
                       {
                         file_path: step.filePath,
@@ -367,8 +358,6 @@ export function registerConversationHandlers(): void {
                   }
                   // Write tool: track as creation or modification
                   else if (step.tool === 'Write' && step.filePath) {
-                    console.log('[message:save] ✍️  Found Write tool call:', step.filePath)
-                    // ✅ Pass full Write args including content
                     fileAggregator.trackFromWrite(
                       {
                         file_path: step.filePath,
