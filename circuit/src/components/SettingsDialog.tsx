@@ -92,7 +92,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
                       className={cn(
                         'w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors text-left',
                         isActive
-                          ? 'bg-primary/10 text-primary font-medium'
+                          ? 'bg-[#192621]/10 text-[#192621] dark:text-[#E8EEEB] font-medium'
                           : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                       )}
                     >
@@ -133,7 +133,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({ isOpen, onClose 
             <div className="flex-1" />
             <button
               onClick={onClose}
-              className="px-5 py-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors font-medium text-sm"
+              className="px-5 py-1.5 bg-[#192621] text-white rounded-md hover:bg-[#223330] transition-colors font-medium text-sm border border-[#2A3D35]"
             >
               Done
             </button>
@@ -735,7 +735,7 @@ const ArchiveSettings: React.FC = () => {
           placeholder="Search archived workspaces..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full px-3 py-1.5 text-sm bg-muted border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary"
+          className="w-full px-3 py-1.5 text-sm bg-muted border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-[#192621]"
         />
       </div>
 
@@ -779,7 +779,7 @@ const ArchiveSettings: React.FC = () => {
                 <div className="flex gap-1.5 flex-shrink-0">
                   <button
                     onClick={() => handleUnarchive(workspace.id)}
-                    className="px-2.5 py-1 text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 rounded transition-colors"
+                    className="px-2.5 py-1 text-xs font-medium bg-[#192621]/10 text-[#192621] dark:text-[#E8EEEB] hover:bg-[#192621]/20 rounded transition-colors"
                   >
                     Restore
                   </button>
