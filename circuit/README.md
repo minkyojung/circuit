@@ -1,18 +1,18 @@
-# Circuit - AI-Powered Test-Fix Loop
+# Octave - AI-Powered Development Workspace
 
-> **Fully automated test-fix cycle**: Fail → AI Analysis → Auto Fix → Re-test → Pass ✅
+> **Branch-based workspace isolation with AI-powered coding assistance**
 
-Circuit is a macOS developer tool that watches your tests, detects failures, and automatically fixes them using AI - without you leaving your editor.
+Octave is a macOS developer tool that provides Git worktree-based workspace management with integrated Claude Code support - streamlining your development workflow.
 
 ## 🎯 Vision
 
-Stop context-switching between your editor, terminal, and test results. Circuit brings **ambient, frictionless test monitoring** directly into your macOS workflow.
+Stop context-switching between branches and terminals. Octave brings **ambient, frictionless workspace management** directly into your macOS workflow.
 
 ## ✅ Current Features (Phase 0-6)
 
 ### Phase 0-1: Foundation
 - ✅ Electron + React + TypeScript app
-- ✅ `.circuit/` folder initialization
+- ✅ `.octave/` folder initialization
 - ✅ Project configuration management
 
 ### Phase 2: Smart Detection
@@ -31,11 +31,11 @@ Stop context-switching between your editor, terminal, and test results. Circuit 
 - ✅ Auto-run tests on file change
 - ✅ Error line extraction
 
-### Phase 5: AI Fix Suggestions (Conductor-style)
+### Phase 5: AI Integration
 - ✅ **No API key needed** - uses Claude Code CLI
-- ✅ Subprocess integration (`~/.claude/local/claude`)
+- ✅ Subprocess integration with Claude Code
 - ✅ Reuses user's Claude Code authentication
-- ✅ stdin/stdout JSON protocol
+- ✅ Streaming response support
 - ✅ Cost tracking per request
 
 ### Phase 6: Fully Automated Fix Application
@@ -45,84 +45,33 @@ Stop context-switching between your editor, terminal, and test results. Circuit 
 - ✅ Auto-rerun tests after fix
 - ✅ **Complete loop**: Fail → Get AI Fix → Apply → Re-test → Pass 🎉
 
-## 🚀 UX Roadmap: Frictionless Integration
+## 🚀 Core Features
 
-**Goal**: Zero context-switching. Circuit should be **always visible but never intrusive**.
+**Goal**: Seamless workspace management with AI assistance.
 
-### Phase 7: Circuit Peek - Non-Activating Panel (Next)
-> Small floating panel that stays visible without stealing focus
+### Git Worktree-Based Workspaces
+- Branch isolation using Git worktrees
+- Multiple branches open simultaneously
+- Independent working directories
+- Workspace metadata tracking
 
-```
-[Your Editor]              [Circuit Peek]
-┌────────────────┐        ┌──────────────┐
-│ coding...      │        │ 🟢 15 passed │
-│                │        │ ⏱  0.34s     │
-│                │        │              │
-│                │ <save> │ Auto-run: ☑️ │
-└────────────────┘        └──────────────┘
-                          ↓
-                          ┌──────────────┐
-                          │ 🔴 2 failed  │
-                          │ [Get AI Fix] │
-                          └──────────────┘
-```
+### Claude Code Integration
+- Integrated AI coding assistant
+- Context-aware suggestions
+- File and conversation management
+- MCP server support
 
-**Features:**
-- Always-on-top NSPanel
-- `acceptsFirstMouse: false` - doesn't steal focus
-- Smart positioning near active editor
-- Auto-expand on failure
-- One-click AI Fix
+### Terminal Integration
+- Built-in terminal for each workspace
+- Shell hook support
+- Command history
+- Split view support
 
-**Timeline**: 3 days
-
----
-
-### Phase 8: Circuit Notch - Dynamic Island Style
-> Use MacBook Notch for ambient status display
-
-```
-MacBook Notch:
-     ╔════════════╗
-     ║ 🔴 2 failed ║  ← Auto-expands on failure
-     ║ [💡 Fix]    ║
-     ╚════════════╝
-```
-
-**Features:**
-- DynamicNotchKit integration
-- Color-coded states (green/yellow/red)
-- Live progress during test runs
-- Expandable for detailed info
-- Click to trigger AI Fix
-
-**Limitations**: MacBook Pro 2021+ with Notch only
-
-**Timeline**: 1 week
-
----
-
-### Phase 9: Circuit Cmd+Tab - App Switcher Enhancement
-> Show Circuit status in Cmd+Tab preview
-
-```
-Cmd+Tab:
-┌──────────────────────────────┐
-│        [Circuit●]             │
-│  ┌────────────────────────┐  │
-│  │ 🔴 2 tests failed      │  │
-│  │ Press Enter: Get AI Fix│  │
-│  └────────────────────────┘  │
-└──────────────────────────────┘
-```
-
-**Features:**
-- Custom app preview in Cmd+Tab
-- Quick actions without opening app
-- Keyboard-driven workflow
-- Zero learning curve (existing muscle memory)
-
-**Timeline**: 3 days
+### Monaco Editor Integration
+- Full-featured code editor
+- Syntax highlighting for 200+ languages
+- LSP support (TypeScript, Go, etc.)
+- Multi-file editing
 
 ---
 
@@ -138,18 +87,21 @@ Cmd+Tab:
 
 ### Project Structure
 ```
-circuit/
+octave/
 ├── electron/
-│   └── main.cjs              # 7 IPC handlers
+│   ├── main.cjs              # Main process
+│   ├── mcp-manager.ts        # MCP server management
+│   ├── terminalManager.ts    # Terminal integration
+│   └── octave-proxy.js       # MCP proxy
 ├── src/
 │   ├── components/
-│   │   ├── TestFixTab.tsx    # Main UI
+│   │   ├── workspace/        # Workspace management
+│   │   ├── editor/           # Monaco editor
 │   │   └── ui/               # Shadcn components
-│   └── core/
-│       ├── detector.ts       # Project type detection
-│       ├── watcher.ts        # File change monitoring
-│       ├── test-runner.ts    # Test execution
-│       └── claude-cli.ts     # AI integration + parsing
+│   ├── services/
+│   │   ├── projectConfig.ts  # Project configuration
+│   │   └── IPCEventBridge.ts # IPC communication
+│   └── contexts/
 └── package.json
 ```
 
@@ -170,7 +122,7 @@ npm install
 npm run dev
 ```
 
-Opens Circuit app with hot-reload enabled.
+Opens Octave app with hot-reload enabled.
 
 ### Build
 ```bash
@@ -180,32 +132,30 @@ npm run package  # macOS .app bundle
 
 ## 📖 How It Works
 
-1. **Project Detection**: Analyzes your `package.json` to detect React/Next.js/Node
-2. **File Watching**: Monitors your source files for changes
-3. **Auto-run Tests**: Runs `npm test` when files change
-4. **Parse Results**: Extracts pass/fail counts and error messages
-5. **AI Analysis**: Sends test file + error to Claude CLI
-6. **Apply Fix**: Parses AI response, writes fixed code, creates backup
-7. **Re-test**: Automatically re-runs tests
-8. **Success**: Loop completes when all tests pass ✅
+1. **Repository Selection**: Choose a Git repository to work with
+2. **Workspace Creation**: Create Git worktree-based workspaces for each branch
+3. **AI Assistance**: Integrated Claude Code for coding assistance
+4. **File Management**: Edit files across multiple workspaces simultaneously
+5. **Terminal Access**: Built-in terminal for each workspace
+6. **MCP Integration**: Connect external tools via MCP servers
 
 ## 🎨 Design Philosophy
 
-Circuit follows **ambient computing** principles:
-- **Always visible, never intrusive**
-- **Context-aware notifications** (only when needed)
-- **Keyboard-first** (minimize mouse usage)
-- **No forced attention** (you decide when to act)
+Octave follows **workflow-first** principles:
+- **Branch isolation without switching**
+- **AI-native development experience**
+- **Keyboard-first navigation**
+- **Context preservation across workspaces**
 
-Inspired by: Raycast, Arc Browser, Things 3, DynamicLake, Cursor IDE
+Inspired by: Cursor IDE, Linear, Raycast, Conductor
 
 ## 🤝 Contributing
 
-Circuit is in active development. Current focus:
-- [ ] Phase 7: Circuit Peek panel
-- [ ] Multi-file test support
-- [ ] Source code analysis (not just test files)
-- [ ] Custom test commands beyond `npm test`
+Octave is in active development. Current focus:
+- [ ] Enhanced workspace management
+- [ ] Additional MCP server support
+- [ ] Advanced editor features
+- [ ] Performance optimizations
 
 ## 📄 License
 

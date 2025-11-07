@@ -3,15 +3,17 @@
  *
  * Checks:
  * - macOS version
- * - Claude Code CLI
- * - Git
+ * - Claude Code CLI authentication
+ * - Git configuration
+ * - GitHub authentication (optional)
  * - Node.js (optional)
  */
 
 import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { CheckCircle2, XCircle, Loader2, AlertCircle, ExternalLink } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { CheckCircle2, XCircle, Loader2, AlertCircle, ExternalLink, Copy, Check } from 'lucide-react';
 import type { SystemCheckResult } from '@/types/onboarding';
 import { runSystemCheck } from '@/lib/onboarding';
 
@@ -24,6 +26,18 @@ export function SystemCheckStep({ onComplete, systemCheck: initialCheck }: Syste
   const [checking, setChecking] = useState(false);
   const [result, setResult] = useState<SystemCheckResult | null>(initialCheck);
   const [error, setError] = useState<string | null>(null);
+  const [checkingStep, setCheckingStep] = useState<string>('');
+
+  // Git config form state
+  const [gitName, setGitName] = useState('');
+  const [gitEmail, setGitEmail] = useState('');
+  const [configuringGit, setConfiguringGit] = useState(false);
+
+  // SSH setup state
+  const [sshPublicKey, setSshPublicKey] = useState<string | null>(null);
+  const [generatingSSH, setGeneratingSSH] = useState(false);
+  const [testingSSH, setTestingSSH] = useState(false);
+  const [sshCopied, setSshCopied] = useState(false);
 
   useEffect(() => {
     if (!result && !checking) {
@@ -36,12 +50,105 @@ export function SystemCheckStep({ onComplete, systemCheck: initialCheck }: Syste
     setError(null);
 
     try {
+      setCheckingStep('Checking system requirements...');
       const checkResult = await runSystemCheck();
       setResult(checkResult);
+      setCheckingStep('');
+
+      // Pre-fill git config if available
+      if (checkResult.gitUserName) setGitName(checkResult.gitUserName);
+      if (checkResult.gitUserEmail) setGitEmail(checkResult.gitUserEmail);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'System check failed');
     } finally {
       setChecking(false);
+    }
+  };
+
+  const handleConfigureGit = async () => {
+    if (!gitName || !gitEmail) return;
+
+    setConfiguringGit(true);
+    try {
+      const ipcRenderer = window.electron.ipcRenderer;
+      const configResult = await ipcRenderer.invoke('git:configure', { name: gitName, email: gitEmail });
+
+      if (configResult.success) {
+        // Re-run check to update status
+        await runCheck();
+      } else {
+        setError(configResult.error || 'Failed to configure Git');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to configure Git');
+    } finally {
+      setConfiguringGit(false);
+    }
+  };
+
+  const handleGenerateSSHKey = async () => {
+    if (!gitEmail) {
+      setError('Please configure Git with your email first');
+      return;
+    }
+
+    setGeneratingSSH(true);
+    try {
+      const ipcRenderer = window.electron.ipcRenderer;
+      const sshResult = await ipcRenderer.invoke('github:generate-ssh-key', gitEmail);
+
+      if (sshResult.success && sshResult.publicKey) {
+        setSshPublicKey(sshResult.publicKey);
+      } else {
+        setError(sshResult.error || 'Failed to generate SSH key');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate SSH key');
+    } finally {
+      setGeneratingSSH(false);
+    }
+  };
+
+  const handleCopySSHKey = async () => {
+    if (!sshPublicKey) return;
+
+    try {
+      await navigator.clipboard.writeText(sshPublicKey);
+      setSshCopied(true);
+      setTimeout(() => setSshCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy SSH key:', err);
+    }
+  };
+
+  const handleTestSSHConnection = async () => {
+    setTestingSSH(true);
+    try {
+      const ipcRenderer = window.electron.ipcRenderer;
+      const testResult = await ipcRenderer.invoke('github:test-ssh');
+
+      if (testResult.authenticated) {
+        // Re-run check to update GitHub status
+        await runCheck();
+        setSshPublicKey(null); // Clear SSH setup UI
+      } else {
+        setError(testResult.error || 'SSH key not recognized by GitHub. Make sure you added it to your GitHub account.');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to test SSH connection');
+    } finally {
+      setTestingSSH(false);
+    }
+  };
+
+  const handleOpenClaudeApp = async () => {
+    try {
+      const ipcRenderer = window.electron.ipcRenderer;
+      await ipcRenderer.invoke('claude:open-app');
+      // Wait a bit for user to log in, then re-check
+      setTimeout(() => runCheck(), 3000);
+    } catch (err) {
+      console.error('Failed to open Claude app:', err);
     }
   };
 
@@ -51,13 +158,22 @@ export function SystemCheckStep({ onComplete, systemCheck: initialCheck }: Syste
     }
   };
 
-  const canContinue = result && result.claudeCodeInstalled && result.gitInstalled;
+  // Required: Claude Code authenticated + Git configured
+  // Optional: GitHub (warning only)
+  const canContinue = result
+    && result.claudeCodeInstalled
+    && result.claudeCodeAuthenticated
+    && result.gitInstalled
+    && result.gitConfigured;
 
   if (checking) {
     return (
       <div className="flex flex-col items-center justify-center py-12 space-y-4">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="text-muted-foreground">Checking system requirements...</p>
+        <p className="text-muted-foreground font-medium">Checking system requirements...</p>
+        {checkingStep && (
+          <p className="text-sm text-muted-foreground/80 animate-pulse">{checkingStep}</p>
+        )}
       </div>
     );
   }
@@ -85,7 +201,7 @@ export function SystemCheckStep({ onComplete, systemCheck: initialCheck }: Syste
       <div className="space-y-2">
         <h3 className="text-lg font-semibold">System Requirements</h3>
         <p className="text-sm text-muted-foreground">
-          Circuit needs a few tools to work properly. Let's make sure everything is installed.
+          Octave needs a few tools to work properly. Let's set everything up.
         </p>
       </div>
 
@@ -100,15 +216,21 @@ export function SystemCheckStep({ onComplete, systemCheck: initialCheck }: Syste
 
         {/* Claude Code */}
         <CheckItem
-          label="Claude Code CLI"
-          passed={result.claudeCodeInstalled}
-          detail={result.claudeCodeVersion}
+          label="Claude Code"
+          passed={result.claudeCodeAuthenticated}
+          detail={
+            result.claudeCodeAuthenticated
+              ? `Authenticated${result.claudeCodeSubscription ? ` (${result.claudeCodeSubscription})` : ''}`
+              : result.claudeCodeInstalled
+              ? 'Installed but not authenticated'
+              : undefined
+          }
           required={true}
           helpText={
             !result.claudeCodeInstalled ? (
               <div className="mt-2 space-y-2">
                 <p className="text-sm text-muted-foreground">
-                  Circuit uses Claude Code CLI for AI features.
+                  Octave uses Claude Code for AI-powered features.
                 </p>
                 <Button
                   variant="outline"
@@ -128,15 +250,44 @@ export function SystemCheckStep({ onComplete, systemCheck: initialCheck }: Syste
                   I've installed it - Check Again
                 </Button>
               </div>
+            ) : !result.claudeCodeAuthenticated ? (
+              <div className="mt-2 space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  {result.claudeCodeError || 'Please log in to Claude Code desktop app'}
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleOpenClaudeApp}
+                  className="w-full"
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Open Claude App to Login
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={runCheck}
+                  className="w-full"
+                >
+                  I've logged in - Check Again
+                </Button>
+              </div>
             ) : undefined
           }
         />
 
-        {/* Git */}
+        {/* Git Configuration */}
         <CheckItem
-          label="Git"
-          passed={result.gitInstalled}
-          detail={result.gitVersion}
+          label="Git Configuration"
+          passed={result.gitConfigured}
+          detail={
+            result.gitConfigured
+              ? `${result.gitUserName} <${result.gitUserEmail}>`
+              : result.gitInstalled
+              ? 'Not configured'
+              : 'Not installed'
+          }
           required={true}
           helpText={
             !result.gitInstalled ? (
@@ -162,6 +313,129 @@ export function SystemCheckStep({ onComplete, systemCheck: initialCheck }: Syste
                   I've installed it - Check Again
                 </Button>
               </div>
+            ) : !result.gitConfigured ? (
+              <div className="mt-2 space-y-2">
+                <p className="text-sm text-muted-foreground mb-2">
+                  Configure your Git identity for commits
+                </p>
+                <div className="space-y-2">
+                  <Input
+                    placeholder="Your Name"
+                    value={gitName}
+                    onChange={(e) => setGitName(e.target.value)}
+                  />
+                  <Input
+                    placeholder="your@email.com"
+                    type="email"
+                    value={gitEmail}
+                    onChange={(e) => setGitEmail(e.target.value)}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleConfigureGit}
+                    disabled={!gitName || !gitEmail || configuringGit}
+                    className="w-full"
+                  >
+                    {configuringGit ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Configuring...
+                      </>
+                    ) : (
+                      'Auto-Configure Git'
+                    )}
+                  </Button>
+                </div>
+              </div>
+            ) : undefined
+          }
+        />
+
+        {/* GitHub Authentication */}
+        <CheckItem
+          label="GitHub"
+          passed={result.githubAuthenticated}
+          detail={
+            result.githubAuthenticated
+              ? `Connected via ${result.githubMethod}${result.githubUsername ? ` as ${result.githubUsername}` : ''}`
+              : 'Not connected'
+          }
+          required={false}
+          helpText={
+            !result.githubAuthenticated ? (
+              <div className="mt-2 space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  Optional - Needed for creating pull requests and managing issues
+                </p>
+                {!sshPublicKey ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleGenerateSSHKey}
+                    disabled={!gitEmail || generatingSSH}
+                    className="w-full"
+                  >
+                    {generatingSSH ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      'Generate SSH Key'
+                    )}
+                  </Button>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium">Your SSH Public Key:</p>
+                    <div className="relative">
+                      <pre className="text-xs bg-muted p-2 rounded overflow-x-auto">
+                        {sshPublicKey}
+                      </pre>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleCopySSHKey}
+                        className="absolute top-1 right-1"
+                      >
+                        {sshCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      1. Copy the key above
+                      <br />
+                      2. Add it to GitHub Settings → SSH Keys
+                      <br />
+                      3. Test the connection
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open('https://github.com/settings/ssh/new', '_blank')}
+                      className="w-full"
+                    >
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      Add to GitHub
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleTestSSHConnection}
+                      disabled={testingSSH}
+                      className="w-full"
+                    >
+                      {testingSSH ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Testing...
+                        </>
+                      ) : (
+                        'Test Connection'
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </div>
             ) : undefined
           }
         />
@@ -175,7 +449,7 @@ export function SystemCheckStep({ onComplete, systemCheck: initialCheck }: Syste
           helpText={
             !result.nodeInstalled ? (
               <p className="text-xs text-muted-foreground mt-1">
-                Optional - Only needed if you want to use MCP servers
+                Optional - Only needed for MCP servers
               </p>
             ) : undefined
           }
@@ -192,7 +466,7 @@ export function SystemCheckStep({ onComplete, systemCheck: initialCheck }: Syste
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              Please install the required tools above to continue.
+              Please complete the required setup steps above to continue.
             </AlertDescription>
           </Alert>
         )}

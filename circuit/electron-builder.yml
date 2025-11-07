@@ -1,8 +1,8 @@
 # Electron Builder Configuration
 # https://www.electron.build/configuration/configuration
 
-appId: com.circuit.app
-productName: Circuit
+appId: com.octave.app
+productName: Octave
 copyright: Copyright © 2025
 
 # Directories

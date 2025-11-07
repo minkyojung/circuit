@@ -4,12 +4,12 @@ This file contains ready-to-use configuration templates for macOS distribution s
 
 ## 1. electron-builder.yml (Main Distribution Config)
 
-Create this file at: `circuit/electron-builder.yml`
+Create this file at: `octave/electron-builder.yml`
 
 ```yaml
 # Application metadata
-appId: com.circuitdev.circuit
-productName: Circuit
+appId: com.octavedev.octave
+productName: Octave
 directories:
   buildResources: public
   output: dist
@@ -61,7 +61,7 @@ mac:
 # publish:
 #   provider: github
 #   owner: your-org
-#   repo: circuit
+#   repo: octave
 
 # Development mode (for testing without signing)
 # Uncomment to build unsigned during development
@@ -70,7 +70,7 @@ mac:
 
 ## 2. entitlements.mac.plist (App Capabilities)
 
-Create this file at: `circuit/build/entitlements.mac.plist`
+Create this file at: `octave/build/entitlements.mac.plist`
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -104,7 +104,7 @@ Create this file at: `circuit/build/entitlements.mac.plist`
 
 ## 3. Updated main.cjs (Security Hardening)
 
-Replace the webPreferences section in `circuit/electron/main.cjs`:
+Replace the webPreferences section in `octave/electron/main.cjs`:
 
 ```javascript
 // BEFORE (current - insecure for production):
@@ -125,7 +125,7 @@ webPreferences: {
 
 ## 4. preload.js (Secure IPC Bridge)
 
-Create this file at: `circuit/electron/preload.js`
+Create this file at: `octave/electron/preload.js`
 
 ```javascript
 const { contextBridge, ipcRenderer } = require('electron');
@@ -152,19 +152,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
 ## 5. Update package.json Build Config
 
-Add to `circuit/package.json` after version field:
+Add to `octave/package.json` after version field:
 
 ```json
 {
-  "name": "circuit",
+  "name": "octave",
   "version": "0.1.0",  // Update from 0.0.0
   
   "main": "dist-electron/main.js",
-  "homepage": "https://circuit.dev",
+  "homepage": "https://octave.dev",
   
   "build": {
-    "appId": "com.circuitdev.circuit",
-    "productName": "Circuit",
+    "appId": "com.octavedev.octave",
+    "productName": "Octave",
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
@@ -226,7 +226,7 @@ jobs:
 
 ## 7. TSConfig Update for Preload Script
 
-Add to `circuit/tsconfig.electron.json`:
+Add to `octave/tsconfig.electron.json`:
 
 ```json
 {
@@ -243,7 +243,7 @@ Add to `circuit/tsconfig.electron.json`:
 
 ## 8. .env.production Enhancement
 
-Update `circuit/.env.production`:
+Update `octave/.env.production`:
 
 ```bash
 # Feature Flags
@@ -252,7 +252,7 @@ VITE_FEATURE_GIT_GRAPH=false
 
 # App Metadata
 VITE_APP_VERSION=0.1.0
-VITE_APP_NAME=Circuit
+VITE_APP_NAME=Octave
 VITE_TELEMETRY_ENABLED=false
 ```
 
@@ -260,21 +260,21 @@ VITE_TELEMETRY_ENABLED=false
 
 ### Step 1: Create directories
 ```bash
-mkdir -p circuit/build
+mkdir -p octave/build
 ```
 
 ### Step 2: Create configuration files
 ```bash
 # Copy the electron-builder.yml to project root
-cp electron-builder.yml circuit/
+cp electron-builder.yml octave/
 
 # Copy entitlements
-cp entitlements.mac.plist circuit/build/
+cp entitlements.mac.plist octave/build/
 ```
 
 ### Step 3: Create preload script
 ```bash
-# Create circuit/electron/preload.js with content from template above
+# Create octave/electron/preload.js with content from template above
 ```
 
 ### Step 4: Update main.cjs
@@ -283,7 +283,7 @@ cp entitlements.mac.plist circuit/build/
 
 ### Step 5: Test the build
 ```bash
-cd circuit
+cd octave
 npm run build
 npm run package
 ```
@@ -334,8 +334,8 @@ APPLEIDPASS=<app-specific password>
 npm run build
 npm run package
 
-# App will be at: dist/Circuit.app
-# DMG will be at: dist/Circuit.dmg
+# App will be at: dist/Octave.app
+# DMG will be at: dist/Octave.dmg
 ```
 
 ## Troubleshooting

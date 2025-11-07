@@ -64,26 +64,69 @@ export async function runSystemCheck(): Promise<SystemCheckResult> {
   // macOS version
   const macOSVersion = await getMacOSVersion();
 
-  // Claude Code check
+  // Claude Code authentication check
   let claudeCodeInstalled = false;
+  let claudeCodeAuthenticated = false;
   let claudeCodeVersion: string | undefined;
+  let claudeCodeMethod: 'keychain' | 'file' | 'env' | 'none' = 'none';
+  let claudeCodeSubscription: 'free' | 'pro' | 'max' | undefined;
+  let claudeCodeError: string | undefined;
+
   try {
-    const result = await ipcRenderer.invoke('check-claude-code');
-    claudeCodeInstalled = result.installed;
-    claudeCodeVersion = result.version;
+    const result = await ipcRenderer.invoke('check-claude-auth');
+    if (result.success && result.auth) {
+      claudeCodeInstalled = result.auth.installed;
+      claudeCodeAuthenticated = result.auth.authenticated;
+      claudeCodeVersion = result.auth.version;
+      claudeCodeMethod = result.auth.method;
+      claudeCodeSubscription = result.auth.subscriptionType;
+      claudeCodeError = result.auth.error;
+    }
   } catch (error) {
     console.error('Failed to check Claude Code:', error);
+    claudeCodeError = 'Check failed';
   }
 
-  // Git check
+  // Git configuration check
   let gitInstalled = false;
+  let gitConfigured = false;
   let gitVersion: string | undefined;
+  let gitUserName: string | undefined;
+  let gitUserEmail: string | undefined;
+  let gitConfigIssues: string[] | undefined;
+
   try {
-    const result = await ipcRenderer.invoke('check-git');
-    gitInstalled = result.installed;
-    gitVersion = result.version;
+    const result = await ipcRenderer.invoke('check-git-config');
+    if (result.success && result.config) {
+      gitInstalled = result.config.installed;
+      gitConfigured = result.config.configured;
+      gitVersion = result.config.version;
+      gitUserName = result.config.userName;
+      gitUserEmail = result.config.userEmail;
+      gitConfigIssues = result.config.issues;
+    }
   } catch (error) {
     console.error('Failed to check Git:', error);
+  }
+
+  // GitHub authentication check
+  let githubAuthenticated = false;
+  let githubMethod: 'ssh' | 'https' | 'gh-cli' | 'none' = 'none';
+  let githubUsername: string | undefined;
+  let githubError: string | undefined;
+  let githubSuggestions: string[] | undefined;
+
+  try {
+    const result = await ipcRenderer.invoke('check-github-auth');
+    if (result.success && result.auth) {
+      githubAuthenticated = result.auth.authenticated;
+      githubMethod = result.auth.method;
+      githubUsername = result.auth.username;
+      githubError = result.auth.error;
+      githubSuggestions = result.auth.suggestions;
+    }
+  } catch (error) {
+    console.error('Failed to check GitHub:', error);
   }
 
   // Node.js check (optional)
@@ -100,9 +143,22 @@ export async function runSystemCheck(): Promise<SystemCheckResult> {
   return {
     macOSVersion,
     claudeCodeInstalled,
+    claudeCodeAuthenticated,
     claudeCodeVersion,
+    claudeCodeMethod,
+    claudeCodeSubscription,
+    claudeCodeError,
     gitInstalled,
+    gitConfigured,
     gitVersion,
+    gitUserName,
+    gitUserEmail,
+    gitConfigIssues,
+    githubAuthenticated,
+    githubMethod,
+    githubUsername,
+    githubError,
+    githubSuggestions,
     nodeInstalled,
     nodeVersion,
   };

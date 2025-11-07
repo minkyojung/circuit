@@ -1,10 +1,10 @@
-# Circuit macOS Distribution - Documentation Index
+# Octave macOS Distribution - Documentation Index
 
 ## Overview
-Complete analysis and planning documentation for Circuit Mac app distribution. These documents provide everything needed to move from development to production release on macOS.
+Complete analysis and planning documentation for Octave Mac app distribution. These documents provide everything needed to move from development to production release on macOS.
 
 **Analysis Date**: November 4, 2025
-**Project**: Circuit (Electron + React + TypeScript)
+**Project**: Octave (Electron + React + TypeScript)
 **Status**: Development-ready, distribution configuration needed
 
 ---
@@ -171,7 +171,7 @@ Reference: **DISTRIBUTION_CONFIG_TEMPLATES.md** (GitHub Actions Workflow section
 
 ### Project Files to Modify:
 ```
-/Users/williamjung/conductor/circuit-1/.conductor/victoria/circuit/
+/Users/williamjung/conductor/octave-1/.octave/victoria/octave/
 ├── electron/main.cjs              [MODIFY: webPreferences]
 ├── electron/preload.js            [CREATE: new file]
 ├── package.json                   [MODIFY: version + build config]

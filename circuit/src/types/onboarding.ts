@@ -5,11 +5,33 @@
 export type OnboardingStep = 'system-check' | 'repository' | 'complete';
 
 export interface SystemCheckResult {
+  // macOS
   macOSVersion: string;
+
+  // Claude Code
   claudeCodeInstalled: boolean;
+  claudeCodeAuthenticated: boolean;
   claudeCodeVersion?: string;
+  claudeCodeMethod?: 'keychain' | 'file' | 'env' | 'none';
+  claudeCodeSubscription?: 'free' | 'pro' | 'max';
+  claudeCodeError?: string;
+
+  // Git
   gitInstalled: boolean;
+  gitConfigured: boolean;
   gitVersion?: string;
+  gitUserName?: string;
+  gitUserEmail?: string;
+  gitConfigIssues?: string[];
+
+  // GitHub
+  githubAuthenticated: boolean;
+  githubMethod?: 'ssh' | 'https' | 'gh-cli' | 'none';
+  githubUsername?: string;
+  githubError?: string;
+  githubSuggestions?: string[];
+
+  // Node.js (optional)
   nodeInstalled: boolean;
   nodeVersion?: string;
 }

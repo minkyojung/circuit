@@ -28,6 +28,7 @@ export class LSPLanguageService implements ILanguageService {
   private initialized: boolean = false;
   private diagnosticsMap = new Map<string, Diagnostic[]>();
   private openDocuments = new Map<string, { version: number; languageId: string }>();
+  private diagnosticsCleanup: (() => void) | null = null;
 
   async initialize(config: LanguageConfig): Promise<void> {
     console.log('[LSPLanguageService] Initializing LSP service...');
@@ -46,7 +47,8 @@ export class LSPLanguageService implements ILanguageService {
     }
 
     // Listen for diagnostics notifications
-    ipcRenderer.on('lsp:diagnostics', this.handleDiagnostics.bind(this));
+    // Store cleanup function returned by ipcRenderer.on()
+    this.diagnosticsCleanup = ipcRenderer.on('lsp:diagnostics', this.handleDiagnostics.bind(this));
 
     this.initialized = true;
     console.log('[LSPLanguageService] ✅ LSP service initialized successfully');
@@ -193,7 +195,10 @@ export class LSPLanguageService implements ILanguageService {
     console.log('[LSPLanguageService] Disposing LSP service');
 
     // Remove diagnostics listener
-    ipcRenderer.removeAllListeners('lsp:diagnostics');
+    if (this.diagnosticsCleanup) {
+      this.diagnosticsCleanup();
+      this.diagnosticsCleanup = null;
+    }
 
     // Stop LSP server
     ipcRenderer.invoke('lsp:stop', this.workspacePath, this.serverType);

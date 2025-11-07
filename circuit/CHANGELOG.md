@@ -1,18 +1,34 @@
 # Changelog
 
-All notable changes to Circuit will be documented in this file.
+All notable changes to Octave will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+- **Rebrand: Circuit → Octave** - Complete product rebrand across codebase
+  - Application name changed from Circuit to Octave
+  - Package name updated: `circuit` → `octave`
+  - App bundle ID: `com.circuit.app` → `com.octave.app`
+  - User global directory: `~/.circuit/` → `~/.octave/`
+  - Workspace project config: `.circuit/` → `.octave/` (within each workspace)
+  - Proxy renamed: `circuit-proxy` → `octave-proxy`
+  - All UI text, documentation, and comments updated
+  - README.md and ROADMAP.md updated to reflect Octave branding
+  - Note: `.conductor/` workspace directory remains unchanged for Conductor app compatibility
+
+---
+
+## [Previous - Circuit Era]
+
 ### Added
 - **Task Execution System with Auto/Manual Modes** - Execute task plans through Claude Code integration
   - Auto mode: Claude automatically executes all tasks in sequence
   - Manual mode: User controls execution via chat commands ("next", "run all", "execute task N")
   - Mode selection UI in TodoPanel with smart defaults (auto for simple plans, manual for complex)
-  - `.circuit/todos.json` file generation for Claude Code to read task plans
+  - `.octave/todos.json` file generation for Claude Code to read task plans
   - TodoWrite block detection and real-time database synchronization
   - IPC handler `todos:trigger-execution` for background task execution
   - Mode-specific prompts sent to Claude with execution instructions

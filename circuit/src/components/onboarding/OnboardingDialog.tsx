@@ -112,7 +112,7 @@ export function OnboardingDialog({ open, onComplete, onSkip }: OnboardingDialogP
         <DialogHeader>
           <div className="flex items-center justify-between">
             <div>
-              <DialogTitle className="text-2xl font-bold">Welcome to Circuit</DialogTitle>
+              <DialogTitle className="text-2xl font-bold">Welcome to Octave</DialogTitle>
               <DialogDescription className="mt-1">
                 Let's get you set up in just a few steps
               </DialogDescription>
