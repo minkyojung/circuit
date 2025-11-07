@@ -893,7 +893,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   disabled={disabled || !workspacePath}
                   className={`inline-flex items-center justify-center ${INPUT_STYLES.controls.sourcesButton} transition-colors ${
                     architectMode
-                      ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                      ? 'bg-[#192621] text-white hover:bg-[#223330] border border-[#2A3D35]'
                       : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
                   }`}
                   title={architectMode ? 'Architect Mode ON' : 'Architect Mode OFF'}
@@ -964,7 +964,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 className={`${INPUT_STYLES.sendButton.size} ${INPUT_STYLES.sendButton.borderRadius} flex items-center justify-center transition-all shrink-0 ${
                   (!value.trim() && attachedFiles.length === 0) || disabled
                     ? 'bg-muted/50 text-muted-foreground/40 cursor-not-allowed'
-                    : 'bg-primary text-primary-foreground hover:bg-primary/90'
+                    : 'bg-[#192621] text-white hover:bg-[#223330] border border-[#2A3D35]'
                 }`}
                 title="Send message (Cmd/Ctrl+Enter)"
               >
