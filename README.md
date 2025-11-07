@@ -83,7 +83,7 @@ test8
 ## 📁 프로젝트 구조
 
 ```
-circuit/
+octave/
 ├── src/
 │   ├── core/
 │   │   ├── detector.ts          # Project auto-detect

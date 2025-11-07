@@ -195,7 +195,7 @@ async function installMemoryServer(manager) {
     }
 
     // Use same project path logic as UI (circuit:get-project-path)
-    // From: /path/to/circuit-1/.conductor/hyderabad/circuit/electron
+    // From: /path/to/circuit-1/.conductor/hyderabad/octave/electron
     // To:   /path/to/circuit-1
     const projectPath = path.resolve(__dirname, '../../../..');
 
@@ -1364,19 +1364,19 @@ ipcMain.handle('github:send-test-webhook', async (event, eventType) => {
 
 /**
  * Get the actual project path from the Conductor workspace
- * Resolves from: /path/to/project/.conductor/workspace/circuit/electron
+ * Resolves from: /path/to/project/.conductor/workspace/octave/electron
  * To: /path/to/project
  */
 ipcMain.handle('circuit:get-project-path', async () => {
   try {
     // Get the electron directory path
-    // e.g., /Users/williamjung/conductor/circuit-1/.conductor/hyderabad/circuit/electron
+    // e.g., /Users/williamjung/conductor/circuit-1/.conductor/hyderabad/octave/electron
     const electronDir = __dirname;
 
     // Navigate up to find the actual project root
-    // From: /Users/.../circuit-1/.conductor/hyderabad/circuit/electron
+    // From: /Users/.../circuit-1/.conductor/hyderabad/octave/electron
     // To:   /Users/.../circuit-1
-    // That's 5 levels up: electron -> circuit -> hyderabad -> .conductor -> circuit-1
+    // That's 5 levels up: electron -> octave -> hyderabad -> .conductor -> circuit-1
     const projectPath = path.resolve(electronDir, '../../../..');
 
     console.log('[Octave] Electron dir:', electronDir);
