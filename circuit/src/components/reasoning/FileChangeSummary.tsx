@@ -33,6 +33,21 @@ export const FileChangeSummary: React.FC<FileChangeSummaryProps> = ({
         const Icon = change.changeType === 'created' ? FilePlus : Edit3;
         const fileName = getFileName(change.filePath);
 
+        // Ensure diff stats are numbers (handle undefined/null)
+        const additions = change.additions || 0;
+        const deletions = change.deletions || 0;
+        const hasDiffStats = additions > 0 || deletions > 0;
+
+        // Debug: log to console if diff stats are missing
+        if (!hasDiffStats) {
+          console.log('[FileChangeSummary] No diff stats:', {
+            filePath: change.filePath,
+            additions,
+            deletions,
+            rawChange: change
+          });
+        }
+
         return (
           <div
             key={`${change.filePath}-${idx}`}
@@ -44,8 +59,8 @@ export const FileChangeSummary: React.FC<FileChangeSummaryProps> = ({
             onClick={() => onFileClick?.(change.filePath)}
             title={change.filePath}
           >
-            {/* Icon for change type - aligned with header chevron */}
-            <Icon className="w-3.5 h-3.5 opacity-50 flex-shrink-0" strokeWidth={1.5} />
+            {/* Icon for change type - smaller size */}
+            <Icon className="w-3 h-3 opacity-50 flex-shrink-0" strokeWidth={1.5} />
 
             {/* Tool name and file name */}
             <span className="text-xs font-light opacity-70 flex-shrink-0 ml-4">
@@ -57,14 +72,14 @@ export const FileChangeSummary: React.FC<FileChangeSummaryProps> = ({
               {fileName}
             </span>
 
-            {/* Diff stats on the right */}
-            {(change.additions > 0 || change.deletions > 0) && (
+            {/* Diff stats on the right - always show if data exists */}
+            {hasDiffStats && (
               <div className="flex items-center gap-1.5 text-[11px] font-mono flex-shrink-0 ml-3">
-                {change.additions > 0 && (
-                  <span className="text-green-500">+{change.additions}</span>
+                {additions > 0 && (
+                  <span className="text-green-500">+{additions}</span>
                 )}
-                {change.deletions > 0 && (
-                  <span className="text-red-500">-{change.deletions}</span>
+                {deletions > 0 && (
+                  <span className="text-red-500">-{deletions}</span>
                 )}
               </div>
             )}
