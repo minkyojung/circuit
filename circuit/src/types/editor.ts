@@ -22,7 +22,8 @@ export interface ConversationTabData {
 
 // File-specific data
 export interface FileTabData {
-  filePath: string
+  filePath: string         // Workspace-relative path (e.g., "src/App.tsx")
+  workspaceId: string      // Workspace identifier (e.g., "duck", "swan")
   unsavedChanges?: boolean
   language?: string
 }
@@ -145,11 +146,13 @@ export function createConversationTab(
  * This function does NOT perform path normalization
  *
  * @param filePath - Workspace-relative path (e.g., "src/App.tsx")
+ * @param workspaceId - Workspace identifier (e.g., "duck", "swan")
  * @param title - Display title (defaults to filename)
  * @param unsavedChanges - Whether file has unsaved changes
  */
 export function createFileTab(
   filePath: string,
+  workspaceId: string,
   title?: string,
   unsavedChanges?: boolean
 ): FileTab {
@@ -157,11 +160,12 @@ export function createFileTab(
   const fileName = title || filePath.split('/').pop() || filePath
 
   return {
-    id: `file-${filePath}`,
+    id: `file-${workspaceId}-${filePath}`,  // Globally unique: workspace + path
     type: 'file',
     title: fileName,
     data: {
       filePath,
+      workspaceId,
       unsavedChanges: unsavedChanges || false,
     },
   }

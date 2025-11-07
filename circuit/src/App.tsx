@@ -252,12 +252,16 @@ function App() {
       return
     }
 
-    const workspacePath = selectedWorkspace.path
-    const projectRoot = workspacePath.includes('/.conductor/')
-      ? workspacePath.split('/.conductor/')[0]
-      : workspacePath
+    // ✅ For worktree-based workspaces, workspace.path IS the projectRoot
+    // Example: /project/.conductor/workspaces/duck is the working directory for "duck" branch
+    // Files are at: /project/.conductor/workspaces/duck/src/App.tsx
+    const projectRoot = selectedWorkspace.path
 
-    console.log('[App] Initializing PathResolver:', { workspacePath, projectRoot })
+    console.log('[App] Initializing PathResolver:', {
+      workspaceId: selectedWorkspace.id,
+      workspacePath: selectedWorkspace.path,
+      projectRoot
+    })
     setPathResolver(new PathResolver(projectRoot))
   }, [selectedWorkspace?.path])
 
@@ -394,8 +398,9 @@ function App() {
         openFiles={openFilePaths}
         selectedFile={filePath}
         onCloseFile={(path) => {
-          // Find and close the file tab
-          const result = findTab(`file-${path}`)
+          // Find and close the file tab (using workspace-scoped ID)
+          const tabId = `file-${selectedWorkspace.id}-${path}`
+          const result = findTab(tabId)
           if (result) {
             closeTab(result.tab.id, result.groupId)
           }
@@ -499,6 +504,13 @@ function App() {
       return;
     }
 
+    // Guard: Workspace must be selected
+    if (!selectedWorkspace) {
+      console.error('[App] No workspace selected - cannot open file');
+      toast.error('워크스페이스가 선택되지 않았습니다');
+      return;
+    }
+
     // ✅ STEP 1: Normalize file path using PathResolver
     const normalizedPath = pathResolver.normalize(filePath);
     const absolutePath = pathResolver.toAbsolute(normalizedPath);
@@ -507,6 +519,7 @@ function App() {
       original: filePath,
       normalized: normalizedPath,
       absolute: absolutePath,
+      workspaceId: selectedWorkspace.id,
       projectRoot: pathResolver.getProjectRoot()
     });
 
@@ -525,9 +538,13 @@ function App() {
       return;
     }
 
-    // ✅ STEP 3: Create file tab with normalized path
+    // ✅ STEP 3: Create file tab with workspace-scoped identity
     const currentFocusedGroup = focusedGroupIdRef.current;
-    const tab = createFileTab(normalizedPath, getFileName(normalizedPath));
+    const tab = createFileTab(
+      normalizedPath,
+      selectedWorkspace.id,  // ✅ Workspace-scoped tab ID
+      getFileName(normalizedPath)
+    );
 
     // Open in currently focused group
     openTab(tab, currentFocusedGroup);

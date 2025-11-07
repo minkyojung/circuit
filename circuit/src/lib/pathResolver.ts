@@ -23,18 +23,15 @@ export class PathResolver {
   }
 
   /**
-   * Normalize project root to ensure it points to the actual project directory
-   * Strips .conductor workspace paths if present
+   * Normalize project root to ensure proper format
+   * For worktree-based workspaces, the workspace.path IS the projectRoot
    */
   private normalizeProjectRoot(root: string): string {
     if (!root) return ''
 
-    // Remove .conductor workspace path if present
-    // e.g., /project/.conductor/workspaces/foo -> /project
-    if (root.includes('/.conductor/')) {
-      return root.split('/.conductor/')[0]
-    }
-
+    // ✅ Keep workspace path as-is for worktree systems
+    // Example: /project/.conductor/workspaces/duck is the working directory
+    // DO NOT strip .conductor path - it's the actual location of files
     return root
   }
 
