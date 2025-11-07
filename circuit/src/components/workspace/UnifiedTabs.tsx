@@ -379,7 +379,7 @@ export function UnifiedTabs({
       <AlertDialog open={deletingId !== null} onOpenChange={(open) => !open && setDeletingId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Conversation?</AlertDialogTitle>
+            <AlertDialogTitle>Delete Conversation</AlertDialogTitle>
             <AlertDialogDescription>
               This will permanently delete this conversation and all its messages. This action cannot be undone.
             </AlertDialogDescription>
