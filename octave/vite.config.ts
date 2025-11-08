@@ -9,6 +9,10 @@ const monacoEditorPlugin = require('vite-plugin-monaco-editor').default
 
 // https://vite.dev/config/
 export default defineConfig({
+  // CRITICAL: Use relative paths for Electron (file:// protocol)
+  // Without this, assets will try to load from filesystem root
+  base: './',
+
   plugins: [
     react(),
     svgr({

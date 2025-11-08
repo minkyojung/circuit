@@ -1,6 +1,5 @@
-# Electron Builder Configuration - DEVELOPMENT
+# Electron Builder Configuration - PRODUCTION
 # https://www.electron.build/configuration/configuration
-# For production builds, use electron-builder.production.yml
 
 appId: com.octave.app
 productName: Octave
@@ -11,7 +10,7 @@ directories:
   output: release
   buildResources: build
 
-# macOS Configuration - DEVELOPMENT BUILD
+# macOS Configuration - PRODUCTION BUILD
 mac:
   category: public.app-category.developer-tools
   # icon: ./build/icon.icns  # TODO: Create icon
@@ -21,9 +20,17 @@ mac:
         - x64
         - arm64
 
-  # Development settings - Code signing disabled for fast local builds
-  identity: null
-  notarize: false
+  # Production settings - Code signing enabled
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: ./build/entitlements.mac.plist
+  entitlementsInherit: ./build/entitlements.mac.plist
+
+  # Code signing identity (electron-builder will find the cert automatically)
+  identity: "Minkyo Jung (6DQK5MQC4H)"
+
+  # Notarization enabled - requires API Key in environment variables
+  notarize: true
 
 # DMG Configuration
 dmg:
@@ -66,5 +73,10 @@ asarUnpack:
 # Compression
 compression: normal
 
-# Publish configuration (for auto-updates - disabled for now)
-publish: null
+# Publish configuration for auto-updates
+# Replace with your GitHub repo details when ready
+publish:
+  provider: github
+  owner: your-github-username
+  repo: octave
+  releaseType: release

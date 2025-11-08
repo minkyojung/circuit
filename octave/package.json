@@ -1,7 +1,7 @@
 {
   "name": "octave",
   "private": true,
-  "version": "1.0.0",
+  "version": "0.0.1",
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -12,7 +12,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "electron": "electron .",
-    "package": "electron-builder",
+    "package": "npm run package:dev",
+    "package:dev": "electron-builder",
+    "package:prod": "electron-builder -c electron-builder.production.yml",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage"

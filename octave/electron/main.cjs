@@ -2474,7 +2474,11 @@ IMPORTANT: In the "Fixed Code" section, provide the COMPLETE corrected file cont
       '--output-format', 'json',
       '--model', 'sonnet'
     ], {
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: {
+        ...process.env,
+        PATH: `/opt/homebrew/bin:${process.env.PATH || ''}`
+      }
     });
 
     // 4. Send prompt to stdin
@@ -3999,7 +4003,11 @@ Plan Mode ensures structured, thoughtful development. Take your time to plan wel
       '--permission-mode', 'acceptEdits'  // Auto-approve file edits
     ], {
       cwd: session.workspacePath,
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: {
+        ...process.env,
+        PATH: `/opt/homebrew/bin:${process.env.PATH || ''}`
+      }
     });
 
     // Store process reference and set running state
@@ -4413,7 +4421,11 @@ Response in Korean if applicable. Be concise.`;
         '--max-tokens', config.maxTokens.toString(),
         '--temperature', config.temperature.toString()
       ], {
-        cwd: process.cwd()
+        cwd: process.cwd(),
+        env: {
+          ...process.env,
+          PATH: `/opt/homebrew/bin:${process.env.PATH || ''}`
+        }
       });
 
       let output = '';
@@ -4501,7 +4513,11 @@ Provide a concise, single-line or multi-line completion for <CURSOR>.`;
         '--max-tokens', config.tokens.toString(),
         '--temperature', config.temperature.toString()
       ], {
-        cwd: process.cwd()
+        cwd: process.cwd(),
+        env: {
+          ...process.env,
+          PATH: `/opt/homebrew/bin:${process.env.PATH || ''}`
+        }
       });
 
       let output = '';
@@ -4946,7 +4962,11 @@ Return ONLY valid JSON in this exact format (no markdown, no explanation):
         '--model', 'sonnet'
       ], {
         cwd: workspacePath,
-        stdio: ['pipe', 'pipe', 'pipe']
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env: {
+          ...process.env,
+          PATH: `/opt/homebrew/bin:${process.env.PATH || ''}`
+        }
       });
 
       claude.stdin.write(JSON.stringify({
