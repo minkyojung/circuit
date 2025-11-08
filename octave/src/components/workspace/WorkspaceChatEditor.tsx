@@ -823,7 +823,14 @@ Break down:
   const ipcCallbacks: IPCEventCallbacks = useMemo(() => ({
     // Message state
     onMessagesUpdate: setMessages,
-    onMessageAdd: (msg) => setMessages((prev) => [...prev, msg]),
+    onMessageAdd: (msg) => setMessages((prev) => {
+      // Prevent duplicate messages (defensive programming against IPC event duplication)
+      if (prev.some((m) => m.id === msg.id)) {
+        console.warn('[ChatPanel] Prevented duplicate message:', msg.id);
+        return prev;
+      }
+      return [...prev, msg];
+    }),
     onMessageUpdate: (id, updates) =>
       setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, ...updates } : m))),
 
@@ -1602,7 +1609,7 @@ The plan is ready. What would you like to do?`,
                     transform: `translateY(${virtualItem.start}px)`,
                   }}
                 >
-                  <div className="max-w-4xl mx-auto px-0 mb-5">
+                  <div className="max-w-4xl mx-auto px-0 pb-5">
                     <MessageComponent
                       msg={msg}
                       isSending={isSending}
@@ -1631,7 +1638,7 @@ The plan is ready. What would you like to do?`,
                   transform: `translateY(${virtualizer.getTotalSize()}px)`,
                 }}
               >
-                <div className="max-w-4xl mx-auto px-0 mb-5">
+                <div className="max-w-4xl mx-auto px-0 pb-5">
                   <div className="flex justify-start">
                     <div className="max-w-[75%]">
                       <div className="space-y-2 pl-1">

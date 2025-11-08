@@ -3090,6 +3090,34 @@ async function saveWorkspaceMetadata(projectPath, metadata) {
 }
 
 /**
+ * Get the default branch name for a Git repository
+ */
+async function getDefaultBranch(projectPath) {
+  try {
+    // Try to get the default branch from origin/HEAD
+    const { stdout } = await execAsync('git symbolic-ref refs/remotes/origin/HEAD', {
+      cwd: projectPath
+    });
+    const defaultBranch = stdout.trim().replace('refs/remotes/origin/', '');
+    return defaultBranch;
+  } catch (error) {
+    // If origin/HEAD is not set, try to fetch it
+    try {
+      await execAsync('git remote set-head origin -a', { cwd: projectPath });
+      const { stdout } = await execAsync('git symbolic-ref refs/remotes/origin/HEAD', {
+        cwd: projectPath
+      });
+      const defaultBranch = stdout.trim().replace('refs/remotes/origin/', '');
+      return defaultBranch;
+    } catch (err) {
+      // Fallback to 'main' if all else fails
+      console.warn('[Workspace] Could not detect default branch, falling back to "main"');
+      return 'main';
+    }
+  }
+}
+
+/**
  * Create a new Git worktree workspace
  */
 async function createWorktree(projectPath, branchName) {
@@ -3107,22 +3135,26 @@ async function createWorktree(projectPath, branchName) {
       // Good - it doesn't exist
     }
 
-    // Ensure main branch is up-to-date before creating new workspace
-    console.log('[Workspace] Updating main branch...');
+    // Get the default branch name
+    const defaultBranch = await getDefaultBranch(projectPath);
+    console.log(`[Workspace] Using default branch: ${defaultBranch}`);
+
+    // Ensure default branch is up-to-date before creating new workspace
+    console.log(`[Workspace] Updating ${defaultBranch} branch...`);
     try {
       // Fetch latest changes
       await execAsync('git fetch origin', { cwd: projectPath });
 
-      // Update main branch (without checking it out)
-      await execAsync('git fetch origin main:main', { cwd: projectPath });
-      console.log('[Workspace] ✓ Main branch updated');
+      // Update default branch (without checking it out)
+      await execAsync(`git fetch origin ${defaultBranch}:${defaultBranch}`, { cwd: projectPath });
+      console.log(`[Workspace] ✓ ${defaultBranch} branch updated`);
     } catch (error) {
-      console.warn('[Workspace] Warning: Could not update main branch:', error.message);
-      // Continue anyway - better to create workspace with potentially old main than fail
+      console.warn(`[Workspace] Warning: Could not update ${defaultBranch} branch:`, error.message);
+      // Continue anyway - better to create workspace with potentially old branch than fail
     }
 
-    // Create new worktree from main branch
-    await execAsync(`git worktree add -b ${branchName} "${worktreePath}" main`, {
+    // Create new worktree from default branch
+    await execAsync(`git worktree add -b ${branchName} "${worktreePath}" ${defaultBranch}`, {
       cwd: projectPath
     });
 
