@@ -1,0 +1,82 @@
+# Electron Builder Configuration - PRODUCTION
+# https://www.electron.build/configuration/configuration
+
+appId: com.octave.app
+productName: Octave
+copyright: Copyright © 2025
+
+# Directories
+directories:
+  output: release
+  buildResources: build
+
+# macOS Configuration - PRODUCTION BUILD
+mac:
+  category: public.app-category.developer-tools
+  # icon: ./build/icon.icns  # TODO: Create icon
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+
+  # Production settings - Code signing enabled
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: ./build/entitlements.mac.plist
+  entitlementsInherit: ./build/entitlements.mac.plist
+
+  # Code signing identity (electron-builder will find the cert automatically)
+  identity: "Minkyo Jung (6DQK5MQC4H)"
+
+  # Notarization enabled - requires API Key in environment variables
+  notarize: true
+
+# DMG Configuration
+dmg:
+  title: ${productName} ${version}
+  # icon: ./build/icon.icns  # TODO: Create icon
+  window:
+    width: 540
+    height: 380
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+
+# Files to include in the package
+files:
+  - dist/**/*
+  - dist-electron/**/*
+  - package.json
+  - node_modules/**/*
+  - "!node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}"
+  - "!node_modules/*/{test,__tests__,tests,powered-test,example,examples}"
+  - "!node_modules/*.d.ts"
+  - "!node_modules/.bin"
+  - "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}"
+  - "!.editorconfig"
+  - "!**/._*"
+  - "!**/{.DS_Store,.git,.hg,.svn,CVS,RCS,SCCS,.gitignore,.gitattributes}"
+  - "!**/{__pycache__,thumbs.db,.flowconfig,.idea,.vs,.nyc_output}"
+  - "!**/{appveyor.yml,.travis.yml,circle.yml}"
+  - "!**/{npm-debug.log,yarn.lock,.yarn-integrity,.yarn-metadata.json}"
+
+# Exclude source files from production build
+asarUnpack:
+  - "node_modules/better-sqlite3/**/*"
+  - "node_modules/node-pty/**/*"
+
+# Compression
+compression: normal
+
+# Publish configuration for auto-updates
+# Replace with your GitHub repo details when ready
+publish:
+  provider: github
+  owner: your-github-username
+  repo: octave
+  releaseType: release

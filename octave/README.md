@@ -113,22 +113,49 @@ octave/
 - **Claude Code installed** (`~/.claude/local/claude`)
 
 ### Installation
+
+#### Main Application (uses npm)
 ```bash
 npm install
 ```
 
+#### Documentation Site (uses pnpm)
+```bash
+cd docs
+pnpm install
+```
+
+⚠️ **Important**: The main app uses **npm**, but the documentation site uses **pnpm**. Don't mix them up!
+
 ### Development
+
+#### Run Octave App
 ```bash
 npm run dev
 ```
 
 Opens Octave app with hot-reload enabled.
 
+#### Run Documentation Site
+```bash
+npm run dev:docs
+# or: cd docs && pnpm run dev
+```
+
+Opens documentation site at http://localhost:3001
+
 ### Build
 ```bash
+# Build Octave app
 npm run build
 npm run package  # macOS .app bundle
+
+# Build docs
+npm run build:docs
 ```
+
+> **📚 For detailed development workflow, testing, and deployment instructions, see [DEVELOPMENT.md](./DEVELOPMENT.md)**
+> **📖 For documentation authoring guide, see [docs/README.md](./docs/README.md)**
 
 ## 📖 How It Works
 

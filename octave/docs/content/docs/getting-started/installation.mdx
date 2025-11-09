@@ -1,0 +1,115 @@
+---
+title: Installation
+description: How to install Octave on your macOS system
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Steps, Step } from 'fumadocs-ui/components/steps';
+
+# Installation
+
+Get started with Octave in under 5 minutes.
+
+## Prerequisites
+
+<Callout type="warn">
+**macOS Only**: Octave currently only supports macOS 12 (Monterey) or higher.
+</Callout>
+
+Before installing Octave, make sure you have:
+
+- **macOS 12+** (Monterey, Ventura, or Sonoma)
+- **Node.js 18+** installed
+- **Claude Code CLI** installed at `~/.claude/local/claude`
+
+### Installing Claude Code
+
+If you don't have Claude Code installed:
+
+```bash
+# Follow Claude Code installation instructions
+# Visit https://claude.ai/download
+```
+
+## Installation Steps
+
+<Steps>
+<Step>
+### Download Octave
+
+Download the latest release from our [GitHub Releases](https://github.com/yourusername/octave/releases) page.
+
+Look for the `.dmg` file (e.g., `Octave-0.0.1.dmg`).
+</Step>
+
+<Step>
+### Install Application
+
+1. Open the downloaded `.dmg` file
+2. Drag **Octave.app** to your **Applications** folder
+3. Eject the disk image
+</Step>
+
+<Step>
+### First Launch
+
+<Callout type="info">
+On first launch, macOS may show a security warning. This is normal for apps downloaded from the internet.
+</Callout>
+
+1. Open **Octave** from Applications
+2. If you see a security warning:
+   - Go to **System Settings → Privacy & Security**
+   - Click **Open Anyway** next to Octave
+3. Octave will launch and show the welcome screen
+</Step>
+
+<Step>
+### Select Repository
+
+1. Click **Select Repository**
+2. Navigate to a Git repository on your Mac
+3. Octave will initialize and analyze your project
+</Step>
+</Steps>
+
+## Verification
+
+To verify Octave is working correctly:
+
+1. Create a new workspace from any branch
+2. Open the integrated terminal
+3. Try running a command
+
+You should see the terminal respond normally.
+
+## Next Steps
+
+- [Quick Start Guide](/docs/getting-started/quickstart) - Create your first workspace
+- [Configuration](/docs/user-guide/configuration) - Customize Octave settings
+- [Keyboard Shortcuts](/docs/user-guide/keyboard-shortcuts) - Learn productivity shortcuts
+
+## Troubleshooting
+
+### Octave won't open
+
+If Octave doesn't open:
+
+1. Check macOS version (must be 12+)
+2. Try removing quarantine attribute:
+   ```bash
+   xattr -d com.apple.quarantine /Applications/Octave.app
+   ```
+
+### Claude Code integration not working
+
+If AI features aren't working:
+
+1. Verify Claude Code is installed:
+   ```bash
+   ls ~/.claude/local/claude
+   ```
+2. Ensure you're authenticated with Claude Code
+3. Restart Octave
+
+For more help, see our [Troubleshooting Guide](/docs/help/troubleshooting).

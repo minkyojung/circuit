@@ -1,0 +1,10 @@
+{
+  "title": "Documentation",
+  "pages": [
+    "index",
+    "test-page",
+    "---Getting Started---",
+    "getting-started/installation",
+    "getting-started/quickstart"
+  ]
+}

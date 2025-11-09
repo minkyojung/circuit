@@ -11,6 +11,24 @@ Complete analysis and planning documentation for Octave Mac app distribution. Th
 
 ## Documents in This Set
 
+### 0. **DEVELOPMENT.md** [NEW - Complete Workflow Guide]
+**For**: Developers working on Octave
+**Contains**:
+- Complete development-to-deployment workflow (5 phases)
+- Local development setup and best practices
+- Testing strategy (unit, component, integration)
+- Production build and code signing
+- Release and distribution process
+- CI/CD recommendations with GitHub Actions
+- Version management strategy
+- Troubleshooting guide
+- Environment configuration
+- Quick reference commands
+
+**Best for**: Understanding the complete development lifecycle from code to release
+
+---
+
 ### 1. **DISTRIBUTION_PLANNING_SUMMARY.txt** [13 KB]
 **For**: Executive overview and quick understanding
 **Contains**: 
@@ -91,6 +109,9 @@ Complete analysis and planning documentation for Octave Mac app distribution. Th
 
 ## How to Use This Documentation
 
+### If you're new to the project:
+Read: **DEVELOPMENT.md** - Complete development workflow guide
+
 ### If you have 5 minutes:
 Read: **DISTRIBUTION_PLANNING_SUMMARY.txt** (Overview section)
 
@@ -101,8 +122,12 @@ Read: **DISTRIBUTION_PLANNING_SUMMARY.txt** (Full document)
 1. Read: **BUILD_DISTRIBUTION_QUICK_REFERENCE.md**
 2. Skim: **MAC_DISTRIBUTION_ANALYSIS.md**
 
+### If you're a developer working on features:
+1. Primary guide: **DEVELOPMENT.md** (Complete workflow)
+2. Quick commands: **BUILD_DISTRIBUTION_QUICK_REFERENCE.md**
+
 ### If you're implementing distribution:
-1. Start: **BUILD_DISTRIBUTION_QUICK_REFERENCE.md** (Checklist)
+1. Start: **DEVELOPMENT.md** (Phase 4 & 5)
 2. Reference: **DISTRIBUTION_CONFIG_TEMPLATES.md** (Code templates)
 3. Deep dive: **MAC_DISTRIBUTION_ANALYSIS.md** (Details when needed)
 
@@ -163,11 +188,13 @@ Reference: **DISTRIBUTION_CONFIG_TEMPLATES.md** (GitHub Actions Workflow section
 ## File Locations
 
 ### These Documentation Files:
+- **DEVELOPMENT.md** (NEW - Complete workflow guide)
 - DISTRIBUTION_PLANNING_SUMMARY.txt
 - MAC_DISTRIBUTION_ANALYSIS.md
 - BUILD_DISTRIBUTION_QUICK_REFERENCE.md
 - DISTRIBUTION_CONFIG_TEMPLATES.md
 - DISTRIBUTION_DOCUMENTATION_INDEX.md (this file)
+- CODE_SIGNING_SETUP.md
 
 ### Project Files to Modify:
 ```

@@ -146,19 +146,36 @@ export function useIPCEvents(params: UseIPCEventsParams): void {
   // Store bridge instance in ref to persist across renders
   const bridgeRef = useRef<IPCEventBridge | null>(null);
 
-  // Create bridge instance (only once)
-  if (!bridgeRef.current) {
-    bridgeRef.current = new IPCEventBridge(wrappedCallbacks, dependencies);
-    console.log('[useIPCEvents] ✅ IPCEventBridge created');
-  }
+  // Initialize bridge instance once on mount
+  useEffect(() => {
+    if (!bridgeRef.current) {
+      bridgeRef.current = new IPCEventBridge(wrappedCallbacks, dependencies);
+      console.log('[useIPCEvents] ✅ IPCEventBridge created');
+    }
 
-  // Update dependencies only when critical values change
-  // Note: Don't update on every dependencies change to avoid infinite loops
+    // Cleanup on unmount
+    return () => {
+      if (bridgeRef.current) {
+        bridgeRef.current.unregisterListeners();
+        bridgeRef.current = null;
+        console.log('[useIPCEvents] ✅ IPCEventBridge destroyed');
+      }
+    };
+  }, []); // Run only once on mount
+
+  // Update callbacks when they change to prevent stale closures
+  useEffect(() => {
+    if (bridgeRef.current) {
+      bridgeRef.current.updateCallbacks(wrappedCallbacks);
+    }
+  }, [wrappedCallbacks]);
+
+  // Update dependencies when critical values change
   useEffect(() => {
     if (bridgeRef.current) {
       bridgeRef.current.updateDependencies(dependencies);
     }
-  }, [sessionId, conversationId, workspacePath, workspaceId]); // Only update on these key changes
+  }, [sessionId, conversationId, workspacePath, workspaceId]);
 
   // Register/unregister listeners when sessionId changes
   useEffect(() => {

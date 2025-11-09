@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronDown, FolderPlus, GitFork, Settings, ExternalLink } from 'lucide-react';
+import { ChevronDown, FolderPlus, GitFork, Settings, ExternalLink, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Repository } from '@/types/workspace';
 import { DotMatrixAvatar } from './DotMatrixAvatar';
@@ -12,6 +12,23 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
 
 interface RepositorySwitcherProps {
   currentRepository: Repository;
@@ -19,6 +36,7 @@ interface RepositorySwitcherProps {
   onSelectRepository?: (repo: Repository) => void;
   onCreateRepository?: () => void;
   onCloneRepository?: () => void;
+  onRemoveRepository?: (repoId: string) => void;
 }
 
 // Generate consistent color from string (repository name)
@@ -46,10 +64,13 @@ export const RepositorySwitcher: React.FC<RepositorySwitcherProps> = ({
   onSelectRepository,
   onCreateRepository,
   onCloneRepository,
+  onRemoveRepository,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [repoToDelete, setRepoToDelete] = useState<Repository | null>(null);
 
   // Get first letter for avatar
   const firstLetter = currentRepository.name.charAt(0).toUpperCase();
@@ -59,6 +80,28 @@ export const RepositorySwitcher: React.FC<RepositorySwitcherProps> = ({
   const filteredRepositories = repositories.filter(repo =>
     repo.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // Handle delete click
+  const handleDeleteClick = (repo: Repository, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setRepoToDelete(repo);
+    setDeleteDialogOpen(true);
+    setIsOpen(false);
+  };
+
+  // Handle delete confirm
+  const handleDeleteConfirm = async () => {
+    if (!repoToDelete || !onRemoveRepository) return;
+    onRemoveRepository(repoToDelete.id);
+    setDeleteDialogOpen(false);
+    setRepoToDelete(null);
+  };
+
+  // Handle delete cancel
+  const handleDeleteCancel = () => {
+    setDeleteDialogOpen(false);
+    setRepoToDelete(null);
+  };
 
   return (
     <>
@@ -178,36 +221,48 @@ export const RepositorySwitcher: React.FC<RepositorySwitcherProps> = ({
                         const repoColor = getAvatarColor(repo.name);
 
                         return (
-                          <motion.button
-                            key={repo.id}
-                            whileHover={{ scale: 1.01 }}
-                            whileTap={{ scale: 0.98 }}
-                            onClick={() => {
-                              onSelectRepository?.(repo);
-                              setIsOpen(false);
-                              setSearchQuery('');
-                            }}
-                            className={cn(
-                              "w-full flex items-center gap-3 px-3 py-2 rounded-md",
-                              "transition-all duration-200",
-                              "hover:bg-sidebar-hover"
-                            )}
-                          >
-                            <DotMatrixAvatar
-                              letter={repoFirstLetter}
-                              color={repoColor}
-                              size="sm"
-                              animate={false}
-                            />
-                            <div className="flex flex-col items-start flex-1 min-w-0">
-                              <span className="text-base font-normal text-foreground truncate w-full">
-                                {repo.name}
-                              </span>
-                              <span className="text-xs font-normal text-muted-foreground truncate w-full">
-                                {repo.defaultBranch || 'main'}
-                              </span>
-                            </div>
-                          </motion.button>
+                          <ContextMenu key={repo.id}>
+                            <ContextMenuTrigger asChild>
+                              <motion.button
+                                whileHover={{ scale: 1.01 }}
+                                whileTap={{ scale: 0.98 }}
+                                onClick={() => {
+                                  onSelectRepository?.(repo);
+                                  setIsOpen(false);
+                                  setSearchQuery('');
+                                }}
+                                className={cn(
+                                  "w-full flex items-center gap-3 px-3 py-2 rounded-md",
+                                  "transition-all duration-200",
+                                  "hover:bg-sidebar-hover"
+                                )}
+                              >
+                                <DotMatrixAvatar
+                                  letter={repoFirstLetter}
+                                  color={repoColor}
+                                  size="sm"
+                                  animate={false}
+                                />
+                                <div className="flex flex-col items-start flex-1 min-w-0">
+                                  <span className="text-base font-normal text-foreground truncate w-full">
+                                    {repo.name}
+                                  </span>
+                                  <span className="text-xs font-normal text-muted-foreground truncate w-full">
+                                    {repo.defaultBranch || 'main'}
+                                  </span>
+                                </div>
+                              </motion.button>
+                            </ContextMenuTrigger>
+                            <ContextMenuContent>
+                              <ContextMenuItem
+                                onClick={(e) => handleDeleteClick(repo, e)}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Remove Repository
+                              </ContextMenuItem>
+                            </ContextMenuContent>
+                          </ContextMenu>
                         );
                       })}
                   </div>
@@ -327,6 +382,25 @@ export const RepositorySwitcher: React.FC<RepositorySwitcherProps> = ({
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Repository?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove "{repoToDelete?.name}" from Octave?
+              This will only remove it from the sidebar - your files will not be deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleDeleteCancel}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 };

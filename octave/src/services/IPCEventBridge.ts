@@ -622,9 +622,15 @@ The plan is ready. What would you like to do?`,
   /**
    * Register all IPC event listeners
    * Call this when component mounts or sessionId changes
+   *
+   * IMPORTANT: Always removes existing listeners first to prevent duplicate registration
    */
   registerListeners() {
     console.log('[IPCEventBridge] Registering IPC listeners');
+
+    // CRITICAL: Remove any existing listeners first to prevent duplicates
+    // This ensures that even if cleanup wasn't called properly, we won't have duplicate handlers
+    this.unregisterListeners();
 
     ipcRenderer.on('claude:thinking-start', this.handleThinkingStart);
     ipcRenderer.on('claude:milestone', this.handleMilestone);
@@ -661,5 +667,13 @@ The plan is ready. What would you like to do?`,
    */
   updateDependencies(newDeps: Partial<IPCEventDependencies>) {
     this.deps = { ...this.deps, ...newDeps };
+  }
+
+  /**
+   * Update callbacks with fresh references
+   * Call this when callbacks change to prevent stale closures
+   */
+  updateCallbacks(newCallbacks: IPCEventCallbacks) {
+    this.callbacks = newCallbacks;
   }
 }

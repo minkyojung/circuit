@@ -1,14 +1,20 @@
 /**
- * Git IPC Handlers
+ * Git IPC Handlers - SECURE VERSION
  *
- * Provides git operations for the Git Panel UI
+ * Provides git operations for the Git Panel UI with proper security:
+ * - Uses execFile instead of exec to prevent command injection
+ * - Validates all repository paths
+ * - Strict TypeScript typing
+ * - Comprehensive error handling
  */
 
 import { ipcMain } from 'electron';
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
+import * as path from 'path';
+import * as fs from 'fs/promises';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 /**
  * File status types from git
@@ -37,6 +43,170 @@ export interface GitStatus {
 }
 
 /**
+ * Git commit for graph visualization
+ */
+export interface GitCommit {
+  hash: string;
+  shortHash: string;
+  parents: string[];
+  message: string;
+  author: string;
+  email: string;
+  date: string;
+  refs: string[];
+}
+
+/**
+ * Git reference (branch, tag, etc.)
+ */
+export interface GitRef {
+  hash: string;
+  ref: string;
+  type: 'branch' | 'tag' | 'remote';
+  name: string;
+}
+
+/**
+ * Standard IPC result type
+ */
+interface IPCResult<T = void> {
+  success: boolean;
+  error?: string;
+  data?: T;
+}
+
+/**
+ * Validation result
+ */
+interface ValidationResult {
+  valid: boolean;
+  normalizedPath: string;
+  error?: string;
+}
+
+/**
+ * Validate that a path is a valid git repository
+ *
+ * Security checks:
+ * 1. Resolves to absolute path (prevents relative path tricks)
+ * 2. Resolves symlinks to real path
+ * 3. Verifies .git directory exists
+ * 4. Prevents path traversal attacks
+ *
+ * @param repoPath - Path to validate
+ * @returns Validation result with normalized path
+ */
+async function validateGitRepository(repoPath: string): Promise<ValidationResult> {
+  try {
+    // Step 1: Resolve to absolute path
+    const normalizedPath = path.resolve(repoPath);
+
+    // Step 2: Resolve symlinks to real path (prevents symlink attacks)
+    const realPath = await fs.realpath(normalizedPath);
+
+    // Step 3: Verify .git directory exists
+    const gitDir = path.join(realPath, '.git');
+    await fs.access(gitDir, fs.constants.R_OK);
+
+    return { valid: true, normalizedPath: realPath };
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return {
+      valid: false,
+      normalizedPath: repoPath,
+      error: `Invalid repository path: ${errorMessage}`
+    };
+  }
+}
+
+/**
+ * Validate file path for git operations
+ *
+ * Ensures the file path:
+ * 1. Is relative (not absolute)
+ * 2. Doesn't contain path traversal sequences (..)
+ * 3. Is safe to use in git operations
+ *
+ * @param filePath - File path to validate
+ * @returns True if valid, false otherwise
+ */
+function validateFilePath(filePath: string): { valid: boolean; error?: string } {
+  // Must be relative path
+  if (path.isAbsolute(filePath)) {
+    return { valid: false, error: 'File path must be relative to repository root' };
+  }
+
+  // No path traversal
+  if (filePath.includes('..')) {
+    return { valid: false, error: 'File path must not contain ".." sequences' };
+  }
+
+  // No null bytes (could be used for injection)
+  if (filePath.includes('\0')) {
+    return { valid: false, error: 'File path contains invalid characters' };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Execute a git command safely using execFile
+ *
+ * This function:
+ * 1. Validates the repository path
+ * 2. Executes git without shell (prevents injection)
+ * 3. Has timeout and output limits
+ * 4. Provides consistent error handling
+ *
+ * @param repoPath - Repository path
+ * @param args - Git command arguments (array, not string)
+ * @returns Command output or error
+ */
+async function executeGitCommand(
+  repoPath: string,
+  args: readonly string[]
+): Promise<{ success: true; stdout: string } | { success: false; error: string }> {
+  try {
+    // Validate repository first
+    const validation = await validateGitRepository(repoPath);
+    if (!validation.valid) {
+      return { success: false, error: validation.error || 'Invalid repository' };
+    }
+
+    // Execute git command without shell (SECURITY: prevents command injection)
+    const { stdout, stderr } = await execFileAsync('git', [...args], {
+      cwd: validation.normalizedPath,
+      shell: false, // CRITICAL: No shell interpretation
+      timeout: 30000, // 30 seconds max
+      maxBuffer: 1024 * 1024 * 10, // 10MB max output
+    });
+
+    return { success: true, stdout: stdout || stderr };
+  } catch (error: unknown) {
+    // Type-safe error handling
+    interface ExecError extends Error {
+      stderr?: string;
+      stdout?: string;
+      code?: number;
+    }
+
+    const isExecError = (err: unknown): err is ExecError => {
+      return err instanceof Error && ('stderr' in err || 'stdout' in err);
+    };
+
+    if (isExecError(error)) {
+      const errorMessage = error.stderr || error.stdout || error.message || 'Unknown git error';
+      return { success: false, error: errorMessage };
+    }
+
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
+}
+
+/**
  * Parse git status output
  * Format: "M\tfile.ts" or "A\tfile.ts"
  */
@@ -50,11 +220,11 @@ function parseGitStatus(output: string): GitFileChange[] {
     .map(line => {
       const parts = line.split('\t');
       const status = parts[0].trim() as FileStatus;
-      const path = parts.slice(1).join('\t');
+      const filePath = parts.slice(1).join('\t');
 
       return {
         status,
-        path
+        path: filePath
       };
     });
 }
@@ -62,52 +232,70 @@ function parseGitStatus(output: string): GitFileChange[] {
 /**
  * Get git status for workspace
  */
-ipcMain.handle('git:status', async (event, workspacePath: string) => {
+ipcMain.handle('git:status', async (_event, workspacePath: string): Promise<IPCResult<{ status: GitStatus }>> => {
   try {
     console.log('[Git] Getting status for:', workspacePath);
 
     // Current branch
-    const { stdout: branch } = await execAsync('git branch --show-current', { cwd: workspacePath });
+    const branchResult = await executeGitCommand(workspacePath, ['branch', '--show-current']);
+    if ('error' in branchResult) {
+      return { success: false, error: branchResult.error };
+    }
 
     // Staged files (cached = staged)
-    const { stdout: staged } = await execAsync('git diff --cached --name-status', { cwd: workspacePath });
+    const stagedResult = await executeGitCommand(workspacePath, ['diff', '--cached', '--name-status']);
+    if ('error' in stagedResult) {
+      return { success: false, error: stagedResult.error };
+    }
 
     // Unstaged files (modified but not staged)
-    const { stdout: unstaged } = await execAsync('git diff --name-status', { cwd: workspacePath });
+    const unstagedResult = await executeGitCommand(workspacePath, ['diff', '--name-status']);
+    if ('error' in unstagedResult) {
+      return { success: false, error: unstagedResult.error };
+    }
 
     // Untracked files
-    const { stdout: untracked } = await execAsync('git ls-files --others --exclude-standard', { cwd: workspacePath });
+    const untrackedResult = await executeGitCommand(workspacePath, ['ls-files', '--others', '--exclude-standard']);
+    if ('error' in untrackedResult) {
+      return { success: false, error: untrackedResult.error };
+    }
 
-    // Remote tracking branch
+    // Remote tracking branch (may not exist)
     let remoteBranch = '';
     let ahead = 0;
     let behind = 0;
 
     try {
-      const { stdout: remote } = await execAsync('git rev-parse --abbrev-ref @{upstream}', { cwd: workspacePath });
-      remoteBranch = remote.trim();
+      const remoteResult = await executeGitCommand(workspacePath, ['rev-parse', '--abbrev-ref', '@{upstream}']);
+      if ('stdout' in remoteResult) {
+        remoteBranch = remoteResult.stdout.trim();
 
-      // Commits ahead of remote
-      const { stdout: aheadCount } = await execAsync('git rev-list --count @{upstream}..HEAD', { cwd: workspacePath });
-      ahead = parseInt(aheadCount.trim()) || 0;
+        // Commits ahead of remote
+        const aheadResult = await executeGitCommand(workspacePath, ['rev-list', '--count', '@{upstream}..HEAD']);
+        if ('stdout' in aheadResult) {
+          ahead = parseInt(aheadResult.stdout.trim()) || 0;
+        }
 
-      // Commits behind remote
-      const { stdout: behindCount } = await execAsync('git rev-list --count HEAD..@{upstream}', { cwd: workspacePath });
-      behind = parseInt(behindCount.trim()) || 0;
-    } catch (e) {
+        // Commits behind remote
+        const behindResult = await executeGitCommand(workspacePath, ['rev-list', '--count', 'HEAD..@{upstream}']);
+        if ('stdout' in behindResult) {
+          behind = parseInt(behindResult.stdout.trim()) || 0;
+        }
+      }
+    } catch {
       // No upstream branch configured - that's okay
       console.log('[Git] No upstream branch configured');
     }
 
     const status: GitStatus = {
-      currentBranch: branch.trim(),
+      currentBranch: branchResult.stdout.trim(),
       remoteBranch,
       ahead,
       behind,
-      staged: parseGitStatus(staged),
-      unstaged: parseGitStatus(unstaged),
-      untracked: untracked.trim().split('\n').filter(Boolean).map(path => ({
-        path,
+      staged: parseGitStatus(stagedResult.stdout),
+      unstaged: parseGitStatus(unstagedResult.stdout),
+      untracked: untrackedResult.stdout.trim().split('\n').filter(Boolean).map(filePath => ({
+        path: filePath,
         status: '?' as const
       }))
     };
@@ -119,168 +307,185 @@ ipcMain.handle('git:status', async (event, workspacePath: string) => {
       untracked: status.untracked.length
     });
 
-    return { success: true, status };
-  } catch (error) {
+    return { success: true, data: { status } };
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('[Git] Failed to get status:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    };
+    return { success: false, error: errorMessage };
   }
 });
 
 /**
- * Stage a file
+ * Stage a file - SECURE VERSION
  */
-ipcMain.handle('git:stage', async (event, workspacePath: string, filePath: string) => {
-  try {
-    console.log('[Git] Staging file:', filePath);
-    await execAsync(`git add "${filePath}"`, { cwd: workspacePath });
-    return { success: true };
-  } catch (error) {
-    console.error('[Git] Failed to stage file:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    };
+ipcMain.handle('git:stage', async (_event, workspacePath: string, filePath: string): Promise<IPCResult> => {
+  console.log('[Git] Staging file:', filePath);
+
+  // Validate file path
+  const pathValidation = validateFilePath(filePath);
+  if (!pathValidation.valid) {
+    return { success: false, error: pathValidation.error };
   }
+
+  // Use '--' separator to clearly mark file paths (prevents option injection)
+  const result = await executeGitCommand(workspacePath, ['add', '--', filePath]);
+
+  if ('error' in result) {
+    console.error('[Git] Failed to stage file:', result.error);
+    return { success: false, error: result.error };
+  }
+
+  return { success: true };
 });
 
 /**
- * Unstage a file
+ * Unstage a file - SECURE VERSION
  */
-ipcMain.handle('git:unstage', async (event, workspacePath: string, filePath: string) => {
-  try {
-    console.log('[Git] Unstaging file:', filePath);
-    await execAsync(`git reset HEAD "${filePath}"`, { cwd: workspacePath });
-    return { success: true };
-  } catch (error) {
-    console.error('[Git] Failed to unstage file:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    };
+ipcMain.handle('git:unstage', async (_event, workspacePath: string, filePath: string): Promise<IPCResult> => {
+  console.log('[Git] Unstaging file:', filePath);
+
+  // Validate file path
+  const pathValidation = validateFilePath(filePath);
+  if (!pathValidation.valid) {
+    return { success: false, error: pathValidation.error };
   }
+
+  const result = await executeGitCommand(workspacePath, ['reset', 'HEAD', '--', filePath]);
+
+  if ('error' in result) {
+    console.error('[Git] Failed to unstage file:', result.error);
+    return { success: false, error: result.error };
+  }
+
+  return { success: true };
 });
 
 /**
- * Stage all changes
+ * Stage all changes - SECURE VERSION
  */
-ipcMain.handle('git:stage-all', async (event, workspacePath: string) => {
-  try {
-    console.log('[Git] Staging all changes');
-    await execAsync('git add .', { cwd: workspacePath });
-    return { success: true };
-  } catch (error) {
-    console.error('[Git] Failed to stage all:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    };
+ipcMain.handle('git:stage-all', async (_event, workspacePath: string): Promise<IPCResult> => {
+  console.log('[Git] Staging all changes');
+
+  const result = await executeGitCommand(workspacePath, ['add', '.']);
+
+  if ('error' in result) {
+    console.error('[Git] Failed to stage all:', result.error);
+    return { success: false, error: result.error };
   }
+
+  return { success: true };
 });
 
 /**
- * Unstage all changes
+ * Unstage all changes - SECURE VERSION
  */
-ipcMain.handle('git:unstage-all', async (event, workspacePath: string) => {
-  try {
-    console.log('[Git] Unstaging all changes');
-    await execAsync('git reset HEAD', { cwd: workspacePath });
-    return { success: true };
-  } catch (error) {
-    console.error('[Git] Failed to unstage all:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    };
+ipcMain.handle('git:unstage-all', async (_event, workspacePath: string): Promise<IPCResult> => {
+  console.log('[Git] Unstaging all changes');
+
+  const result = await executeGitCommand(workspacePath, ['reset', 'HEAD']);
+
+  if ('error' in result) {
+    console.error('[Git] Failed to unstage all:', result.error);
+    return { success: false, error: result.error };
   }
+
+  return { success: true };
 });
 
 /**
- * Commit staged changes
+ * Commit staged changes - SECURE VERSION
+ *
+ * NO ESCAPING NEEDED - Arguments are passed directly to git, not through shell
  */
-ipcMain.handle('git:commit', async (event, workspacePath: string, message: string) => {
-  try {
-    console.log('[Git] Committing with message:', message);
+ipcMain.handle('git:commit', async (_event, workspacePath: string, message: string): Promise<IPCResult> => {
+  console.log('[Git] Committing with message length:', message.length);
 
-    // Escape quotes in commit message
-    const escapedMessage = message.replace(/"/g, '\\"');
-
-    await execAsync(`git commit -m "${escapedMessage}"`, { cwd: workspacePath });
-    return { success: true };
-  } catch (error: any) {
-    console.error('[Git] Failed to commit:', error);
-
-    // Extract detailed error message from stderr or stdout
-    const errorMessage = error.stderr || error.stdout || error.message || 'Unknown error';
-
-    return {
-      success: false,
-      error: errorMessage
-    };
+  // Validate commit message
+  if (!message || message.trim().length === 0) {
+    return { success: false, error: 'Commit message cannot be empty' };
   }
+
+  if (message.length > 10000) {
+    return { success: false, error: 'Commit message too long (max 10000 characters)' };
+  }
+
+  // SECURITY: Message is passed as argument array, NOT through shell
+  // No escaping needed - execFile handles this safely
+  const result = await executeGitCommand(workspacePath, ['commit', '-m', message]);
+
+  if ('error' in result) {
+    console.error('[Git] Failed to commit:', result.error);
+    return { success: false, error: result.error };
+  }
+
+  return { success: true };
 });
 
 /**
- * Commit and push staged changes
+ * Commit and push staged changes - SECURE VERSION
  */
-ipcMain.handle('git:commit-and-push', async (event, workspacePath: string, message: string) => {
-  try {
-    console.log('[Git] Committing and pushing with message:', message);
+ipcMain.handle('git:commit-and-push', async (_event, workspacePath: string, message: string): Promise<IPCResult> => {
+  console.log('[Git] Committing and pushing with message length:', message.length);
 
-    // Escape quotes in commit message
-    const escapedMessage = message.replace(/"/g, '\\"');
-
-    // Commit
-    await execAsync(`git commit -m "${escapedMessage}"`, { cwd: workspacePath });
-
-    // Get current branch name
-    const { stdout: branch } = await execAsync('git branch --show-current', { cwd: workspacePath });
-    const branchName = branch.trim();
-
-    // Push with upstream tracking (-u sets upstream if not exists)
-    await execAsync(`git push -u origin ${branchName}`, { cwd: workspacePath });
-
-    return { success: true };
-  } catch (error: any) {
-    console.error('[Git] Failed to commit and push:', error);
-
-    // Extract detailed error message from stderr or stdout
-    const errorMessage = error.stderr || error.stdout || error.message || 'Unknown error';
-
-    return {
-      success: false,
-      error: errorMessage
-    };
+  // Validate commit message
+  if (!message || message.trim().length === 0) {
+    return { success: false, error: 'Commit message cannot be empty' };
   }
+
+  if (message.length > 10000) {
+    return { success: false, error: 'Commit message too long (max 10000 characters)' };
+  }
+
+  // Commit
+  const commitResult = await executeGitCommand(workspacePath, ['commit', '-m', message]);
+  if ('error' in commitResult) {
+    console.error('[Git] Failed to commit:', commitResult.error);
+    return { success: false, error: commitResult.error };
+  }
+
+  // Get current branch name
+  const branchResult = await executeGitCommand(workspacePath, ['branch', '--show-current']);
+  if ('error' in branchResult) {
+    return { success: false, error: branchResult.error };
+  }
+
+  const branchName = branchResult.stdout.trim();
+
+  // Push with upstream tracking
+  const pushResult = await executeGitCommand(workspacePath, ['push', '-u', 'origin', branchName]);
+  if ('error' in pushResult) {
+    console.error('[Git] Failed to push:', pushResult.error);
+    return { success: false, error: pushResult.error };
+  }
+
+  return { success: true };
 });
 
 /**
  * Generate commit message using Claude CLI
  */
-ipcMain.handle('git:generate-commit-message', async (event, workspacePath: string) => {
+ipcMain.handle('git:generate-commit-message', async (_event, workspacePath: string): Promise<IPCResult<{ suggestions: string[] }>> => {
   try {
     console.log('[Git] Generating commit message with AI');
 
     // Get staged diff
-    const { stdout: diff } = await execAsync('git diff --cached', { cwd: workspacePath });
-
-    if (!diff.trim()) {
-      return {
-        success: false,
-        error: 'No staged changes to analyze'
-      };
+    const diffResult = await executeGitCommand(workspacePath, ['diff', '--cached']);
+    if ('error' in diffResult) {
+      return { success: false, error: diffResult.error };
     }
 
-    // Get Claude CLI path (same as used in main.cjs)
+    if (!diffResult.stdout.trim()) {
+      return { success: false, error: 'No staged changes to analyze' };
+    }
+
+    // Get Claude CLI path
     const { homedir } = await import('os');
     const { join } = await import('path');
     const CLAUDE_CLI_PATH = join(homedir(), '.claude', 'local', 'claude');
 
     // Check if Claude CLI exists
     try {
-      await import('fs/promises').then(fs => fs.access(CLAUDE_CLI_PATH));
+      await fs.access(CLAUDE_CLI_PATH, fs.constants.X_OK);
     } catch {
       return {
         success: false,
@@ -292,7 +497,7 @@ ipcMain.handle('git:generate-commit-message', async (event, workspacePath: strin
     const prompt = `Analyze this git diff and generate a concise, conventional commit message.
 
 Diff (first 2000 chars):
-${diff.slice(0, 2000)}
+${diffResult.stdout.slice(0, 2000)}
 
 Format: <type>: <description>
 Types: feat, fix, docs, style, refactor, test, chore
@@ -302,12 +507,12 @@ Generate 3 commit message options, ordered by quality. Be concise and specific.
 Return ONLY a JSON object with this exact format:
 {"suggestions": ["option1", "option2", "option3"]}`;
 
-    // Call Claude CLI
+    // Call Claude CLI using execFile (secure)
     const { spawn } = await import('child_process');
     const claude = spawn(CLAUDE_CLI_PATH, [
       '--print',
       '--output-format', 'json',
-      '--model', 'haiku'  // Fast and cheap for commit messages
+      '--model', 'haiku'
     ], {
       stdio: ['pipe', 'pipe', 'pipe']
     });
@@ -323,16 +528,16 @@ Return ONLY a JSON object with this exact format:
     let stdout = '';
     let stderr = '';
 
-    claude.stdout.on('data', (data) => {
+    claude.stdout.on('data', (data: Buffer) => {
       stdout += data.toString();
     });
 
-    claude.stderr.on('data', (data) => {
+    claude.stderr.on('data', (data: Buffer) => {
       stderr += data.toString();
     });
 
     return new Promise((resolve) => {
-      claude.on('close', (code) => {
+      claude.on('close', (code: number | null) => {
         if (code !== 0) {
           console.error('[Git] Claude CLI failed:', stderr);
           resolve({
@@ -347,7 +552,6 @@ Return ONLY a JSON object with this exact format:
           const response = JSON.parse(stdout);
 
           if (response.type === 'result' && response.subtype === 'success') {
-            // Extract suggestions from Claude's response
             const resultText = response.result;
 
             // Try to parse as JSON first
@@ -367,7 +571,7 @@ Return ONLY a JSON object with this exact format:
 
             resolve({
               success: true,
-              suggestions
+              data: { suggestions }
             });
           } else {
             resolve({
@@ -375,16 +579,17 @@ Return ONLY a JSON object with this exact format:
               error: 'Unexpected response from Claude CLI'
             });
           }
-        } catch (parseError) {
+        } catch (parseError: unknown) {
+          const errorMessage = parseError instanceof Error ? parseError.message : 'Unknown error';
           console.error('[Git] Failed to parse Claude response:', parseError);
           resolve({
             success: false,
-            error: 'Failed to parse AI response'
+            error: `Failed to parse AI response: ${errorMessage}`
           });
         }
       });
 
-      claude.on('error', (error) => {
+      claude.on('error', (error: Error) => {
         console.error('[Git] Claude process error:', error);
         resolve({
           success: false,
@@ -392,49 +597,37 @@ Return ONLY a JSON object with this exact format:
         });
       });
     });
-  } catch (error) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('[Git] Failed to generate commit message:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    };
+    return { success: false, error: errorMessage };
   }
 });
 
 /**
- * Git commit for graph visualization
- */
-export interface GitCommit {
-  hash: string;
-  shortHash: string;
-  parents: string[];
-  message: string;
-  author: string;
-  email: string;
-  date: string;
-  refs: string[];
-}
-
-/**
  * Get git log for graph visualization
  */
-ipcMain.handle('git:log', async (event, workspacePath: string, limit: number = 5000) => {
+ipcMain.handle('git:log', async (_event, workspacePath: string, limit: number = 5000): Promise<IPCResult<{ commits: GitCommit[] }>> => {
   try {
     console.log('[Git] Getting commit history for:', workspacePath);
 
-    // Format: hash|parents|subject|author|email|date|refs
-    // %H = full hash, %P = parent hashes, %s = subject, %an = author name, %ae = author email, %ar = relative date, %D = refs
-    // --topo-order: Show commits in topological order (parents before children)
-    const { stdout } = await execAsync(
-      `git log --all --topo-order --format="%H|%P|%s|%an|%ae|%ar|%D" -${limit}`,
-      { cwd: workspacePath }
-    );
+    const result = await executeGitCommand(workspacePath, [
+      'log',
+      '--all',
+      '--topo-order',
+      '--format=%H|%P|%s|%an|%ae|%ar|%D',
+      `-${limit}`
+    ]);
 
-    if (!stdout.trim()) {
-      return { success: true, commits: [] };
+    if ('error' in result) {
+      return { success: false, error: result.error };
     }
 
-    const commits: GitCommit[] = stdout
+    if (!result.stdout.trim()) {
+      return { success: true, data: { commits: [] } };
+    }
+
+    const commits: GitCommit[] = result.stdout
       .trim()
       .split('\n')
       .map(line => {
@@ -454,48 +647,33 @@ ipcMain.handle('git:log', async (event, workspacePath: string, limit: number = 5
 
     console.log('[Git] Retrieved', commits.length, 'commits');
 
-    return { success: true, commits };
-  } catch (error: any) {
+    return { success: true, data: { commits } };
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('[Git] Failed to get log:', error);
-
-    const errorMessage = error.stderr || error.stdout || error.message || 'Unknown error';
-
-    return {
-      success: false,
-      error: errorMessage
-    };
+    return { success: false, error: errorMessage };
   }
 });
 
 /**
- * Git reference (branch, tag, etc.)
- */
-export interface GitRef {
-  hash: string;
-  ref: string;
-  type: 'branch' | 'tag' | 'remote';
-  name: string;
-}
-
-/**
  * Get all git refs (branches, tags, remotes)
  */
-ipcMain.handle('git:refs', async (event, workspacePath: string) => {
+ipcMain.handle('git:refs', async (_event, workspacePath: string): Promise<IPCResult<{ refs: GitRef[] }>> => {
   try {
     console.log('[Git] Getting refs for:', workspacePath);
 
-    // Get all refs with their commit hashes
-    // Format: <hash> <ref>
-    const { stdout } = await execAsync(
-      'git show-ref --heads --tags',
-      { cwd: workspacePath }
-    );
+    const result = await executeGitCommand(workspacePath, ['show-ref', '--heads', '--tags']);
 
-    if (!stdout.trim()) {
-      return { success: true, refs: [] };
+    if ('error' in result) {
+      // show-ref returns non-zero if no refs found, which is okay
+      return { success: true, data: { refs: [] } };
     }
 
-    const refs: GitRef[] = stdout
+    if (!result.stdout.trim()) {
+      return { success: true, data: { refs: [] } };
+    }
+
+    const refs: GitRef[] = result.stdout
       .trim()
       .split('\n')
       .map(line => {
@@ -528,22 +706,48 @@ ipcMain.handle('git:refs', async (event, workspacePath: string) => {
 
     console.log('[Git] Retrieved', refs.length, 'refs');
 
-    return { success: true, refs };
-  } catch (error: any) {
+    return { success: true, data: { refs } };
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('[Git] Failed to get refs:', error);
+    return { success: false, error: errorMessage };
+  }
+});
 
-    const errorMessage = error.stderr || error.stdout || error.message || 'Unknown error';
+/**
+ * List all branches for a repository - SECURE VERSION
+ */
+ipcMain.handle('git:list-branches', async (_event, repoPath: string): Promise<IPCResult<{ branches: string[] }>> => {
+  console.log('[Git] Listing branches for:', repoPath);
 
+  const result = await executeGitCommand(repoPath, ['branch', '--format=%(refname:short)']);
+
+  if ('error' in result) {
+    console.error('[Git] Failed to list branches:', result.error);
     return {
       success: false,
-      error: errorMessage
+      error: result.error,
+      data: { branches: ['main'] } // Fallback
     };
   }
+
+  if (!result.stdout.trim()) {
+    return { success: true, data: { branches: ['main'] } };
+  }
+
+  const branches = result.stdout
+    .trim()
+    .split('\n')
+    .map(branch => branch.trim())
+    .filter(Boolean);
+
+  console.log('[Git] Found branches:', branches);
+  return { success: true, data: { branches } };
 });
 
 /**
  * Register all git handlers
  */
-export function registerGitHandlers() {
+export function registerGitHandlers(): void {
   console.log('[Git] Handlers registered');
 }
