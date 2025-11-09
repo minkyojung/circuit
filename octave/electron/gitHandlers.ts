@@ -67,6 +67,38 @@ export interface GitRef {
 }
 
 /**
+ * Complete workspace Git state for context-aware UI
+ * This drives all button states and recommendations
+ */
+export interface GitWorkspaceState {
+  // Working directory state
+  uncommitted: number;        // Total uncommitted changes
+  staged: number;             // Staged files count
+  unstaged: number;           // Unstaged files count
+  untracked: number;          // Untracked files count
+
+  // Local vs Remote divergence
+  ahead: number;              // Commits local has that remote doesn't (↑)
+  behind: number;             // Commits remote has that local doesn't (↓)
+
+  // Branch information
+  currentBranch: string;
+  upstreamBranch: string | null;
+  defaultBranch: string;      // Usually 'main' or 'master'
+
+  // Special states
+  isMerging: boolean;         // Merge in progress
+  isRebasing: boolean;        // Rebase in progress
+  hasConflicts: boolean;      // Unresolved conflicts exist
+
+  // Capability flags (computed from above)
+  canCommit: boolean;         // Has uncommitted changes
+  canPush: boolean;           // Has commits to push
+  canPull: boolean;           // Behind remote or just checking
+  canMerge: boolean;          // No uncommitted changes, not in special state
+}
+
+/**
  * Standard IPC result type
  */
 interface IPCResult<T = void> {
@@ -931,6 +963,205 @@ ipcMain.handle('git:push', async (_event, workspacePath: string, options?: {
   return {
     success: true,
     data: { message: result.stdout.trim() || 'Push completed successfully' }
+  };
+});
+
+/**
+ * Get complete workspace Git state - SECURE VERSION
+ * This is the foundation for context-aware Git UI
+ *
+ * Strategy: Run multiple git commands in parallel for performance
+ * Graceful degradation: If individual commands fail, use safe defaults
+ */
+ipcMain.handle('git:get-workspace-state', async (_event, workspacePath: string): Promise<IPCResult<{ state: GitWorkspaceState }>> => {
+  console.log('[Git] Getting workspace state for:', workspacePath);
+
+  try {
+    // Execute all git commands in parallel for performance
+    // Using Promise.allSettled to continue even if some commands fail
+    const [
+      statusResult,
+      branchResult,
+      upstreamResult,
+      aheadResult,
+      behindResult,
+      defaultBranchResult,
+      mergeHeadResult,
+      rebaseHeadResult
+    ] = await Promise.allSettled([
+      // 1. Get working directory status
+      executeGitCommand(workspacePath, ['status', '--porcelain']),
+
+      // 2. Get current branch
+      executeGitCommand(workspacePath, ['branch', '--show-current']),
+
+      // 3. Get upstream branch
+      executeGitCommand(workspacePath, ['rev-parse', '--abbrev-ref', '@{upstream}']),
+
+      // 4. Count commits ahead
+      executeGitCommand(workspacePath, ['rev-list', '--count', '@{upstream}..HEAD']),
+
+      // 5. Count commits behind
+      executeGitCommand(workspacePath, ['rev-list', '--count', 'HEAD..@{upstream}']),
+
+      // 6. Get default branch (origin/HEAD)
+      executeGitCommand(workspacePath, ['symbolic-ref', 'refs/remotes/origin/HEAD']),
+
+      // 7. Check if merge in progress
+      executeGitCommand(workspacePath, ['rev-parse', '--verify', 'MERGE_HEAD']),
+
+      // 8. Check if rebase in progress
+      executeGitCommand(workspacePath, ['rev-parse', '--verify', 'REBASE_HEAD'])
+    ]);
+
+    // Parse status (always needed, fail if unavailable)
+    if (statusResult.status !== 'fulfilled' || 'error' in statusResult.value) {
+      return { success: false, error: 'Failed to get git status' };
+    }
+
+    const statusOutput = statusResult.value.stdout;
+    const statusLines = statusOutput.trim().split('\n').filter(Boolean);
+
+    let staged = 0;
+    let unstaged = 0;
+    let untracked = 0;
+    let hasConflicts = false;
+
+    for (const line of statusLines) {
+      const status = line.substring(0, 2);
+
+      // Staged changes (left column)
+      if (status[0] !== ' ' && status[0] !== '?') {
+        staged++;
+      }
+
+      // Unstaged changes (right column)
+      if (status[1] !== ' ' && status[1] !== '?') {
+        unstaged++;
+      }
+
+      // Untracked files
+      if (status === '??') {
+        untracked++;
+      }
+
+      // Conflicts (both modified, added by us/them, etc.)
+      if (status === 'UU' || status === 'AA' || status === 'DD' ||
+          status === 'AU' || status === 'UA' || status === 'DU' || status === 'UD') {
+        hasConflicts = true;
+      }
+    }
+
+    const uncommitted = staged + unstaged + untracked;
+
+    // Parse current branch
+    const currentBranch = branchResult.status === 'fulfilled' && 'stdout' in branchResult.value
+      ? branchResult.value.stdout.trim()
+      : 'unknown';
+
+    // Parse upstream branch (may not exist)
+    const upstreamBranch = upstreamResult.status === 'fulfilled' && 'stdout' in upstreamResult.value
+      ? upstreamResult.value.stdout.trim()
+      : null;
+
+    // Parse ahead/behind counts (default to 0 if no upstream)
+    const ahead = aheadResult.status === 'fulfilled' && 'stdout' in aheadResult.value
+      ? parseInt(aheadResult.value.stdout.trim()) || 0
+      : 0;
+
+    const behind = behindResult.status === 'fulfilled' && 'stdout' in behindResult.value
+      ? parseInt(behindResult.value.stdout.trim()) || 0
+      : 0;
+
+    // Parse default branch (fallback to 'main')
+    let defaultBranch = 'main';
+    if (defaultBranchResult.status === 'fulfilled' && 'stdout' in defaultBranchResult.value) {
+      const fullRef = defaultBranchResult.value.stdout.trim();
+      defaultBranch = fullRef.replace('refs/remotes/origin/', '');
+    }
+
+    // Check merge/rebase state
+    const isMerging = mergeHeadResult.status === 'fulfilled' && 'stdout' in mergeHeadResult.value;
+    const isRebasing = rebaseHeadResult.status === 'fulfilled' && 'stdout' in rebaseHeadResult.value;
+
+    // Compute capability flags
+    const canCommit = uncommitted > 0;
+    const canPush = ahead > 0 && uncommitted === 0;
+    const canPull = true; // Can always attempt to pull
+    const canMerge = uncommitted === 0 && !isMerging && !isRebasing;
+
+    const state: GitWorkspaceState = {
+      uncommitted,
+      staged,
+      unstaged,
+      untracked,
+      ahead,
+      behind,
+      currentBranch,
+      upstreamBranch,
+      defaultBranch,
+      isMerging,
+      isRebasing,
+      hasConflicts,
+      canCommit,
+      canPush,
+      canPull,
+      canMerge
+    };
+
+    console.log('[Git] Workspace state:', {
+      branch: state.currentBranch,
+      uncommitted: state.uncommitted,
+      ahead: state.ahead,
+      behind: state.behind,
+      conflicts: state.hasConflicts
+    });
+
+    return { success: true, data: { state } };
+
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[Git] Failed to get workspace state:', error);
+    return { success: false, error: errorMessage };
+  }
+});
+
+/**
+ * Get git diff - SECURE VERSION
+ * Replaces workspace:git-diff with secure implementation
+ */
+ipcMain.handle('git:diff', async (_event, workspacePath: string, options?: {
+  staged?: boolean;
+  target?: string;
+}): Promise<IPCResult<{ diff: string }>> => {
+  console.log('[Git] Getting diff for:', workspacePath, options);
+
+  const args = ['diff'];
+
+  if (options?.staged) {
+    args.push('--cached');
+  }
+
+  if (options?.target) {
+    // Validate target (commit hash or ref)
+    if (!/^[a-zA-Z0-9_/-]+$/.test(options.target)) {
+      return { success: false, error: 'Invalid target ref' };
+    }
+    args.push(options.target);
+  } else {
+    args.push('HEAD');
+  }
+
+  const result = await executeGitCommand(workspacePath, args);
+
+  if ('error' in result) {
+    console.error('[Git] Failed to get diff:', result.error);
+    return { success: false, error: result.error };
+  }
+
+  return {
+    success: true,
+    data: { diff: result.stdout || 'No changes detected' }
   };
 });
 
