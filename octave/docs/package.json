@@ -1,0 +1,32 @@
+{
+  "name": "octave-docs",
+  "version": "0.0.1",
+  "private": true,
+  "packageManager": "pnpm@10.17.1",
+  "scripts": {
+    "preinstall": "npx only-allow pnpm",
+    "postinstall": "fumadocs-mdx",
+    "dev": "next dev -p 3001",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "fumadocs-core": "^16.0.3",
+    "fumadocs-mdx": "^13.0.5",
+    "fumadocs-ui": "^16.0.3",
+    "lucide-react": "^0.546.0",
+    "next": "^15.5.6",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "autoprefixer": "^10.4.0",
+    "postcss": "^8.4.0",
+    "tailwindcss": "^3.4.18",
+    "typescript": "^5.6"
+  }
+}

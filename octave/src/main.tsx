@@ -5,6 +5,9 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 
+// Load development tools (exposes window.devTools)
+import './lib/devTools'
+
 createRoot(document.getElementById('root')!).render(
   <App />,
 )

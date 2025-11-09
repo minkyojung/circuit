@@ -7,6 +7,9 @@ const chokidar = require('chokidar');
 const os = require('os');
 const http = require('http');
 
+// Load environment variables from .env file
+require('dotenv').config();
+
 const execAsync = promisify(exec);
 
 // Import MCP Server Manager (ES Module)
@@ -435,6 +438,72 @@ function handleGitHubWebhook(payload, eventType, res) {
 }
 
 /**
+ * Handle GitHub OAuth callback
+ */
+async function handleGitHubOAuthCallback(req, res) {
+  const url = new URL(req.url, `http://localhost:${process.env.WEBHOOK_PORT || 3456}`);
+  const code = url.searchParams.get('code');
+  const error = url.searchParams.get('error');
+
+  if (error) {
+    console.error('[OAuth] Authorization failed:', error);
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end(`
+      <html>
+        <body>
+          <h1>Authorization Failed</h1>
+          <p>Error: ${error}</p>
+          <p>You can close this window.</p>
+          <script>setTimeout(() => window.close(), 2000);</script>
+        </body>
+      </html>
+    `);
+
+    // Notify waiting OAuth flow
+    const callback = global.githubOAuthCallback;
+    if (callback) {
+      callback.reject(new Error(error));
+      callback.window.close();
+      delete global.githubOAuthCallback;
+    }
+    return;
+  }
+
+  if (!code) {
+    res.writeHead(400, { 'Content-Type': 'text/html' });
+    res.end(`
+      <html>
+        <body>
+          <h1>Invalid Request</h1>
+          <p>Missing authorization code.</p>
+        </body>
+      </html>
+    `);
+    return;
+  }
+
+  // Success response
+  res.writeHead(200, { 'Content-Type': 'text/html' });
+  res.end(`
+    <html>
+      <body>
+        <h1>Authorization Successful!</h1>
+        <p>You can close this window and return to Octave.</p>
+        <script>setTimeout(() => window.close(), 2000);</script>
+      </body>
+    </html>
+  `);
+
+  // Complete OAuth flow
+  try {
+    const { completeGitHubOAuth } = await import('../dist-electron/githubAuth.js');
+    await completeGitHubOAuth(code);
+  } catch (err) {
+    console.error('[OAuth] Failed to complete OAuth flow:', err);
+  }
+}
+
+/**
  * Start HTTP server to receive webhooks from various services
  * Server listens on port 3456 by default
  */
@@ -442,6 +511,13 @@ function startWebhookServer() {
   const PORT = process.env.WEBHOOK_PORT || 3456;
 
   const server = http.createServer((req, res) => {
+    // Handle GitHub OAuth callback (GET request)
+    if (req.method === 'GET' && req.url?.startsWith('/auth/github/callback')) {
+      handleGitHubOAuthCallback(req, res);
+      return;
+    }
+
+    // All other routes require POST
     if (req.method !== 'POST') {
       res.writeHead(405, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Method not allowed' }));
@@ -492,6 +568,7 @@ function startWebhookServer() {
     console.log(`[Webhook] Server listening on port ${PORT}`);
     console.log(`[Webhook] Vercel endpoint: http://localhost:${PORT}/webhook/vercel`);
     console.log(`[Webhook] GitHub endpoint: http://localhost:${PORT}/webhook/github`);
+    console.log(`[OAuth] GitHub OAuth callback: http://localhost:${PORT}/auth/github/callback`);
   });
 
   // Store server reference for cleanup
@@ -1031,6 +1108,238 @@ ipcMain.handle('github:test-ssh', async () => {
     console.error('[IPC] github:test-ssh failed:', error);
     return {
       authenticated: false,
+      error: error.message,
+    };
+  }
+});
+
+// GitHub OAuth Handlers
+ipcMain.handle('github:oauth:start', async () => {
+  try {
+    const { startGitHubOAuth } = await import('../dist-electron/githubAuth.js');
+    const accessToken = await startGitHubOAuth();
+    return { success: true, accessToken };
+  } catch (error) {
+    console.error('[IPC] github:oauth:start failed:', error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+});
+
+ipcMain.handle('github:oauth:get-token', async () => {
+  try {
+    const { getStoredToken } = await import('../dist-electron/githubAuth.js');
+    const accessToken = getStoredToken();
+    return { success: true, accessToken };
+  } catch (error) {
+    console.error('[IPC] github:oauth:get-token failed:', error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+});
+
+ipcMain.handle('github:oauth:fetch-repos', async () => {
+  try {
+    const { getStoredToken, fetchGitHubRepositories } = await import('../dist-electron/githubAuth.js');
+    const accessToken = getStoredToken();
+
+    if (!accessToken) {
+      return {
+        success: false,
+        error: 'Not authenticated. Please login first.',
+      };
+    }
+
+    const repos = await fetchGitHubRepositories(accessToken);
+    return { success: true, repos };
+  } catch (error) {
+    console.error('[IPC] github:oauth:fetch-repos failed:', error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+});
+
+ipcMain.handle('github:oauth:fetch-user', async () => {
+  try {
+    const { getStoredToken, fetchGitHubUser } = await import('../dist-electron/githubAuth.js');
+    const accessToken = getStoredToken();
+
+    if (!accessToken) {
+      return {
+        success: false,
+        error: 'Not authenticated. Please login first.',
+      };
+    }
+
+    const user = await fetchGitHubUser(accessToken);
+    return { success: true, user };
+  } catch (error) {
+    console.error('[IPC] github:oauth:fetch-user failed:', error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+});
+
+ipcMain.handle('github:oauth:logout', async () => {
+  try {
+    const { clearToken } = await import('../dist-electron/githubAuth.js');
+    clearToken();
+    return { success: true };
+  } catch (error) {
+    console.error('[IPC] github:oauth:logout failed:', error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+});
+
+// Check GitHub CLI installation and authentication status
+ipcMain.handle('check-github-cli', async () => {
+  try {
+    console.log('[IPC] Checking GitHub CLI status...');
+
+    // Check if gh is installed
+    try {
+      const { stdout: version } = await execAsync('gh --version');
+      const versionMatch = version.match(/gh version ([\d.]+)/);
+      const ghVersion = versionMatch ? versionMatch[1] : 'unknown';
+
+      console.log('[IPC] GitHub CLI version:', ghVersion);
+
+      // Check authentication status
+      try {
+        const { stdout: authStatus } = await execAsync('gh auth status 2>&1');
+
+        // Extract username from auth status
+        // Format: "Logged in to github.com as USERNAME"
+        const usernameMatch = authStatus.match(/Logged in to github\.com as (\S+)/);
+        const username = usernameMatch ? usernameMatch[1] : null;
+
+        if (username) {
+          console.log('[IPC] GitHub CLI authenticated as:', username);
+          return {
+            success: true,
+            installed: true,
+            version: ghVersion,
+            authenticated: true,
+            username
+          };
+        } else {
+          console.log('[IPC] GitHub CLI not authenticated');
+          return {
+            success: true,
+            installed: true,
+            version: ghVersion,
+            authenticated: false
+          };
+        }
+      } catch (authError) {
+        // gh auth status returns non-zero exit code when not authenticated
+        console.log('[IPC] GitHub CLI not authenticated');
+        return {
+          success: true,
+          installed: true,
+          version: ghVersion,
+          authenticated: false
+        };
+      }
+    } catch (ghError) {
+      // gh command not found
+      console.log('[IPC] GitHub CLI not installed');
+      return {
+        success: true,
+        installed: false,
+        authenticated: false
+      };
+    }
+  } catch (error) {
+    console.error('[IPC] check-github-cli failed:', error);
+    return {
+      success: false,
+      error: error.message,
+      installed: false,
+      authenticated: false
+    };
+  }
+});
+
+// Onboarding Handlers
+ipcMain.handle('onboarding:check-environment', async () => {
+  try {
+    const { getOnboardingService } = await import('../dist-electron/OnboardingService.js');
+    const onboarding = getOnboardingService();
+    const status = await onboarding.checkEnvironment();
+    return { success: true, environment: status };
+  } catch (error) {
+    console.error('[IPC] onboarding:check-environment failed:', error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+});
+
+ipcMain.handle('onboarding:clone-repository', async (event, { repo, destination, token }) => {
+  try {
+    const { getOnboardingService } = await import('../dist-electron/OnboardingService.js');
+    const onboarding = getOnboardingService();
+
+    // Forward progress events to renderer
+    const progressHandler = (progress) => {
+      event.sender.send('onboarding:clone-progress', progress);
+    };
+
+    onboarding.on('clone-progress', progressHandler);
+
+    await onboarding.cloneRepository(repo, destination, token);
+
+    // Clean up listener
+    onboarding.off('clone-progress', progressHandler);
+
+    return { success: true };
+  } catch (error) {
+    console.error('[IPC] onboarding:clone-repository failed:', error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+});
+
+ipcMain.handle('onboarding:set-git-config', async (event, { name, email }) => {
+  try {
+    const { getOnboardingService } = await import('../dist-electron/OnboardingService.js');
+    const onboarding = getOnboardingService();
+    await onboarding.setGitConfig(name, email);
+    return { success: true };
+  } catch (error) {
+    console.error('[IPC] onboarding:set-git-config failed:', error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+});
+
+ipcMain.handle('onboarding:run-cli-login', async () => {
+  try {
+    const { getOnboardingService } = await import('../dist-electron/OnboardingService.js');
+    const onboarding = getOnboardingService();
+    await onboarding.runGHAuthLogin();
+    return { success: true };
+  } catch (error) {
+    console.error('[IPC] onboarding:run-cli-login failed:', error);
+    return {
+      success: false,
       error: error.message,
     };
   }

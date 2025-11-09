@@ -6,6 +6,7 @@
 import type { SystemCheckResult, OnboardingStorage } from '@/types/onboarding';
 
 const ONBOARDING_STORAGE_KEY = 'circuit-onboarding';
+const GITHUB_ONBOARDING_STORAGE_KEY = 'circuit-github-onboarding';
 const ONBOARDING_VERSION = 1;
 
 /**
@@ -178,6 +179,62 @@ async function getMacOSVersion(): Promise<string> {
     }
   }
   return 'Unknown OS';
+}
+
+/**
+ * GitHub Onboarding Functions
+ */
+
+interface GitHubOnboardingStorage {
+  version: number;
+  completedAt: number;
+  clonedRepos: string[];
+  skipped: boolean;
+}
+
+/**
+ * Check if GitHub onboarding has been completed
+ * Checks both localStorage flag AND GitHub OAuth token
+ */
+export async function isGitHubOnboardingComplete(): Promise<boolean> {
+  try {
+    // Check localStorage flag
+    const stored = localStorage.getItem(GITHUB_ONBOARDING_STORAGE_KEY);
+    if (!stored) return false;
+
+    const data: GitHubOnboardingStorage = JSON.parse(stored);
+    if (data.version !== ONBOARDING_VERSION) return false;
+    if (data.skipped) return false;
+    if (data.completedAt === 0) return false;
+
+    // Also check if GitHub OAuth token exists
+    const ipcRenderer = window.electron.ipcRenderer;
+    const tokenResult = await ipcRenderer.invoke('github:oauth:get-token');
+
+    return tokenResult.success && !!tokenResult.accessToken;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Mark GitHub onboarding as complete
+ */
+export function completeGitHubOnboarding(clonedRepos: string[]): void {
+  const data: GitHubOnboardingStorage = {
+    version: ONBOARDING_VERSION,
+    completedAt: Date.now(),
+    clonedRepos,
+    skipped: false,
+  };
+  localStorage.setItem(GITHUB_ONBOARDING_STORAGE_KEY, JSON.stringify(data));
+}
+
+/**
+ * Reset GitHub onboarding (for testing)
+ */
+export function resetGitHubOnboarding(): void {
+  localStorage.removeItem(GITHUB_ONBOARDING_STORAGE_KEY);
 }
 
 /**

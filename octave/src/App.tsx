@@ -48,8 +48,7 @@ import { TerminalProvider } from '@/contexts/TerminalContext'
 import { AgentProvider } from '@/contexts/AgentContext'
 import { RepositoryProvider } from '@/contexts/RepositoryContext'
 import { CompactBanner } from '@/components/CompactBanner'
-import { OnboardingDialog } from '@/components/onboarding/OnboardingDialog'
-import { isOnboardingComplete } from '@/lib/onboarding'
+import { UnifiedOnboardingDialog } from '@/components/onboarding/UnifiedOnboardingDialog'
 import { CompactUrgentModal } from '@/components/CompactUrgentModal'
 import { Toaster, toast } from 'sonner'
 import { FEATURES } from '@/config/features'
@@ -65,6 +64,18 @@ import { SettingsPanel } from '@/components/SettingsPanel'
 import './App.css'
 
 const ipcRenderer = window.electron.ipcRenderer;
+
+// Helper to check if onboarding is complete
+function isOnboardingComplete(): boolean {
+  try {
+    const stored = localStorage.getItem('octave-onboarding');
+    if (!stored) return false;
+    const data = JSON.parse(stored);
+    return data.version === 1 && data.completedAt > 0;
+  } catch {
+    return false;
+  }
+}
 
 // Project Path Context
 interface ProjectPathContextValue {
@@ -222,6 +233,8 @@ function App() {
 
   // Session ID for chat (one per workspace for now)
   const [sessionId, setSessionId] = useState<string | null>(null)
+
+  // Onboarding is now handled by unified dialog (no separate checks needed)
 
   // Initialize Claude session when workspace changes
   useEffect(() => {
@@ -1122,26 +1135,29 @@ function App() {
     },
   })
 
-  // Handle onboarding completion
-  const handleOnboardingComplete = (repository?: string, workspaceId?: string) => {
+  // Handle unified onboarding completion
+  const handleOnboardingComplete = (registeredRepoIds?: string[]) => {
+    console.log('[App] Unified onboarding complete')
+    console.log('[App] Registered repository IDs:', registeredRepoIds)
     setShowOnboarding(false)
-    if (repository && workspaceId) {
-      // Refresh workspaces to show newly created workspace
-      window.location.reload()
-    }
-  }
 
-  const handleOnboardingSkip = () => {
-    setShowOnboarding(false)
+    // Reload to show newly registered repositories
+    // This ensures AppSidebar picks up the new repos and switches to them
+    if (registeredRepoIds && registeredRepoIds.length > 0) {
+      console.log('[App] Reloading to display new repositories...')
+      // Small delay to ensure electron-store is updated
+      setTimeout(() => {
+        window.location.reload()
+      }, 500)
+    }
   }
 
   return (
     <>
-      {/* Onboarding Dialog */}
-      <OnboardingDialog
+      {/* Unified Onboarding Dialog */}
+      <UnifiedOnboardingDialog
         open={showOnboarding}
         onComplete={handleOnboardingComplete}
-        onSkip={handleOnboardingSkip}
       />
 
       {/* Main App */}

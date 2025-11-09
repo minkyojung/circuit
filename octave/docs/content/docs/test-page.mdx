@@ -1,0 +1,255 @@
+---
+title: 🎉 테스트 페이지
+description: Fumadocs 기능을 테스트하는 페이지입니다
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Steps, Step } from 'fumadocs-ui/components/steps';
+import { Tabs, Tab } from 'fumadocs-ui/components/tabs';
+
+# 🎉 테스트 페이지에 오신 것을 환영합니다!
+
+이 페이지는 Fumadocs의 다양한 기능을 테스트하기 위한 페이지입니다.
+
+## 1️⃣ Callout 컴포넌트 테스트
+
+<Callout type="info">
+**정보**: 이것은 정보성 callout입니다. 파란색 배경으로 표시됩니다.
+</Callout>
+
+<Callout type="warn">
+**경고**: 이것은 경고 callout입니다. 노란색 배경으로 표시됩니다.
+</Callout>
+
+<Callout type="error">
+**에러**: 이것은 에러 callout입니다. 빨간색 배경으로 표시됩니다.
+</Callout>
+
+<Callout>
+**기본**: type을 지정하지 않으면 기본 스타일이 적용됩니다.
+</Callout>
+
+## 2️⃣ 코드 블록 테스트
+
+### TypeScript 예제
+
+```typescript
+interface Workspace {
+  id: string;
+  branch: string;
+  path: string;
+  active: boolean;
+}
+
+async function createWorkspace(branch: string): Promise<Workspace> {
+  console.log(`Creating workspace for branch: ${branch}`);
+
+  return {
+    id: crypto.randomUUID(),
+    branch,
+    path: `/worktrees/${branch}`,
+    active: true,
+  };
+}
+
+// 사용 예시
+const workspace = await createWorkspace('feature/new-feature');
+console.log(workspace);
+```
+
+### Bash 명령어 예제
+
+```bash
+# Octave 설치
+npm install
+
+# 개발 서버 실행
+npm run dev
+
+# 문서 사이트 실행
+npm run dev:docs
+```
+
+### JSON 예제
+
+```json
+{
+  "name": "octave",
+  "version": "0.0.1",
+  "description": "AI-Powered Development Workspace",
+  "features": [
+    "Git Worktree Management",
+    "Claude Code Integration",
+    "Monaco Editor",
+    "Integrated Terminal"
+  ]
+}
+```
+
+## 3️⃣ Steps 컴포넌트 테스트
+
+<Steps>
+<Step>
+### 첫 번째 단계
+
+리포지토리를 선택합니다. Octave는 Git 리포지토리와 함께 작동합니다.
+
+```bash
+cd /path/to/your/repo
+```
+</Step>
+
+<Step>
+### 두 번째 단계
+
+워크스페이스를 생성합니다. 원하는 브랜치를 선택하고 + 버튼을 클릭하세요.
+
+<Callout type="info">
+워크스페이스는 Git worktree를 기반으로 합니다.
+</Callout>
+</Step>
+
+<Step>
+### 세 번째 단계
+
+AI 어시스턴트를 활용합니다. `Cmd+K`를 눌러서 Claude Code와 대화하세요.
+
+```typescript
+// AI가 도와줄 수 있는 것들:
+// - 코드 설명
+// - 버그 수정
+// - 리팩토링
+// - 테스트 작성
+```
+</Step>
+
+<Step>
+### 완료! 🎉
+
+이제 Octave를 마음껏 사용하세요!
+</Step>
+</Steps>
+
+## 4️⃣ Tabs 컴포넌트 테스트
+
+<Tabs items={['npm', 'pnpm', 'yarn', 'bun']}>
+  <Tab value="npm">
+  ```bash
+  npm install octave
+  npm run dev
+  ```
+  </Tab>
+
+  <Tab value="pnpm">
+  ```bash
+  pnpm install octave
+  pnpm run dev
+  ```
+  </Tab>
+
+  <Tab value="yarn">
+  ```bash
+  yarn add octave
+  yarn dev
+  ```
+  </Tab>
+
+  <Tab value="bun">
+  ```bash
+  bun install octave
+  bun run dev
+  ```
+  </Tab>
+</Tabs>
+
+## 5️⃣ 표 테스트
+
+| 기능 | 설명 | 상태 |
+|------|------|------|
+| Git Worktree | 브랜치 격리 환경 | ✅ 완료 |
+| Claude Code | AI 코딩 어시스턴트 | ✅ 완료 |
+| Monaco Editor | VS Code 품질의 에디터 | ✅ 완료 |
+| Terminal | 통합 터미널 | ✅ 완료 |
+| MCP Support | 외부 도구 연동 | 🚧 진행중 |
+
+## 6️⃣ 리스트 테스트
+
+### 일반 리스트
+
+- 첫 번째 항목
+- 두 번째 항목
+  - 중첩된 항목 1
+  - 중첩된 항목 2
+    - 더 깊은 중첩
+- 세 번째 항목
+
+### 번호 리스트
+
+1. 리포지토리 선택
+2. 워크스페이스 생성
+3. 코드 편집
+4. AI 어시스턴트 활용
+5. 커밋 & 푸시
+
+### 체크리스트
+
+- [x] Fumadocs 설치
+- [x] 기본 문서 작성
+- [x] 테스트 페이지 생성
+- [ ] 더 많은 문서 추가
+- [ ] 다국어 지원
+- [ ] Vercel 배포
+
+## 7️⃣ 인용문 테스트
+
+> **Octave의 철학**
+>
+> "개발자는 코드에 집중해야 합니다. 브랜치 전환, 환경 설정, 컨텍스트 유지는 도구가 해야 할 일입니다."
+>
+> — Octave 개발팀
+
+## 8️⃣ 링크 테스트
+
+- [Octave GitHub](https://github.com/yourusername/octave)
+- [Getting Started](/docs/getting-started/installation)
+- [Quick Start](/docs/getting-started/quickstart)
+- [Fumadocs 공식 문서](https://fumadocs.dev)
+
+## 9️⃣ 이미지 테스트 (플레이스홀더)
+
+이미지를 추가하려면:
+
+```mdx
+![Alt text](/images/screenshot.png)
+```
+
+## 🔟 키보드 단축키 표시
+
+Octave 키보드 단축키:
+
+- `Cmd+K` - AI 어시스턴트 열기
+- `Cmd+P` - 파일 빠르게 열기
+- `Cmd+Shift+P` - 명령 팔레트
+- `Cmd+B` - 사이드바 토글
+- `Cmd+J` - 터미널 토글
+
+## �� 다음 단계
+
+<Callout type="info">
+이 테스트 페이지에서 모든 기능이 제대로 작동하는지 확인했다면, 이제 실제 문서를 작성할 차례입니다!
+</Callout>
+
+**추천 순서:**
+
+1. [Installation Guide](/docs/getting-started/installation) 읽기
+2. [Quick Start](/docs/getting-started/quickstart) 따라하기
+3. 첫 워크스페이스 만들어보기
+4. AI 어시스턴트 써보기
+
+---
+
+**이 페이지는 테스트용입니다. 실제 배포 시 삭제하거나 숨길 수 있습니다.**
+
+<Callout>
+💡 **팁**: MDX 파일을 수정하면 Hot Reload로 즉시 반영됩니다!
+</Callout>

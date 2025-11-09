@@ -345,18 +345,41 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
 
   const createRepository = async () => {
     try {
-      const result = await ipcRenderer.invoke('repository:create')
+      console.log('[AppSidebar] Opening folder selection dialog')
 
-      if (result.success && result.repository) {
-        setRepositories([...repositories, result.repository])
-        setCurrentRepository(result.repository)
+      // Step 1: Select folder
+      const selectResult = await ipcRenderer.invoke('repository:select-folder')
+
+      if (!selectResult.success) {
+        if (selectResult.cancelled) {
+          console.log('[AppSidebar] Folder selection cancelled')
+          return
+        }
+        console.error('[AppSidebar] Failed to select folder:', selectResult.error)
+        alert(`Failed to select folder: ${selectResult.error}`)
+        return
+      }
+
+      console.log('[AppSidebar] Selected folder:', selectResult.folderPath)
+
+      // Step 2: Add repository
+      const addResult = await ipcRenderer.invoke('repository:add', selectResult.folderPath)
+
+      if (addResult.success && addResult.repository) {
+        console.log('[AppSidebar] Repository added successfully:', addResult.repository.name)
+
+        // Reload repositories to get the updated list
+        await loadRepositories()
+
+        // Set the newly added repository as current
+        setCurrentRepository(addResult.repository)
       } else {
-        console.error('Failed to create repository:', result.error)
-        alert(`Failed to create repository: ${result.error}`)
+        console.error('[AppSidebar] Failed to add repository:', addResult.error)
+        alert(`Failed to add repository: ${addResult.error}`)
       }
     } catch (error) {
-      console.error('Error creating repository:', error)
-      alert(`Error creating repository: ${error}`)
+      console.error('[AppSidebar] Error adding repository:', error)
+      alert(`Error adding repository: ${error}`)
     }
   }
 

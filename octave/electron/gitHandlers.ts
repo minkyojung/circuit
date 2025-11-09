@@ -542,6 +542,42 @@ ipcMain.handle('git:refs', async (event, workspacePath: string) => {
 });
 
 /**
+ * List all branches for a repository
+ */
+ipcMain.handle('git:list-branches', async (event, repoPath: string) => {
+  try {
+    console.log('[Git] Listing branches for:', repoPath);
+
+    // Get all local branches
+    const { stdout } = await execAsync('git branch --format="%(refname:short)"', { cwd: repoPath });
+
+    if (!stdout.trim()) {
+      return { success: true, branches: ['main'] };
+    }
+
+    const branches = stdout
+      .trim()
+      .split('\n')
+      .map(branch => branch.trim())
+      .filter(Boolean);
+
+    console.log('[Git] Found branches:', branches);
+
+    return { success: true, branches };
+  } catch (error: any) {
+    console.error('[Git] Failed to list branches:', error);
+
+    const errorMessage = error.stderr || error.stdout || error.message || 'Unknown error';
+
+    return {
+      success: false,
+      error: errorMessage,
+      branches: ['main'] // Fallback
+    };
+  }
+});
+
+/**
  * Register all git handlers
  */
 export function registerGitHandlers() {

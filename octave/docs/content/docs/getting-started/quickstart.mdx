@@ -1,0 +1,119 @@
+---
+title: Quick Start
+description: Get up and running with Octave in 5 minutes
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+
+# Quick Start
+
+This guide will help you create your first workspace and start coding with AI assistance.
+
+## 1. Launch Octave
+
+Open Octave from your Applications folder. You'll see the main window with a sidebar.
+
+## 2. Select a Repository
+
+<Callout type="info">
+Octave works with Git repositories. Make sure you have a Git repo on your Mac.
+</Callout>
+
+1. Click **Select Repository** in the sidebar
+2. Navigate to any Git repository
+3. Click **Open**
+
+Octave will analyze your repository and show available branches.
+
+## 3. Create Your First Workspace
+
+A workspace is an isolated environment for working on a specific branch.
+
+1. Find a branch in the sidebar (e.g., `main` or `feature/new-feature`)
+2. Click the **+** icon next to the branch
+3. Octave creates a Git worktree for this branch
+
+**What just happened?**
+- Octave created a separate directory for this branch
+- You can now work on multiple branches simultaneously
+- Each workspace is completely isolated
+
+## 4. Open Files
+
+1. Click on your new workspace in the sidebar
+2. Browse files in the file explorer
+3. Click any file to open it in the Monaco editor
+
+## 5. Use AI Assistance
+
+Octave integrates Claude Code for AI-powered coding:
+
+1. Select some code in the editor
+2. Press `Cmd+K` to open AI chat
+3. Ask questions or request code changes
+4. Claude will analyze your code and provide suggestions
+
+### Example AI Prompts
+
+Try these:
+- "Explain what this function does"
+- "Add error handling to this code"
+- "Write tests for this component"
+- "Refactor this to be more readable"
+
+## 6. Use the Integrated Terminal
+
+Every workspace has its own terminal:
+
+1. Click the **Terminal** tab at the bottom
+2. Run commands like `npm install`, `git status`, etc.
+3. The terminal is scoped to your workspace directory
+
+## 7. Switch Between Workspaces
+
+The power of Octave is working on multiple branches at once:
+
+1. Create workspaces for `main`, `feature-a`, and `feature-b`
+2. Switch between them instantly in the sidebar
+3. No more `git checkout` and losing context!
+
+## What's Next?
+
+Now that you've created your first workspace, explore:
+
+- **[Workspace Management](/docs/user-guide/workspaces)** - Learn advanced workspace features
+- **[Editor Features](/docs/user-guide/editor)** - Master the Monaco editor
+- **[AI Features](/docs/user-guide/ai-assistant)** - Get the most out of Claude integration
+- **[Terminal](/docs/user-guide/terminal)** - Use the integrated terminal effectively
+
+## Common Workflows
+
+### Workflow 1: Review a Pull Request
+
+```
+1. Create workspace from PR branch
+2. Browse changes in editor
+3. Use AI to understand complex code
+4. Leave feedback
+```
+
+### Workflow 2: Work on Multiple Features
+
+```
+1. Create workspace for feature-a
+2. Create workspace for feature-b
+3. Switch between them without git checkout
+4. Each maintains its own state
+```
+
+### Workflow 3: Test Different Versions
+
+```
+1. Create workspace from v1.0 tag
+2. Create workspace from v2.0 tag
+3. Compare behavior side-by-side
+```
+
+<Callout>
+**Pro Tip**: Use `Cmd+P` to quickly open files across any workspace!
+</Callout>

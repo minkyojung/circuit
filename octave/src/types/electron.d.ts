@@ -19,10 +19,22 @@ interface ElectronFileSystem {
   createDirectory(dirPath: string): Promise<void>
 }
 
+interface DevTools {
+  resetGitHubOnboarding(): void
+  resetOnboarding(): void
+  resetAllOnboarding(): void
+  resetAndReload(): void
+  clearGitHubToken(): Promise<void>
+  resetEverything(): Promise<void>
+  showOnboardingStatus(): Promise<void>
+  help(): void
+}
+
 interface Window {
   electron: {
     ipcRenderer: ElectronIpcRenderer
     fs: ElectronFileSystem
   }
   platform: string
+  devTools: DevTools
 }

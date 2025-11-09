@@ -1,15 +1,18 @@
 /**
  * IPC Handlers for Repository Management
  *
- * Handles frontend requests for repository listing, creation, and switching.
+ * Handles frontend requests for repository listing, creation, cloning, and removal.
+ * Uses electron-store for persistent storage and automatic validation/cleanup.
  */
 
 import { ipcMain, dialog, app } from 'electron'
 import * as fs from 'fs/promises'
 import * as path from 'path'
-import { v4 as uuidv4 } from 'uuid'
+import { nanoid } from 'nanoid'
 // @ts-ignore - simple-git types might not be available
 import simpleGit from 'simple-git'
+// @ts-ignore - electron-store types might not be available
+import Store from 'electron-store'
 
 interface Repository {
   id: string
@@ -20,22 +23,64 @@ interface Repository {
   createdAt: string
 }
 
-const CONFIG_PATH = path.join(app.getPath('userData'), 'repositories.json')
+// ============================================================================
+// Repository Store - Persistent storage for repository data
+// ============================================================================
+const repositoryStore = new Store({
+  name: 'repositories',
+  defaults: {
+    repositories: []
+  }
+})
 
 /**
- * Helper: Load repositories from config
+ * Helper: Load repositories from electron-store with validation
+ * Automatically removes invalid entries (.app bundles, non-existent paths, non-git dirs)
  */
 async function loadRepositories(): Promise<{ success: boolean; repositories?: Repository[]; error?: string }> {
   try {
-    const configExists = await fs.access(CONFIG_PATH).then(() => true).catch(() => false)
+    const repositories: Repository[] = repositoryStore.get('repositories', [])
+    console.log('[RepositoryHandlers] Loading repositories:', repositories.length)
 
-    if (!configExists) {
-      return { success: true, repositories: [] }
+    // Validate each repository
+    const validRepositories: Repository[] = []
+    let hasInvalidEntries = false
+
+    for (const repo of repositories) {
+      // Filter 1: Reject .app bundles
+      if (repo.path && repo.path.endsWith('.app')) {
+        console.warn(`[RepositoryHandlers] Removed .app bundle: ${repo.path}`)
+        hasInvalidEntries = true
+        continue
+      }
+
+      // Filter 2: Check if path exists
+      try {
+        await fs.access(repo.path)
+      } catch {
+        console.warn(`[RepositoryHandlers] Removed non-existent path: ${repo.path}`)
+        hasInvalidEntries = true
+        continue
+      }
+
+      // Filter 3: Verify it's a git repository
+      const gitPath = path.join(repo.path, '.git')
+      try {
+        await fs.access(gitPath)
+        validRepositories.push(repo)
+      } catch {
+        console.warn(`[RepositoryHandlers] Removed non-git directory: ${repo.path}`)
+        hasInvalidEntries = true
+      }
     }
 
-    const data = await fs.readFile(CONFIG_PATH, 'utf-8')
-    const repositories: Repository[] = JSON.parse(data)
-    return { success: true, repositories }
+    // Auto-cleanup: Save cleaned list if we found invalid entries
+    if (hasInvalidEntries) {
+      repositoryStore.set('repositories', validRepositories)
+      console.log(`[RepositoryHandlers] Cleaned up invalid entries. ${validRepositories.length}/${repositories.length} valid`)
+    }
+
+    return { success: true, repositories: validRepositories }
   } catch (error: any) {
     console.error('[RepositoryHandlers] Error loading repositories:', error)
     return { success: false, error: error.message }
@@ -43,10 +88,10 @@ async function loadRepositories(): Promise<{ success: boolean; repositories?: Re
 }
 
 /**
- * Helper: Save repositories to config
+ * Helper: Save repositories to electron-store
  */
 async function saveRepositories(repositories: Repository[]): Promise<void> {
-  await fs.writeFile(CONFIG_PATH, JSON.stringify(repositories, null, 2), 'utf-8')
+  repositoryStore.set('repositories', repositories)
 }
 
 /**
@@ -64,6 +109,12 @@ export async function autoRegisterProjectPath(projectPath: string): Promise<void
     const existing = repositories.find(r => r.path === projectPath)
     if (existing) {
       console.log('[RepositoryHandlers] Project path already registered:', existing.name)
+      return
+    }
+
+    // Don't auto-register .app bundles
+    if (projectPath.endsWith('.app')) {
+      console.warn('[RepositoryHandlers] Skipping auto-register for .app bundle:', projectPath)
       return
     }
 
@@ -100,7 +151,7 @@ export async function autoRegisterProjectPath(projectPath: string): Promise<void
 
     // Create repository object
     const repository: Repository = {
-      id: uuidv4(),
+      id: nanoid(),
       name: repoName,
       path: projectPath,
       remoteUrl,
@@ -111,7 +162,7 @@ export async function autoRegisterProjectPath(projectPath: string): Promise<void
     // Add to repositories
     repositories.push(repository)
 
-    // Save to config
+    // Save to store
     await saveRepositories(repositories)
 
     console.log('[RepositoryHandlers] Project path auto-registered:', repository.name)
@@ -127,19 +178,177 @@ export function registerRepositoryHandlers(): void {
   console.log('[RepositoryHandlers] Registering IPC handlers...')
 
   /**
-   * List all repositories
+   * List all repositories with validation
    */
   ipcMain.handle('repository:list', async () => {
     try {
       return await loadRepositories()
     } catch (error: any) {
       console.error('[RepositoryHandlers] Error listing repositories:', error)
-      return { success: false, error: error.message }
+      return { success: false, error: error.message, repositories: [] }
     }
   })
 
   /**
-   * Create new repository
+   * Select folder for adding repository
+   * Opens native folder picker dialog
+   */
+  ipcMain.handle('repository:select-folder', async () => {
+    try {
+      console.log('[RepositoryHandlers] Opening folder selection dialog')
+
+      const result = await dialog.showOpenDialog({
+        properties: ['openDirectory'],
+        title: 'Select Git Repository Folder',
+        message: 'Choose a folder containing a Git repository'
+      })
+
+      if (result.canceled || result.filePaths.length === 0) {
+        return {
+          success: false,
+          cancelled: true
+        }
+      }
+
+      const folderPath = result.filePaths[0]
+      console.log('[RepositoryHandlers] Selected folder:', folderPath)
+
+      return {
+        success: true,
+        folderPath
+      }
+    } catch (error: any) {
+      console.error('[RepositoryHandlers] Error selecting folder:', error)
+      return {
+        success: false,
+        error: error.message
+      }
+    }
+  })
+
+  /**
+   * Add a new repository
+   * Validates path and prevents duplicates
+   */
+  ipcMain.handle('repository:add', async (event, folderPath: string) => {
+    try {
+      console.log('[RepositoryHandlers] Adding repository:', folderPath)
+
+      // Validation 1: Reject .app bundles
+      if (folderPath.endsWith('.app')) {
+        return {
+          success: false,
+          error: 'Cannot add application bundles (.app) as repositories'
+        }
+      }
+
+      // Validation 2: Verify it's a git repository
+      const gitPath = path.join(folderPath, '.git')
+      try {
+        await fs.access(gitPath)
+      } catch {
+        return {
+          success: false,
+          error: 'Not a valid Git repository (no .git directory found)'
+        }
+      }
+
+      // Get repository metadata using simple-git
+      const git = simpleGit(folderPath)
+      let defaultBranch = 'main'
+      let remoteUrl: string | null = null
+
+      try {
+        const branches = await git.branch()
+        defaultBranch = branches.current || 'main'
+      } catch (err) {
+        console.warn('[RepositoryHandlers] Could not determine default branch:', err)
+      }
+
+      try {
+        const remotes = await git.getRemotes(true)
+        remoteUrl = remotes.length > 0 ? remotes[0].refs.fetch : null
+      } catch (err) {
+        console.warn('[RepositoryHandlers] Could not get remote URL:', err)
+      }
+
+      // Load existing repositories
+      const listResult = await loadRepositories()
+      const repositories = listResult.repositories || []
+
+      // Check for duplicates
+      const duplicate = repositories.find(r => r.path === folderPath)
+      if (duplicate) {
+        return {
+          success: false,
+          error: 'Repository already exists in the list'
+        }
+      }
+
+      // Create new repository entry
+      const newRepository: Repository = {
+        id: nanoid(),
+        name: path.basename(folderPath),
+        path: folderPath,
+        defaultBranch,
+        remoteUrl,
+        createdAt: new Date().toISOString()
+      }
+
+      // Save to store
+      repositories.push(newRepository)
+      await saveRepositories(repositories)
+
+      console.log('[RepositoryHandlers] Successfully added:', newRepository.name)
+      return {
+        success: true,
+        repository: newRepository
+      }
+    } catch (error: any) {
+      console.error('[RepositoryHandlers] Error adding repository:', error)
+      return {
+        success: false,
+        error: error.message
+      }
+    }
+  })
+
+  /**
+   * Remove a repository from the list
+   * Does not delete files, only removes from tracking
+   */
+  ipcMain.handle('repository:remove', async (event, repositoryId: string) => {
+    try {
+      console.log('[RepositoryHandlers] Removing repository:', repositoryId)
+
+      const listResult = await loadRepositories()
+      const repositories = listResult.repositories || []
+
+      const repository = repositories.find(r => r.id === repositoryId)
+      if (!repository) {
+        return {
+          success: false,
+          error: 'Repository not found'
+        }
+      }
+
+      // Remove from list
+      const updatedRepositories = repositories.filter(r => r.id !== repositoryId)
+      await saveRepositories(updatedRepositories)
+
+      console.log('[RepositoryHandlers] Successfully removed:', repository.name)
+      return { success: true }
+    } catch (error: any) {
+      console.error('[RepositoryHandlers] Error removing repository:', error)
+      return {
+        success: false,
+        error: error.message
+      }
+    }
+  })
+
+  /**
+   * Create new repository (kept for compatibility, uses select-folder + add flow)
    */
   ipcMain.handle('repository:create', async (event) => {
     try {
@@ -155,35 +364,39 @@ export function registerRepositoryHandlers(): void {
       }
 
       const repoPath = result.filePaths[0]
-      const git = simpleGit(repoPath)
+      console.log('[RepositoryHandlers] Adding repository:', repoPath)
 
-      // Check if it's a valid git repository
+      // Validation 1: Reject .app bundles
+      if (repoPath.endsWith('.app')) {
+        return {
+          success: false,
+          error: 'Cannot add application bundles (.app) as repositories'
+        }
+      }
+
+      // Validation 2: Verify it's a git repository
+      const git = simpleGit(repoPath)
       const isRepo = await git.checkIsRepo()
       if (!isRepo) {
         return { success: false, error: 'Selected directory is not a Git repository' }
       }
 
-      // Get repository info
-      const remotes = await git.getRemotes(true)
-      const remoteUrl = remotes.length > 0 ? remotes[0].refs.fetch : null
-
-      // Get default branch
+      // Get repository metadata
       let defaultBranch = 'main'
+      let remoteUrl: string | null = null
+
       try {
         const branches = await git.branch()
         defaultBranch = branches.current || 'main'
-      } catch (e) {
-        console.warn('[RepositoryHandlers] Could not determine default branch:', e)
+      } catch (err) {
+        console.warn('[RepositoryHandlers] Could not determine default branch:', err)
       }
 
-      // Create repository object
-      const repository: Repository = {
-        id: uuidv4(),
-        name: path.basename(repoPath),
-        path: repoPath,
-        remoteUrl,
-        defaultBranch,
-        createdAt: new Date().toISOString()
+      try {
+        const remotes = await git.getRemotes(true)
+        remoteUrl = remotes.length > 0 ? remotes[0].refs.fetch : null
+      } catch (err) {
+        console.warn('[RepositoryHandlers] Could not get remote URL:', err)
       }
 
       // Load existing repositories
@@ -196,10 +409,18 @@ export function registerRepositoryHandlers(): void {
         return { success: false, error: 'Repository already exists' }
       }
 
-      // Add new repository
-      repositories.push(repository)
+      // Create repository object
+      const repository: Repository = {
+        id: nanoid(),
+        name: path.basename(repoPath),
+        path: repoPath,
+        remoteUrl,
+        defaultBranch,
+        createdAt: new Date().toISOString()
+      }
 
-      // Save to config
+      // Add and save
+      repositories.push(repository)
       await saveRepositories(repositories)
 
       console.log('[RepositoryHandlers] Repository created:', repository.name)
@@ -265,7 +486,7 @@ export function registerRepositoryHandlers(): void {
 
       // Create repository object
       const repository: Repository = {
-        id: uuidv4(),
+        id: nanoid(),
         name: repoName,
         path: repoPath,
         remoteUrl,
@@ -280,7 +501,7 @@ export function registerRepositoryHandlers(): void {
       // Add new repository
       repositories.push(repository)
 
-      // Save to config
+      // Save to store
       await saveRepositories(repositories)
 
       console.log('[RepositoryHandlers] Repository cloned:', repository.name)
@@ -292,16 +513,21 @@ export function registerRepositoryHandlers(): void {
   })
 
   /**
-   * Delete repository (removes from list, doesn't delete files)
+   * Delete repository (alias for remove, kept for compatibility)
    */
   ipcMain.handle('repository:delete', async (event, repositoryId: string) => {
     try {
+      console.log('[RepositoryHandlers] Deleting repository:', repositoryId)
+
       const listResult = await loadRepositories()
       const repositories = listResult.repositories || []
 
       const repository = repositories.find(r => r.id === repositoryId)
       if (!repository) {
-        return { success: false, error: 'Repository not found' }
+        return {
+          success: false,
+          error: 'Repository not found'
+        }
       }
 
       // Remove from list
@@ -312,7 +538,10 @@ export function registerRepositoryHandlers(): void {
       return { success: true }
     } catch (error: any) {
       console.error('[RepositoryHandlers] Error deleting repository:', error)
-      return { success: false, error: error.message }
+      return {
+        success: false,
+        error: error.message
+      }
     }
   })
 
