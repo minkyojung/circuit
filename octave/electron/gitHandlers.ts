@@ -746,6 +746,195 @@ ipcMain.handle('git:list-branches', async (_event, repoPath: string): Promise<IP
 });
 
 /**
+ * Fetch from remote - SECURE VERSION
+ * Downloads changes from remote without merging
+ */
+ipcMain.handle('git:fetch', async (_event, workspacePath: string, remote: string = 'origin'): Promise<IPCResult<{ commits: number }>> => {
+  console.log('[Git] Fetching from:', remote);
+
+  // Validate remote name (alphanumeric, dash, underscore only)
+  if (!/^[a-zA-Z0-9_-]+$/.test(remote)) {
+    return { success: false, error: 'Invalid remote name' };
+  }
+
+  const result = await executeGitCommand(workspacePath, ['fetch', remote]);
+
+  if ('error' in result) {
+    console.error('[Git] Failed to fetch:', result.error);
+    return { success: false, error: result.error };
+  }
+
+  // Parse fetch output to count new commits (optional, for UI feedback)
+  // Git fetch output format varies, so we'll just return success
+  console.log('[Git] Fetch completed successfully');
+  return { success: true, data: { commits: 0 } }; // TODO: Parse commit count from output
+});
+
+/**
+ * Pull from remote - SECURE VERSION
+ * Fetch + Merge (or Rebase)
+ */
+ipcMain.handle('git:pull', async (_event, workspacePath: string, options?: { rebase?: boolean; remote?: string; branch?: string }): Promise<IPCResult<{ message: string }>> => {
+  const remote = options?.remote || 'origin';
+  const useRebase = options?.rebase || false;
+
+  console.log('[Git] Pulling from:', remote, useRebase ? '(rebase)' : '(merge)');
+
+  // Validate remote name
+  if (!/^[a-zA-Z0-9_-]+$/.test(remote)) {
+    return { success: false, error: 'Invalid remote name' };
+  }
+
+  // Build pull command
+  const args = ['pull'];
+  if (useRebase) {
+    args.push('--rebase');
+  }
+  args.push(remote);
+
+  if (options?.branch) {
+    // Validate branch name
+    if (!/^[a-zA-Z0-9_/-]+$/.test(options.branch)) {
+      return { success: false, error: 'Invalid branch name' };
+    }
+    args.push(options.branch);
+  }
+
+  const result = await executeGitCommand(workspacePath, args);
+
+  if ('error' in result) {
+    console.error('[Git] Failed to pull:', result.error);
+
+    // Parse error types for better user feedback
+    const errorMsg = result.error.toLowerCase();
+
+    if (errorMsg.includes('merge conflict') || errorMsg.includes('conflict')) {
+      return {
+        success: false,
+        error: 'merge_conflict',
+        data: { message: 'Merge conflicts detected. Please resolve conflicts and continue.' }
+      };
+    }
+
+    if (errorMsg.includes('uncommitted changes') || errorMsg.includes('would be overwritten')) {
+      return {
+        success: false,
+        error: 'uncommitted_changes',
+        data: { message: 'You have uncommitted changes. Commit or stash them first.' }
+      };
+    }
+
+    if (errorMsg.includes('no tracking information')) {
+      return {
+        success: false,
+        error: 'no_upstream',
+        data: { message: 'No upstream branch configured.' }
+      };
+    }
+
+    return { success: false, error: result.error };
+  }
+
+  console.log('[Git] Pull completed successfully');
+  return {
+    success: true,
+    data: { message: result.stdout.trim() || 'Pull completed successfully' }
+  };
+});
+
+/**
+ * Push to remote - SECURE VERSION (Independent)
+ * This is different from git:commit-and-push - it only pushes existing commits
+ */
+ipcMain.handle('git:push', async (_event, workspacePath: string, options?: {
+  force?: boolean;
+  forceWithLease?: boolean;
+  setUpstream?: boolean;
+  remote?: string;
+  branch?: string;
+}): Promise<IPCResult<{ message: string }>> => {
+  const remote = options?.remote || 'origin';
+
+  console.log('[Git] Pushing to:', remote, options);
+
+  // Validate remote name
+  if (!/^[a-zA-Z0-9_-]+$/.test(remote)) {
+    return { success: false, error: 'Invalid remote name' };
+  }
+
+  // Get current branch if not specified
+  let branch = options?.branch;
+  if (!branch) {
+    const branchResult = await executeGitCommand(workspacePath, ['branch', '--show-current']);
+    if ('error' in branchResult) {
+      return { success: false, error: 'Could not determine current branch' };
+    }
+    branch = branchResult.stdout.trim();
+  }
+
+  // Validate branch name
+  if (!/^[a-zA-Z0-9_/-]+$/.test(branch)) {
+    return { success: false, error: 'Invalid branch name' };
+  }
+
+  // Build push command
+  const args = ['push'];
+
+  // Force options (mutually exclusive, forceWithLease preferred)
+  if (options?.forceWithLease) {
+    args.push('--force-with-lease');
+  } else if (options?.force) {
+    console.warn('[Git] Using --force (dangerous). Consider --force-with-lease instead.');
+    args.push('--force');
+  }
+
+  // Set upstream tracking
+  if (options?.setUpstream) {
+    args.push('-u');
+  }
+
+  args.push(remote, branch);
+
+  const result = await executeGitCommand(workspacePath, args);
+
+  if ('error' in result) {
+    console.error('[Git] Failed to push:', result.error);
+
+    // Parse error types for better user feedback
+    const errorMsg = result.error.toLowerCase();
+
+    if (errorMsg.includes('rejected') || errorMsg.includes('non-fast-forward')) {
+      return {
+        success: false,
+        error: 'push_rejected: Remote has changes you don\'t have. Try pulling first or use force-with-lease.'
+      };
+    }
+
+    if (errorMsg.includes('no upstream') || errorMsg.includes('does not have a remote')) {
+      return {
+        success: false,
+        error: 'no_upstream: No upstream branch configured. Use set upstream option.'
+      };
+    }
+
+    if (errorMsg.includes('authentication') || errorMsg.includes('permission denied')) {
+      return {
+        success: false,
+        error: 'auth_failed: Authentication failed. Check your credentials.'
+      };
+    }
+
+    return { success: false, error: result.error };
+  }
+
+  console.log('[Git] Push completed successfully');
+  return {
+    success: true,
+    data: { message: result.stdout.trim() || 'Push completed successfully' }
+  };
+});
+
+/**
  * Register all git handlers
  */
 export function registerGitHandlers(): void {
