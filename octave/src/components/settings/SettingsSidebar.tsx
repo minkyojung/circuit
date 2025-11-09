@@ -12,12 +12,13 @@ import {
   Activity,
   Archive,
   Search,
-  Github
+  Github,
+  FolderGit2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 
-export type SettingsCategory = 'general' | 'model' | 'ai' | 'terminal' | 'advanced' | 'mcp' | 'archive' | 'github';
+export type SettingsCategory = 'general' | 'model' | 'ai' | 'terminal' | 'repositories' | 'github' | 'advanced' | 'mcp' | 'archive';
 
 interface NavItem {
   id: SettingsCategory;
@@ -30,6 +31,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'model', label: 'Models', icon: Cpu },
   { id: 'ai', label: 'AI', icon: Sparkles },
   { id: 'terminal', label: 'Terminal', icon: TerminalIcon },
+  { id: 'repositories', label: 'Repositories', icon: FolderGit2 },
   { id: 'github', label: 'GitHub', icon: Github },
   { id: 'advanced', label: 'Advanced', icon: Sliders },
   { id: 'mcp', label: 'Tools & MCP', icon: Activity },

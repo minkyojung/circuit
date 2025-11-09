@@ -411,6 +411,36 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
     await loadWorkspaces()
   }
 
+  const removeRepository = async (repoId: string) => {
+    try {
+      console.log('[AppSidebar] Removing repository:', repoId)
+      const result = await ipcRenderer.invoke('repository:remove', repoId)
+
+      if (result.success) {
+        // Reload repositories to update the list
+        await loadRepositories()
+
+        // If we removed the current repository, switch to another one
+        if (currentRepository?.id === repoId) {
+          const remainingRepos = repositories.filter(r => r.id !== repoId)
+          if (remainingRepos.length > 0) {
+            setCurrentRepository(remainingRepos[0])
+          } else {
+            // Fall back to default repository if all removed
+            setCurrentRepository(defaultRepository)
+            setRepositories([defaultRepository])
+          }
+        }
+      } else {
+        console.error('Failed to remove repository:', result.error)
+        alert(`Failed to remove repository: ${result.error}`)
+      }
+    } catch (error) {
+      console.error('Error removing repository:', error)
+      alert(`Error removing repository: ${error}`)
+    }
+  }
+
   const archiveWorkspace = async (workspaceId: string) => {
     if (!currentRepository) return
 
@@ -509,6 +539,7 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
           onSelectRepository={switchRepository}
           onCreateRepository={createRepository}
           onCloneRepository={openCloneDialog}
+          onRemoveRepository={removeRepository}
         />
       </SidebarHeader>
 

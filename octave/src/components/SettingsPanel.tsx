@@ -12,10 +12,11 @@ import { GeneralSection } from './settings/sections/GeneralSection';
 import { ModelSection } from './settings/sections/ModelSection';
 import { AISection } from './settings/sections/AISection';
 import { TerminalSection } from './settings/sections/TerminalSection';
+import { RepositoriesSection } from './settings/sections/RepositoriesSection';
+import { GitHubSection } from './settings/sections/GitHubSection';
 import { AdvancedSection } from './settings/sections/AdvancedSection';
 import { MCPSection } from './settings/sections/MCPSection';
 import { ArchiveSection } from './settings/sections/ArchiveSection';
-import { GitHubSection } from './settings/sections/GitHubSection';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
@@ -88,6 +89,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ workspacePath }) =
               updateSettings={updateSettings}
             />
           )}
+
+          {activeCategory === 'repositories' && <RepositoriesSection />}
 
           {activeCategory === 'github' && <GitHubSection />}
 
