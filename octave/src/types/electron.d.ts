@@ -19,6 +19,14 @@ interface ElectronFileSystem {
   createDirectory(dirPath: string): Promise<void>
 }
 
+interface ElectronUpdater {
+  checkForUpdates(): Promise<any>
+  downloadUpdate(): Promise<any>
+  installUpdate(): Promise<any>
+  getUpdateState(): Promise<any>
+  onUpdateStatus(callback: (status: any) => void): () => void
+}
+
 interface DevTools {
   resetGitHubOnboarding(): void
   resetOnboarding(): void
@@ -34,6 +42,7 @@ interface Window {
   electron: {
     ipcRenderer: ElectronIpcRenderer
     fs: ElectronFileSystem
+    updater: ElectronUpdater
   }
   platform: string
   devTools: DevTools

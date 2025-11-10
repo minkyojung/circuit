@@ -10,6 +10,9 @@ const http = require('http');
 // Load environment variables from .env file
 require('dotenv').config();
 
+// Auto-updater module
+const { initializeAutoUpdater } = require('./updater.js');
+
 const execAsync = promisify(exec);
 
 // Import MCP Server Manager (ES Module)
@@ -653,6 +656,10 @@ app.whenReady().then(async () => {
 
   console.log('[main.cjs] Creating windows...');
   createWindow();
+
+  // Initialize auto-updater
+  console.log('[main.cjs] Initializing auto-updater...');
+  initializeAutoUpdater(mainWindow);
 
   // Start Vercel webhook server
   startWebhookServer();

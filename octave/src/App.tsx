@@ -50,6 +50,7 @@ import { RepositoryProvider } from '@/contexts/RepositoryContext'
 import { CompactBanner } from '@/components/CompactBanner'
 import { UnifiedOnboardingDialog } from '@/components/onboarding/UnifiedOnboardingDialog'
 import { CompactUrgentModal } from '@/components/CompactUrgentModal'
+import { UpdateNotification } from '@/components/UpdateNotification'
 import { Toaster, toast } from 'sonner'
 import { FEATURES } from '@/config/features'
 import { useEditorGroups } from '@/hooks/useEditorGroups'
@@ -1154,6 +1155,9 @@ function App() {
 
   return (
     <>
+      {/* Update Notification Banner */}
+      <UpdateNotification />
+
       {/* Unified Onboarding Dialog */}
       <UnifiedOnboardingDialog
         open={showOnboarding}

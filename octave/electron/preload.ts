@@ -80,6 +80,54 @@ const electronAPI = {
       return ipcRenderer.invoke('create-directory', dirPath);
     },
   },
+
+  /**
+   * Auto-updater operations
+   */
+  updater: {
+    /**
+     * Check for available updates
+     */
+    checkForUpdates(): Promise<any> {
+      return ipcRenderer.invoke('updater:check');
+    },
+
+    /**
+     * Download available update
+     */
+    downloadUpdate(): Promise<any> {
+      return ipcRenderer.invoke('updater:download');
+    },
+
+    /**
+     * Install downloaded update and restart app
+     */
+    installUpdate(): Promise<any> {
+      return ipcRenderer.invoke('updater:install');
+    },
+
+    /**
+     * Get current update state
+     */
+    getUpdateState(): Promise<any> {
+      return ipcRenderer.invoke('updater:get-state');
+    },
+
+    /**
+     * Listen for update status events
+     */
+    onUpdateStatus(callback: (status: any) => void): () => void {
+      const listener = (_event: IpcRendererEvent, status: any) => {
+        callback(status);
+      };
+      ipcRenderer.on('updater:status', listener);
+
+      // Return cleanup function
+      return () => {
+        ipcRenderer.removeListener('updater:status', listener);
+      };
+    },
+  },
 };
 
 // Expose the API to the renderer process
