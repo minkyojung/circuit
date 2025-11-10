@@ -8,7 +8,10 @@ const os = require('os');
 const http = require('http');
 
 // Load environment variables from .env file
-require('dotenv').config();
+// Use explicit path to ensure it works in both dev and packaged app
+require('dotenv').config({
+  path: path.join(__dirname, '..', '.env')
+});
 
 // Auto-updater module
 const { initializeAutoUpdater } = require('./updater.js');

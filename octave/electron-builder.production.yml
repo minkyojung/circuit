@@ -29,7 +29,7 @@ mac:
   # Code signing identity (electron-builder will find the cert automatically)
   identity: "Minkyo Jung (6DQK5MQC4H)"
 
-  # Notarization enabled - requires API Key in environment variables
+  # Notarization enabled - reads APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID from .env
   notarize: true
 
 # DMG Configuration
@@ -52,6 +52,7 @@ files:
   - dist/**/*
   - dist-electron/**/*
   - package.json
+  - .env
   - node_modules/**/*
   - "!node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}"
   - "!node_modules/*/{test,__tests__,tests,powered-test,example,examples}"
@@ -74,9 +75,8 @@ asarUnpack:
 compression: normal
 
 # Publish configuration for auto-updates
-# Replace with your GitHub repo details when ready
 publish:
   provider: github
-  owner: your-github-username
+  owner: minkyojung
   repo: octave
   releaseType: release
