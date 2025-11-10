@@ -1304,6 +1304,9 @@ function App() {
             onCommit={() => setShowCommitDialog(true)}
             onFileSelect={handleFileSelect}
             onOpenSettings={handleOpenSettings}
+            onRequestDirectEdit={(message) => {
+              setChatPrefillMessage(message);
+            }}
           />
         </Sidebar>
       )}
