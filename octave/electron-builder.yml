@@ -66,5 +66,8 @@ asarUnpack:
 # Compression
 compression: normal
 
-# Publish configuration (for auto-updates - disabled for now)
-publish: null
+# Publish configuration (for auto-updates)
+publish:
+  provider: github
+  owner: minkyojung
+  repo: octave
