@@ -8,6 +8,7 @@ import { spawn } from 'child_process';
 import path from 'path';
 import os from 'os';
 import type { SmartCommitPlan, CommitGroup, Warning, ChangedFile } from './types/smartCommit';
+import { getNodeEnv } from './utils/nodePath.js';
 
 const CLAUDE_CLI_PATH = path.join(os.homedir(), '.claude/local/claude');
 
@@ -30,7 +31,8 @@ export async function analyzeChangesWithClaude(
       '--model', 'sonnet',          // Use Sonnet for better analysis
     ], {
       stdio: ['pipe', 'pipe', 'pipe'],
-      timeout: 60000                // 60 second timeout
+      timeout: 60000,               // 60 second timeout
+      env: getNodeEnv()             // Include Node.js in PATH for cross-platform compatibility
     });
 
     claude.stdin.write(JSON.stringify({

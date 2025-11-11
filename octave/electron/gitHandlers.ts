@@ -13,6 +13,7 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import * as path from 'path';
 import * as fs from 'fs/promises';
+import { getNodeEnv } from './utils/nodePath.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -539,14 +540,15 @@ Generate 3 commit message options, ordered by quality. Be concise and specific.
 Return ONLY a JSON object with this exact format:
 {"suggestions": ["option1", "option2", "option3"]}`;
 
-    // Call Claude CLI using execFile (secure)
+    // Call Claude CLI using spawn (secure)
     const { spawn } = await import('child_process');
     const claude = spawn(CLAUDE_CLI_PATH, [
       '--print',
       '--output-format', 'json',
       '--model', 'haiku'
     ], {
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: getNodeEnv()  // Include Node.js in PATH for cross-platform compatibility
     });
 
     const input = JSON.stringify({

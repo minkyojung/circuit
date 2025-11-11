@@ -20,6 +20,10 @@ mac:
       arch:
         - x64
         - arm64
+    - target: zip
+      arch:
+        - x64
+        - arm64
 
   # Development settings - Code signing disabled for fast local builds
   identity: null

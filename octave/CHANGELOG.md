@@ -7,7 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.7] - 2025-11-11
+
 ### Fixed
+- **Smart Commit**: Fixed "env: node: No such file or directory" error in Smart Commit feature
+  - Added Node.js path detection utility (`electron/utils/nodePath.ts`)
+  - Automatically finds Node.js installation across different methods (Homebrew, nvm, fnm, system)
+  - Works across all macOS configurations (Intel/Apple Silicon, version managers)
+  - Fixed both Smart Commit analysis and AI commit message generation
 - **Onboarding**: Fixed issue where onboarding would show again after upgrading from v0.0.4
   - Added automatic migration from `circuit-*` to `octave-*` localStorage keys
   - Users upgrading from v0.0.4 will no longer see onboarding dialog
