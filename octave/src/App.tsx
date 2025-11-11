@@ -955,15 +955,18 @@ function App() {
 
   // Handle unsaved changes notification from editor
   const handleUnsavedChange = (filePath: string, hasChanges: boolean) => {
-    // Find the file tab
-    const result = findTab(`file-${filePath}`)
+    if (!selectedWorkspace) return;
+
+    // Find the file tab (using workspace-scoped ID)
+    const tabId = `file-${selectedWorkspace.id}-${filePath}`;
+    const result = findTab(tabId);
     if (result) {
       updateTab(result.tab.id, result.groupId, {
         data: {
           ...result.tab.data,
           unsavedChanges: hasChanges
         }
-      } as any)
+      } as any);
     }
   }
 
