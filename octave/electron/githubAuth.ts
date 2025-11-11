@@ -159,18 +159,26 @@ export async function exchangeCodeForToken(code: string): Promise<string> {
  * This is called by the HTTP OAuth callback route
  */
 export async function completeGitHubOAuth(code: string): Promise<void> {
+  console.log('[GitHub OAuth] 🔄 completeGitHubOAuth called with code:', code.substring(0, 10) + '...')
+
   try {
     const token = await exchangeCodeForToken(code)
+    console.log('[GitHub OAuth] 📝 Token received, checking for callback...')
 
     // Resolve the pending promise
     const callback = global.githubOAuthCallback
+    console.log('[GitHub OAuth] Callback exists:', !!callback)
+
     if (callback) {
+      console.log('[GitHub OAuth] ✅ Resolving callback with token')
+
       // Clear timeout
       if (callback.timeout) {
         clearTimeout(callback.timeout)
       }
 
       callback.resolve(token)
+      console.log('[GitHub OAuth] 🎉 Callback resolved successfully')
 
       // Close window if it exists (for backward compatibility)
       if (callback.window && !callback.window.isDestroyed()) {
@@ -178,10 +186,17 @@ export async function completeGitHubOAuth(code: string): Promise<void> {
       }
 
       delete global.githubOAuthCallback
+      console.log('[GitHub OAuth] 🧹 Callback cleaned up')
+    } else {
+      console.warn('[GitHub OAuth] ⚠️ No callback found! OAuth was probably already completed or timed out')
     }
   } catch (error) {
+    console.error('[GitHub OAuth] ❌ Error in completeGitHubOAuth:', error)
+
     const callback = global.githubOAuthCallback
     if (callback) {
+      console.log('[GitHub OAuth] 🔄 Rejecting callback with error')
+
       // Clear timeout
       if (callback.timeout) {
         clearTimeout(callback.timeout)
@@ -195,6 +210,7 @@ export async function completeGitHubOAuth(code: string): Promise<void> {
       }
 
       delete global.githubOAuthCallback
+      console.log('[GitHub OAuth] 🧹 Callback cleaned up after error')
     }
     throw error
   }
