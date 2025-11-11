@@ -1166,6 +1166,300 @@ ipcMain.handle('git:diff', async (_event, workspacePath: string, options?: {
 });
 
 /**
+ * Smart Commit: Analyze + Auto Execute
+ *
+ * Analyzes git changes with Claude and creates atomic commits automatically.
+ * Will require review if warnings are detected or changes are complex.
+ */
+console.log('[Git] Registering git:smart-commit-auto handler...');
+ipcMain.handle('git:smart-commit-auto', async (event, { workspacePath, options }: {
+  workspacePath: string;
+  options?: any; // SmartCommitOptions from types
+}) => {
+  console.log('[Git] 🚀 git:smart-commit-auto handler INVOKED');
+  console.log('[Git] Parameters:', { workspacePath, options });
+
+  try {
+    const { analyzeChangesWithClaude } = await import('./smartCommitAnalyzer.js');
+
+    // Validate repository
+    const validation = await validateGitRepository(workspacePath);
+    if (!validation.valid) {
+      return {
+        success: false,
+        error: validation.error || 'Invalid repository'
+      };
+    }
+    const resolvedPath = validation.normalizedPath;
+
+    const opts = {
+      mode: 'auto',
+      maxGroups: 10,
+      maxFilesPerGroup: 20,
+      ...options,
+      // Support both 'force' and 'forceAuto' for compatibility
+      forceAuto: options?.force || options?.forceAuto || false
+    };
+
+    // Step 0: Auto-stage all changes (including untracked files)
+    // This allows users to commit without manually running git add
+    console.log('[Git] 📦 Auto-staging all changes...');
+    const addResult = await executeGitCommand(resolvedPath, ['add', '-A']);
+    if ('error' in addResult) {
+      console.warn('[Git] ⚠️ Failed to auto-stage:', addResult.error);
+      // Continue anyway - there might be already staged files
+    }
+
+    // Step 1: Get changed files
+    event.sender.send('smart-commit:progress', {
+      stage: 'analyzing'
+    });
+
+    const statusResult = await executeGitCommand(resolvedPath, ['status', '--porcelain', '-uall']);
+
+    if ('error' in statusResult) {
+      return {
+        success: false,
+        error: statusResult.error
+      };
+    }
+
+    const changedFiles = statusResult.stdout
+      .split('\n')
+      .filter(line => line.trim())
+      .map(line => {
+        const status = line.substring(0, 2).trim() as 'M' | 'A' | 'D' | 'R' | '??' | 'MM';
+        const filePath = line.substring(3);
+        return { path: filePath, status };
+      });
+
+    console.log('[Git] 📁 Changed files detected:', changedFiles.length);
+    console.log('[Git] Files:', changedFiles.map(f => `${f.status} ${f.path}`).join(', '));
+
+    if (changedFiles.length === 0) {
+      console.log('[Git] ⚠️ No changes found in workspace:', resolvedPath);
+      return {
+        success: false,
+        error: 'No changes to commit'
+      };
+    }
+
+    // Step 2: Get full diff (of staged changes since we just auto-staged everything)
+    const diffResult = await executeGitCommand(resolvedPath, ['diff', '--cached']);
+
+    if ('error' in diffResult) {
+      return {
+        success: false,
+        error: diffResult.error
+      };
+    }
+
+    // Step 3: Analyze with Claude
+    console.log('[Git] 📊 Starting Claude analysis...');
+    const plan = await analyzeChangesWithClaude(changedFiles, diffResult.stdout);
+    console.log('[Git] ✅ Analysis complete:', {
+      complexity: plan.complexity,
+      groupCount: plan.groups.length,
+      warningCount: plan.warnings?.length || 0
+    });
+
+    // Step 4: Check if review is required
+    const requiresReview = shouldRequireReview(plan, opts);
+    console.log('[Git] Review check:', { requiresReview, mode: opts.mode });
+
+    if (requiresReview && !opts.forceAuto) {
+      console.log('[Git] ⚠️ Returning requiresReview response');
+      return {
+        success: false,
+        requiresReview: true,
+        plan,
+        reason: getReviewReason(plan)
+      };
+    }
+
+    // Step 5: Execute commits
+    console.log('[Git] 🚀 Starting commit execution...');
+    event.sender.send('smart-commit:progress', {
+      stage: 'executing',
+      totalGroups: plan.groups.length
+    });
+
+    const completedShas: string[] = [];
+
+    for (let i = 0; i < plan.groups.length; i++) {
+      const group = plan.groups[i];
+
+      // Progress update
+      event.sender.send('smart-commit:progress', {
+        stage: 'executing',
+        currentGroup: i + 1,
+        totalGroups: plan.groups.length,
+        currentCommit: {
+          title: group.title,
+          files: group.files
+        }
+      });
+
+      // Reset staging area
+      const resetResult = await executeGitCommand(resolvedPath, ['reset', 'HEAD']);
+      if ('error' in resetResult) {
+        throw new Error(`Failed to reset staging area: ${resetResult.error}`);
+      }
+
+      // Stage files for this commit
+      for (const file of group.files) {
+        const addResult = await executeGitCommand(resolvedPath, ['add', '--', file]);
+        if ('error' in addResult) {
+          // Try with --force in case file was deleted
+          const forceResult = await executeGitCommand(resolvedPath, ['add', '--force', '--', file]);
+          if ('error' in forceResult) {
+            console.warn(`[Git] Could not stage file ${file}: ${forceResult.error}`);
+          }
+        }
+      }
+
+      // Commit
+      const commitResult = await executeGitCommand(resolvedPath, ['commit', '-m', group.message]);
+      if ('error' in commitResult) {
+        throw new Error(`Failed to commit: ${commitResult.error}`);
+      }
+
+      // Get commit SHA
+      const shaResult = await executeGitCommand(resolvedPath, ['rev-parse', 'HEAD']);
+      if ('stdout' in shaResult) {
+        completedShas.push(shaResult.stdout.trim());
+      }
+    }
+
+    // Step 6: Complete
+    console.log('[Git] ✅ All commits completed:', completedShas.length);
+    event.sender.send('smart-commit:progress', {
+      stage: 'complete',
+      completedShas
+    });
+
+    console.log('[Git] 📤 Returning success response');
+    return {
+      success: true,
+      plan,
+      commits: completedShas
+    };
+
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[Git] ❌ Smart commit error:', errorMessage);
+
+    event.sender.send('smart-commit:progress', {
+      stage: 'error',
+      error: errorMessage
+    });
+
+    console.log('[Git] 📤 Returning error response');
+    return {
+      success: false,
+      error: errorMessage
+    };
+  }
+});
+
+/**
+ * Smart Commit: Undo recent commits
+ *
+ * Soft resets to preserve changes in working directory
+ */
+console.log('[Git] Registering git:smart-commit-undo handler...');
+ipcMain.handle('git:smart-commit-undo', async (_event, { workspacePath, commitCount }: {
+  workspacePath: string;
+  commitCount: number;
+}) => {
+  console.log('[Git] 🔄 git:smart-commit-undo handler INVOKED');
+  console.log('[Git] Parameters:', { workspacePath, commitCount });
+
+  try {
+    // Validate repository
+    const validation = await validateGitRepository(workspacePath);
+    if (!validation.valid) {
+      return {
+        success: false,
+        error: validation.error || 'Invalid repository'
+      };
+    }
+    const resolvedPath = validation.normalizedPath;
+
+    // Validate commit count
+    if (commitCount <= 0 || commitCount > 20) {
+      return {
+        success: false,
+        error: 'Invalid commit count (must be 1-20)'
+      };
+    }
+
+    // Soft reset to preserve changes
+    const result = await executeGitCommand(resolvedPath, ['reset', '--soft', `HEAD~${commitCount}`]);
+
+    if ('error' in result) {
+      console.error('[Git] Failed to undo commits:', result.error);
+      return {
+        success: false,
+        error: result.error
+      };
+    }
+
+    return { success: true };
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return {
+      success: false,
+      error: errorMessage
+    };
+  }
+});
+
+/**
+ * Helper: Should we require review?
+ */
+function shouldRequireReview(plan: any, options: any): boolean {
+  // Always review if explicitly requested
+  if (options.mode === 'review') {
+    return true;
+  }
+
+  // Check for high-severity warnings
+  const hasHighSeverityWarnings = plan.warnings?.some((w: any) => w.severity === 'high');
+  if (hasHighSeverityWarnings) {
+    return true;
+  }
+
+  // Check complexity
+  if (plan.complexity === 'complex') {
+    return true;
+  }
+
+  // Check limits
+  if (plan.groups.length > (options.maxGroups || 10)) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Helper: Get reason for review requirement
+ */
+function getReviewReason(plan: any): string {
+  if (plan.complexity === 'complex') {
+    return `Complex changes (${plan.groups.length} commits) - review recommended`;
+  }
+
+  const highWarnings = plan.warnings?.filter((w: any) => w.severity === 'high');
+  if (highWarnings?.length > 0) {
+    return `High severity warnings: ${highWarnings.map((w: any) => w.message).join(', ')}`;
+  }
+
+  return 'Review recommended for these changes';
+}
+
+/**
  * Register all git handlers
  */
 export function registerGitHandlers(): void {
