@@ -352,30 +352,47 @@ export class OnboardingService extends EventEmitter {
   }
 
   /**
-   * Run gh auth login interactively
+   * Authenticate GitHub CLI using OAuth token
    *
-   * This spawns an interactive process where the user can login to GitHub CLI
+   * Uses the OAuth token from GitHub authentication to configure gh CLI.
+   * This avoids the need for interactive terminal input in Electron GUI.
+   *
+   * @param oauthToken - GitHub OAuth access token
    */
-  async runGHAuthLogin(): Promise<void> {
+  async runGHAuthLogin(oauthToken: string): Promise<void> {
     return new Promise((resolve, reject) => {
-      console.log('[Onboarding] Starting GitHub CLI authentication...')
+      console.log('[Onboarding] Configuring GitHub CLI with OAuth token...')
 
-      // Spawn interactive process
-      // stdio: 'inherit' allows user to interact with the process
-      const ghAuth = spawn('gh', ['auth', 'login'], {
-        stdio: 'inherit'
+      // Use --with-token flag to authenticate non-interactively
+      // This works in Electron GUI environment (no terminal needed)
+      const ghAuth = spawn('gh', ['auth', 'login', '--with-token'], {
+        stdio: ['pipe', 'pipe', 'pipe']  // Use pipes instead of inherit
+      })
+
+      let stderr = ''
+
+      // Write token to stdin
+      ghAuth.stdin.write(oauthToken)
+      ghAuth.stdin.end()
+
+      // Capture stderr for error messages
+      ghAuth.stderr.on('data', (data) => {
+        stderr += data.toString()
       })
 
       ghAuth.on('close', (code) => {
         if (code === 0) {
-          console.log('[Onboarding] ✅ GitHub CLI authenticated')
+          console.log('[Onboarding] ✅ GitHub CLI authenticated successfully')
           resolve()
         } else {
-          reject(new Error('GitHub CLI login cancelled or failed'))
+          const errorMsg = stderr || 'GitHub CLI authentication failed'
+          console.error('[Onboarding] ❌ gh auth failed:', errorMsg)
+          reject(new Error(errorMsg))
         }
       })
 
       ghAuth.on('error', (error) => {
+        console.error('[Onboarding] ❌ gh spawn error:', error)
         reject(error)
       })
     })

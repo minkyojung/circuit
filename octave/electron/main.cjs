@@ -1342,9 +1342,19 @@ ipcMain.handle('onboarding:set-git-config', async (event, { name, email }) => {
 
 ipcMain.handle('onboarding:run-cli-login', async () => {
   try {
+    // Get OAuth token from GitHub authentication
+    const { getStoredToken } = await import('../dist-electron/githubAuth.js');
+    const accessToken = getStoredToken();
+
+    if (!accessToken) {
+      throw new Error('No GitHub OAuth token found. Please authenticate with GitHub first.');
+    }
+
+    // Configure gh CLI using the OAuth token
     const { getOnboardingService } = await import('../dist-electron/OnboardingService.js');
     const onboarding = getOnboardingService();
-    await onboarding.runGHAuthLogin();
+    await onboarding.runGHAuthLogin(accessToken);
+
     return { success: true };
   } catch (error) {
     console.error('[IPC] onboarding:run-cli-login failed:', error);
