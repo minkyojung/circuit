@@ -915,8 +915,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   </button>
                 )}
 
-                {/* Add as Todo Button */}
-                {onAddTodo && value.trim() && (
+                {/* Add as Todo Button - DISABLED */}
+                {false && onAddTodo && value.trim() && (
                   <button
                     onClick={handleAddAsTodo}
                     disabled={disabled}
