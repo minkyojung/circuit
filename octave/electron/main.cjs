@@ -4351,7 +4351,7 @@ Plan Mode ensures structured, thoughtful development. Take your time to plan wel
       '--output-format', 'stream-json',  // Enable real-time streaming!
       '--include-partial-messages',      // Include partial chunks
       '--model', 'sonnet',
-      '--permission-mode', 'acceptEdits'  // Auto-approve file edits
+      '--permission-mode', 'bypassPermissions'  // Auto-approve all tools (Edit, Write, Bash)
     ], {
       cwd: session.workspacePath,
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -4365,10 +4365,13 @@ Plan Mode ensures structured, thoughtful development. Take your time to plan wel
     session.claudeProcess = claude;
     session.isRunning = true;
 
-    // Send message with multimodal content
+    // Send entire conversation history to maintain context
+    // Claude CLI supports both formats:
+    // - Single message: { role: 'user', content: '...' }
+    // - Multi-turn: { messages: [...] }
+    // Using messages array enables context continuity across turns
     const input = JSON.stringify({
-      role: 'user',
-      content: content.length === 1 ? content[0].text : content
+      messages: session.messages  // Send full history for context
     });
 
     claude.stdin.write(input);
