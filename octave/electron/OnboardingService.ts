@@ -361,6 +361,19 @@ export class OnboardingService extends EventEmitter {
    */
   async runGHAuthLogin(oauthToken: string): Promise<void> {
     return new Promise((resolve, reject) => {
+      // Validate token before using it
+      if (!oauthToken || typeof oauthToken !== 'string') {
+        reject(new Error('Invalid OAuth token: must be a non-empty string'))
+        return
+      }
+
+      // GitHub OAuth tokens should only contain alphanumeric characters and underscores
+      // This prevents potential command injection
+      if (!/^[a-zA-Z0-9_]+$/.test(oauthToken)) {
+        reject(new Error('Invalid OAuth token format'))
+        return
+      }
+
       console.log('[Onboarding] Configuring GitHub CLI with OAuth token...')
 
       // Use --with-token flag to authenticate non-interactively
@@ -369,31 +382,44 @@ export class OnboardingService extends EventEmitter {
         stdio: ['pipe', 'pipe', 'pipe']  // Use pipes instead of inherit
       })
 
+      let stdout = ''
       let stderr = ''
 
-      // Write token to stdin
-      ghAuth.stdin.write(oauthToken)
-      ghAuth.stdin.end()
+      // Capture stdout for debugging
+      ghAuth.stdout.on('data', (data) => {
+        stdout += data.toString()
+      })
 
       // Capture stderr for error messages
       ghAuth.stderr.on('data', (data) => {
         stderr += data.toString()
       })
 
+      // Write token to stdin
+      ghAuth.stdin.write(oauthToken + '\n')
+      ghAuth.stdin.end()
+
       ghAuth.on('close', (code) => {
         if (code === 0) {
           console.log('[Onboarding] ✅ GitHub CLI authenticated successfully')
+          if (stdout) {
+            console.log('[Onboarding] gh output:', stdout)
+          }
           resolve()
         } else {
-          const errorMsg = stderr || 'GitHub CLI authentication failed'
-          console.error('[Onboarding] ❌ gh auth failed:', errorMsg)
-          reject(new Error(errorMsg))
+          // Sanitize error message to prevent token leakage
+          // GitHub tokens follow pattern: gho_*, ghp_*, etc.
+          const sanitizedError = (stderr || stdout || 'GitHub CLI authentication failed')
+            .replace(/gh[a-z]_[a-zA-Z0-9_]+/g, '[TOKEN_REDACTED]')
+
+          console.error('[Onboarding] ❌ gh auth failed:', sanitizedError)
+          reject(new Error('GitHub CLI authentication failed. Please try again.'))
         }
       })
 
       ghAuth.on('error', (error) => {
-        console.error('[Onboarding] ❌ gh spawn error:', error)
-        reject(error)
+        console.error('[Onboarding] ❌ gh spawn error:', error.message)
+        reject(new Error('Failed to start GitHub CLI. Please ensure gh is installed.'))
       })
     })
   }

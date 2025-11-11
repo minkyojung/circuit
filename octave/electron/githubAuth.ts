@@ -10,6 +10,18 @@
 import { BrowserWindow, shell } from 'electron'
 import Store from 'electron-store'
 
+/**
+ * Type declaration for global OAuth callback state
+ */
+declare global {
+  var githubOAuthCallback: {
+    resolve: (token: string) => void
+    reject: (error: Error) => void
+    window: BrowserWindow | null
+    timeout?: NodeJS.Timeout
+  } | undefined
+}
+
 // GitHub OAuth configuration from environment variables
 const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID
 const GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET
@@ -72,25 +84,25 @@ export function startGitHubOAuth(): Promise<string> {
     shell.openExternal(authUrl.toString())
 
     // Store resolve/reject for callback handler
-    // This will be called by the webhook callback route
-    ;(global as any).githubOAuthCallback = { resolve, reject, window: null }
+    // This will be called by the HTTP OAuth callback route
+    global.githubOAuthCallback = { resolve, reject, window: null }
 
     // Set timeout for user to complete authentication
     const timeout = setTimeout(() => {
-      if ((global as any).githubOAuthCallback) {
-        delete (global as any).githubOAuthCallback
+      if (global.githubOAuthCallback) {
+        delete global.githubOAuthCallback
         reject(new Error('Authentication timeout - please try again'))
       }
     }, 300000) // 5 minutes timeout
 
     // Store timeout for cleanup
-    ;(global as any).githubOAuthCallback.timeout = timeout
+    global.githubOAuthCallback.timeout = timeout
   })
 }
 
 /**
  * Exchange authorization code for access token
- * Called by the webhook callback route
+ * Called by the HTTP OAuth callback route
  */
 export async function exchangeCodeForToken(code: string): Promise<string> {
   console.log('[GitHub OAuth] Exchanging code for token...')
@@ -115,10 +127,17 @@ export async function exchangeCodeForToken(code: string): Promise<string> {
     })
 
     if (!response.ok) {
-      throw new Error(`GitHub token exchange failed: ${response.statusText}`)
+      const errorBody = await response.text()
+      console.error('[GitHub OAuth] Error response:', errorBody)
+      throw new Error(`GitHub token exchange failed: ${response.statusText} (${response.status})`)
     }
 
-    const data = await response.json() as GitHubTokenResponse
+    const data = await response.json() as GitHubTokenResponse & { error?: string; error_description?: string }
+
+    // Check for GitHub API error response
+    if (data.error) {
+      throw new Error(`GitHub OAuth error: ${data.error_description || data.error}`)
+    }
 
     if (!data.access_token) {
       throw new Error('No access token in response')
@@ -137,14 +156,14 @@ export async function exchangeCodeForToken(code: string): Promise<string> {
 
 /**
  * Complete OAuth flow after receiving callback
- * This is called by the webhook route
+ * This is called by the HTTP OAuth callback route
  */
 export async function completeGitHubOAuth(code: string): Promise<void> {
   try {
     const token = await exchangeCodeForToken(code)
 
     // Resolve the pending promise
-    const callback = (global as any).githubOAuthCallback
+    const callback = global.githubOAuthCallback
     if (callback) {
       // Clear timeout
       if (callback.timeout) {
@@ -158,24 +177,24 @@ export async function completeGitHubOAuth(code: string): Promise<void> {
         callback.window.close()
       }
 
-      delete (global as any).githubOAuthCallback
+      delete global.githubOAuthCallback
     }
   } catch (error) {
-    const callback = (global as any).githubOAuthCallback
+    const callback = global.githubOAuthCallback
     if (callback) {
       // Clear timeout
       if (callback.timeout) {
         clearTimeout(callback.timeout)
       }
 
-      callback.reject(error)
+      callback.reject(error as Error)
 
       // Close window if it exists (for backward compatibility)
       if (callback.window && !callback.window.isDestroyed()) {
         callback.window.close()
       }
 
-      delete (global as any).githubOAuthCallback
+      delete global.githubOAuthCallback
     }
     throw error
   }

@@ -1347,7 +1347,12 @@ ipcMain.handle('onboarding:run-cli-login', async () => {
     const accessToken = getStoredToken();
 
     if (!accessToken) {
-      throw new Error('No GitHub OAuth token found. Please authenticate with GitHub first.');
+      return {
+        success: false,
+        error: 'No GitHub OAuth token found. Please authenticate with GitHub first.',
+        errorCode: 'TOKEN_MISSING',
+        recoverable: true
+      };
     }
 
     // Configure gh CLI using the OAuth token
@@ -1358,9 +1363,29 @@ ipcMain.handle('onboarding:run-cli-login', async () => {
     return { success: true };
   } catch (error) {
     console.error('[IPC] onboarding:run-cli-login failed:', error);
+
+    // Categorize errors for better UI handling
+    let errorCode = 'UNKNOWN';
+    let recoverable = false;
+
+    if (error.message.includes('gh: command not found') ||
+        error.message.includes('ensure gh is installed')) {
+      errorCode = 'GH_CLI_NOT_INSTALLED';
+      recoverable = true;
+    } else if (error.message.includes('authentication failed') ||
+               error.message.includes('Invalid OAuth token')) {
+      errorCode = 'AUTH_FAILED';
+      recoverable = true;
+    } else if (error.message.includes('timeout')) {
+      errorCode = 'TIMEOUT';
+      recoverable = true;
+    }
+
     return {
       success: false,
       error: error.message,
+      errorCode,
+      recoverable
     };
   }
 });
@@ -4375,13 +4400,30 @@ Plan Mode ensures structured, thoughtful development. Take your time to plan wel
     session.claudeProcess = claude;
     session.isRunning = true;
 
-    // Send entire conversation history to maintain context
+    // Validate conversation history before sending
     // Claude CLI supports both formats:
     // - Single message: { role: 'user', content: '...' }
     // - Multi-turn: { messages: [...] }
     // Using messages array enables context continuity across turns
+    if (!Array.isArray(session.messages) || session.messages.length === 0) {
+      throw new Error('Invalid conversation history: messages must be a non-empty array');
+    }
+
+    // Validate message structure
+    const validMessages = session.messages.filter(msg =>
+      msg &&
+      typeof msg === 'object' &&
+      msg.role &&
+      msg.content &&
+      ['user', 'assistant'].includes(msg.role)
+    );
+
+    if (validMessages.length === 0) {
+      throw new Error('No valid messages in conversation history');
+    }
+
     const input = JSON.stringify({
-      messages: session.messages  // Send full history for context
+      messages: validMessages  // Send validated message history
     });
 
     claude.stdin.write(input);
