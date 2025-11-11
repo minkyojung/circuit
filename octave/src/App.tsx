@@ -62,21 +62,10 @@ import { EditorGroupPanel } from '@/components/editor'
 import { DEFAULT_GROUP_ID, SECONDARY_GROUP_ID } from '@/types/editor'
 import { PathResolver } from '@/lib/pathResolver'
 import { SettingsPanel } from '@/components/SettingsPanel'
+import { isOnboardingComplete } from '@/lib/onboarding'
 import './App.css'
 
 const ipcRenderer = window.electron.ipcRenderer;
-
-// Helper to check if onboarding is complete
-function isOnboardingComplete(): boolean {
-  try {
-    const stored = localStorage.getItem('octave-onboarding');
-    if (!stored) return false;
-    const data = JSON.parse(stored);
-    return data.version === 1 && data.completedAt > 0;
-  } catch {
-    return false;
-  }
-}
 
 // Project Path Context
 interface ProjectPathContextValue {

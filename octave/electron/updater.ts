@@ -43,6 +43,8 @@ function initializeAutoUpdater(mainWindow) {
    */
   autoUpdater.on('checking-for-update', () => {
     console.log('[updater] Checking for updates...');
+    console.log('[updater] Current version:', app.getVersion());
+    console.log('[updater] Repository: github.com/minkyojung/octave');
     updateState.checking = true;
     sendStatusToWindow(mainWindow, 'checking-for-update');
   });
@@ -51,7 +53,11 @@ function initializeAutoUpdater(mainWindow) {
    * Fired when an update is available
    */
   autoUpdater.on('update-available', (info) => {
-    console.log('[updater] Update available:', info.version);
+    console.log('[updater] ✅ Update available!');
+    console.log('[updater] Current version:', app.getVersion());
+    console.log('[updater] Latest version:', info.version);
+    console.log('[updater] Release date:', info.releaseDate);
+    console.log('[updater] Download URL:', info.files?.[0]?.url);
     updateState.checking = false;
     updateState.available = true;
     updateState.version = info.version;
@@ -62,7 +68,10 @@ function initializeAutoUpdater(mainWindow) {
    * Fired when no update is available
    */
   autoUpdater.on('update-not-available', (info) => {
-    console.log('[updater] No update available. Current version:', info.version);
+    console.log('[updater] ℹ️  No update available');
+    console.log('[updater] Current version:', app.getVersion());
+    console.log('[updater] Latest version checked:', info.version);
+    console.log('[updater] You are running the latest version');
     updateState.checking = false;
     updateState.available = false;
     sendStatusToWindow(mainWindow, 'update-not-available');
@@ -72,7 +81,10 @@ function initializeAutoUpdater(mainWindow) {
    * Fired when there's an error during update process
    */
   autoUpdater.on('error', (error) => {
-    console.error('[updater] Error during update:', error);
+    console.error('[updater] ❌ Error during update:');
+    console.error('[updater] Error message:', error.message);
+    console.error('[updater] Error stack:', error.stack);
+    console.error('[updater] Current version:', app.getVersion());
     updateState.checking = false;
     updateState.error = error.message;
     sendStatusToWindow(mainWindow, 'update-error', { error: error.message });

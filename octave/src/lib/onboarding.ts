@@ -5,14 +5,49 @@
 
 import type { SystemCheckResult, OnboardingStorage } from '@/types/onboarding';
 
-const ONBOARDING_STORAGE_KEY = 'circuit-onboarding';
-const GITHUB_ONBOARDING_STORAGE_KEY = 'circuit-github-onboarding';
+const ONBOARDING_STORAGE_KEY = 'octave-onboarding';
+const GITHUB_ONBOARDING_STORAGE_KEY = 'octave-github-onboarding';
 const ONBOARDING_VERSION = 1;
+
+// Legacy keys for migration from v0.0.4
+const LEGACY_ONBOARDING_KEY = 'circuit-onboarding';
+const LEGACY_GITHUB_ONBOARDING_KEY = 'circuit-github-onboarding';
+
+/**
+ * Migrate legacy localStorage keys from 'circuit-*' to 'octave-*'
+ * This ensures users upgrading from v0.0.4 don't see onboarding again.
+ *
+ * @internal Called automatically by isOnboardingComplete() and isGitHubOnboardingComplete()
+ */
+function migrateLocalStorageKeys(): void {
+  try {
+    // Migrate main onboarding key
+    const legacyOnboarding = localStorage.getItem(LEGACY_ONBOARDING_KEY);
+    if (legacyOnboarding && !localStorage.getItem(ONBOARDING_STORAGE_KEY)) {
+      console.log('[Onboarding] Migrating from v0.0.4: circuit-onboarding → octave-onboarding');
+      localStorage.setItem(ONBOARDING_STORAGE_KEY, legacyOnboarding);
+      localStorage.removeItem(LEGACY_ONBOARDING_KEY);
+    }
+
+    // Migrate GitHub onboarding key
+    const legacyGitHub = localStorage.getItem(LEGACY_GITHUB_ONBOARDING_KEY);
+    if (legacyGitHub && !localStorage.getItem(GITHUB_ONBOARDING_STORAGE_KEY)) {
+      console.log('[Onboarding] Migrating from v0.0.4: circuit-github-onboarding → octave-github-onboarding');
+      localStorage.setItem(GITHUB_ONBOARDING_STORAGE_KEY, legacyGitHub);
+      localStorage.removeItem(LEGACY_GITHUB_ONBOARDING_KEY);
+    }
+  } catch (error) {
+    console.error('[Onboarding] Failed to migrate localStorage keys:', error);
+  }
+}
 
 /**
  * Check if onboarding has been completed
  */
 export function isOnboardingComplete(): boolean {
+  // Run migration first
+  migrateLocalStorageKeys();
+
   try {
     const stored = localStorage.getItem(ONBOARDING_STORAGE_KEY);
     if (!stored) return false;
@@ -197,6 +232,9 @@ interface GitHubOnboardingStorage {
  * Checks both localStorage flag AND GitHub OAuth token
  */
 export async function isGitHubOnboardingComplete(): Promise<boolean> {
+  // Run migration first
+  migrateLocalStorageKeys();
+
   try {
     // Check localStorage flag
     const stored = localStorage.getItem(GITHUB_ONBOARDING_STORAGE_KEY);

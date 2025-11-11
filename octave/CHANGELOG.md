@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Onboarding**: Fixed issue where onboarding would show again after upgrading from v0.0.4
+  - Added automatic migration from `circuit-*` to `octave-*` localStorage keys
+  - Users upgrading from v0.0.4 will no longer see onboarding dialog
+  - Migration runs automatically on app startup and is idempotent
+- **OAuth**: Improved error handling for GitHub authentication
+  - Better error messages when user cancels authentication ("Authentication cancelled by user")
+  - Timeout errors now more descriptive ("GitHub authentication timed out. Please try again or check your browser.")
+  - Added `cancelGitHubOAuth()` function for proper cleanup on cancellation
+- **Auto-Update**: Enhanced update check logging for better debugging
+  - Now logs current version, latest version, and update availability
+  - Added release date and download URL to logs
+  - Full error stack traces for debugging update failures
+  - Easier to diagnose "no update available" issues
+
+### Changed
+- **LocalStorage Keys**: Migrated from `circuit-` to `octave-` prefix for consistency
+  - `circuit-onboarding` → `octave-onboarding`
+  - `circuit-github-onboarding` → `octave-github-onboarding`
+  - Migration is automatic and seamless (runs in `isOnboardingComplete()`)
+  - DevTools functions updated to use new keys
+
+### Documentation
+- Added `docs/ONBOARDING.md` - Complete onboarding system documentation
+  - Architecture overview and storage key documentation
+  - OAuth flow details with error handling table
+  - LocalStorage data structures and migration guide
+  - Testing instructions and troubleshooting guide
+- Added `docs/VERSIONING.md` - Release process and versioning guidelines
+  - Semantic versioning rules and increment guidelines
+  - Step-by-step release process (4 phases)
+  - Auto-update configuration and troubleshooting
+  - Breaking changes handling and migration best practices
+
 ### Changed
 - **Rebrand: Circuit → Octave** - Complete product rebrand across codebase
   - Application name changed from Circuit to Octave
