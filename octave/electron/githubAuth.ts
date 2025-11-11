@@ -91,13 +91,40 @@ export function startGitHubOAuth(): Promise<string> {
     const timeout = setTimeout(() => {
       if (global.githubOAuthCallback) {
         delete global.githubOAuthCallback
-        reject(new Error('Authentication timeout - please try again'))
+        reject(new Error('GitHub authentication timed out. Please try again or check your browser.'))
       }
     }, 300000) // 5 minutes timeout
 
     // Store timeout for cleanup
     global.githubOAuthCallback.timeout = timeout
   })
+}
+
+/**
+ * Cancel an ongoing OAuth flow
+ * This allows users to explicitly cancel authentication
+ */
+export function cancelGitHubOAuth(): void {
+  const callback = global.githubOAuthCallback
+  if (callback) {
+    console.log('[GitHub OAuth] User cancelled authentication')
+
+    // Clear timeout
+    if (callback.timeout) {
+      clearTimeout(callback.timeout)
+    }
+
+    // Reject with cancellation error
+    callback.reject(new Error('Authentication cancelled by user'))
+
+    // Close window if it exists (for backward compatibility)
+    if (callback.window && !callback.window.isDestroyed()) {
+      callback.window.close()
+    }
+
+    // Clean up global state
+    delete global.githubOAuthCallback
+  }
 }
 
 /**

@@ -21,7 +21,7 @@ export const devTools = {
    * Reset regular onboarding
    */
   resetOnboarding: () => {
-    localStorage.removeItem('circuit-onboarding');
+    localStorage.removeItem('octave-onboarding');
     console.log('✅ Regular onboarding reset. Reload the page to see it again.');
     console.log('Run: location.reload()');
   },
@@ -31,7 +31,7 @@ export const devTools = {
    */
   resetAllOnboarding: () => {
     resetGitHubOnboarding();
-    localStorage.removeItem('circuit-onboarding');
+    localStorage.removeItem('octave-onboarding');
     console.log('✅ All onboarding reset. Reload the page to see it again.');
     console.log('Run: location.reload()');
   },
@@ -41,7 +41,7 @@ export const devTools = {
    */
   resetAndReload: () => {
     resetGitHubOnboarding();
-    localStorage.removeItem('circuit-onboarding');
+    localStorage.removeItem('octave-onboarding');
     console.log('✅ All onboarding reset. Reloading...');
     window.location.reload();
   },
@@ -66,7 +66,7 @@ export const devTools = {
     try {
       // Reset onboarding
       resetGitHubOnboarding();
-      localStorage.removeItem('circuit-onboarding');
+      localStorage.removeItem('octave-onboarding');
 
       // Clear GitHub token
       const ipcRenderer = window.electron.ipcRenderer;
@@ -87,8 +87,8 @@ export const devTools = {
    * Show onboarding status
    */
   showOnboardingStatus: async () => {
-    const githubOnboarding = localStorage.getItem('circuit-github-onboarding');
-    const regularOnboarding = localStorage.getItem('circuit-onboarding');
+    const githubOnboarding = localStorage.getItem('octave-github-onboarding');
+    const regularOnboarding = localStorage.getItem('octave-onboarding');
 
     console.log('📊 Onboarding Status:');
     console.log('─────────────────────');
