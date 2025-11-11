@@ -7,8 +7,20 @@
  * 3. Stores token securely
  */
 
-import { BrowserWindow } from 'electron'
+import { BrowserWindow, shell } from 'electron'
 import Store from 'electron-store'
+
+/**
+ * Type declaration for global OAuth callback state
+ */
+declare global {
+  var githubOAuthCallback: {
+    resolve: (token: string) => void
+    reject: (error: Error) => void
+    window: BrowserWindow | null
+    timeout?: NodeJS.Timeout
+  } | undefined
+}
 
 // GitHub OAuth configuration from environment variables
 const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID
@@ -64,39 +76,33 @@ export function startGitHubOAuth(): Promise<string> {
     authUrl.searchParams.append('scope', 'repo,user')
     authUrl.searchParams.append('redirect_uri', REDIRECT_URI)
 
-    console.log('[GitHub OAuth] Opening authorization window...')
+    console.log('[GitHub OAuth] Opening authorization in system browser...')
     console.log('[GitHub OAuth] Auth URL:', authUrl.toString())
 
-    // Create OAuth window
-    const authWindow = new BrowserWindow({
-      width: 800,
-      height: 600,
-      webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true
-      },
-      title: 'Login with GitHub'
-    })
-
-    authWindow.loadURL(authUrl.toString())
+    // Open in system default browser instead of Electron BrowserWindow
+    // This fixes Passkey/WebAuthn support issues
+    shell.openExternal(authUrl.toString())
 
     // Store resolve/reject for callback handler
-    // This will be called by the webhook callback route
-    ;(global as any).githubOAuthCallback = { resolve, reject, window: authWindow }
+    // This will be called by the HTTP OAuth callback route
+    global.githubOAuthCallback = { resolve, reject, window: null }
 
-    // Handle window close (user cancelled)
-    authWindow.on('closed', () => {
-      if ((global as any).githubOAuthCallback) {
-        delete (global as any).githubOAuthCallback
-        reject(new Error('Authentication cancelled by user'))
+    // Set timeout for user to complete authentication
+    const timeout = setTimeout(() => {
+      if (global.githubOAuthCallback) {
+        delete global.githubOAuthCallback
+        reject(new Error('Authentication timeout - please try again'))
       }
-    })
+    }, 300000) // 5 minutes timeout
+
+    // Store timeout for cleanup
+    global.githubOAuthCallback.timeout = timeout
   })
 }
 
 /**
  * Exchange authorization code for access token
- * Called by the webhook callback route
+ * Called by the HTTP OAuth callback route
  */
 export async function exchangeCodeForToken(code: string): Promise<string> {
   console.log('[GitHub OAuth] Exchanging code for token...')
@@ -121,10 +127,17 @@ export async function exchangeCodeForToken(code: string): Promise<string> {
     })
 
     if (!response.ok) {
-      throw new Error(`GitHub token exchange failed: ${response.statusText}`)
+      const errorBody = await response.text()
+      console.error('[GitHub OAuth] Error response:', errorBody)
+      throw new Error(`GitHub token exchange failed: ${response.statusText} (${response.status})`)
     }
 
-    const data = await response.json() as GitHubTokenResponse
+    const data = await response.json() as GitHubTokenResponse & { error?: string; error_description?: string }
+
+    // Check for GitHub API error response
+    if (data.error) {
+      throw new Error(`GitHub OAuth error: ${data.error_description || data.error}`)
+    }
 
     if (!data.access_token) {
       throw new Error('No access token in response')
@@ -143,25 +156,61 @@ export async function exchangeCodeForToken(code: string): Promise<string> {
 
 /**
  * Complete OAuth flow after receiving callback
- * This is called by the webhook route
+ * This is called by the HTTP OAuth callback route
  */
 export async function completeGitHubOAuth(code: string): Promise<void> {
+  console.log('[GitHub OAuth] 🔄 completeGitHubOAuth called with code:', code.substring(0, 10) + '...')
+
   try {
     const token = await exchangeCodeForToken(code)
+    console.log('[GitHub OAuth] 📝 Token received, checking for callback...')
 
     // Resolve the pending promise
-    const callback = (global as any).githubOAuthCallback
+    const callback = global.githubOAuthCallback
+    console.log('[GitHub OAuth] Callback exists:', !!callback)
+
     if (callback) {
+      console.log('[GitHub OAuth] ✅ Resolving callback with token')
+
+      // Clear timeout
+      if (callback.timeout) {
+        clearTimeout(callback.timeout)
+      }
+
       callback.resolve(token)
-      callback.window.close()
-      delete (global as any).githubOAuthCallback
+      console.log('[GitHub OAuth] 🎉 Callback resolved successfully')
+
+      // Close window if it exists (for backward compatibility)
+      if (callback.window && !callback.window.isDestroyed()) {
+        callback.window.close()
+      }
+
+      delete global.githubOAuthCallback
+      console.log('[GitHub OAuth] 🧹 Callback cleaned up')
+    } else {
+      console.warn('[GitHub OAuth] ⚠️ No callback found! OAuth was probably already completed or timed out')
     }
   } catch (error) {
-    const callback = (global as any).githubOAuthCallback
+    console.error('[GitHub OAuth] ❌ Error in completeGitHubOAuth:', error)
+
+    const callback = global.githubOAuthCallback
     if (callback) {
-      callback.reject(error)
-      callback.window.close()
-      delete (global as any).githubOAuthCallback
+      console.log('[GitHub OAuth] 🔄 Rejecting callback with error')
+
+      // Clear timeout
+      if (callback.timeout) {
+        clearTimeout(callback.timeout)
+      }
+
+      callback.reject(error as Error)
+
+      // Close window if it exists (for backward compatibility)
+      if (callback.window && !callback.window.isDestroyed()) {
+        callback.window.close()
+      }
+
+      delete global.githubOAuthCallback
+      console.log('[GitHub OAuth] 🧹 Callback cleaned up after error')
     }
     throw error
   }

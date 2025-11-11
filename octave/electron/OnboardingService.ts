@@ -352,31 +352,74 @@ export class OnboardingService extends EventEmitter {
   }
 
   /**
-   * Run gh auth login interactively
+   * Authenticate GitHub CLI using OAuth token
    *
-   * This spawns an interactive process where the user can login to GitHub CLI
+   * Uses the OAuth token from GitHub authentication to configure gh CLI.
+   * This avoids the need for interactive terminal input in Electron GUI.
+   *
+   * @param oauthToken - GitHub OAuth access token
    */
-  async runGHAuthLogin(): Promise<void> {
+  async runGHAuthLogin(oauthToken: string): Promise<void> {
     return new Promise((resolve, reject) => {
-      console.log('[Onboarding] Starting GitHub CLI authentication...')
+      // Validate token before using it
+      if (!oauthToken || typeof oauthToken !== 'string') {
+        reject(new Error('Invalid OAuth token: must be a non-empty string'))
+        return
+      }
 
-      // Spawn interactive process
-      // stdio: 'inherit' allows user to interact with the process
-      const ghAuth = spawn('gh', ['auth', 'login'], {
-        stdio: 'inherit'
+      // GitHub OAuth tokens should only contain alphanumeric characters and underscores
+      // This prevents potential command injection
+      if (!/^[a-zA-Z0-9_]+$/.test(oauthToken)) {
+        reject(new Error('Invalid OAuth token format'))
+        return
+      }
+
+      console.log('[Onboarding] Configuring GitHub CLI with OAuth token...')
+
+      // Use --with-token flag to authenticate non-interactively
+      // This works in Electron GUI environment (no terminal needed)
+      const ghAuth = spawn('gh', ['auth', 'login', '--with-token'], {
+        stdio: ['pipe', 'pipe', 'pipe']  // Use pipes instead of inherit
       })
+
+      let stdout = ''
+      let stderr = ''
+
+      // Capture stdout for debugging
+      ghAuth.stdout.on('data', (data) => {
+        stdout += data.toString()
+      })
+
+      // Capture stderr for error messages
+      ghAuth.stderr.on('data', (data) => {
+        stderr += data.toString()
+      })
+
+      // Write token to stdin
+      ghAuth.stdin.write(oauthToken + '\n')
+      ghAuth.stdin.end()
 
       ghAuth.on('close', (code) => {
         if (code === 0) {
-          console.log('[Onboarding] ✅ GitHub CLI authenticated')
+          console.log('[Onboarding] ✅ GitHub CLI authenticated successfully')
+          if (stdout) {
+            console.log('[Onboarding] gh output:', stdout)
+          }
           resolve()
         } else {
-          reject(new Error('GitHub CLI login cancelled or failed'))
+          // Sanitize error message to prevent token leakage
+          // GitHub tokens follow pattern: gho_*, ghp_*, etc.
+          const sanitizedError = (stderr || stdout || 'GitHub CLI authentication failed')
+            .replace(/gh[a-z]_[a-zA-Z0-9_]+/g, '[TOKEN_REDACTED]')
+
+          console.error('[Onboarding] ❌ gh auth failed:', sanitizedError)
+          reject(new Error('GitHub CLI authentication failed. Please try again.'))
         }
       })
 
       ghAuth.on('error', (error) => {
-        reject(error)
+        console.error('[Onboarding] ❌ gh spawn error:', error.message)
+        reject(new Error('Failed to start GitHub CLI. Please ensure gh is installed.'))
       })
     })
   }

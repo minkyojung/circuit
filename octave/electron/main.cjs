@@ -1342,15 +1342,50 @@ ipcMain.handle('onboarding:set-git-config', async (event, { name, email }) => {
 
 ipcMain.handle('onboarding:run-cli-login', async () => {
   try {
+    // Get OAuth token from GitHub authentication
+    const { getStoredToken } = await import('../dist-electron/githubAuth.js');
+    const accessToken = getStoredToken();
+
+    if (!accessToken) {
+      return {
+        success: false,
+        error: 'No GitHub OAuth token found. Please authenticate with GitHub first.',
+        errorCode: 'TOKEN_MISSING',
+        recoverable: true
+      };
+    }
+
+    // Configure gh CLI using the OAuth token
     const { getOnboardingService } = await import('../dist-electron/OnboardingService.js');
     const onboarding = getOnboardingService();
-    await onboarding.runGHAuthLogin();
+    await onboarding.runGHAuthLogin(accessToken);
+
     return { success: true };
   } catch (error) {
     console.error('[IPC] onboarding:run-cli-login failed:', error);
+
+    // Categorize errors for better UI handling
+    let errorCode = 'UNKNOWN';
+    let recoverable = false;
+
+    if (error.message.includes('gh: command not found') ||
+        error.message.includes('ensure gh is installed')) {
+      errorCode = 'GH_CLI_NOT_INSTALLED';
+      recoverable = true;
+    } else if (error.message.includes('authentication failed') ||
+               error.message.includes('Invalid OAuth token')) {
+      errorCode = 'AUTH_FAILED';
+      recoverable = true;
+    } else if (error.message.includes('timeout')) {
+      errorCode = 'TIMEOUT';
+      recoverable = true;
+    }
+
     return {
       success: false,
       error: error.message,
+      errorCode,
+      recoverable
     };
   }
 });
@@ -4351,7 +4386,7 @@ Plan Mode ensures structured, thoughtful development. Take your time to plan wel
       '--output-format', 'stream-json',  // Enable real-time streaming!
       '--include-partial-messages',      // Include partial chunks
       '--model', 'sonnet',
-      '--permission-mode', 'acceptEdits'  // Auto-approve file edits
+      '--permission-mode', 'bypassPermissions'  // Auto-approve all tools (Edit, Write, Bash)
     ], {
       cwd: session.workspacePath,
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -4365,10 +4400,30 @@ Plan Mode ensures structured, thoughtful development. Take your time to plan wel
     session.claudeProcess = claude;
     session.isRunning = true;
 
-    // Send message with multimodal content
+    // Validate conversation history before sending
+    // Claude CLI supports both formats:
+    // - Single message: { role: 'user', content: '...' }
+    // - Multi-turn: { messages: [...] }
+    // Using messages array enables context continuity across turns
+    if (!Array.isArray(session.messages) || session.messages.length === 0) {
+      throw new Error('Invalid conversation history: messages must be a non-empty array');
+    }
+
+    // Validate message structure
+    const validMessages = session.messages.filter(msg =>
+      msg &&
+      typeof msg === 'object' &&
+      msg.role &&
+      msg.content &&
+      ['user', 'assistant'].includes(msg.role)
+    );
+
+    if (validMessages.length === 0) {
+      throw new Error('No valid messages in conversation history');
+    }
+
     const input = JSON.stringify({
-      role: 'user',
-      content: content.length === 1 ? content[0].text : content
+      messages: validMessages  // Send validated message history
     });
 
     claude.stdin.write(input);
