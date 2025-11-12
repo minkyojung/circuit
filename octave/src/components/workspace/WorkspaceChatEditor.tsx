@@ -28,6 +28,7 @@ import type { IPCEventCallbacks } from '@/services/IPCEventBridge';
 import { TodoConfirmationDialog } from '@/components/todo';
 import { useLanguageService } from '@/hooks/useLanguageService';
 import { useClaudeMetrics } from '@/hooks/useClaudeMetrics';
+import { useAutoScroll } from '@/hooks/useAutoScroll';
 import { MessageComponent } from './MessageComponent';
 import { ChatEmptyState } from './ChatEmptyState';
 import { MarkdownPreview } from './MarkdownPreview';
@@ -369,13 +370,19 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   const thinkingStepsRef = useRef<ThinkingStep[]>(thinkingSteps);
   const messageThinkingStepsRef = useRef<Record<string, { steps: ThinkingStep[], duration: number }>>(messageThinkingSteps);
 
-  // Scroll state
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const [isAtBottom, setIsAtBottom] = useState(true);
-
-  // Track scroll positions per workspace
-  const scrollPositionsRef = useRef<Map<string, number>>(new Map());
-  const previousWorkspaceIdRef = useRef<string | null>(null);
+  // Auto-scroll hook (manages scroll state, workspace persistence, and auto-scroll behavior)
+  const {
+    scrollContainerRef,
+    isAtBottom,
+    scrollToBottom,
+    handleScroll,
+    resetScrollIntent,
+  } = useAutoScroll({
+    messages,
+    workspaceId: workspace.id,
+    isLoading: isLoadingConversation,
+    enabled: true,
+  });
 
   // Track if component is mounted to prevent setState on unmounted component
   const isMountedRef = useRef(true);
@@ -434,42 +441,6 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
     // Clear the action after handling
     onCodeSelectionHandled?.();
   }, [codeSelectionAction, onCodeSelectionHandled]);
-
-  // Save scroll position when workspace changes (before unmount/switch)
-  useEffect(() => {
-    const currentWorkspaceId = workspace.id;
-    const previousWorkspaceId = previousWorkspaceIdRef.current;
-
-    // Save scroll position of previous workspace
-    if (previousWorkspaceId && previousWorkspaceId !== currentWorkspaceId && scrollContainerRef.current) {
-      const scrollTop = scrollContainerRef.current.scrollTop;
-      scrollPositionsRef.current.set(previousWorkspaceId, scrollTop);
-      console.log('[Scroll] Saved scroll position for workspace', previousWorkspaceId, ':', scrollTop);
-    }
-
-    // Update previous workspace ID
-    previousWorkspaceIdRef.current = currentWorkspaceId;
-  }, [workspace.id]);
-
-  // Restore scroll position after messages are loaded
-  useEffect(() => {
-    // Only restore after loading is complete and messages are rendered
-    if (!isLoadingConversation && messages.length > 0) {
-      const currentWorkspaceId = workspace.id;
-      const savedScrollPosition = scrollPositionsRef.current.get(currentWorkspaceId);
-
-      if (savedScrollPosition !== undefined && scrollContainerRef.current) {
-        console.log('[Scroll] Restoring scroll position for workspace', currentWorkspaceId, ':', savedScrollPosition);
-
-        // Use setTimeout to ensure virtualizer has finished rendering
-        setTimeout(() => {
-          if (scrollContainerRef.current) {
-            scrollContainerRef.current.scrollTop = savedScrollPosition;
-          }
-        }, 100);
-      }
-    }
-  }, [isLoadingConversation, workspace.id]);
 
   // Load conversation when workspace or externalConversationId changes
   useEffect(() => {
@@ -598,28 +569,6 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   }, [conversationId]);
 
   // parseFileChanges removed - now handled by FileChangeDetector service
-
-  // Scroll handlers
-  const handleScroll = useCallback(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-
-    const { scrollTop, scrollHeight, clientHeight } = container;
-    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-
-    // Consider "at bottom" if within 150px of bottom
-    setIsAtBottom(distanceFromBottom < 150);
-  }, []);
-
-  const scrollToBottom = useCallback(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-
-    container.scrollTo({
-      top: container.scrollHeight,
-      behavior: 'smooth'
-    });
-  }, []);
 
   // Copy message handler
   const handleCopyMessage = useCallback((messageId: string, content: string) => {
@@ -804,14 +753,6 @@ Break down:
       await ipcRenderer.invoke('message:save', errorMessage);
     }
   }, [workspace.path, conversationId]);
-
-  // Check initial scroll position when messages load
-  useEffect(() => {
-    if (messages.length > 0 && scrollContainerRef.current) {
-      // Check scroll position on load
-      handleScroll();
-    }
-  }, [messages.length, handleScroll]);
 
 
   // ============================================================================
@@ -1297,6 +1238,10 @@ Break down:
       });
       return [...prev, userMessage];
     });
+
+    // Reset scroll intent when user sends message (enable auto-scroll)
+    resetScrollIntent();
+
     setInput('');
     setIsSending(true);
 
