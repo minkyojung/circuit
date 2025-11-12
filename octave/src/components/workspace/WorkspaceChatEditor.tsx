@@ -29,6 +29,9 @@ import { TodoConfirmationDialog } from '@/components/todo';
 import { useLanguageService } from '@/hooks/useLanguageService';
 import { useClaudeMetrics } from '@/hooks/useClaudeMetrics';
 import { useAutoScroll } from '@/hooks/useAutoScroll';
+import { useRefSync } from '@/hooks/useRefSync';
+import { usePrefillMessage } from '@/hooks/usePrefillMessage';
+import { useCopyMessage } from '@/hooks/useCopyMessage';
 import { MessageComponent } from './MessageComponent';
 import { ChatEmptyState } from './ChatEmptyState';
 import { MarkdownPreview } from './MarkdownPreview';
@@ -363,12 +366,14 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   const [pendingAssistantMessageId, setPendingAssistantMessageId] = useState<string | null>(null);
 
   // Refs to hold latest state values (to avoid stale closures in IPC handlers)
-  const sessionIdRef = useRef<string | null>(sessionId);
-  const pendingAssistantMessageIdRef = useRef<string | null>(null);
-  const conversationIdRef = useRef<string | null>(conversationId);
-  const messagesRef = useRef<Message[]>(messages);
-  const thinkingStepsRef = useRef<ThinkingStep[]>(thinkingSteps);
-  const messageThinkingStepsRef = useRef<Record<string, { steps: ThinkingStep[], duration: number }>>(messageThinkingSteps);
+  // Using useRefSync hook to automatically sync refs with state
+  const sessionIdRef = useRefSync(sessionId);
+  const pendingAssistantMessageIdRef = useRefSync(pendingAssistantMessageId);
+  const conversationIdRef = useRefSync(conversationId);
+  const messagesRef = useRefSync(messages);
+  const thinkingStepsRef = useRefSync(thinkingSteps);
+  const messageThinkingStepsRef = useRefSync(messageThinkingSteps);
+  const workspacePathRef = useRefSync(workspace.path);
 
   // Auto-scroll hook (manages scroll state, workspace persistence, and auto-scroll behavior)
   const {
@@ -387,11 +392,8 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   // Track if component is mounted to prevent setState on unmounted component
   const isMountedRef = useRef(true);
 
-  // Track workspace path to avoid stale closures in IPC handlers
-  const workspacePathRef = useRef(workspace.path);
-
-  // Copy state
-  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  // Copy message hook (handles clipboard copying with visual feedback)
+  const { copiedMessageId, handleCopyMessage } = useCopyMessage();
 
 
   // Real-time duration for in-progress message
@@ -524,42 +526,12 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
     loadConversation();
   }, [workspace.id, externalConversationId]);  // conversationId removed to prevent circular dependency
 
-  // Sync refs with latest state (to avoid stale closures)
-  useEffect(() => {
-    sessionIdRef.current = sessionId;
-  }, [sessionId]);
-
-  useEffect(() => {
-    conversationIdRef.current = conversationId;
-  }, [conversationId]);
-
-  useEffect(() => {
-    workspacePathRef.current = workspace.path;
-  }, [workspace.path]);
-
-  useEffect(() => {
-    messagesRef.current = messages;
-  }, [messages]);
-
-  useEffect(() => {
-    thinkingStepsRef.current = thinkingSteps;
-  }, [thinkingSteps]);
-
-  useEffect(() => {
-    messageThinkingStepsRef.current = messageThinkingSteps;
-  }, [messageThinkingSteps]);
-
-  useEffect(() => {
-    pendingAssistantMessageIdRef.current = pendingAssistantMessageId;
-  }, [pendingAssistantMessageId]);
-
-  // Set prefilled message when provided
-  useEffect(() => {
-    if (prefillMessage) {
-      setInput(prefillMessage);
-      onPrefillCleared?.();
-    }
-  }, [prefillMessage, onPrefillCleared]);
+  // Handle input prefilling from external sources
+  usePrefillMessage({
+    prefillMessage,
+    setInput,
+    onPrefillCleared,
+  });
 
   // Notify parent when conversationId changes
   // Note: onConversationChange is intentionally NOT in deps to avoid infinite loop
@@ -569,13 +541,7 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   }, [conversationId]);
 
   // parseFileChanges removed - now handled by FileChangeDetector service
-
-  // Copy message handler
-  const handleCopyMessage = useCallback((messageId: string, content: string) => {
-    navigator.clipboard.writeText(content);
-    setCopiedMessageId(messageId);
-    setTimeout(() => setCopiedMessageId(null), 2000);
-  }, []);
+  // handleCopyMessage is now provided by useCopyMessage hook
 
   // Explain message handler
   const handleExplainMessage = useCallback((messageId: string, content: string) => {
