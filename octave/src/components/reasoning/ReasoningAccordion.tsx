@@ -258,14 +258,14 @@ export const ReasoningAccordion: React.FC<ReasoningAccordionProps> = ({
 
             return (
               <motion.div
-                key={idx}
+                key={step.timestamp}
                 initial={{ opacity: 0, y: -8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.2, ease: "easeOut" }}
               >
                 <AccordionItem
-                  value={`step-${idx}`}
+                  value={`step-${step.timestamp}`}
                   className="border-b-0 group"
                 >
               <AccordionTrigger className="py-1.5 hover:no-underline text-base [&>svg]:hidden transition-colors">
