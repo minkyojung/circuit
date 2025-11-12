@@ -4,7 +4,7 @@ import type { ThinkingStep } from '@/types/thinking';
 import { Paperclip, Play, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { BlockList } from '@/components/blocks';
-import { InlineTodoProgress } from '@/components/blocks/InlineTodoProgress';
+import { TodoQueue } from '@/components/blocks/TodoQueue';
 import { UnifiedReasoningPanel } from '@/components/reasoning/UnifiedReasoningPanel';
 import { MessageActions } from './MessageActions';
 import { cn } from '@/lib/utils';
@@ -112,22 +112,15 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
 
         {/* TodoWrite inline display (for Normal/Think modes) */}
         {msg.metadata?.todoWriteResult && (
-          <InlineTodoProgress
+          <TodoQueue
             todos={msg.metadata.todoWriteResult.todos.map((todo: any) => ({
               content: todo.title || todo.content,
               activeForm: todo.activeForm || `${todo.title || todo.content}...`,
               status: todo.status,
-              complexity: todo.complexity,
-              priority: todo.priority,
-              estimatedDuration: todo.estimatedTime,
               description: todo.description,
             }))}
             defaultExpanded={true}
             showProgressBar={true}
-            autoCollapseOnComplete={true}
-            onToggle={(expanded) => {
-              console.log('[InlineTodo] Toggled:', expanded);
-            }}
           />
         )}
 
