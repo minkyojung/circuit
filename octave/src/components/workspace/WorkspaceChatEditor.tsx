@@ -32,6 +32,10 @@ import { useAutoScroll } from '@/hooks/useAutoScroll';
 import { useRefSync } from '@/hooks/useRefSync';
 import { usePrefillMessage } from '@/hooks/usePrefillMessage';
 import { useCopyMessage } from '@/hooks/useCopyMessage';
+import { useCodeSelection } from '@/hooks/useCodeSelection';
+import { useContextMetrics } from '@/hooks/useContextMetrics';
+import { useFilteredMessages } from '@/hooks/useFilteredMessages';
+import { useVirtualScrolling } from '@/hooks/useVirtualScrolling';
 import { MessageComponent } from './MessageComponent';
 import { ChatEmptyState } from './ChatEmptyState';
 import { MarkdownPreview } from './MarkdownPreview';
@@ -339,8 +343,8 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   const { metrics } = useClaudeMetrics();
   const [lastAutoCompactTime, setLastAutoCompactTime] = useState<number>(0);
 
-  // Context metrics (calculated from messages)
-  const [contextMetrics, setContextMetrics] = useState<any>(null);
+  // Context metrics (calculated from messages using useContextMetrics hook)
+  const contextMetrics = useContextMetrics(messages);
 
   // Simply pass through agentStatesByTodoId as it's already todoId-based
   // MessageComponent will use todoId from metadata to look up the state
@@ -413,36 +417,13 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
     content: string
   } | null>(null);
 
-  // Handle code selection actions from editor
-  useEffect(() => {
-    if (!codeSelectionAction) return;
-
-    const { type, code, filePath, lineStart, lineEnd } = codeSelectionAction;
-
-    if (type === 'ask') {
-      // For "Ask" action: Attach code to chat input for manual sending
-      setCodeAttachment({ code, filePath, lineStart, lineEnd });
-    } else {
-      // For other actions: Auto-generate and send prompt
-      const lineInfo = lineEnd !== lineStart ? `${lineStart}-${lineEnd}` : `${lineStart}`;
-      let prompt = '';
-
-      if (type === 'explain') {
-        prompt = `Explain this code from ${filePath}:${lineInfo}:\n\n\`\`\`\n${code}\n\`\`\``;
-      } else if (type === 'optimize') {
-        prompt = `Optimize this code from ${filePath}:${lineInfo}:\n\n\`\`\`\n${code}\n\`\`\`\n\nProvide specific improvements for performance, readability, and maintainability.`;
-      } else if (type === 'add-tests') {
-        prompt = `Generate comprehensive tests for this code from ${filePath}:${lineInfo}:\n\n\`\`\`\n${code}\n\`\`\`\n\nInclude unit tests, edge cases, and integration tests where appropriate.`;
-      }
-
-      if (prompt) {
-        executePrompt(prompt, [], 'normal', false);
-      }
-    }
-
-    // Clear the action after handling
-    onCodeSelectionHandled?.();
-  }, [codeSelectionAction, onCodeSelectionHandled]);
+  // Handle code selection actions from editor (using useCodeSelection hook)
+  useCodeSelection({
+    codeSelectionAction,
+    onCodeSelectionHandled,
+    executePrompt,
+    setCodeAttachment,
+  });
 
   // Load conversation when workspace or externalConversationId changes
   useEffect(() => {
@@ -1052,32 +1033,8 @@ Break down:
     }
   }, [conversationId, sessionId, messages]);
 
-  // Calculate context metrics whenever messages change
-  useEffect(() => {
-    const calculateContextMetrics = async () => {
-      if (messages.length === 0) {
-        setContextMetrics(null);
-        return;
-      }
-
-      try {
-        const result = await ipcRenderer.invoke('context:calculate-tokens', { messages });
-
-        if (result.success && result.metrics) {
-          setContextMetrics({
-            context: result.metrics
-          });
-        }
-      } catch (error) {
-        console.error('[ChatPanel] Failed to calculate context metrics:', error);
-        setContextMetrics(null);
-      }
-    };
-
-    calculateContextMetrics();
-  }, [messages]);
-
   // Auto-compact when Context Gauge reaches 80% (shouldCompact = true)
+  // Context metrics are now calculated by useContextMetrics hook
   useEffect(() => {
     // Use calculated context metrics if available, fallback to useClaudeMetrics
     const effectiveMetrics = contextMetrics || metrics;
@@ -1384,99 +1341,14 @@ The plan is ready. What would you like to do?`,
     setTodoResult(null);
   };
 
-  // Memoize filtered blocks for each message to avoid expensive JSON parsing on every render
-  const messagesWithFilteredBlocks = useMemo(() => {
-    return messages.map(msg => {
-      // Skip if no blocks
-      if (!msg.blocks || msg.blocks.length === 0) {
-        return { ...msg, filteredBlocks: msg.blocks };
-      }
+  // Filter messages for display (using useFilteredMessages hook)
+  const filteredMessages = useFilteredMessages(messages, isSending, pendingAssistantMessageId);
 
-      // Filter out file-summary blocks (shown in UnifiedReasoningPanel) and plan/todoWrite JSON blocks
-      const filteredBlocks = msg.blocks.filter(block => {
-        // Remove file-summary blocks (now shown in UnifiedReasoningPanel)
-        if (block.type === 'file-summary') {
-          return false;
-        }
-
-        // Remove plan/todoWrite JSON blocks
-        if (block.type === 'code' && block.metadata?.language === 'json') {
-          try {
-            const parsed = JSON.parse(block.content);
-            // Remove blocks containing todos array (plan/todoWrite JSON)
-            if (parsed.todos && Array.isArray(parsed.todos)) {
-              return false;
-            }
-          } catch (e) {
-            // Not valid JSON, keep it
-          }
-        }
-        return true;
-      });
-
-      return { ...msg, filteredBlocks };
-    });
-  }, [messages]);
-
-  // Filter out empty assistant messages for display
-  const filteredMessages = useMemo(() => {
-    return messagesWithFilteredBlocks.filter((msg) => {
-      // Hide empty assistant messages UNLESS it's the pending message (in progress)
-      if (msg.role === 'assistant' && !msg.content && (!msg.blocks || msg.blocks.length === 0)) {
-        // Keep if it's the pending message currently being streamed
-        if (isSending && msg.id === pendingAssistantMessageId) {
-          return true;
-        }
-        return false;
-      }
-      return true;
-    });
-  }, [messagesWithFilteredBlocks, isSending, pendingAssistantMessageId]);
-
-  // Virtual scrolling setup
-  // Memoize getScrollElement to prevent virtualizer recreation
-  const getScrollElement = useCallback(() => scrollContainerRef.current, []);
-
-  // Memoize estimateSize with dynamic height prediction
-  const estimateSize = useCallback((index: number) => {
-    const msg = filteredMessages[index];
-    if (!msg) return 200;
-
-    // Check if message has reasoning (collapsed by default, showing file changes)
-    const hasReasoning = messageThinkingSteps[msg.id]?.steps?.length > 0;
-    if (hasReasoning) {
-      // Collapsed reasoning panel shows file changes only
-      // Estimate: base height (150px) + panel header (50px) + file changes (~40px each)
-      const fileChangeCount = 3; // Conservative estimate
-      return 150 + 50 + (fileChangeCount * 40);
-    }
-
-    // Estimate based on number of blocks (code blocks, etc.)
-    const blockCount = msg.blocks?.length || 0;
-    if (blockCount > 0) {
-      // Code blocks are typically 200-300px each
-      return 150 + (blockCount * 250);
-    }
-
-    // Estimate based on content length
-    const contentLength = msg.content?.length || 0;
-    if (contentLength > 1000) {
-      return 400;
-    } else if (contentLength > 500) {
-      return 300;
-    } else if (contentLength > 200) {
-      return 200;
-    }
-
-    // Default minimum height
-    return 150;
-  }, [filteredMessages, messageThinkingSteps]);
-
-  const virtualizer = useVirtualizer({
-    count: filteredMessages.length,
-    getScrollElement,
-    estimateSize,
-    overscan: 5, // Render 5 extra items outside viewport for smooth scrolling
+  // Virtual scrolling setup (using useVirtualScrolling hook)
+  const virtualizer = useVirtualScrolling({
+    filteredMessages,
+    messageThinkingSteps,
+    scrollContainerRef,
   });
 
   // Auto-scroll is disabled - users can manually scroll using the "Scroll to Bottom" button
