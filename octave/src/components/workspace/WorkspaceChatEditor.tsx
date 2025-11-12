@@ -1,66 +1,35 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useVirtualizer } from '@tanstack/react-virtual';
+/**
+ * WorkspaceChatEditor Component
+ *
+ * Orchestrates the workspace editor experience with three modes:
+ * - Chat Only: Full-screen chat interface
+ * - Editor Only: Full-screen code editor
+ * - Split View: Chat and editor side-by-side
+ *
+ * This component has been refactored into separate files:
+ * - ChatPanel.tsx: Chat interface with AI
+ * - EditorPanel.tsx: Monaco code editor
+ * - WorkspaceChatEditor.types.ts: Shared type definitions
+ */
+
+import React, { useState, useEffect, useCallback } from 'react';
 import type { Workspace } from '@/types/workspace';
-import type { Message } from '@/types/conversation';
 import type {
   ViewMode,
   FileCursorPosition,
   CodeSelectionAction,
   WorkspaceChatEditorProps,
-  ChatPanelProps,
-  EditorPanelProps,
 } from './WorkspaceChatEditor.types';
 import { ChatPanel } from './ChatPanel';
 import { EditorPanel } from './EditorPanel';
-import Editor, { loader } from '@monaco-editor/react';
-import * as monaco from 'monaco-editor';
-import { ChevronDown } from 'lucide-react';
-import { toast } from 'sonner';
 import {
   ResizablePanelGroup,
   ResizablePanel,
   ResizableHandle,
 } from '@/components/ui/resizable';
-import { BlockList } from '@/components/blocks';
-import { InlineTodoProgress } from '@/components/blocks/InlineTodoProgress';
-import { ChatInput, type AttachedFile } from './ChatInput';
-import { ChatMessageSkeleton } from '@/components/ui/skeleton';
-import { Shimmer } from '@/components/ai-elements/shimmer';
-import { ReasoningAccordion } from '@/components/reasoning/ReasoningAccordion';
-import type { ThinkingStep } from '@/types/thinking';
-import { summarizeToolUsage } from '@/lib/thinkingUtils';
-import { motion, AnimatePresence } from 'motion/react';
-import { TodoProvider, useTodos } from '@/contexts/TodoContext';
-import { useAgent } from '@/contexts/AgentContext';
-import { useSettingsContext } from '@/contexts/SettingsContext';
-import { useIPCEvents } from '@/hooks/useIPCEvents';
-import type { IPCEventCallbacks } from '@/services/IPCEventBridge';
-import { TodoConfirmationDialog } from '@/components/todo';
-import { useLanguageService } from '@/hooks/useLanguageService';
-import { useClaudeMetrics } from '@/hooks/useClaudeMetrics';
-import { useAutoScroll } from '@/hooks/useAutoScroll';
-import { useRefSync } from '@/hooks/useRefSync';
-import { usePrefillMessage } from '@/hooks/usePrefillMessage';
-import { useCopyMessage } from '@/hooks/useCopyMessage';
-import { useCodeSelection } from '@/hooks/useCodeSelection';
-import { useContextMetrics } from '@/hooks/useContextMetrics';
-import { useFilteredMessages } from '@/hooks/useFilteredMessages';
-import { useVirtualScrolling } from '@/hooks/useVirtualScrolling';
-import { MessageComponent } from './MessageComponent';
-import { ChatEmptyState } from './ChatEmptyState';
-import { MarkdownPreview } from './MarkdownPreview';
-import { FloatingCodeActions } from './FloatingCodeActions';
 import { ConversationTabsOnly } from './ConversationTabsOnly';
 import { FileTabsOnly } from './FileTabsOnly';
-import type { TodoGenerationResult, TodoDraft, ExecutionMode } from '@/types/todo';
-import { FEATURES } from '@/config/features';
-import { getLanguageFromFilePath } from '@/lib/fileUtils';
-import { cn } from '@/lib/utils';
-import { getAIRulesContext } from '@/services/projectConfigLocal';
-
-// Configure Monaco Editor to use local files instead of CDN
-// The vite-plugin-monaco-editor plugin handles web worker configuration automatically
-loader.config({ monaco });
+import { useSettingsContext } from '@/contexts/SettingsContext';
 
 const ipcRenderer = window.electron.ipcRenderer;
 
@@ -245,9 +214,6 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
     </div>
   );
 };
-
-
-
 
 // Re-export components from separate files for backward compatibility
 export { ChatPanel } from './ChatPanel';
