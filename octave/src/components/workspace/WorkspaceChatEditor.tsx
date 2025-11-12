@@ -1573,29 +1573,6 @@ The plan is ready. What would you like to do?`,
                 </div>
               );
             })}
-            {isSending && thinkingSteps.length === 0 && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  transform: `translateY(${virtualizer.getTotalSize()}px)`,
-                }}
-              >
-                <div className="max-w-4xl mx-auto px-0 pb-5">
-                  <div className="flex justify-start">
-                    <div className="max-w-[75%]">
-                      <div className="space-y-2 pl-1">
-                        <Shimmer duration={2} className="text-sm text-muted-foreground">
-                          Analyzing your request...
-                        </Shimmer>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
             {/* Bottom spacer for better visibility when sending messages */}
             <div
               style={{

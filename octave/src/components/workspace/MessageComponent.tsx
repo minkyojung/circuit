@@ -9,6 +9,38 @@ import { UnifiedReasoningPanel } from '@/components/reasoning/UnifiedReasoningPa
 import { MessageActions } from './MessageActions';
 import { cn } from '@/lib/utils';
 
+// TEMP: Test data for TodoQueue component
+const TEST_TODO_DATA = {
+  todoWriteResult: {
+    todos: [
+      {
+        title: "Setup database connection",
+        activeForm: "Setting up database connection...",
+        status: "completed",
+        description: "Configure PostgreSQL connection with proper credentials"
+      },
+      {
+        title: "Create API endpoints",
+        activeForm: "Creating API endpoints...",
+        status: "in_progress",
+        description: "Build REST API for user management"
+      },
+      {
+        title: "Add authentication",
+        activeForm: "Adding authentication...",
+        status: "pending",
+        description: "Implement JWT-based authentication"
+      },
+      {
+        title: "Write tests",
+        activeForm: "Writing tests...",
+        status: "failed",
+        description: "Add unit and integration tests"
+      }
+    ]
+  }
+};
+
 export interface MessageComponentProps {
   msg: Message & { filteredBlocks?: any[] };
   isSending: boolean;
@@ -111,9 +143,10 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
         {/* Plan Review moved to right sidebar TodoPanel */}
 
         {/* TodoWrite inline display (for Normal/Think modes) */}
-        {msg.metadata?.todoWriteResult && (
+        {/* TEMP: Force show test data for all assistant messages */}
+        {msg.role === 'assistant' && (
           <TodoQueue
-            todos={msg.metadata.todoWriteResult.todos.map((todo: any) => ({
+            todos={(msg.metadata?.todoWriteResult || TEST_TODO_DATA.todoWriteResult).todos.map((todo: any) => ({
               content: todo.title || todo.content,
               activeForm: todo.activeForm || `${todo.title || todo.content}...`,
               status: todo.status,
@@ -178,7 +211,7 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
       </div>
 
       {/* Unified Reasoning Panel - Show at bottom for assistant messages with reasoning steps */}
-      {msg.role === 'assistant' && messageThinkingSteps[msg.id] !== undefined && (() => {
+      {msg.role === 'assistant' && messageThinkingSteps[msg.id] !== undefined && messageThinkingSteps[msg.id]?.steps.length > 0 && (() => {
         // Find file-summary block for collapsed view
         const fileSummaryBlock = msg.blocks?.find(b => b.type === 'file-summary');
 
