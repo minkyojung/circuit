@@ -296,21 +296,21 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [togglePlanMode])
 
-  // Load slash commands when project changes
+  // Load slash commands when workspace changes
   useEffect(() => {
-    console.log('[ChatInput] 🔍 Slash Commands - projectPath:', projectPath)
+    console.log('[ChatInput] 🔍 Slash Commands - workspacePath:', workspacePath)
     console.log('[ChatInput] 🔍 Slash Commands - ipcRenderer:', !!ipcRenderer)
 
-    if (!projectPath || !ipcRenderer) {
-      console.log('[ChatInput] ⚠️ Slash Commands - Missing projectPath or ipcRenderer, clearing commands')
+    if (!workspacePath || !ipcRenderer) {
+      console.log('[ChatInput] ⚠️ Slash Commands - Missing workspacePath or ipcRenderer, clearing commands')
       setAvailableCommands([])
       return
     }
 
     const loadCommands = async () => {
       try {
-        console.log('[ChatInput] 📡 Slash Commands - Calling IPC with:', projectPath)
-        const result = await ipcRenderer.invoke('slash-commands:list', projectPath)
+        console.log('[ChatInput] 📡 Slash Commands - Calling IPC with:', workspacePath)
+        const result = await ipcRenderer.invoke('slash-commands:list', workspacePath)
         console.log('[ChatInput] 📥 Slash Commands - IPC Result:', result)
 
         if (result.success) {
@@ -325,7 +325,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }
 
     loadCommands()
-  }, [projectPath])
+  }, [workspacePath])
 
   // Detect slash command input
   useEffect(() => {
@@ -382,11 +382,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
   // Execute slash command
   const executeCommand = useCallback(async (commandName: string) => {
-    if (!projectPath || !ipcRenderer) return
+    if (!workspacePath || !ipcRenderer) return
 
     try {
       // Load command content
-      const result = await ipcRenderer.invoke('slash-commands:get', projectPath, commandName)
+      const result = await ipcRenderer.invoke('slash-commands:get', workspacePath, commandName)
 
       if (result.success) {
         // Clear input and close menu
@@ -404,7 +404,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       console.error('[ChatInput] Failed to execute command:', error)
       toast.error('Failed to execute command')
     }
-  }, [projectPath, onSubmit, attachedFiles, thinkingMode, onChange])
+  }, [workspacePath, onSubmit, attachedFiles, thinkingMode, architectMode, onChange])
 
   // File attachment handling
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -587,6 +587,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     },
     [onChange]
   )
+
+  // Reset textarea height when value is cleared
+  useEffect(() => {
+    if (value === '' && textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+    }
+  }, [value])
 
   // Handle compact action - delegates to parent component
   const handleCompact = useCallback(async () => {
