@@ -47,6 +47,7 @@ import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import { useAppKeyboardShortcuts } from '@/hooks/useAppKeyboardShortcuts'
 import { useConversationManagement } from '@/hooks/useConversationManagement'
+import { useFileNavigation } from '@/hooks/useFileNavigation'
 import { SettingsProvider } from '@/contexts/SettingsContext'
 import { TerminalProvider } from '@/contexts/TerminalContext'
 import { AgentProvider } from '@/contexts/AgentContext'
@@ -284,13 +285,6 @@ function App() {
     setPathResolver(new PathResolver(projectRoot))
   }, [selectedWorkspace?.path])
 
-  // File cursor position for jumping to line
-  const [fileCursorPosition, setFileCursorPosition] = useState<{
-    filePath: string
-    lineStart: number
-    lineEnd: number
-  } | null>(null)
-
   // Code selection action for editor
   const [codeSelectionAction, setCodeSelectionAction] = useState<{
     type: 'ask' | 'explain' | 'optimize' | 'add-tests'
@@ -359,6 +353,20 @@ function App() {
     selectedWorkspace,
     openTab,
     closeTab,
+    focusedGroupIdRef,
+  })
+
+  // File navigation (extracted to custom hook)
+  const {
+    handleFileSelect,
+    handleUnsavedChange,
+    fileCursorPosition,
+  } = useFileNavigation({
+    pathResolver,
+    selectedWorkspace,
+    openTab,
+    findTab,
+    updateTab,
     focusedGroupIdRef,
   })
 
@@ -492,72 +500,6 @@ function App() {
   // ============================================================================
   // NEW: File/Conversation Handlers (Unified Tab System)
   // ============================================================================
-
-  // Handle file selection from sidebar or file reference pills
-  const handleFileSelect = async (filePath: string, lineStart?: number, lineEnd?: number) => {
-    // Guard: PathResolver must be initialized
-    if (!pathResolver) {
-      console.error('[App] PathResolver not initialized - cannot open file');
-      toast.error('파일 경로 변환기가 초기화되지 않았습니다');
-      return;
-    }
-
-    // Guard: Workspace must be selected
-    if (!selectedWorkspace) {
-      console.error('[App] No workspace selected - cannot open file');
-      toast.error('워크스페이스가 선택되지 않았습니다');
-      return;
-    }
-
-    // ✅ STEP 1: Normalize file path using PathResolver
-    const normalizedPath = pathResolver.normalize(filePath);
-    const absolutePath = pathResolver.toAbsolute(normalizedPath);
-
-    console.log('[App] Opening file:', {
-      original: filePath,
-      normalized: normalizedPath,
-      absolute: absolutePath,
-      workspaceId: selectedWorkspace.id,
-      projectRoot: pathResolver.getProjectRoot()
-    });
-
-    // ✅ STEP 2: Validate file existence
-    try {
-      const exists = await ipcRenderer.invoke('file-exists', absolutePath);
-
-      if (!exists) {
-        console.warn('[App] File does not exist:', normalizedPath);
-        toast.error(`파일을 찾을 수 없습니다: ${normalizedPath}`);
-        return;
-      }
-    } catch (error) {
-      console.error('[App] Error checking file existence:', normalizedPath, error);
-      toast.error(`파일 확인 중 오류 발생: ${normalizedPath}`);
-      return;
-    }
-
-    // ✅ STEP 3: Create file tab with workspace-scoped identity
-    const currentFocusedGroup = focusedGroupIdRef.current;
-    const tab = createFileTab(
-      normalizedPath,
-      selectedWorkspace.id,  // ✅ Workspace-scoped tab ID
-      getFileName(normalizedPath)
-    );
-
-    // Open in currently focused group
-    openTab(tab, currentFocusedGroup);
-
-    // ✅ STEP 4: Store line selection with normalized path
-    if (lineStart) {
-      setFileCursorPosition({
-        filePath: normalizedPath,
-        lineStart,
-        lineEnd: lineEnd || lineStart
-      });
-    } else {
-      setFileCursorPosition(null);
-    }
-  }
 
   // Handle tab click with workspace synchronization
   const handleTabClick = (tabId: string, groupId: string) => {
@@ -848,23 +790,6 @@ function App() {
       closeTab(activeTab.id, focusedGroupId)
       console.log('[App] Settings tab closed')
       return
-    }
-  }
-
-  // Handle unsaved changes notification from editor
-  const handleUnsavedChange = (filePath: string, hasChanges: boolean) => {
-    if (!selectedWorkspace) return;
-
-    // Find the file tab (using workspace-scoped ID)
-    const tabId = `file-${selectedWorkspace.id}-${filePath}`;
-    const result = findTab(tabId);
-    if (result) {
-      updateTab(result.tab.id, result.groupId, {
-        data: {
-          ...result.tab.data,
-          unsavedChanges: hasChanges
-        }
-      } as any);
     }
   }
 
