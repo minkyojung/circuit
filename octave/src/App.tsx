@@ -877,7 +877,6 @@ function App() {
   // Reset state when workspace changes (but not tabs - handled by loadDefaultConversation)
   useEffect(() => {
     setViewMode('chat')
-    setFileCursorPosition(null)
     setChatPrefillMessage(null)
     setSessionId(null)
     setCodeSelectionAction(null)
