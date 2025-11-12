@@ -192,9 +192,13 @@ function renderStepDetail(step: ThinkingStep, todoWriteResult?: any) {
       );
 
     case 'TodoWrite':
-      return todoWriteResult ? (
+      // Use step.todos first (from milestone), fallback to todoWriteResult (from metadata)
+      const todosData = step.todos || (todoWriteResult?.todos);
+      console.log('[ReasoningAccordion] TodoWrite case - step.todos:', step.todos, 'todoWriteResult:', todoWriteResult);
+
+      return todosData && todosData.length > 0 ? (
         <TodoQueue
-          todos={todoWriteResult.todos.map((todo: any) => ({
+          todos={todosData.map((todo: any) => ({
             content: todo.title || todo.content,
             activeForm: todo.activeForm || `${todo.title || todo.content}...`,
             status: todo.status,
@@ -205,7 +209,7 @@ function renderStepDetail(step: ThinkingStep, todoWriteResult?: any) {
         />
       ) : (
         <div className="text-sm font-light opacity-60 px-4 py-2 italic">
-          📋 Task list created
+          📋 Task list created (data not available)
         </div>
       );
 

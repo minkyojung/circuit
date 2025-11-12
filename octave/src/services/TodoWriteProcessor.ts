@@ -60,13 +60,9 @@ export class TodoWriteProcessor {
       onMessageUpdate,
     } = options;
 
-    // Only execute if PLAN_MODE feature is enabled
-    if (!FEATURES.PLAN_MODE) {
-      return { hasTodoWrite: false, todoResult: null, displayMode: null };
-    }
-
     console.log('[TodoWriteProcessor] 📋 Checking for TodoWrite');
     console.log('[TodoWriteProcessor] 📋 Current thinking mode:', currentThinkingMode);
+    console.log('[TodoWriteProcessor] 📋 PLAN_MODE feature:', FEATURES.PLAN_MODE);
 
     // Extract TodoWrite from blocks
     let todoWriteData = extractTodoWriteFromBlocks(blocks || []);
@@ -110,7 +106,7 @@ export class TodoWriteProcessor {
     };
 
     // Determine where to display based on thinking mode
-    const isPlanMode = currentThinkingMode === 'plan';
+    const isPlanMode = currentThinkingMode === 'plan' && FEATURES.PLAN_MODE;
 
     // ========================================================================
     // Path 1: Plan Mode - Display in right sidebar (persistent)
