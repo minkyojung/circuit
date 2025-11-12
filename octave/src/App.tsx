@@ -42,6 +42,7 @@ import { PanelLeft, PanelRight, FolderGit2, Columns2, GitBranch } from 'lucide-r
 import { cn } from '@/lib/utils'
 import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
+import { useAppKeyboardShortcuts } from '@/hooks/useAppKeyboardShortcuts'
 import { SettingsProvider } from '@/contexts/SettingsContext'
 import { TerminalProvider } from '@/contexts/TerminalContext'
 import { AgentProvider } from '@/contexts/AgentContext'
@@ -1048,84 +1049,21 @@ function App() {
     setCodeSelectionAction(null)
   }, [selectedWorkspace?.id])
 
-  // Keyboard shortcuts
-  useKeyboardShortcuts({
-    // Quick Open (Cmd+P) - Focus search bar
-    'cmd+p': {
-      handler: () => searchBarRef.current?.focus(),
-      description: 'Quick Open',
-      enabled: !!selectedWorkspace,
-    },
-
-    // Workspace navigation (Cmd+1 through Cmd+9)
-    'cmd+1': { handler: () => workspacesRef.current[0] && handleWorkspaceSelect(workspacesRef.current[0]), description: 'Switch to workspace 1' },
-    'cmd+2': { handler: () => workspacesRef.current[1] && handleWorkspaceSelect(workspacesRef.current[1]), description: 'Switch to workspace 2' },
-    'cmd+3': { handler: () => workspacesRef.current[2] && handleWorkspaceSelect(workspacesRef.current[2]), description: 'Switch to workspace 3' },
-    'cmd+4': { handler: () => workspacesRef.current[3] && handleWorkspaceSelect(workspacesRef.current[3]), description: 'Switch to workspace 4' },
-    'cmd+5': { handler: () => workspacesRef.current[4] && handleWorkspaceSelect(workspacesRef.current[4]), description: 'Switch to workspace 5' },
-    'cmd+6': { handler: () => workspacesRef.current[5] && handleWorkspaceSelect(workspacesRef.current[5]), description: 'Switch to workspace 6' },
-    'cmd+7': { handler: () => workspacesRef.current[6] && handleWorkspaceSelect(workspacesRef.current[6]), description: 'Switch to workspace 7' },
-    'cmd+8': { handler: () => workspacesRef.current[7] && handleWorkspaceSelect(workspacesRef.current[7]), description: 'Switch to workspace 8' },
-    'cmd+9': { handler: () => workspacesRef.current[8] && handleWorkspaceSelect(workspacesRef.current[8]), description: 'Switch to workspace 9' },
-
-    // New Workspace (Cmd+N)
-    'cmd+n': {
-      handler: handleCreateWorkspace,
-      description: 'New workspace',
-    },
-
-    // Close active tab (Cmd+W)
-    'cmd+w': {
-      handler: handleCloseActiveTab,
-      description: 'Close active tab',
-      enabled: primaryGroup.tabs.length > 0,
-    },
-
-    // Move active tab left (Cmd+Shift+[)
-    'cmd+shift+[': {
-      handler: () => handleMoveActiveTab('left'),
-      description: 'Move tab left',
-      enabled: primaryGroup.tabs.length > 0,
-    },
-
-    // Move active tab right (Cmd+Shift+])
-    'cmd+shift+]': {
-      handler: () => handleMoveActiveTab('right'),
-      description: 'Move tab right',
-      enabled: primaryGroup.tabs.length > 0,
-    },
-
-    // Close current workspace (Cmd+Shift+W)
-    'cmd+shift+w': {
-      handler: () => handleWorkspaceSelect(null),
-      description: 'Close workspace',
-      enabled: !!selectedWorkspace,
-    },
-
-    // Open Settings (Cmd+,)
-    'cmd+,': {
-      handler: handleOpenSettings,
-      description: 'Open settings',
-    },
-
-    // Commit dialog (Cmd+Enter when workspace is selected)
-    'cmd+enter': {
-      handler: () => setShowCommitDialog(true),
-      description: 'Open commit dialog',
-      enabled: !!selectedWorkspace,
-    },
-
-    // Close dialogs with Escape
-    'escape': {
-      handler: () => {
-        if (showCommitDialog) {
-          setShowCommitDialog(false)
-        }
-      },
-      description: 'Close dialog',
-      enabled: showCommitDialog,
-    },
+  // Keyboard shortcuts (extracted to custom hook)
+  const keyboardShortcuts = useAppKeyboardShortcuts({
+    selectedWorkspace,
+    primaryGroup,
+    searchBarRef,
+    showCommitDialog,
+    workspacesRef,
+    handleCreateWorkspace,
+    handleCloseActiveTab,
+    handleMoveActiveTab,
+    handleWorkspaceSelect,
+    handleOpenSettings,
+    setShowCommitDialog,
   })
+  useKeyboardShortcuts(keyboardShortcuts)
 
   // Handle unified onboarding completion
   const handleOnboardingComplete = (registeredRepoIds?: string[]) => {
