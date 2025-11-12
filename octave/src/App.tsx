@@ -43,6 +43,7 @@ import { cn } from '@/lib/utils'
 import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import { useAppKeyboardShortcuts } from '@/hooks/useAppKeyboardShortcuts'
+import { useConversationManagement } from '@/hooks/useConversationManagement'
 import { SettingsProvider } from '@/contexts/SettingsContext'
 import { TerminalProvider } from '@/contexts/TerminalContext'
 import { AgentProvider } from '@/contexts/AgentContext'
@@ -208,13 +209,6 @@ function App() {
   })
   const [currentRepository, setCurrentRepository] = useState<any>(null)
 
-  // State for conversation deletion confirmation modal
-  const [pendingDeleteConversation, setPendingDeleteConversation] = useState<{
-    conversationId: string
-    tabId: string
-    groupId: string
-  } | null>(null)
-
   // Path resolver for consistent file path normalization
   const [pathResolver, setPathResolver] = useState<PathResolver | null>(null)
 
@@ -350,6 +344,20 @@ function App() {
   // Get specific groups for rendering
   const primaryGroup = editorGroups.find(g => g.id === DEFAULT_GROUP_ID) || editorGroups[0]
   const secondaryGroup = editorGroups.find(g => g.id === SECONDARY_GROUP_ID) || editorGroups[1]
+
+  // Conversation management (extracted to custom hook)
+  const {
+    handleConversationSelect,
+    handleCreateConversation,
+    confirmDeleteConversation,
+    pendingDeleteConversation,
+    setPendingDeleteConversation,
+  } = useConversationManagement({
+    selectedWorkspace,
+    openTab,
+    closeTab,
+    focusedGroupIdRef,
+  })
 
   // Get active conversation ID for TodoPanel (from primary group's active conversation tab)
   const activeConversationId = useMemo(() => {
@@ -696,20 +704,6 @@ function App() {
     }
   }
 
-  // Handle conversation selection
-  const handleConversationSelect = (conversationId: string, workspaceId: string, title?: string) => {
-    // Use ref to get latest focusedGroupId (avoid stale closure)
-    const currentFocusedGroup = focusedGroupIdRef.current
-    // Create or activate conversation tab in focused group
-    const tab = createConversationTab(
-      conversationId,
-      workspaceId,
-      title,
-      selectedWorkspace?.name
-    )
-    openTab(tab, currentFocusedGroup)
-  }
-
   // Handle opening settings
   const handleOpenSettings = () => {
     const currentFocusedGroup = focusedGroupIdRef.current
@@ -728,32 +722,6 @@ function App() {
       // Create new settings tab
       const tab = createSettingsTab()
       openTab(tab, currentFocusedGroup)
-    }
-  }
-
-  // Handle new conversation creation
-  const handleCreateConversation = async () => {
-    if (!selectedWorkspace) return
-
-    try {
-      const createResult = await ipcRenderer.invoke('conversation:create', selectedWorkspace.id, {
-        workspaceName: selectedWorkspace.name
-      })
-
-      if (createResult.success && createResult.conversation) {
-        const tab = createConversationTab(
-          createResult.conversation.id,
-          selectedWorkspace.id,
-          createResult.conversation.title,
-          selectedWorkspace.name
-        )
-        // Open in currently focused group
-        openTab(tab, focusedGroupIdRef.current)
-      } else {
-        console.error('[App] Failed to create conversation:', createResult.error)
-      }
-    } catch (error) {
-      console.error('[App] Error creating conversation:', error)
     }
   }
 
@@ -912,33 +880,6 @@ function App() {
       closeTab(activeTab.id, focusedGroupId)
       console.log('[App] Settings tab closed')
       return
-    }
-  }
-
-  // Confirm and execute conversation deletion
-  const confirmDeleteConversation = async () => {
-    if (!pendingDeleteConversation) return
-
-    const { conversationId, tabId, groupId } = pendingDeleteConversation
-
-    try {
-      console.log('[App] Confirming deletion of conversation:', conversationId)
-      const result = await ipcRenderer.invoke('conversation:delete', conversationId)
-
-      if (result.success) {
-        // Close the tab
-        closeTab(tabId, groupId)
-        console.log('[App] Conversation deleted and tab closed:', conversationId)
-      } else {
-        console.error('[App] Failed to delete conversation:', result.error)
-        alert(`Failed to delete conversation: ${result.error || 'Unknown error'}`)
-      }
-    } catch (error) {
-      console.error('[App] Error deleting conversation:', error)
-      alert(`Error deleting conversation: ${error}`)
-    } finally {
-      // Clear the pending deletion state
-      setPendingDeleteConversation(null)
     }
   }
 
