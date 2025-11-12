@@ -201,23 +201,15 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
               isLive={isSending && msg.id === pendingAssistantMessageId}
               fileSummaryBlock={fileSummaryBlock}
               onFileClick={onFileReferenceClick}
+              messageId={!isSending ? msg.id : undefined}
+              messageContent={!isSending ? msg.content : undefined}
+              onCopyMessage={onCopyMessage}
+              onExplainMessage={onExplainMessage}
+              copiedMessageId={copiedMessageId}
             />
           </div>
         );
       })()}
-
-      {/* Message Actions - Show for assistant messages (Copy, Explain) */}
-      {msg.role === 'assistant' && !isSending && (
-        <div className="w-full">
-          <MessageActions
-            messageId={msg.id}
-            content={msg.content}
-            onCopy={onCopyMessage}
-            onExplain={onExplainMessage}
-            copiedMessageId={copiedMessageId}
-          />
-        </div>
-      )}
     </div>
   );
 };
