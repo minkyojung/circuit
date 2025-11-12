@@ -10,6 +10,9 @@ import { ArrowUp, Paperclip, X, ListChecks, ChevronDown, ListTodo, Code, Sparkle
 import { toast } from 'sonner'
 import { useSettingsContext } from '@/contexts/SettingsContext'
 import { useClaudeMetrics } from '@/hooks/useClaudeMetrics'
+import { useThinkingMode as useThinkingModeHook } from '@/hooks/useThinkingMode'
+import { useArchitectMode as useArchitectModeHook } from '@/hooks/useArchitectMode'
+import { useAttachments } from '@/hooks/useAttachments'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   DropdownMenu,
@@ -20,7 +23,6 @@ import {
 import { ContextGauge } from './ContextGauge'
 import { FEATURES } from '@/config/features'
 import type { ClaudeModel } from '@/types/settings'
-import { getArchitectMode, setArchitectMode } from '@/services/projectConfigLocal'
 
 const ipcRenderer = typeof window !== 'undefined' && (window as any).require ? (window as any).require('electron').ipcRenderer : null
 
@@ -131,97 +133,26 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
   // Use passed contextMetrics if available, fallback to useClaudeMetrics
   const metrics = contextMetrics || fallbackMetrics
-  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
-  const [thinkingMode, setThinkingMode] = useState<ThinkingMode>('normal')
-  const [architectMode, setArchitectModeState] = useState<boolean>(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Custom hooks for state management
+  const { thinkingMode, setThinkingMode } = useThinkingModeHook()
+  const { architectMode, setArchitectMode: setArchitectModeHook } = useArchitectModeHook(workspacePath)
+  const {
+    attachedFiles,
+    handleFileSelect,
+    handleRemoveFile,
+    handleOpenFilePicker,
+    fileInputRef,
+    clearAttachments,
+    addFile,
+  } = useAttachments({
+    codeAttachment,
+    messageAttachment,
+  })
+
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // Load architect mode from workspace config
-  useEffect(() => {
-    if (!workspacePath) return;
-
-    const loadArchitectMode = async () => {
-      const enabled = await getArchitectMode(workspacePath);
-      setArchitectModeState(enabled);
-    };
-
-    loadArchitectMode();
-  }, [workspacePath]);
-
-  // Convert code attachment to AttachedFile when it changes
-  useEffect(() => {
-    if (!codeAttachment) {
-      // Remove code attachment from attachedFiles if it was removed
-      setAttachedFiles(prev => prev.filter(f => f.type !== 'code/selection'))
-      return
-    }
-
-    // Create AttachedFile from code attachment
-    const codeAttachmentId = `code-${codeAttachment.filePath}-${codeAttachment.lineStart}-${codeAttachment.lineEnd}`
-
-    // Check if this code attachment already exists (check inside setState to avoid re-triggering)
-    setAttachedFiles(prev => {
-      const exists = prev.some(f => f.id === codeAttachmentId)
-      if (exists) {
-        return prev // No change
-      }
-
-      const lineInfo = codeAttachment.lineEnd !== codeAttachment.lineStart
-        ? `${codeAttachment.lineStart}-${codeAttachment.lineEnd}`
-        : `${codeAttachment.lineStart}`
-
-      const codeFile: AttachedFile = {
-        id: codeAttachmentId,
-        name: `${codeAttachment.filePath}:${lineInfo}`,
-        type: 'code/selection',
-        size: codeAttachment.code.length,
-        url: '', // Not used for code
-        code: {
-          content: codeAttachment.code,
-          filePath: codeAttachment.filePath,
-          lineStart: codeAttachment.lineStart,
-          lineEnd: codeAttachment.lineEnd,
-        }
-      }
-
-      return [...prev, codeFile]
-    })
-  }, [codeAttachment]) // Removed attachedFiles from deps!
-
-  // Convert message attachment to AttachedFile when it changes
-  useEffect(() => {
-    if (!messageAttachment) {
-      // Remove message attachment from attachedFiles if it was removed
-      setAttachedFiles(prev => prev.filter(f => f.type !== 'message/reference'))
-      return
-    }
-
-    // Create AttachedFile from message attachment
-    const messageAttachmentId = `message-${messageAttachment.messageId}`
-
-    // Check if this message attachment already exists
-    setAttachedFiles(prev => {
-      const exists = prev.some(f => f.id === messageAttachmentId)
-      if (exists) {
-        return prev // No change
-      }
-
-      const messageFile: AttachedFile = {
-        id: messageAttachmentId,
-        name: 'Previous message',
-        type: 'message/reference',
-        size: messageAttachment.content.length,
-        url: '', // Not used for messages
-        message: {
-          id: messageAttachment.messageId,
-          content: messageAttachment.content,
-        }
-      }
-
-      return [...prev, messageFile]
-    })
-  }, [messageAttachment])
+  // Code and message attachments are now handled by useAttachments hook
 
   // Slash commands state
   const [availableCommands, setAvailableCommands] = useState<Array<{ name: string; fileName: string; description?: string }>>([])
@@ -274,14 +205,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
     try {
       const newValue = !architectMode;
-      await setArchitectMode(workspacePath, newValue);
-      setArchitectModeState(newValue);
+      await setArchitectModeHook(newValue);
       toast.success(newValue ? 'Architect Mode enabled' : 'Architect Mode disabled');
     } catch (error) {
       console.error('[ChatInput] Failed to toggle architect mode:', error);
       toast.error('Failed to toggle Architect Mode');
     }
-  }, [workspacePath, architectMode])
+  }, [workspacePath, architectMode, setArchitectModeHook])
 
   // Keyboard shortcut: Cmd/Ctrl+Shift+P for Plan mode
   useEffect(() => {
@@ -406,73 +336,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }
   }, [workspacePath, onSubmit, attachedFiles, thinkingMode, architectMode, onChange])
 
-  // File attachment handling
-  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (!files || files.length === 0) return
-
-    const newFiles: AttachedFile[] = []
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i]
-
-      // Validate file size (max 10MB)
-      if (file.size > 10 * 1024 * 1024) {
-        toast.error(`File ${file.name} is too large (max 10MB)`)
-        continue
-      }
-
-      // Validate file type (images, PDFs, text files)
-      const allowedTypes = [
-        'image/png',
-        'image/jpeg',
-        'image/gif',
-        'image/webp',
-        'application/pdf',
-        'text/plain',
-        'text/markdown',
-      ]
-
-      if (!allowedTypes.includes(file.type)) {
-        toast.error(`File type ${file.type} is not supported`)
-        continue
-      }
-
-      // Create data URL for the file
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          newFiles.push({
-            id: `file-${Date.now()}-${i}`,
-            name: file.name,
-            type: file.type,
-            size: file.size,
-            url: event.target.result as string,
-          })
-
-          // Update state after all files are read
-          if (newFiles.length === files.length) {
-            setAttachedFiles((prev) => [...prev, ...newFiles])
-            toast.success(`${newFiles.length} file(s) attached`)
-          }
-        }
-      }
-      reader.readAsDataURL(file)
-    }
-
-    // Reset input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
-    }
-  }, [])
-
-  const handleRemoveFile = useCallback((fileId: string) => {
-    setAttachedFiles((prev) => prev.filter((f) => f.id !== fileId))
-  }, [])
-
-  const handleOpenFilePicker = useCallback(() => {
-    fileInputRef.current?.click()
-  }, [])
+  // File attachment handling is now done by useAttachments hook
 
   const handleSend = useCallback(async () => {
     if (!value.trim() && attachedFiles.length === 0) return
@@ -482,13 +346,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       // Use 'plan' mode if isPlanMode is true, otherwise use selected thinkingMode
       const effectiveMode = isPlanMode ? 'plan' : thinkingMode
       await onSubmit(value, attachedFiles, effectiveMode, architectMode)
-      setAttachedFiles([]) // Clear attachments after send
+      clearAttachments() // Clear attachments after send
       // Keep Plan Mode, Thinking Mode, and Architect Mode sticky - don't reset
     } catch (error) {
       console.error('[ChatInput] Submit error:', error)
       toast.error('Failed to send message')
     }
-  }, [value, attachedFiles, thinkingMode, isPlanMode, architectMode, disabled, onSubmit])
+  }, [value, attachedFiles, thinkingMode, isPlanMode, architectMode, disabled, onSubmit, clearAttachments])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -562,7 +426,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               url: event.target.result as string,
             }
 
-            setAttachedFiles((prev) => [...prev, newFile])
+            addFile(newFile)
             toast.success(
               `Long text (${(pastedText.length / 1000).toFixed(1)}k chars) converted to attachment`
             )
@@ -572,7 +436,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       }
       // If text is under threshold, allow normal paste (do nothing)
     },
-    [settings.attachments]
+    [settings.attachments, addFile]
   )
 
   // Auto-resize textarea

@@ -36,6 +36,7 @@ import { useCodeSelection } from '@/hooks/useCodeSelection';
 import { useContextMetrics } from '@/hooks/useContextMetrics';
 import { useFilteredMessages } from '@/hooks/useFilteredMessages';
 import { useVirtualScrolling } from '@/hooks/useVirtualScrolling';
+import { useAutoCompact } from '@/hooks/useAutoCompact';
 import { MessageComponent } from './MessageComponent';
 import { ChatEmptyState } from './ChatEmptyState';
 import { MarkdownPreview } from './MarkdownPreview';
@@ -1033,30 +1034,15 @@ Break down:
     }
   }, [conversationId, sessionId, messages]);
 
-  // Auto-compact when Context Gauge reaches 80% (shouldCompact = true)
-  // Context metrics are now calculated by useContextMetrics hook
-  useEffect(() => {
-    // Use calculated context metrics if available, fallback to useClaudeMetrics
-    const effectiveMetrics = contextMetrics || metrics;
-    const shouldAutoCompact = effectiveMetrics?.context?.shouldCompact;
-
-    if (!shouldAutoCompact || !conversationId || messages.length < 20) {
-      return;
-    }
-
-    // Prevent compact if we did it recently (within 5 minutes)
-    const MIN_COMPACT_INTERVAL = 5 * 60 * 1000; // 5 minutes
-    const timeSinceLastCompact = Date.now() - lastAutoCompactTime;
-
-    if (lastAutoCompactTime > 0 && timeSinceLastCompact < MIN_COMPACT_INTERVAL) {
-      console.log('[ChatPanel] Skipping auto-compact (too soon since last compact)');
-      return;
-    }
-
-    // Trigger silent auto-compact
-    console.log('[ChatPanel] Auto-compact triggered (Context Gauge at 80%+)');
-    handleSessionCompact(true);
-  }, [contextMetrics, metrics?.context?.shouldCompact, conversationId, messages.length, lastAutoCompactTime, handleSessionCompact]);
+  // Auto-compact when Context Gauge reaches 80% (using useAutoCompact hook)
+  useAutoCompact({
+    contextMetrics,
+    fallbackMetrics: metrics,
+    conversationId,
+    messageCount: messages.length,
+    lastCompactTime: lastAutoCompactTime,
+    onCompact: () => handleSessionCompact(true),
+  });
 
   const handleSend = async (inputText: string, attachments: AttachedFile[], thinkingMode: import('./ChatInput').ThinkingMode, architectMode: boolean) => {
     if (!inputText.trim() && attachments.length === 0) return;
