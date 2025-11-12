@@ -6,23 +6,15 @@
  */
 
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
-import { ArrowUp, Paperclip, X, ListChecks, ChevronDown, ListTodo, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import { useSettingsContext } from '@/contexts/SettingsContext'
 import { useClaudeMetrics } from '@/hooks/useClaudeMetrics'
 import { useThinkingMode as useThinkingModeHook } from '@/hooks/useThinkingMode'
 import { useArchitectMode as useArchitectModeHook } from '@/hooks/useArchitectMode'
 import { useAttachments } from '@/hooks/useAttachments'
-import { AnimatePresence, motion } from 'framer-motion'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { ContextGauge } from './ContextGauge'
 import { AttachmentsPills } from './ChatInput/AttachmentsPills'
 import { SlashCommandMenu } from './ChatInput/SlashCommandMenu'
+import { ChatInputControls } from './ChatInput/ChatInputControls'
 import { FEATURES } from '@/config/features'
 import type { ClaudeModel } from '@/types/settings'
 
@@ -529,155 +521,31 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           />
 
           {/* Control Bar */}
-          <div className="flex items-center justify-between">
-            {/* Left: Control buttons */}
-            {showControls && (
-              <div className={`flex ${INPUT_STYLES.controls.gap} items-center`}>
-                {/* Attach File Button */}
-                <button
-                  onClick={handleOpenFilePicker}
-                  disabled={disabled}
-                  className={`inline-flex items-center ${INPUT_STYLES.controls.attachButton} text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-50`}
-                  title="Attach files"
-                >
-                  <Paperclip size={INPUT_STYLES.controls.attachIconSize} strokeWidth={1.5} />
-                </button>
-
-                {/* Model Selector - Cycle through models on click */}
-                <button
-                  onClick={cycleModel}
-                  disabled={disabled}
-                  className={`inline-flex items-center ${INPUT_STYLES.controls.modelButton} text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-50`}
-                  title={`Current: ${modelLabels[settings.model.default]} (click to cycle)`}
-                >
-                  <span className="font-light">{modelLabels[settings.model.default]}</span>
-                </button>
-
-                {/* Thinking Mode Selector */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      className={`inline-flex items-center gap-1 ${INPUT_STYLES.controls.modelButton} text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors`}
-                      disabled={disabled}
-                    >
-                      <span className="font-light">{thinkingModeLabels[thinkingMode]}</span>
-                      <ChevronDown size={12} strokeWidth={1.5} />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-40 p-1">
-                    <DropdownMenuItem
-                      onClick={() => setThinkingMode('normal')}
-                      className={`py-2 px-3 cursor-pointer hover:bg-secondary/50 focus:bg-secondary/50 ${thinkingMode === 'normal' ? 'bg-secondary' : ''}`}
-                    >
-                      <span className="text-sm font-light">Normal</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => setThinkingMode('think')}
-                      className={`py-2 px-3 cursor-pointer hover:bg-secondary/50 focus:bg-secondary/50 ${thinkingMode === 'think' ? 'bg-secondary' : ''}`}
-                    >
-                      <span className="text-sm font-light">Think</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => setThinkingMode('megathink')}
-                      className={`py-2 px-3 cursor-pointer hover:bg-secondary/50 focus:bg-secondary/50 ${thinkingMode === 'megathink' ? 'bg-secondary' : ''}`}
-                    >
-                      <span className="text-sm font-light">Megathink</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => setThinkingMode('ultrathink')}
-                      className={`py-2 px-3 cursor-pointer hover:bg-secondary/50 focus:bg-secondary/50 ${thinkingMode === 'ultrathink' ? 'bg-secondary' : ''}`}
-                    >
-                      <span className="text-sm font-light">Ultrathink</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                {/* Architect Mode Toggle Button */}
-                <button
-                  onClick={toggleArchitectMode}
-                  disabled={disabled || !workspacePath}
-                  className={`inline-flex items-center justify-center ${INPUT_STYLES.controls.sourcesButton} transition-colors ${
-                    architectMode
-                      ? 'bg-[#192621] text-white hover:bg-[#223330] border border-[#2A3D35]'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
-                  }`}
-                  title={architectMode ? 'Architect Mode ON' : 'Architect Mode OFF'}
-                >
-                  <Sparkles size={INPUT_STYLES.controls.sourcesIconSize} strokeWidth={1.5} />
-                </button>
-
-                {/* Plan Mode Toggle Button - Feature Flag Controlled */}
-                {FEATURES.PLAN_MODE && (
-                  <button
-                    onClick={togglePlanMode}
-                    className={`inline-flex items-center justify-center ${INPUT_STYLES.controls.sourcesButton} transition-colors ${
-                      isPlanMode
-                        ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
-                    }`}
-                    title="Toggle Plan Mode (⌘⇧P)"
-                  >
-                    <ListChecks size={INPUT_STYLES.controls.sourcesIconSize} strokeWidth={1.5} />
-                  </button>
-                )}
-
-                {/* Add as Todo Button - DISABLED */}
-                {false && onAddTodo && value.trim() && (
-                  <button
-                    onClick={handleAddAsTodo}
-                    disabled={disabled}
-                    className={`inline-flex items-center justify-center ${INPUT_STYLES.controls.sourcesButton} text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-50`}
-                    title="Add as Task"
-                  >
-                    <ListTodo size={INPUT_STYLES.controls.sourcesIconSize} strokeWidth={1.5} />
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* Right: Context Gauge and Send or Cancel button */}
-            <div className="flex items-center gap-2">
-              {showControls && (
-                /* Context Gauge */
-                <ContextGauge
-                  percentage={metrics?.context.percentage ?? 0}
-                  current={metrics?.context.current}
-                  limit={metrics?.context.limit}
-                  onCompact={handleCompact}
-                  disabled={disabled}
-                />
-              )}
-              {isSending && onCancel ? (
-              /* Cancel button when sending */
-              <button
-                onClick={onCancel}
-                disabled={isCancelling}
-                className={`${INPUT_STYLES.sendButton.size} ${INPUT_STYLES.sendButton.borderRadius} flex items-center justify-center transition-all shrink-0 ${
-                  isCancelling
-                    ? 'bg-muted/50 text-muted-foreground/40 cursor-not-allowed'
-                    : 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
-                }`}
-                title={isCancelling ? "Cancelling..." : "Cancel message"}
-              >
-                <X size={INPUT_STYLES.sendButton.iconSize} strokeWidth={2} />
-              </button>
-            ) : (
-              /* Send button */
-              <button
-                onClick={handleSend}
-                disabled={(!value.trim() && attachedFiles.length === 0) || disabled}
-                className={`${INPUT_STYLES.sendButton.size} ${INPUT_STYLES.sendButton.borderRadius} flex items-center justify-center transition-all shrink-0 ${
-                  (!value.trim() && attachedFiles.length === 0) || disabled
-                    ? 'bg-muted/50 text-muted-foreground/40 cursor-not-allowed'
-                    : 'bg-[#192621] text-white hover:bg-[#223330] border border-[#2A3D35]'
-                }`}
-                title="Send message (Cmd/Ctrl+Enter)"
-              >
-                <ArrowUp size={INPUT_STYLES.sendButton.iconSize} strokeWidth={2} />
-              </button>
-            )}
-            </div>
-          </div>
+          <ChatInputControls
+            showControls={showControls}
+            disabled={disabled}
+            isSending={isSending}
+            isCancelling={isCancelling}
+            value={value}
+            hasAttachments={attachedFiles.length > 0}
+            onAttachFile={handleOpenFilePicker}
+            onCycleModel={cycleModel}
+            onSend={handleSend}
+            onCancel={onCancel}
+            onCompact={handleCompact}
+            currentModel={settings.model.default}
+            modelLabels={modelLabels}
+            thinkingMode={thinkingMode}
+            thinkingModeLabels={thinkingModeLabels}
+            onThinkingModeChange={setThinkingMode}
+            architectMode={architectMode}
+            onArchitectModeToggle={toggleArchitectMode}
+            workspacePath={workspacePath}
+            isPlanMode={isPlanMode}
+            onPlanModeToggle={togglePlanMode}
+            contextMetrics={metrics}
+            INPUT_STYLES={INPUT_STYLES}
+          />
         </div>
 
       {/* Hidden file input */}
