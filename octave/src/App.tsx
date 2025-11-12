@@ -2,7 +2,6 @@ import { useState, useEffect, createContext, useContext, useMemo, useRef } from 
 import { CommitDialog } from "@/components/workspace/CommitDialog"
 import { AppSidebar } from "@/components/AppSidebar"
 import { TodoPanel } from "@/components/TodoPanel"
-import { GitTestPanel } from "@/components/git/GitTestPanel"
 import { WorkspaceEmptyState } from "@/components/workspace/WorkspaceEmptyState"
 import { ChatPanel, EditorPanel } from "@/components/workspace/WorkspaceChatEditor"
 import { QuickOpenSearch } from "@/components/QuickOpenSearch"
