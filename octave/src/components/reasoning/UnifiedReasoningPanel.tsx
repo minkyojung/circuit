@@ -27,6 +27,8 @@ interface UnifiedReasoningPanelProps {
   onCopyMessage?: (messageId: string, content: string) => void;
   onExplainMessage?: (messageId: string, content: string) => void;
   copiedMessageId?: string | null;
+  // TodoWrite result
+  todoWriteResult?: any;
 }
 
 /**
@@ -47,6 +49,7 @@ export const UnifiedReasoningPanel: React.FC<UnifiedReasoningPanelProps> = ({
   onCopyMessage,
   onExplainMessage,
   copiedMessageId,
+  todoWriteResult,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -141,6 +144,7 @@ export const UnifiedReasoningPanel: React.FC<UnifiedReasoningPanelProps> = ({
             isLive={isLive}
             duration={duration}
             onFileClick={onFileClick}
+            todoWriteResult={todoWriteResult}
           />
         </CollapsibleContent>
 

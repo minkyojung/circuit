@@ -9,38 +9,6 @@ import { UnifiedReasoningPanel } from '@/components/reasoning/UnifiedReasoningPa
 import { MessageActions } from './MessageActions';
 import { cn } from '@/lib/utils';
 
-// TEMP: Test data for TodoQueue component
-const TEST_TODO_DATA = {
-  todoWriteResult: {
-    todos: [
-      {
-        title: "Setup database connection",
-        activeForm: "Setting up database connection...",
-        status: "completed",
-        description: "Configure PostgreSQL connection with proper credentials"
-      },
-      {
-        title: "Create API endpoints",
-        activeForm: "Creating API endpoints...",
-        status: "in_progress",
-        description: "Build REST API for user management"
-      },
-      {
-        title: "Add authentication",
-        activeForm: "Adding authentication...",
-        status: "pending",
-        description: "Implement JWT-based authentication"
-      },
-      {
-        title: "Write tests",
-        activeForm: "Writing tests...",
-        status: "failed",
-        description: "Add unit and integration tests"
-      }
-    ]
-  }
-};
-
 export interface MessageComponentProps {
   msg: Message & { filteredBlocks?: any[] };
   isSending: boolean;
@@ -142,20 +110,7 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
 
         {/* Plan Review moved to right sidebar TodoPanel */}
 
-        {/* TodoWrite inline display (for Normal/Think modes) */}
-        {/* TEMP: Force show test data for all assistant messages */}
-        {msg.role === 'assistant' && (
-          <TodoQueue
-            todos={(msg.metadata?.todoWriteResult || TEST_TODO_DATA.todoWriteResult).todos.map((todo: any) => ({
-              content: todo.title || todo.content,
-              activeForm: todo.activeForm || `${todo.title || todo.content}...`,
-              status: todo.status,
-              description: todo.description,
-            }))}
-            defaultExpanded={true}
-            showProgressBar={true}
-          />
-        )}
+        {/* TodoWrite is now displayed in Reasoning Panel when TodoWrite tool is used */}
 
         {/* Block-based rendering with fallback */}
         {msg.blocks && msg.blocks.length > 0 ? (
@@ -232,6 +187,7 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
               onCopyMessage={onCopyMessage}
               onExplainMessage={onExplainMessage}
               copiedMessageId={copiedMessageId}
+              todoWriteResult={msg.metadata?.todoWriteResult}
             />
           </div>
         );

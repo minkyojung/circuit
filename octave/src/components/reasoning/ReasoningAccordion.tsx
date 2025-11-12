@@ -1,5 +1,5 @@
 import React from 'react';
-import { Brain, FileText, Search, Terminal, Wrench } from 'lucide-react';
+import { Brain, FileText, Search, Terminal, Wrench, ListTodo } from 'lucide-react';
 import type { ThinkingStep } from '@/types/thinking';
 import {
   Accordion,
@@ -10,6 +10,7 @@ import {
 import { cn } from '@/lib/utils';
 import { Shimmer } from '@/components/ai-elements/shimmer';
 import { motion, AnimatePresence } from 'motion/react';
+import { TodoQueue } from '@/components/blocks/TodoQueue';
 
 interface ReasoningAccordionProps {
   steps: ThinkingStep[];
@@ -17,6 +18,7 @@ interface ReasoningAccordionProps {
   isLive?: boolean;  // Whether thinking is currently in progress
   duration?: number;  // Duration in seconds
   onFileClick?: (filePath: string) => void;  // Callback for file path clicks
+  todoWriteResult?: any;  // TodoWrite result data
 }
 
 // Get icon for individual step
@@ -33,6 +35,8 @@ function getIconForStep(step: ThinkingStep): React.ElementType {
       return Search;
     case 'Bash':
       return Terminal;
+    case 'TodoWrite':
+      return ListTodo;
     default:
       return Wrench;
   }
@@ -49,6 +53,7 @@ function getLabelForStep(step: ThinkingStep): string {
     case 'Glob': return 'Glob';
     case 'Grep': return 'Grep';
     case 'Bash': return 'Run';
+    case 'TodoWrite': return 'Todo';
     default: return step.tool || 'Unknown';
   }
 }
@@ -71,6 +76,8 @@ function getStepSummary(step: ThinkingStep): string {
     case 'Bash':
       const cmd = step.command || '';
       return cmd.length > 40 ? cmd.slice(0, 40) + '...' : cmd;
+    case 'TodoWrite':
+      return 'Created task list';
     default:
       return '';
   }
@@ -134,7 +141,7 @@ function renderDiff(oldString: string, newString: string) {
 }
 
 // Render detail content for expanded step
-function renderStepDetail(step: ThinkingStep) {
+function renderStepDetail(step: ThinkingStep, todoWriteResult?: any) {
   if (step.type === 'thinking') {
     return (
       <code className="block text-base leading-relaxed font-light opacity-80 hover:opacity-100 transition-opacity bg-secondary/80 px-4 py-3 rounded-md border border-border/50">
@@ -184,6 +191,24 @@ function renderStepDetail(step: ThinkingStep) {
         </div>
       );
 
+    case 'TodoWrite':
+      return todoWriteResult ? (
+        <TodoQueue
+          todos={todoWriteResult.todos.map((todo: any) => ({
+            content: todo.title || todo.content,
+            activeForm: todo.activeForm || `${todo.title || todo.content}...`,
+            status: todo.status,
+            description: todo.description,
+          }))}
+          defaultExpanded={true}
+          showProgressBar={true}
+        />
+      ) : (
+        <div className="text-sm font-light opacity-60 px-4 py-2 italic">
+          📋 Task list created
+        </div>
+      );
+
     default:
       return (
         <div className="text-base font-light opacity-50 hover:opacity-80 transition-opacity">
@@ -199,6 +224,7 @@ export const ReasoningAccordion: React.FC<ReasoningAccordionProps> = ({
   isLive = false,
   duration = 0,
   onFileClick,
+  todoWriteResult,
 }) => {
   if (steps.length === 0) {
     return (
@@ -284,7 +310,7 @@ export const ReasoningAccordion: React.FC<ReasoningAccordionProps> = ({
                   "data-[state=open]:animate-in data-[state=open]:slide-in-from-top-1 data-[state=open]:fade-in-0"
                 )}
               >
-                {renderStepDetail(step)}
+                {renderStepDetail(step, todoWriteResult)}
               </AccordionContent>
                 </AccordionItem>
               </motion.div>
