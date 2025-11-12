@@ -4,6 +4,9 @@ import { AppSidebar } from "@/components/AppSidebar"
 import { TodoPanel } from "@/components/TodoPanel"
 import { WorkspaceEmptyState } from "@/components/workspace/WorkspaceEmptyState"
 import { ChatPanel, EditorPanel } from "@/components/workspace/WorkspaceChatEditor"
+import { ChatPanelRenderer } from "@/components/panels/ChatPanelRenderer"
+import { EditorPanelRenderer } from "@/components/panels/EditorPanelRenderer"
+import { SettingsPanelRenderer } from "@/components/panels/SettingsPanelRenderer"
 import { QuickOpenSearch } from "@/components/QuickOpenSearch"
 import {
   Breadcrumb,
@@ -377,74 +380,39 @@ function App() {
     return null
   }, [primaryGroup.activeTabId, getActiveTab])
 
-  // Render functions for panels
-  const renderChatPanel = (conversationId: string, workspaceId: string) => {
-    if (!selectedWorkspace) return null
+  // Render functions for panels (now using dedicated components)
+  const renderChatPanel = (conversationId: string, workspaceId: string) => (
+    <ChatPanelRenderer
+      conversationId={conversationId}
+      workspaceId={workspaceId}
+      selectedWorkspace={selectedWorkspace}
+      sessionId={sessionId}
+      handleFileSelect={handleFileSelect}
+      chatPrefillMessage={chatPrefillMessage}
+      setChatPrefillMessage={setChatPrefillMessage}
+      openTab={openTab}
+      codeSelectionAction={codeSelectionAction}
+      setCodeSelectionAction={setCodeSelectionAction}
+    />
+  )
 
-    return (
-      <ChatPanel
-        workspace={selectedWorkspace}
-        sessionId={sessionId}
-        onFileEdit={handleFileSelect}
-        prefillMessage={chatPrefillMessage}
-        externalConversationId={conversationId}
-        onPrefillCleared={() => setChatPrefillMessage(null)}
-        onConversationChange={async (convId) => {
-          // Update the conversation tab when conversation changes
-          if (convId && convId !== conversationId) {
-            try {
-              // Fetch conversation to get title
-              const result = await ipcRenderer.invoke('conversation:get', convId)
-              const conversationTitle = result?.conversation?.title || 'Chat'
+  const renderEditorPanel = (filePath: string) => (
+    <EditorPanelRenderer
+      filePath={filePath}
+      selectedWorkspace={selectedWorkspace}
+      sessionId={sessionId}
+      getAllTabs={getAllTabs}
+      findTab={findTab}
+      closeTab={closeTab}
+      handleUnsavedChange={handleUnsavedChange}
+      fileCursorPosition={fileCursorPosition}
+      setCodeSelectionAction={setCodeSelectionAction}
+    />
+  )
 
-              const newTab = createConversationTab(convId, workspaceId, conversationTitle, selectedWorkspace?.name)
-              openTab(newTab)
-            } catch (error) {
-              console.error('[App] Error fetching conversation title:', error)
-              // Fallback to workspace name
-              const newTab = createConversationTab(convId, workspaceId, undefined, selectedWorkspace?.name)
-              openTab(newTab)
-            }
-          }
-        }}
-        onFileReferenceClick={handleFileSelect}
-        codeSelectionAction={codeSelectionAction}
-        onCodeSelectionHandled={() => setCodeSelectionAction(null)}
-      />
-    )
-  }
-
-  const renderEditorPanel = (filePath: string) => {
-    if (!selectedWorkspace) return null
-
-    // Get all file tabs for openFiles list
-    const fileTabs = getAllTabs().filter(t => t.type === 'file')
-    const openFilePaths = fileTabs.map(t => (t as any).data.filePath)
-
-    return (
-      <EditorPanel
-        workspace={selectedWorkspace}
-        sessionId={sessionId}
-        openFiles={openFilePaths}
-        selectedFile={filePath}
-        onCloseFile={(path) => {
-          // Find and close the file tab (using workspace-scoped ID)
-          const tabId = `file-${selectedWorkspace.id}-${path}`
-          const result = findTab(tabId)
-          if (result) {
-            closeTab(result.tab.id, result.groupId)
-          }
-        }}
-        onUnsavedChange={handleUnsavedChange}
-        fileCursorPosition={fileCursorPosition}
-        onCodeSelectionAction={setCodeSelectionAction}
-      />
-    )
-  }
-
-  const renderSettingsPanel = () => {
-    return <SettingsPanel workspacePath={selectedWorkspace?.path} />
-  }
+  const renderSettingsPanel = () => (
+    <SettingsPanelRenderer selectedWorkspace={selectedWorkspace} />
+  )
 
   // Workspace navigation refs (for keyboard shortcuts)
   const workspacesRef = useRef<Workspace[]>([])
