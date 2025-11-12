@@ -166,7 +166,7 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
       </div>
 
       {/* Unified Reasoning Panel - Show at bottom for assistant messages with reasoning steps */}
-      {msg.role === 'assistant' && messageThinkingSteps[msg.id] !== undefined && messageThinkingSteps[msg.id]?.steps.length > 0 && (() => {
+      {msg.role === 'assistant' && messageThinkingSteps[msg.id] !== undefined && (() => {
         // Find file-summary block for collapsed view
         const fileSummaryBlock = msg.blocks?.find(b => b.type === 'file-summary');
 
