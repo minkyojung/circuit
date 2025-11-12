@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { ContextGauge } from './ContextGauge'
 import { AttachmentsPills } from './ChatInput/AttachmentsPills'
+import { SlashCommandMenu } from './ChatInput/SlashCommandMenu'
 import { FEATURES } from '@/config/features'
 import type { ClaudeModel } from '@/types/settings'
 
@@ -498,39 +499,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         className="relative w-full flex flex-col border-[0.5px] border-border rounded-2xl bg-muted p-4 gap-3 shadow-[0_-8px_40px_rgba(0,0,0,0.05),0_4px_6px_rgba(0,0,0,0.03)] dark:shadow-[0_-8px_40px_rgba(0,0,0,0.25),0_4px_6px_rgba(0,0,0,0.1)]"
       >
         {/* Slash Command Menu */}
-        <AnimatePresence>
-          {showCommandMenu && filteredCommands.length > 0 && (
-            <motion.div
-              ref={commandMenuRef}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 10 }}
-              transition={{ duration: 0.15 }}
-              className="absolute bottom-full left-0 mb-2 w-1/2 min-w-[400px] bg-card border border-border rounded-xl shadow-lg overflow-hidden z-50"
-            >
-              <div className="p-1 max-h-64 overflow-y-auto">
-                {filteredCommands.map((command, index) => (
-                  <button
-                    key={command.name}
-                    onClick={() => executeCommand(command.name)}
-                    className={`w-full py-2 px-3 text-left cursor-pointer hover:bg-secondary/50 focus:bg-secondary/50 transition-colors rounded-md ${
-                      index === selectedCommandIndex ? 'bg-secondary' : ''
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-light flex-shrink-0">/{command.name}</span>
-                      {command.description && (
-                        <span className="text-xs text-muted-foreground/60 flex-1 truncate">
-                          {command.description}
-                        </span>
-                      )}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <SlashCommandMenu
+          showCommandMenu={showCommandMenu}
+          filteredCommands={filteredCommands}
+          selectedCommandIndex={selectedCommandIndex}
+          onExecuteCommand={executeCommand}
+          commandMenuRef={commandMenuRef}
+        />
           {/* Attachments */}
           <AttachmentsPills
             attachedFiles={attachedFiles}
