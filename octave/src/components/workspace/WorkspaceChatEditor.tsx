@@ -2,6 +2,14 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { Workspace } from '@/types/workspace';
 import type { Message } from '@/types/conversation';
+import type {
+  ViewMode,
+  FileCursorPosition,
+  CodeSelectionAction,
+  WorkspaceChatEditorProps,
+  ChatPanelProps,
+  EditorPanelProps,
+} from './WorkspaceChatEditor.types';
 import Editor, { loader } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
 import { ChevronDown } from 'lucide-react';
@@ -54,45 +62,6 @@ loader.config({ monaco });
 
 const ipcRenderer = window.electron.ipcRenderer;
 
-interface WorkspaceChatEditorProps {
-  workspace: Workspace;
-  selectedFile: string | null;
-  prefillMessage?: string | null;
-  conversationId?: string | null;
-  onPrefillCleared?: () => void;
-  onConversationChange?: (conversationId: string | null) => void;
-
-  // View mode props (lifted to App.tsx)
-  viewMode?: ViewMode;
-  onViewModeChange?: (mode: ViewMode) => void;
-
-  // Open files props (lifted to App.tsx)
-  openFiles?: string[];
-
-  // Unsaved changes callback
-  onUnsavedChange?: (filePath: string, hasChanges: boolean) => void;
-
-  // File reference click callback
-  onFileReferenceClick?: (filePath: string, lineStart?: number, lineEnd?: number) => void;
-
-  // File cursor position for jumping to line
-  fileCursorPosition?: {
-    filePath: string
-    lineStart: number
-    lineEnd: number
-  } | null;
-
-  // Active file path for editor tabs
-  activeFilePath?: string | null;
-  onFileChange?: (filePath: string) => void;
-  onCloseFile?: (filePath: string) => void;
-
-  // Unsaved files state
-  unsavedFiles?: Set<string>;
-}
-
-type ViewMode = 'chat' | 'editor' | 'split';
-
 export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
   workspace,
   selectedFile,
@@ -119,13 +88,7 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
   const openFiles = externalOpenFiles;
 
   // Code selection state for editor → chat communication
-  const [codeSelectionAction, setCodeSelectionAction] = useState<{
-    type: 'ask' | 'explain' | 'optimize' | 'add-tests'
-    code: string
-    filePath: string
-    lineStart: number
-    lineEnd: number
-  } | null>(null);
+  const [codeSelectionAction, setCodeSelectionAction] = useState<CodeSelectionAction | null>(null);
 
   // File edit handler
   const handleFileEdit = (filePath: string) => {
@@ -140,13 +103,7 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
   };
 
   // Code selection handler - from EditorPanel
-  const handleCodeSelectionAction = useCallback((action: {
-    type: 'ask' | 'explain' | 'optimize' | 'add-tests'
-    code: string
-    filePath: string
-    lineStart: number
-    lineEnd: number
-  }) => {
+  const handleCodeSelectionAction = useCallback((action: CodeSelectionAction) => {
     console.log('[WorkspaceChatEditor] Code selection action:', action.type);
 
     // Auto-convert to split view if currently in editor-only mode
@@ -290,25 +247,6 @@ export const WorkspaceChatEditor: React.FC<WorkspaceChatEditorProps> = ({
 // ============================================================================
 // Chat Panel Component
 // ============================================================================
-
-interface ChatPanelProps {
-  workspace: Workspace;
-  sessionId: string | null;
-  onFileEdit: (filePath: string) => void;
-  prefillMessage?: string | null;
-  externalConversationId?: string | null;
-  onPrefillCleared?: () => void;
-  onConversationChange?: (conversationId: string | null) => void;
-  onFileReferenceClick?: (filePath: string, lineStart?: number, lineEnd?: number) => void;
-  codeSelectionAction?: {
-    type: 'ask' | 'explain' | 'optimize' | 'add-tests'
-    code: string
-    filePath: string
-    lineStart: number
-    lineEnd: number
-  } | null;
-  onCodeSelectionHandled?: () => void;
-}
 
 // ChatInput component now handles all input styling and controls
 
@@ -1494,27 +1432,6 @@ const ChatPanel: React.FC<ChatPanelProps> = (props) => {
 // ============================================================================
 // Editor Panel Component
 // ============================================================================
-
-interface EditorPanelProps {
-  workspace: Workspace;
-  sessionId: string | null;  // Claude session ID for AI features
-  openFiles: string[];
-  selectedFile: string | null;
-  onCloseFile?: (filePath: string) => void;
-  onUnsavedChange?: (filePath: string, hasChanges: boolean) => void;
-  fileCursorPosition?: {
-    filePath: string
-    lineStart: number
-    lineEnd: number
-  } | null;
-  onCodeSelectionAction?: (action: {
-    type: 'ask' | 'explain' | 'optimize' | 'add-tests'
-    code: string
-    filePath: string
-    lineStart: number
-    lineEnd: number
-  }) => void;
-}
 
 const EditorPanel: React.FC<EditorPanelProps> = ({
   workspace,
