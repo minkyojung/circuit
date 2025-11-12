@@ -1524,7 +1524,7 @@ The plan is ready. What would you like to do?`,
         className="absolute inset-0 bottom-[160px] overflow-auto p-3"
       >
         {isLoadingConversation ? (
-          <div className="space-y-5 max-w-4xl mx-auto">
+          <div className="space-y-5 mx-auto px-4">
             <ChatMessageSkeleton />
             <ChatMessageSkeleton />
           </div>
@@ -1554,7 +1554,7 @@ The plan is ready. What would you like to do?`,
                     transform: `translateY(${virtualItem.start}px)`,
                   }}
                 >
-                  <div className="max-w-4xl mx-auto px-0 pb-5">
+                  <div className="mx-auto px-4 pb-5">
                     <MessageComponent
                       msg={msg}
                       isSending={isSending}
@@ -1608,7 +1608,7 @@ The plan is ready. What would you like to do?`,
 
       {/* Enhanced Chat Input - Floating */}
       <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-0 pointer-events-none z-50">
-        <div className="pointer-events-auto max-w-4xl mx-auto">
+        <div className="pointer-events-auto mx-auto">
           <ChatInput
             value={input}
             onChange={setInput}

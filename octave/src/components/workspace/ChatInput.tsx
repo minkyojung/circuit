@@ -87,7 +87,7 @@ const INPUT_STYLES = {
   },
   textarea: {
     padding: 'p-0',
-    minHeight: 'min-h-[108px]',
+    minHeight: 'min-h-[80px]',
     fontSize: 'text-base font-light',
   },
   controls: {
