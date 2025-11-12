@@ -76,14 +76,14 @@ export const UnifiedReasoningPanel: React.FC<UnifiedReasoningPanelProps> = ({
               {/* Chevron icon */}
               <ChevronDown
                 className={cn(
-                  "w-4 h-4 opacity-60 transition-all duration-300 ease-out group-hover:opacity-80",
+                  "w-4 h-4 opacity-75 transition-all duration-300 ease-out group-hover:opacity-100",
                   isExpanded ? "rotate-180" : "rotate-0"
                 )}
                 strokeWidth={1.5}
               />
 
               {/* Summary text */}
-              <span className="text-sm font-light opacity-70 group-hover:opacity-90 transition-opacity">
+              <span className="text-sm font-light opacity-85 group-hover:opacity-100 transition-opacity">
                 {stepCount} {stepCount === 1 ? 'step' : 'steps'}
                 {toolSummary && (
                   <>
@@ -106,7 +106,7 @@ export const UnifiedReasoningPanel: React.FC<UnifiedReasoningPanelProps> = ({
                   )}
                 </div>
               )}
-              <span className="text-sm font-light opacity-60 group-hover:opacity-80 transition-opacity">
+              <span className="text-sm font-light opacity-75 group-hover:opacity-100 transition-opacity">
                 {duration}s
               </span>
             </div>

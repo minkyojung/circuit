@@ -77,7 +77,7 @@ function getStepSummary(step: ThinkingStep): string {
 function renderStepDetail(step: ThinkingStep) {
   if (step.type === 'thinking') {
     return (
-      <div className="text-sm leading-relaxed font-light opacity-50 dark:opacity-35">
+      <div className="text-sm leading-relaxed font-light opacity-70 dark:opacity-60 hover:opacity-100 transition-opacity">
         {step.message}
       </div>
     );
@@ -87,7 +87,7 @@ function renderStepDetail(step: ThinkingStep) {
     case 'Glob':
     case 'Grep':
       return (
-        <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-secondary text-sm font-light opacity-50 dark:opacity-35">
+        <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-secondary text-sm font-light opacity-70 dark:opacity-60 hover:opacity-100 transition-opacity">
           <span>{step.pattern || 'pattern'}</span>
         </div>
       );
@@ -97,7 +97,7 @@ function renderStepDetail(step: ThinkingStep) {
     case 'Edit':
       return (
         <div
-          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-secondary text-sm hover:bg-secondary/80 transition-colors cursor-default font-light opacity-50 dark:opacity-35"
+          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-secondary text-sm hover:bg-secondary/80 transition-colors cursor-default font-light opacity-70 dark:opacity-60 hover:opacity-100 transition-opacity"
           title={step.filePath}
         >
           <span>{step.filePath}</span>
@@ -106,14 +106,14 @@ function renderStepDetail(step: ThinkingStep) {
 
     case 'Bash':
       return (
-        <div className="text-sm leading-relaxed font-light opacity-50 dark:opacity-35">
+        <div className="text-sm leading-relaxed font-light opacity-70 dark:opacity-60 hover:opacity-100 transition-opacity">
           {step.command}
         </div>
       );
 
     default:
       return (
-        <div className="text-sm font-light opacity-50 dark:opacity-35">
+        <div className="text-sm font-light opacity-70 dark:opacity-60 hover:opacity-100 transition-opacity">
           No details available
         </div>
       );
@@ -128,7 +128,7 @@ export const ReasoningAccordion: React.FC<ReasoningAccordionProps> = ({
 }) => {
   if (steps.length === 0) {
     return (
-      <div className="text-sm py-2 font-light opacity-50 dark:opacity-35">
+      <div className="text-sm py-2 font-light opacity-70 dark:opacity-60 hover:opacity-100 transition-opacity">
         {isLive ? (
           <div className="flex items-center gap-2">
             <Brain className="w-3 h-3 animate-pulse" />
@@ -158,16 +158,16 @@ export const ReasoningAccordion: React.FC<ReasoningAccordionProps> = ({
               <AccordionTrigger className="py-2 hover:no-underline text-sm [&>svg]:hidden">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                   {/* Icon */}
-                  <Icon className="w-3 h-3 flex-shrink-0 opacity-50 dark:opacity-35" strokeWidth={1.5} />
+                  <Icon className="w-3 h-3 flex-shrink-0 opacity-70 dark:opacity-60 hover:opacity-100 transition-opacity" strokeWidth={1.5} />
 
                   {/* Label */}
-                  <span className="flex-shrink-0 font-light opacity-50 dark:opacity-35">
+                  <span className="flex-shrink-0 font-light opacity-70 dark:opacity-60 hover:opacity-100 transition-opacity">
                     {label}
                   </span>
 
                   {/* Summary */}
                   {summary && (
-                    <span className="text-sm truncate ml-1 font-light opacity-50 dark:opacity-35">
+                    <span className="text-sm truncate ml-1 font-light opacity-70 dark:opacity-60 hover:opacity-100 transition-opacity">
                       · {summary}
                     </span>
                   )}
