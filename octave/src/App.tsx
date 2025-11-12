@@ -48,6 +48,7 @@ import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import { useAppKeyboardShortcuts } from '@/hooks/useAppKeyboardShortcuts'
 import { useConversationManagement } from '@/hooks/useConversationManagement'
 import { useFileNavigation } from '@/hooks/useFileNavigation'
+import { useWorkspaceNavigation } from '@/hooks/useWorkspaceNavigation'
 import { SettingsProvider } from '@/contexts/SettingsContext'
 import { TerminalProvider } from '@/contexts/TerminalContext'
 import { AgentProvider } from '@/contexts/AgentContext'
@@ -370,6 +371,20 @@ function App() {
     focusedGroupIdRef,
   })
 
+  // Workspace navigation (extracted to custom hook)
+  const {
+    handleWorkspaceSelect,
+    handleWorkspaceSelectById,
+    workspacesRef,
+    setWorkspacesForShortcuts,
+  } = useWorkspaceNavigation({
+    setSelectedWorkspace,
+    getAllTabs,
+    findTab,
+    activateTab,
+    openTab,
+  })
+
   // Get active conversation ID for TodoPanel (from primary group's active conversation tab)
   const activeConversationId = useMemo(() => {
     const activeTab = getActiveTab(DEFAULT_GROUP_ID)
@@ -421,12 +436,6 @@ function App() {
   const renderSettingsPanel = () => (
     <SettingsPanelRenderer selectedWorkspace={selectedWorkspace} />
   )
-
-  // Workspace navigation refs (for keyboard shortcuts)
-  const workspacesRef = useRef<Workspace[]>([])
-  const setWorkspacesForShortcuts = (workspaces: Workspace[]) => {
-    workspacesRef.current = workspaces
-  }
 
   // Toggle right sidebar with localStorage persistence
   const toggleRightSidebar = () => {
@@ -519,98 +528,6 @@ function App() {
           setSelectedWorkspace(workspace)
         }
       }
-    }
-  }
-
-  // Handle workspace selection with tab synchronization
-  const handleWorkspaceSelect = async (workspace: Workspace | null) => {
-    if (!workspace) {
-      setSelectedWorkspace(null)
-      return
-    }
-
-    // Update workspace state
-    setSelectedWorkspace(workspace)
-
-    // Track recent workspace access
-    try {
-      const stored = localStorage.getItem('circuit-recent-workspaces')
-      const recentWorkspaces = stored ? JSON.parse(stored) : []
-
-      // Remove existing entry for this workspace
-      const filtered = recentWorkspaces.filter((w: any) => w.id !== workspace.id)
-
-      // Add to front with current timestamp
-      const updated = [
-        {
-          id: workspace.id,
-          name: workspace.name,
-          path: workspace.path,
-          branch: workspace.branch,
-          lastAccessed: Date.now()
-        },
-        ...filtered
-      ].slice(0, 20) // Keep max 20 recent workspaces
-
-      localStorage.setItem('circuit-recent-workspaces', JSON.stringify(updated))
-    } catch (error) {
-      console.error('[App] Failed to update recent workspaces:', error)
-    }
-
-    // Find existing conversation tab for this workspace
-    const allTabs = getAllTabs()
-    const workspaceTab = allTabs.find(tab =>
-      tab.type === 'conversation' && tab.data.workspaceId === workspace.id
-    )
-
-    if (workspaceTab) {
-      // Activate existing tab
-      const tabLocation = findTab(workspaceTab.id)
-      if (tabLocation) {
-        activateTab(workspaceTab.id, tabLocation.groupId)
-      }
-    } else {
-      // No tab exists - load or create conversation
-      try {
-        // Try to get active conversation for this workspace
-        const activeResult = await ipcRenderer.invoke('conversation:get-active', workspace.id)
-
-        if (activeResult.success && activeResult.conversation) {
-          // Create tab with conversation title
-          const tab = createConversationTab(
-            activeResult.conversation.id,
-            workspace.id,
-            activeResult.conversation.title,
-            workspace.name
-          )
-          openTab(tab, DEFAULT_GROUP_ID)
-        } else {
-          // No active conversation - create new one
-          const createResult = await ipcRenderer.invoke('conversation:create', workspace.id, {
-            workspaceName: workspace.name
-          })
-
-          if (createResult.success && createResult.conversation) {
-            const tab = createConversationTab(
-              createResult.conversation.id,
-              workspace.id,
-              createResult.conversation.title,
-              workspace.name
-            )
-            openTab(tab, DEFAULT_GROUP_ID)
-          }
-        }
-      } catch (error) {
-        console.error('[App] Error loading conversation for workspace:', error)
-      }
-    }
-  }
-
-  // Handle workspace selection by ID (for QuickOpenSearch)
-  const handleWorkspaceSelectById = (workspaceId: string) => {
-    const workspace = workspacesRef.current.find(w => w.id === workspaceId)
-    if (workspace) {
-      handleWorkspaceSelect(workspace)
     }
   }
 
