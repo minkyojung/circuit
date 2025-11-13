@@ -109,9 +109,9 @@ export function FloatingCodeActions({
             className={cn(
               'flex items-center gap-1.5 px-2 py-1 rounded-md',
               'text-xs font-medium',
-              'bg-green-500/10 hover:bg-green-500/20',
-              'text-green-400 hover:text-green-300',
-              'border border-green-500/30 hover:border-green-500/50',
+              'bg-primary/10 hover:bg-primary/20',
+              'text-primary hover:text-primary/80',
+              'border border-primary/30 hover:border-primary/50',
               'transition-all',
               'whitespace-nowrap'
             )}

@@ -58,15 +58,40 @@ export class MemoryStorage {
   constructor() {
     // Use home directory instead of Electron's userData (for standalone MCP server)
     const homeDir = os.homedir()
-    const circuitDir = path.join(homeDir, 'Library', 'Application Support', 'circuit', 'circuit-data')
+    const octaveDir = path.join(homeDir, 'Library', 'Application Support', 'octave', 'octave-data')
+    const legacyCircuitDir = path.join(homeDir, 'Library', 'Application Support', 'circuit', 'circuit-data')
 
-    // Ensure directory exists
-    if (!fs.existsSync(circuitDir)) {
-      fs.mkdirSync(circuitDir, { recursive: true })
+    // Migration: Move circuit-data → octave-data if needed
+    if (fs.existsSync(legacyCircuitDir) && !fs.existsSync(octaveDir)) {
+      console.log('[MemoryStorage] 🔄 Migrating from circuit-data → octave-data...')
+      try {
+        const octaveParent = path.join(homeDir, 'Library', 'Application Support', 'octave')
+        if (!fs.existsSync(octaveParent)) {
+          fs.mkdirSync(octaveParent, { recursive: true })
+        }
+        // Move (rename) the entire directory
+        fs.renameSync(legacyCircuitDir, octaveDir)
+        console.log('[MemoryStorage] ✅ Migration successful')
+      } catch (error) {
+        console.error('[MemoryStorage] ❌ Migration failed:', error)
+        console.error('[MemoryStorage] Falling back to copy operation...')
+        // Fallback: Copy instead of move
+        try {
+          this.copyDirectoryRecursive(legacyCircuitDir, octaveDir)
+          console.log('[MemoryStorage] ✅ Fallback copy successful')
+        } catch (copyError) {
+          console.error('[MemoryStorage] ❌ Fallback copy also failed:', copyError)
+        }
+      }
     }
 
-    this.dbPath = path.join(circuitDir, 'memory.db')
-    this.backupDir = path.join(circuitDir, 'backups')
+    // Ensure octave directory exists
+    if (!fs.existsSync(octaveDir)) {
+      fs.mkdirSync(octaveDir, { recursive: true })
+    }
+
+    this.dbPath = path.join(octaveDir, 'memory.db')
+    this.backupDir = path.join(octaveDir, 'backups')
 
     // Ensure backup directory exists
     if (!fs.existsSync(this.backupDir)) {
@@ -75,6 +100,28 @@ export class MemoryStorage {
 
     console.log('[MemoryStorage] Database path:', this.dbPath)
     console.log('[MemoryStorage] Backup directory:', this.backupDir)
+  }
+
+  /**
+   * Utility: Copy directory recursively (used for migration fallback)
+   */
+  private copyDirectoryRecursive(src: string, dest: string): void {
+    if (!fs.existsSync(dest)) {
+      fs.mkdirSync(dest, { recursive: true })
+    }
+
+    const entries = fs.readdirSync(src, { withFileTypes: true })
+
+    for (const entry of entries) {
+      const srcPath = path.join(src, entry.name)
+      const destPath = path.join(dest, entry.name)
+
+      if (entry.isDirectory()) {
+        this.copyDirectoryRecursive(srcPath, destPath)
+      } else {
+        fs.copyFileSync(srcPath, destPath)
+      }
+    }
   }
 
   /**

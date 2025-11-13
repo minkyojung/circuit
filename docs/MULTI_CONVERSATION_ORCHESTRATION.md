@@ -4,7 +4,7 @@
 
 ### 비전
 
-Circuit에 "브랜치 플랜 기반 멀티 컨버세이션 오케스트레이션" 기능을 추가하여, 큰 작업을 여러 독립적인 conversation으로 분해하고 병렬/순차 실행을 자동화합니다. 이를 통해 개발자 혼자서 팀 전체의 생산성을 낼 수 있도록 합니다.
+Octave에 "브랜치 플랜 기반 멀티 컨버세이션 오케스트레이션" 기능을 추가하여, 큰 작업을 여러 독립적인 conversation으로 분해하고 병렬/순차 실행을 자동화합니다. 이를 통해 개발자 혼자서 팀 전체의 생산성을 낼 수 있도록 합니다.
 
 ### 핵심 아이디어
 
@@ -1324,7 +1324,7 @@ class TestPassVerifier {
 - **Kubernetes Jobs**: Parallel execution with dependencies
 - **Make**: Dependency-based build system
 
-### Circuit 기존 문서
+### Octave 기존 문서
 
 - `MULTI_CONVERSATION_DESIGN.md`: 기존 멀티 conversation 설계
 - `block-based-conversation-system.md`: Block 아키텍처

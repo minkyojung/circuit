@@ -1,8 +1,8 @@
-# Circuit
+# Octave
 
 > **AI-Native Desktop IDE** - Chat와 Code Editor가 하나로 통합된 워크플로우
 
-Circuit은 AI 기반 개발을 위한 데스크톱 애플리케이션입니다. VS Code처럼 코드를 작성하면서 동시에 Claude와 실시간으로 대화하고, 파일 수정, Git 작업, 터미널 실행을 하나의 화면에서 처리할 수 있습니다.
+Octave는 AI 기반 개발을 위한 데스크톱 애플리케이션입니다. VS Code처럼 코드를 작성하면서 동시에 Claude와 실시간으로 대화하고, 파일 수정, Git 작업, 터미널 실행을 하나의 화면에서 처리할 수 있습니다.
 
 ---
 

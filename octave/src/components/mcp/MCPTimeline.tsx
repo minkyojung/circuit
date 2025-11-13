@@ -8,7 +8,7 @@
  * - Server and tool filtering
  * - Statistics summary
  *
- * Data source: SQLite history via circuit:history-get IPC
+ * Data source: SQLite history via octave:history-get IPC
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -74,8 +74,8 @@ export function MCPTimeline({
 
       // Load calls and stats in parallel
       const [callsResult, statsResult] = await Promise.all([
-        ipcRenderer.invoke('circuit:history-get', query),
-        ipcRenderer.invoke('circuit:history-get-stats', serverId ? { serverId } : {})
+        ipcRenderer.invoke('octave:history-get', query),
+        ipcRenderer.invoke('octave:history-get-stats', serverId ? { serverId } : {})
       ]);
 
       if (callsResult.success) {

@@ -1,11 +1,24 @@
 # Changelog
 
-All notable changes to the Circuit project will be documented in this file.
+All notable changes to the Octave project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+### Changed
+- **Product Rebrand: Circuit → Octave** - Complete codebase rename and migration
+  - Application name changed from Circuit to Octave
+  - All TypeScript types renamed (CircuitSettings → OctaveSettings, etc.)
+  - 46 IPC channels renamed (circuit:* → octave:*)
+  - LocalStorage keys migrated with automatic user data migration
+  - User data directories migrated (~/Library/Application Support/circuit/ → octave/)
+  - Database migration for conversation and memory storage
+  - UI text updated throughout application
+  - Documentation updated to reflect new branding
+  - Legacy /electron/ directory removed
+  - Note: Internal `.circuit/` project directories remain unchanged (implementation detail)
 
 ### Added
 - **Workspace-Chat Synchronization**: Persistent chat history with SQLite backend

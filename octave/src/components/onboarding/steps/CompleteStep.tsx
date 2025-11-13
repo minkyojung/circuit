@@ -20,13 +20,13 @@ export function CompleteStep({ repository, workspaceId, onComplete }: CompleteSt
     <div className="space-y-8">
       {/* Success Icon */}
       <div className="flex flex-col items-center text-center space-y-4 py-6">
-        <div className="rounded-full bg-green-100 dark:bg-green-900/30 p-6">
-          <CheckCircle2 className="h-12 w-12 text-green-600 dark:text-green-500" />
+        <div className="rounded-full bg-primary/10 dark:bg-primary/20 p-6">
+          <CheckCircle2 className="h-12 w-12 text-primary" />
         </div>
         <div>
           <h3 className="text-2xl font-bold">You're All Set!</h3>
           <p className="text-muted-foreground mt-2">
-            Circuit is ready to use
+            Octave is ready to use
           </p>
         </div>
       </div>
@@ -34,7 +34,7 @@ export function CompleteStep({ repository, workspaceId, onComplete }: CompleteSt
       {/* What We Set Up */}
       <div className="space-y-4">
         <h4 className="font-semibold flex items-center gap-2">
-          <CheckCircle2 className="h-5 w-5 text-green-600" />
+          <CheckCircle2 className="h-5 w-5 text-primary" />
           What we set up
         </h4>
 
@@ -100,7 +100,7 @@ export function CompleteStep({ repository, workspaceId, onComplete }: CompleteSt
         size="lg"
         className="w-full mt-6"
       >
-        Start Using Circuit
+        Start Using Octave
       </Button>
     </div>
   );
@@ -115,7 +115,7 @@ interface SetupItemProps {
 function SetupItem({ icon, label, description }: SetupItemProps) {
   return (
     <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
-      <div className="text-green-600 dark:text-green-500 mt-0.5">
+      <div className="text-primary mt-0.5">
         {icon}
       </div>
       <div>

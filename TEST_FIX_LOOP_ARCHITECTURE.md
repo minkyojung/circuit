@@ -58,7 +58,7 @@
 
 ### **1. Project Detection (Auto)**
 
-Circuit이 프로젝트 타입을 자동 감지:
+Octave이 프로젝트 타입을 자동 감지:
 
 ```typescript
 // 감지 로직
@@ -225,7 +225,7 @@ Save to `.circuit/history/`:
 $ circuit test-fix
 
 # 또는 IDE command palette
-> Circuit: Start Test-Fix Loop
+> Octave: Start Test-Fix Loop
 ```
 
 ### **Auto Mode (Background)**
@@ -233,7 +233,7 @@ $ circuit test-fix
 ```markdown
 <!-- /.circuit/circuit.config.md -->
 
-# Circuit Config
+# Octave Config
 
 ## Auto Mode
 - Enabled: true
@@ -256,7 +256,7 @@ $ circuit test-fix
 ```
 1. User edits: src/components/Button.tsx
 
-2. Circuit detects change (500ms debounce)
+2. Octave detects change (500ms debounce)
    → "🧪 Running tests for Button.tsx..."
 
 3. Run test suite:
@@ -297,14 +297,14 @@ $ circuit test-fix
 
 ### **Status Bar (IDE)**
 ```
-Circuit: ✅ All tests passing | Last fix: 2m ago
+Octave: ✅ All tests passing | Last fix: 2m ago
          (click for details)
 ```
 
 ### **Notification (macOS/Desktop)**
 ```
 ┌─────────────────────────────┐
-│ Circuit                      │
+│ Octave                      │
 ├─────────────────────────────┤
 │ 🔧 Auto-fixing Button.tsx   │
 │ Attempt 2/5... (3.1s)       │
@@ -338,7 +338,7 @@ Recent Fixes:
 }
 
 // When similar error occurs:
-// → Circuit suggests: "Based on 23 similar fixes, try optional chaining?"
+// → Octave suggests: "Based on 23 similar fixes, try optional chaining?"
 ```
 
 ### **2. Context Expansion**
@@ -355,7 +355,7 @@ First attempt fails → Expand context:
 ### **3. Multi-File Fixes**
 ```
 Error affects multiple files:
-→ Circuit: "This fix requires changes in 3 files:
+→ Octave: "This fix requires changes in 3 files:
   1. Button.tsx (prop type)
   2. types/button.ts (interface)
   3. Button.test.tsx (test assertion)
@@ -432,7 +432,7 @@ Error affects multiple files:
 
 ## 💡 Key Differentiators
 
-| Feature | Circuit | Cursor/Claude Code |
+| Feature | Octave | Cursor/Claude Code |
 |---------|---------|-------------------|
 | Auto test-fix loop | ✅ | ❌ |
 | Declarative config | ✅ (.md files) | ❌ |

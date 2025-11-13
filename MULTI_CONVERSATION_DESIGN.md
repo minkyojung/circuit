@@ -1,6 +1,6 @@
 # Multi-Conversation + Todo 연동 시스템 설계
 
-> Circuit 프로젝트의 멀티 대화 지원 및 에이전트 자율 실행 기능 설계 문서
+> Octave 프로젝트의 멀티 대화 지원 및 에이전트 자율 실행 기능 설계 문서
 
 ---
 
@@ -372,7 +372,7 @@ Main Session:
 
 ### 개요
 
-Multi-agent 시스템의 메모리 최적화는 이미 여러 프로덕션 환경에서 검증된 기법들이 있습니다. 이 섹션에서는 실제 사례들을 분석하고, Circuit 환경에서의 구현 가능성을 평가합니다.
+Multi-agent 시스템의 메모리 최적화는 이미 여러 프로덕션 환경에서 검증된 기법들이 있습니다. 이 섹션에서는 실제 사례들을 분석하고, Octave 환경에서의 구현 가능성을 평가합니다.
 
 ---
 
@@ -398,11 +398,11 @@ UC Berkeley 연구팀이 개발한 프로덕션 프레임워크로, "LLM Operati
 - 여러 LLM 호출에 걸쳐 작업 상태 유지
 - Derailment(작업 이탈) 방지
 
-#### Circuit 구현 가능성: ✅ **이미 90% 구현됨!**
+#### Octave 구현 가능성: ✅ **이미 90% 구현됨!**
 
 **현재 상태**
 ```typescript
-// Circuit의 memory-server.ts는 이미 Memory Blocks 패턴 사용 중
+// Octave의 memory-server.ts는 이미 Memory Blocks 패턴 사용 중
 interface ProjectMemory {
   id: string
   projectPath: string
@@ -452,7 +452,7 @@ interface ProjectMemory {
 - Graph memory는 base 대비 2% 추가 개선
 - Full-context 대비 엄청난 computational overhead 감소
 
-#### Circuit 구현 가능성: ⚠️ **구현 가능하지만 복잡**
+#### Octave 구현 가능성: ⚠️ **구현 가능하지만 복잡**
 
 **필요한 작업**
 
@@ -505,7 +505,7 @@ CREATE TABLE memory_edges (
 - 99.9% 스토리지 요구사항 감소
 - LOCOMO 벤치마크에서 85.4% SOTA 성능
 
-#### Circuit 구현 가능성: ⚠️ **부분적으로 구현 가능**
+#### Octave 구현 가능성: ⚠️ **부분적으로 구현 가능**
 
 **타입 확장**
 ```typescript
@@ -549,7 +549,7 @@ const retentionPolicy = {
 - Task-relevant 정보에 집중
 - Heterogeneity(다양성) 보장
 
-#### Circuit 구현 가능성: ✅ **완전 구현 가능**
+#### Octave 구현 가능성: ✅ **완전 구현 가능**
 
 **구현 방법**
 
@@ -600,7 +600,7 @@ Multi-turn conversation에서 tool/MCP 서버 컨텍스트를 동적으로 관�
 2. Workflow Mode: Deterministic control
 3. Hybrid Mode: 둘의 결합
 
-#### Circuit 구현 가능성: ✅ **이미 80% 구현됨!**
+#### Octave 구현 가능성: ✅ **이미 80% 구현됨!**
 
 **현재 mcp-manager.ts 기능**
 - ✅ 서버 시작/중단/재시작
@@ -654,7 +654,7 @@ Stateful interaction 유지, 여러 세션에 걸쳐 컨텍스트 보존.
 - Customer Support: 이전 interaction 컨텍스트 유지
 - Healthcare Assistant: 여러 세션에 걸친 환자 이력 추적
 
-#### Circuit 구현 가능성: ✅ **SQLite로 구현 가능**
+#### Octave 구현 가능성: ✅ **SQLite로 구현 가능**
 
 **Long-term Memory 구조**
 ```typescript
@@ -678,9 +678,9 @@ interface ConversationLongTermMemory {
 
 ---
 
-## Circuit 환경 종합 평가
+## Octave 환경 종합 평가
 
-### Circuit의 강점
+### Octave의 강점
 
 #### 이미 갖춰진 인프라
 1. **MCP 서버 관리 시스템** (mcp-manager.ts)
@@ -699,7 +699,7 @@ interface ConversationLongTermMemory {
    - 구조화된 메모리 추출 용이
    - Metadata 저장 가능
 
-#### Circuit만의 장점
+#### Octave만의 장점
 ```
 Claude CLI 사용 방식:
 ✅ MCP 서버를 필요시에만 시작/중단 (MemTool 완벽 적용)
@@ -1216,7 +1216,7 @@ Todo를 Agent에게 위임하여 백그라운드 실행
 - **MemTool**: Dynamic MCP server management framework
 - **AutoGen + MemGPT**: Long-term stateful interaction
 
-### Circuit 기술 스택
+### Octave 기술 스택
 - **Electron**: Main process + Renderer
 - **SQLite (better-sqlite3)**: 영구 저장소
 - **MCP SDK**: Model Context Protocol 서버 관리
@@ -1228,8 +1228,8 @@ Todo를 Agent에게 위임하여 백그라운드 실행
 **문서 작성일**: 2025-11-01
 **최종 업데이트**: 2025-11-01
 **버전**: 2.0
-**작성자**: Circuit Development Team
+**작성자**: Octave Development Team
 
 **변경 이력**:
 - v1.0 (2025-11-01): 초기 설계 문서
-- v2.0 (2025-11-01): 실제 프로덕션 사례 및 Circuit 구현 가능성 분석 추가
+- v2.0 (2025-11-01): 실제 프로덕션 사례 및 Octave 구현 가능성 분석 추가

@@ -81,7 +81,7 @@ export function useWorkspaceNavigation({
 
       // Track recent workspace access
       try {
-        const stored = localStorage.getItem('circuit-recent-workspaces');
+        const stored = localStorage.getItem('octave-recent-workspaces');
         const recentWorkspaces = stored ? JSON.parse(stored) : [];
 
         // Remove existing entry for this workspace
@@ -99,7 +99,7 @@ export function useWorkspaceNavigation({
           ...filtered,
         ].slice(0, 20); // Keep max 20 recent workspaces
 
-        localStorage.setItem('circuit-recent-workspaces', JSON.stringify(updated));
+        localStorage.setItem('octave-recent-workspaces', JSON.stringify(updated));
       } catch (error) {
         console.error('[useWorkspaceNavigation] Failed to update recent workspaces:', error);
       }

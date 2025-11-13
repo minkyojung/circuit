@@ -37,7 +37,7 @@ const getStatusIcon = (status: Todo['status']) => {
     case 'in_progress':
       return { icon: Clock, color: 'text-blue-500' }
     case 'completed':
-      return { icon: Check, color: 'text-green-500' }
+      return { icon: Check, color: 'text-primary' }
     case 'failed':
       return { icon: X, color: 'text-red-500' }
     case 'skipped':
@@ -118,7 +118,7 @@ export const InlineTodoProgress: React.FC<InlineTodoProgressProps> = ({
 
           <div className="flex items-center gap-2 flex-1 min-w-0">
             {isComplete ? (
-              <Check size={16} className="text-green-500 shrink-0" />
+              <Check size={16} className="text-primary shrink-0" />
             ) : counts.inProgress > 0 ? (
               <Clock size={16} className="text-blue-500 shrink-0 animate-pulse" />
             ) : (
@@ -149,10 +149,7 @@ export const InlineTodoProgress: React.FC<InlineTodoProgressProps> = ({
         <div className="mt-2 ml-6">
           <div className="h-1.5 bg-muted rounded-full overflow-hidden">
             <div
-              className={cn(
-                'h-full transition-all duration-500',
-                isComplete ? 'bg-green-500' : 'bg-primary'
-              )}
+              className="h-full transition-all duration-500 bg-primary"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -171,10 +168,7 @@ export const InlineTodoProgress: React.FC<InlineTodoProgressProps> = ({
               </div>
               <div className="h-2 bg-muted rounded-full overflow-hidden">
                 <div
-                  className={cn(
-                    'h-full transition-all duration-500',
-                    isComplete ? 'bg-green-500' : 'bg-primary'
-                  )}
+                  className="h-full transition-all duration-500 bg-primary"
                   style={{ width: `${progress}%` }}
                 />
               </div>

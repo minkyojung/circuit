@@ -36,7 +36,7 @@ export function MessageActions({
         className={cn(
           'h-[32px] w-[32px] hover:bg-secondary',
           'text-muted-foreground hover:text-foreground',
-          isCopied && 'text-green-500'
+          isCopied && 'text-primary'
         )}
         title="Copy message"
       >

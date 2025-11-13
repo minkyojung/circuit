@@ -43,7 +43,7 @@ import {
 import type { Workspace } from "@/types/workspace"
 import { PanelLeft, PanelRight, FolderGit2, Columns2, GitBranch } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
+import { readOctaveConfig, logOctaveStatus } from '@/core/config-reader'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import { useAppKeyboardShortcuts } from '@/hooks/useAppKeyboardShortcuts'
 import { useConversationManagement } from '@/hooks/useConversationManagement'
@@ -68,7 +68,7 @@ import { EditorGroupPanel } from '@/components/editor'
 import { DEFAULT_GROUP_ID, SECONDARY_GROUP_ID } from '@/types/editor'
 import { PathResolver } from '@/lib/pathResolver'
 import { SettingsPanel } from '@/components/SettingsPanel'
-import { isOnboardingComplete } from '@/lib/onboarding'
+import { isOnboardingComplete, migrateAllLocalStorageKeys } from '@/lib/onboarding'
 import './App.css'
 
 const ipcRenderer = window.electron.ipcRenderer;
@@ -202,6 +202,11 @@ function MainHeader({
 }
 
 function App() {
+  // 🔄 Run localStorage migration on app startup (once)
+  useEffect(() => {
+    migrateAllLocalStorageKeys();
+  }, []);
+
   const [showOnboarding, setShowOnboarding] = useState<boolean>(() => !isOnboardingComplete())
   const [projectPath, setProjectPath] = useState<string>('')
   const [isLoadingPath, setIsLoadingPath] = useState<boolean>(true)
@@ -209,7 +214,7 @@ function App() {
   const [showCommitDialog, setShowCommitDialog] = useState<boolean>(false)
   const [chatPrefillMessage, setChatPrefillMessage] = useState<string | null>(null)
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState<boolean>(() => {
-    const saved = localStorage.getItem('circuit-right-sidebar-state')
+    const saved = localStorage.getItem('octave-right-sidebar-state')
     return saved !== null ? JSON.parse(saved) : true // 기본값: 열림
   })
   const [currentRepository, setCurrentRepository] = useState<any>(null)
@@ -441,7 +446,7 @@ function App() {
   const toggleRightSidebar = () => {
     setIsRightSidebarOpen(prev => {
       const newState = !prev
-      localStorage.setItem('circuit-right-sidebar-state', JSON.stringify(newState))
+      localStorage.setItem('octave-right-sidebar-state', JSON.stringify(newState))
       return newState
     })
   }
@@ -468,7 +473,7 @@ function App() {
     const loadProjectPath = async () => {
       try {
         const ipcRenderer = window.electron.ipcRenderer;
-        const result = await ipcRenderer.invoke('circuit:get-project-path')
+        const result = await ipcRenderer.invoke('octave:get-project-path')
 
         if (result.success) {
           console.log('[App] Project path loaded:', result.projectPath)
@@ -490,12 +495,12 @@ function App() {
   useEffect(() => {
     if (!projectPath) return
 
-    const checkCircuitConfig = async () => {
-      const config = await readCircuitConfig(projectPath)
-      logCircuitStatus(config)
+    const checkOctaveConfig = async () => {
+      const config = await readOctaveConfig(projectPath)
+      logOctaveStatus(config)
     }
 
-    checkCircuitConfig()
+    checkOctaveConfig()
   }, [projectPath])
 
   // Extract repository name from current repository or project path

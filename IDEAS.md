@@ -1,4 +1,4 @@
-# Circuit JTBD Ideas
+# Octave JTBD Ideas
 
 ## 🎯 Core Vision
 MCP를 "관리"하는 도구가 아닌, **개발 워크플로우의 병목을 제거**하는 도구

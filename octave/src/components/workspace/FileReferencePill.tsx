@@ -96,7 +96,7 @@ export function FileReferencePill({
         // Conditional styling based on file existence
         exists === false
           ? 'opacity-50 cursor-not-allowed bg-gray-500/10 border-gray-500/30 hover:bg-gray-500/10 hover:border-gray-500/30'
-          : 'bg-green-600/18 hover:bg-green-600/25 border-green-600/35 hover:border-green-600/50 cursor-pointer',
+          : 'bg-primary/10 hover:bg-primary/15 border-primary/30 hover:border-primary/50 cursor-pointer',
         className
       )}
       title={
@@ -109,7 +109,7 @@ export function FileReferencePill({
       <File
         className={cn(
           'w-3 h-3 flex-shrink-0',
-          exists === false ? 'text-gray-400' : 'text-green-50/90'
+          exists === false ? 'text-gray-400' : 'text-primary'
         )}
         strokeWidth={2}
       />
@@ -117,15 +117,15 @@ export function FileReferencePill({
       {/* File path */}
       <span className="flex items-baseline gap-0.5">
         {directory && (
-          <span className={cn(exists === false ? 'text-gray-400/60' : 'text-green-50/60')}>
+          <span className={cn(exists === false ? 'text-gray-400/60' : 'text-primary/70')}>
             {directory}/
           </span>
         )}
-        <span className={cn('font-medium', exists === false ? 'text-gray-400' : 'text-green-50/95')}>
+        <span className={cn('font-medium', exists === false ? 'text-gray-400' : 'text-primary')}>
           {fileName}
         </span>
         {lineInfo && (
-          <span className={cn(exists === false ? 'text-gray-300/60' : 'text-green-50/60')}>
+          <span className={cn(exists === false ? 'text-gray-300/60' : 'text-primary/70')}>
             {lineInfo}
           </span>
         )}

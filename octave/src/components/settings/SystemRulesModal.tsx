@@ -64,7 +64,7 @@ export const SystemRulesModal: React.FC<SystemRulesModalProps> = ({ isOpen, onCl
           <div className="mt-6 p-4 bg-blue-500/5 border border-blue-500/20 rounded-lg">
             <p className="text-xs text-muted-foreground leading-relaxed">
               <span className="font-medium text-foreground">💡 About these rules:</span><br />
-              These system-level rules are always applied to every AI conversation in Circuit.
+              These system-level rules are always applied to every AI conversation in Octave.
               They embody "The Architect" philosophy—a Principal Software Engineer mindset focused
               on clarity, pragmatism, and building antifragile systems. Your project-specific rules
               are added on top of these foundational principles.

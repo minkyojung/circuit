@@ -160,7 +160,7 @@ export const MergeDialog: React.FC<MergeDialogProps> = ({
 
               {/* Up to date message */}
               {gitState.behind === 0 && !gitState.hasConflicts && (
-                <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-sm text-green-700 dark:text-green-400">
+                <div className="bg-primary/10 border border-primary/30 rounded-lg p-3 text-sm text-primary/70 dark:text-primary">
                   <span className="font-medium">✓ Already up to date with main</span>
                 </div>
               )}

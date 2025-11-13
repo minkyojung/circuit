@@ -4,7 +4,7 @@
  * 목표: 파일이 있으면 읽어서 콘솔에 출력
  */
 
-export interface CircuitConfig {
+export interface OctaveConfig {
   projectPath: string
   configExists: boolean
   strategy?: string
@@ -15,9 +15,9 @@ export interface CircuitConfig {
 /**
  * .circuit/circuit.config.md 파일을 찾아서 읽기 시도
  */
-export async function readCircuitConfig(projectPath: string): Promise<CircuitConfig> {
-  console.log('[Circuit] Checking for .circuit/ config...')
-  console.log('[Circuit] Project path:', projectPath)
+export async function readOctaveConfig(projectPath: string): Promise<OctaveConfig> {
+  console.log('[Octave] Checking for .circuit/ config...')
+  console.log('[Octave] Project path:', projectPath)
 
   if (!projectPath) {
     return {
@@ -55,7 +55,7 @@ export async function readCircuitConfig(projectPath: string): Promise<CircuitCon
       configContent
     }
   } catch (error) {
-    console.error('[Circuit] Error reading config:', error)
+    console.error('[Octave] Error reading config:', error)
     return {
       projectPath,
       configExists: false,
@@ -67,9 +67,9 @@ export async function readCircuitConfig(projectPath: string): Promise<CircuitCon
 /**
  * Phase 0 테스트용: 콘솔에 로그만 출력
  */
-export function logCircuitStatus(config: CircuitConfig) {
+export function logOctaveStatus(config: OctaveConfig) {
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
-  console.log('🔧 Circuit Test-Fix Loop')
+  console.log('🔧 Octave Test-Fix Loop')
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
   console.log('Project:', config.projectPath)
   console.log('Config exists:', config.configExists)

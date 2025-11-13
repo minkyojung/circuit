@@ -93,9 +93,9 @@ export interface AutoCompactSettings {
 }
 
 /**
- * Complete Circuit settings structure
+ * Complete Octave settings structure
  */
-export interface CircuitSettings {
+export interface OctaveSettings {
   // Model configuration
   model: {
     default: ClaudeModel;
@@ -147,7 +147,7 @@ export interface CircuitSettings {
  * Default settings values
  * These are the initial settings when user first opens Circuit
  */
-export const defaultSettings: CircuitSettings = {
+export const defaultSettings: OctaveSettings = {
   model: {
     default: 'claude-sonnet-4-5-20250929',
   },
@@ -222,4 +222,4 @@ export const SETTINGS_VERSION = 1;
 /**
  * Settings storage key
  */
-export const SETTINGS_STORAGE_KEY = 'circuit-settings';
+export const SETTINGS_STORAGE_KEY = 'octave-settings';

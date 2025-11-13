@@ -3,7 +3,7 @@
  *
  * Displays attached files as interactive pills in Arc-inspired design.
  * Handles three types of attachments:
- * - Message references (green)
+ * - Message references (primary color)
  * - Code selections (purple)
  * - Regular files (with preview)
  */
@@ -48,10 +48,10 @@ export const AttachmentsPills: React.FC<AttachmentsPillsProps> = ({
                     key={file.id}
                     className="group flex items-center gap-2 pl-2 pr-2 py-2 rounded-xl bg-card transition-all"
                   >
-                    {/* Message icon - Green */}
+                    {/* Message icon */}
                     <div className="flex-shrink-0">
-                      <div className="w-6 h-[30px] rounded-md bg-green-500/20 flex items-center justify-center">
-                        <MessageCircle className="w-3 h-3 text-green-400" strokeWidth={2} />
+                      <div className="w-6 h-[30px] rounded-md bg-primary/20 flex items-center justify-center">
+                        <MessageCircle className="w-3 h-3 text-primary" strokeWidth={2} />
                       </div>
                     </div>
 

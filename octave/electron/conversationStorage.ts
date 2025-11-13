@@ -118,16 +118,58 @@ export class ConversationStorage {
 
   constructor() {
     const userData = app.getPath('userData')
-    const circuitDir = path.join(userData, 'circuit-data')
+    const octaveDir = path.join(userData, 'octave-data')
+    const legacyCircuitDir = path.join(userData, 'circuit-data')
 
-    // Ensure directory exists
-    if (!fs.existsSync(circuitDir)) {
-      fs.mkdirSync(circuitDir, { recursive: true })
+    // Migration: Move circuit-data → octave-data if needed
+    if (fs.existsSync(legacyCircuitDir) && !fs.existsSync(octaveDir)) {
+      console.log('[ConversationStorage] 🔄 Migrating from circuit-data → octave-data...')
+      try {
+        fs.renameSync(legacyCircuitDir, octaveDir)
+        console.log('[ConversationStorage] ✅ Migration successful')
+      } catch (error) {
+        console.error('[ConversationStorage] ❌ Migration failed:', error)
+        console.error('[ConversationStorage] Falling back to copy operation...')
+        // Fallback: Copy instead of move
+        try {
+          this.copyDirectoryRecursive(legacyCircuitDir, octaveDir)
+          console.log('[ConversationStorage] ✅ Fallback copy successful')
+        } catch (copyError) {
+          console.error('[ConversationStorage] ❌ Fallback copy also failed:', copyError)
+        }
+      }
     }
 
-    this.dbPath = path.join(circuitDir, 'conversations.db')
+    // Ensure octave directory exists
+    if (!fs.existsSync(octaveDir)) {
+      fs.mkdirSync(octaveDir, { recursive: true })
+    }
+
+    this.dbPath = path.join(octaveDir, 'conversations.db')
 
     console.log('[ConversationStorage] Database path:', this.dbPath)
+  }
+
+  /**
+   * Utility: Copy directory recursively (used for migration fallback)
+   */
+  private copyDirectoryRecursive(src: string, dest: string): void {
+    if (!fs.existsSync(dest)) {
+      fs.mkdirSync(dest, { recursive: true })
+    }
+
+    const entries = fs.readdirSync(src, { withFileTypes: true })
+
+    for (const entry of entries) {
+      const srcPath = path.join(src, entry.name)
+      const destPath = path.join(dest, entry.name)
+
+      if (entry.isDirectory()) {
+        this.copyDirectoryRecursive(srcPath, destPath)
+      } else {
+        fs.copyFileSync(srcPath, destPath)
+      }
+    }
   }
 
   /**

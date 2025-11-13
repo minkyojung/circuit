@@ -8,7 +8,7 @@ type Density = 'compact' | 'comfortable';
  */
 export function useDensity() {
   const [density, setDensity] = useState<Density>(() => {
-    const stored = localStorage.getItem('circuit-density') as Density;
+    const stored = localStorage.getItem('octave-density') as Density;
     return stored || 'compact';
   });
 
@@ -22,7 +22,7 @@ export function useDensity() {
     root.classList.add(density);
 
     // Persist to localStorage
-    localStorage.setItem('circuit-density', density);
+    localStorage.setItem('octave-density', density);
   }, [density]);
 
   const toggleDensity = () => {

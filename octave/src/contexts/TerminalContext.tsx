@@ -63,7 +63,7 @@ interface TerminalContextValue extends TerminalState {
 const TerminalContext = createContext<TerminalContextValue | null>(null)
 
 // LocalStorage keys
-const TERMINAL_STATE_KEY = 'circuit-terminal-state'
+const TERMINAL_STATE_KEY = 'octave-terminal-state'
 
 interface PersistedTerminalState {
   isOpen: boolean

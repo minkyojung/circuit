@@ -14,7 +14,7 @@
 
 ## Overview
 
-This guide provides a comprehensive plan to transform the current Circuit theme from neutral gray-based to a **green-based color system** while maintaining:
+This guide provides a comprehensive plan to transform the current Octave theme from neutral gray-based to a **green-based color system** while maintaining:
 - ✅ **Glassmorphism effects** (frosted glass, transparency, blur)
 - ✅ **WCAG AA accessibility** (4.5:1 contrast minimum)
 - ✅ **Light & Dark mode support**
@@ -563,7 +563,7 @@ export const GlassCard: React.FC<{ children: ReactNode }> = ({ children }) => {
 ### Light Mode (Sage Green)
 ```
 ┌─────────────────────────────────────────┐
-│  🪟  Circuit                            │  ← bg: #E8F0E8 (sage)
+│  🪟  Octave                            │  ← bg: #E8F0E8 (sage)
 ├─────────────────────────────────────────┤
 │                                         │
 │  ┌───────────────────────────────────┐ │
@@ -579,7 +579,7 @@ export const GlassCard: React.FC<{ children: ReactNode }> = ({ children }) => {
 ### Dark Mode (Forest Green)
 ```
 ┌─────────────────────────────────────────┐
-│  🪟  Circuit                            │  ← bg: #1C2A1C (dark forest)
+│  🪟  Octave                            │  ← bg: #1C2A1C (dark forest)
 ├─────────────────────────────────────────┤
 │                                         │
 │  ┌───────────────────────────────────┐ │

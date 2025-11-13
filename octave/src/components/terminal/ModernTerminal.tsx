@@ -99,7 +99,7 @@ export function ModernTerminal({ workspace }: ModernTerminalProps) {
 
   // Load command history from localStorage on mount
   useEffect(() => {
-    const storageKey = `circuit-terminal-history-${workspace.id}`
+    const storageKey = `octave-terminal-history-${workspace.id}`
     const savedHistory = localStorage.getItem(storageKey)
     if (savedHistory) {
       try {
@@ -116,7 +116,7 @@ export function ModernTerminal({ workspace }: ModernTerminalProps) {
   // Save history to localStorage whenever it changes
   useEffect(() => {
     if (history.length > 0) {
-      const storageKey = `circuit-terminal-history-${workspace.id}`
+      const storageKey = `octave-terminal-history-${workspace.id}`
       localStorage.setItem(storageKey, JSON.stringify(history))
     }
   }, [history, workspace.id])

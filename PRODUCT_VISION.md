@@ -1,9 +1,9 @@
-# Circuit Product Vision
+# Octave Product Vision
 
 ## Mission
-**"Circuit: The MCP Package Manager - Discover, Install, Monitor, and Test MCP Servers"**
+**"Octave: The MCP Package Manager - Discover, Install, Monitor, and Test MCP Servers"**
 
-Claude Desktop처럼 MCP를 설정 파일로 관리하는 것이 아니라, **Circuit이 MCP 런타임이 되어 중앙에서 모든 MCP 서버를 실행하고 관리**합니다.
+Claude Desktop처럼 MCP를 설정 파일로 관리하는 것이 아니라, **Octave이 MCP 런타임이 되어 중앙에서 모든 MCP 서버를 실행하고 관리**합니다.
 
 ### Core Identity
 - **MCP Package Manager**: npm처럼 MCP 서버를 검색, 설치, 업데이트
@@ -11,7 +11,7 @@ Claude Desktop처럼 MCP를 설정 파일로 관리하는 것이 아니라, **Ci
 - **Playground**: 설치 전 MCP 도구 테스트해보기
 - **Health Monitor**: 실시간 상태 확인, 로그, 성능 모니터링
 
-GitKraken이 Git을 시각화한 것처럼, Circuit은 MCP 생태계를 시각화하고 관리 가능하게 만듭니다.
+GitKraken이 Git을 시각화한 것처럼, Octave은 MCP 생태계를 시각화하고 관리 가능하게 만듭니다.
 
 ---
 
@@ -52,7 +52,7 @@ GitKraken이 Git을 시각화한 것처럼, Circuit은 MCP 생태계를 시각�
    서버 코드 수정 → Claude Desktop 재시작 → 테스트 → 실패 → 다시 수정
    ⏱️ 한 번에 5분 소요 → 10번 반복 = 50분
    ```
-   - Circuit 없이는 개발 속도가 30배 느림
+   - Octave 없이는 개발 속도가 30배 느림
 
 2. **"내가 만든 서버가 제대로 작동하는지 확인이 어려워"**
    - `tools/list` 응답이 제대로 오는지 확인 불가
@@ -107,7 +107,7 @@ GitKraken이 Git을 시각화한 것처럼, Circuit은 MCP 생태계를 시각�
 ## Core Solutions
 
 ### 🎯 Problem 1: "MCP 서버 설치와 관리가 너무 어려움"
-**Circuit Solution: One-Click Install & Centralized Management**
+**Octave Solution: One-Click Install & Centralized Management**
 
 ```
 📦 Discover Tab
@@ -124,20 +124,20 @@ GitKraken이 Git을 시각화한 것처럼, Circuit은 MCP 생태계를 시각�
 
 **How It Works:**
 1. Click "Add to Claude"
-2. Circuit installs & starts MCP server
+2. Octave installs & starts MCP server
 3. Claude Code automatically uses it via circuit-proxy
 4. No config file editing needed!
 
 **Features:**
 - 원클릭 설치 (설정 파일 수동 편집 불필요)
-- Circuit이 모든 MCP 서버 프로세스 실행
-- Claude Code, Cursor, Windsurf 모두 Circuit의 MCP 사용
+- Octave이 모든 MCP 서버 프로세스 실행
+- Claude Code, Cursor, Windsurf 모두 Octave의 MCP 사용
 - 통합 관리 (한 곳에서 모든 AI 도구의 MCP 관리)
 
 ---
 
 ### 🎯 Problem 2: "MCP 서버가 제대로 작동하는지 확인할 방법 없음"
-**Circuit Solution: Real-time Health Monitoring**
+**Octave Solution: Real-time Health Monitoring**
 
 ```
 📊 Installed Tab
@@ -156,7 +156,7 @@ GitKraken이 Git을 시각화한 것처럼, Circuit은 MCP 생태계를 시각�
 ```
 
 **Features:**
-- Circuit이 직접 MCP 실행 → 완전한 가시성
+- Octave이 직접 MCP 실행 → 완전한 가시성
 - 실시간 헬스체크 (30초마다)
 - 성능 메트릭 (API 호출 수, 응답 시간, 에러율)
 - 로그 수집 & 검색
@@ -167,7 +167,7 @@ GitKraken이 Git을 시각화한 것처럼, Circuit은 MCP 생태계를 시각�
 ---
 
 ### 🎯 Problem 3: "서버가 뭘 할 수 있는지 발견이 어려움"
-**Circuit Solution: Server Explorer (Playground Mode)** ⭐ **우선순위 1**
+**Octave Solution: Server Explorer (Playground Mode)** ⭐ **우선순위 1**
 
 ```
 🔍 자동 탐색 + 즉시 테스트
@@ -273,7 +273,7 @@ GitKraken이 Git을 시각화한 것처럼, Circuit은 MCP 생태계를 시각�
 ### Phase 3: Claude Code Integration (Week 4)
 - [ ] HTTP API Server (localhost:3737)
 - [ ] circuit-proxy implementation
-  - MCP server that proxies to Circuit
+  - MCP server that proxies to Octave
 - [ ] Installation automation
   - `claude mcp add circuit -s stdio ~/.circuit/bin/circuit-proxy`
 
@@ -314,7 +314,7 @@ GitKraken이 Git을 시각화한 것처럼, Circuit은 MCP 생태계를 시각�
 
 **vs Postman:**
 - Postman은 REST API용
-- Circuit은 JSON-RPC + MCP 프로토콜 특화
+- Octave은 JSON-RPC + MCP 프로토콜 특화
 - Request-Response 매칭 자동
 
 **vs MCP Inspector (있다면):**
@@ -350,14 +350,14 @@ GitKraken이 Git을 시각화한 것처럼, Circuit은 MCP 생태계를 시각�
 
 자세한 아키텍처는 `MCP_RUNTIME_ARCHITECTURE.md` 참고
 
-### Key Differences: Circuit vs Claude Desktop
+### Key Differences: Octave vs Claude Desktop
 
-| 항목 | Claude Desktop | Circuit |
+| 항목 | Claude Desktop | Octave |
 |------|---------------|---------|
-| **MCP 실행** | Claude Desktop이 실행 | Circuit이 실행 |
+| **MCP 실행** | Claude Desktop이 실행 | Octave이 실행 |
 | **설정 방법** | JSON 파일 수동 편집 | UI에서 원클릭 |
 | **모니터링** | ❌ 로그 파일만 | ✅ 실시간 대시보드 |
-| **다중 도구** | 각 도구마다 별도 설정 | Circuit proxy 하나만 |
+| **다중 도구** | 각 도구마다 별도 설정 | Octave proxy 하나만 |
 | **상태 확인** | ❌ 불가능 | ✅ 헬스체크 |
 | **에러 처리** | ❌ 수동 | ✅ 자동 재시작 |
 

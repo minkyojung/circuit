@@ -19,7 +19,7 @@ export function registerMemoryHandlers(): void {
   /**
    * Store a memory
    */
-  ipcMain.handle('circuit:memory-store', async (event, memory) => {
+  ipcMain.handle('octave:memory-store', async (event, memory) => {
     try {
       console.log('[MemoryHandlers] 📝 Storing memory:', {
         key: memory.key,
@@ -68,7 +68,7 @@ export function registerMemoryHandlers(): void {
   /**
    * Retrieve memories with filters
    */
-  ipcMain.handle('circuit:memory-list', async (event, query: MemoryQuery = {}) => {
+  ipcMain.handle('octave:memory-list', async (event, query: MemoryQuery = {}) => {
     try {
       const storage = await getMemoryStorage()
       const memories = await storage.getMemories(query)
@@ -83,7 +83,7 @@ export function registerMemoryHandlers(): void {
   /**
    * Get a specific memory
    */
-  ipcMain.handle('circuit:memory-get', async (event, projectPath: string, key: string) => {
+  ipcMain.handle('octave:memory-get', async (event, projectPath: string, key: string) => {
     try {
       const storage = await getMemoryStorage()
       const memory = await storage.getMemory(projectPath, key)
@@ -98,7 +98,7 @@ export function registerMemoryHandlers(): void {
   /**
    * Delete a memory
    */
-  ipcMain.handle('circuit:memory-delete', async (event, projectPath: string, key: string) => {
+  ipcMain.handle('octave:memory-delete', async (event, projectPath: string, key: string) => {
     try {
       const storage = await getMemoryStorage()
       const pool = getSharedMemoryPool()
@@ -117,7 +117,7 @@ export function registerMemoryHandlers(): void {
   /**
    * Clear all memories for a project
    */
-  ipcMain.handle('circuit:memory-clear-project', async (event, projectPath: string) => {
+  ipcMain.handle('octave:memory-clear-project', async (event, projectPath: string) => {
     try {
       const storage = await getMemoryStorage()
       const pool = getSharedMemoryPool()
@@ -136,7 +136,7 @@ export function registerMemoryHandlers(): void {
   /**
    * Get memory statistics
    */
-  ipcMain.handle('circuit:memory-stats', async (event, projectPath?: string) => {
+  ipcMain.handle('octave:memory-stats', async (event, projectPath?: string) => {
     try {
       const storage = await getMemoryStorage()
       const stats = await storage.getStats(projectPath)
@@ -151,7 +151,7 @@ export function registerMemoryHandlers(): void {
   /**
    * Export memories
    */
-  ipcMain.handle('circuit:memory-export', async (event, projectPath?: string) => {
+  ipcMain.handle('octave:memory-export', async (event, projectPath?: string) => {
     try {
       const storage = await getMemoryStorage()
       const memories = await storage.exportMemories(projectPath)
@@ -166,7 +166,7 @@ export function registerMemoryHandlers(): void {
   /**
    * Import memories
    */
-  ipcMain.handle('circuit:memory-import', async (event, memories) => {
+  ipcMain.handle('octave:memory-import', async (event, memories) => {
     try {
       const storage = await getMemoryStorage()
       const count = await storage.importMemories(memories)
@@ -181,7 +181,7 @@ export function registerMemoryHandlers(): void {
   /**
    * Create backup
    */
-  ipcMain.handle('circuit:memory-backup', async (event) => {
+  ipcMain.handle('octave:memory-backup', async (event) => {
     try {
       const storage = await getMemoryStorage()
       const backupPath = await storage.createBackup()
@@ -201,7 +201,7 @@ export function registerMemoryHandlers(): void {
    * Get global memories (shared across all conversations)
    * Uses SharedMemoryPool for caching and deduplication
    */
-  ipcMain.handle('circuit:memory-get-global', async (event, projectPath: string) => {
+  ipcMain.handle('octave:memory-get-global', async (event, projectPath: string) => {
     try {
       const pool = getSharedMemoryPool()
       const memories = await pool.getGlobalMemories(projectPath)
@@ -217,7 +217,7 @@ export function registerMemoryHandlers(): void {
    * Get conversation-specific memories
    * Uses SharedMemoryPool for caching
    */
-  ipcMain.handle('circuit:memory-get-conversation', async (event, projectPath: string, conversationId: string) => {
+  ipcMain.handle('octave:memory-get-conversation', async (event, projectPath: string, conversationId: string) => {
     try {
       const pool = getSharedMemoryPool()
 
@@ -239,7 +239,7 @@ export function registerMemoryHandlers(): void {
    * Build minimal agent context for todo execution
    * Returns only the essential context needed for an agent to work on a todo
    */
-  ipcMain.handle('circuit:memory-build-agent-context', async (event, projectPath: string, conversationId: string, todoId: string) => {
+  ipcMain.handle('octave:memory-build-agent-context', async (event, projectPath: string, conversationId: string, todoId: string) => {
     try {
       const pool = getSharedMemoryPool()
       // Import conversationHandlers to get the storage instance
@@ -258,7 +258,7 @@ export function registerMemoryHandlers(): void {
   /**
    * Get cache statistics for monitoring
    */
-  ipcMain.handle('circuit:memory-pool-stats', async (event) => {
+  ipcMain.handle('octave:memory-pool-stats', async (event) => {
     try {
       console.log('[MemoryHandlers] 📊 Getting pool stats...')
       const pool = getSharedMemoryPool()
@@ -284,7 +284,7 @@ export function registerMemoryHandlers(): void {
   /**
    * Clear memory pool cache (for debugging/testing)
    */
-  ipcMain.handle('circuit:memory-pool-clear', async (event) => {
+  ipcMain.handle('octave:memory-pool-clear', async (event) => {
     try {
       const pool = getSharedMemoryPool()
       pool.clearCache()

@@ -37,7 +37,7 @@ const DEFAULT_FLAGS: FeatureFlags = {
   eventBasedUpdates: false,
 }
 
-const STORAGE_KEY = 'circuit:feature-flags'
+const STORAGE_KEY = 'octave:feature-flags'
 
 /**
  * Get current feature flags from localStorage
@@ -70,7 +70,7 @@ export function setFeatureFlag(key: keyof FeatureFlags, value: boolean): void {
     console.log(`[FeatureFlags] ${key} = ${value}`)
 
     // Dispatch custom event for React components to listen
-    window.dispatchEvent(new CustomEvent('circuit:feature-flags-changed', {
+    window.dispatchEvent(new CustomEvent('octave:feature-flags-changed', {
       detail: { key, value, flags }
     }))
   } catch (error) {
@@ -92,7 +92,7 @@ export function toggleFeatureFlag(key: keyof FeatureFlags): void {
 export function resetFeatureFlags(): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_FLAGS))
-    window.dispatchEvent(new CustomEvent('circuit:feature-flags-changed', {
+    window.dispatchEvent(new CustomEvent('octave:feature-flags-changed', {
       detail: { flags: DEFAULT_FLAGS }
     }))
     console.log('[FeatureFlags] Reset to defaults')
@@ -112,9 +112,9 @@ export function useFeatureFlags(): FeatureFlags {
       setFlags(getFeatureFlags())
     }
 
-    window.addEventListener('circuit:feature-flags-changed', handleFlagsChanged)
+    window.addEventListener('octave:feature-flags-changed', handleFlagsChanged)
     return () => {
-      window.removeEventListener('circuit:feature-flags-changed', handleFlagsChanged)
+      window.removeEventListener('octave:feature-flags-changed', handleFlagsChanged)
     }
   }, [])
 

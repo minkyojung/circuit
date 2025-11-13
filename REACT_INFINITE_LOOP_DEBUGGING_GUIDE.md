@@ -700,4 +700,4 @@ const virtualizer = useVirtualizer({
 
 **마지막 업데이트**: 2025-01-05
 **작성자**: Claude Code Assistant
-**프로젝트**: Circuit - Conductor AI Workspace
+**프로젝트**: Octave - Conductor AI Workspace

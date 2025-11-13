@@ -1,7 +1,7 @@
-# Circuit Development Instructions
+# Octave Development Instructions
 
 ## Project Overview
-Circuit is an Electron-based AI coding assistant with workspace management, MCP runtime, and intelligent todo tracking.
+Octave is an Electron-based AI coding assistant with workspace management, MCP runtime, and intelligent todo tracking.
 
 ## Available Custom Tools
 
@@ -136,7 +136,7 @@ Follow these principles for all development work:
 
 ### File Organization
 ```
-circuit/
+octave/
 ├── src/
 │   ├── components/     # React UI components
 │   ├── contexts/       # React contexts
@@ -156,7 +156,7 @@ circuit/
 - Check console for errors
 
 ## Working with Database
-Circuit uses SQLite for storage. Database files are in workspace `.circuit/` directories.
+Octave uses SQLite for storage. Database files are stored in the Application Support directory.
 
 - Conversations: `conversationStorage.ts`
 - Todos: `todoHandlers.ts`

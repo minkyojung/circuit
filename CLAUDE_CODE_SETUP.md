@@ -1,6 +1,6 @@
 # Claude Code Integration Setup
 
-This guide explains how to connect Claude Code to Circuit's MCP Runtime, allowing you to use all your Circuit-managed MCP servers directly in Claude Code.
+This guide explains how to connect Claude Code to Octave's MCP Runtime, allowing you to use all your Octave-managed MCP servers directly in Claude Code.
 
 ## Architecture Overview
 
@@ -10,26 +10,26 @@ Claude Code → circuit-proxy (stdio MCP) → HTTP API (localhost:3737) → MCP 
 
 - **circuit-proxy**: A lightweight stdio-based MCP server that acts as a unified interface
 - **HTTP API**: REST API running on localhost:3737 that aggregates all MCP servers
-- **MCP Manager**: Circuit's core runtime that manages individual MCP server processes
+- **MCP Manager**: Octave's core runtime that manages individual MCP server processes
 
 ## Prerequisites
 
-1. **Circuit App**: Must be running with at least one MCP server installed
+1. **Octave App**: Must be running with at least one MCP server installed
 2. **Claude Code**: Installed and configured on your system
 
 ## Setup Instructions
 
-### Step 1: Launch Circuit
+### Step 1: Launch Octave
 
-Start the Circuit app. It will automatically:
+Start the Octave app. It will automatically:
 - Install `circuit-proxy` to `~/.circuit/bin/circuit-proxy`
 - Start the HTTP API server on `localhost:3737`
 - Auto-start any MCP servers marked for auto-start
 
-You should see in the Circuit logs:
+You should see in the Octave logs:
 ```
-[Circuit] Proxy installed to: /Users/you/.circuit/bin/circuit-proxy
-[Circuit API] Server listening on http://localhost:3737
+[Octave] Proxy installed to: /Users/you/.circuit/bin/circuit-proxy
+[Octave API] Server listening on http://localhost:3737
 Auto-start servers initialized
 ```
 
@@ -48,7 +48,7 @@ You should see:
 
 ### Step 3: Add circuit-proxy to Claude Code
 
-Run the following command to add Circuit as an MCP server in Claude Code:
+Run the following command to add Octave as an MCP server in Claude Code:
 
 ```bash
 claude mcp add circuit -s stdio ~/.circuit/bin/circuit-proxy
@@ -85,20 +85,20 @@ Restart Claude Code to load the new MCP server configuration.
 
 ### Step 6: Verify Integration
 
-In Claude Code, you can now use tools from all your Circuit-managed MCP servers!
+In Claude Code, you can now use tools from all your Octave-managed MCP servers!
 
 Try asking Claude:
 ```
 What MCP tools are available?
 ```
 
-Claude should list all tools from all running Circuit servers.
+Claude should list all tools from all running Octave servers.
 
-## Testing in Circuit Playground
+## Testing in Octave Playground
 
-Before using tools in Claude Code, you can test them in Circuit's Playground tab:
+Before using tools in Claude Code, you can test them in Octave's Playground tab:
 
-1. Open Circuit
+1. Open Octave
 2. Click the **Playground** tab in the sidebar
 3. Select a tool from the list
 4. Enter test arguments
@@ -110,19 +110,19 @@ This helps verify that tools are working correctly before using them in Claude C
 
 ### Issue: "circuit-proxy not found"
 
-**Solution**: Make sure Circuit is running and has completed startup. The proxy is installed on first launch.
+**Solution**: Make sure Octave is running and has completed startup. The proxy is installed on first launch.
 
 ### Issue: "Connection refused to localhost:3737"
 
 **Solution**:
-1. Verify Circuit app is running
-2. Check the Circuit logs for API server startup messages
-3. Restart Circuit if needed
+1. Verify Octave app is running
+2. Check the Octave logs for API server startup messages
+3. Restart Octave if needed
 
 ### Issue: "No tools available in Claude Code"
 
 **Solution**:
-1. Open Circuit → Installed tab
+1. Open Octave → Installed tab
 2. Verify at least one MCP server is running (green status)
 3. If all servers are stopped, click "Start" on a server
 4. Restart Claude Code
@@ -130,23 +130,23 @@ This helps verify that tools are working correctly before using them in Claude C
 ### Issue: "Tool execution fails in Claude Code"
 
 **Solution**:
-1. Test the tool in Circuit Playground first
-2. Check Circuit logs for error messages
-3. Verify the MCP server is still running in Circuit → Installed tab
-4. Try restarting the specific server in Circuit
+1. Test the tool in Octave Playground first
+2. Check Octave logs for error messages
+3. Verify the MCP server is still running in Octave → Installed tab
+4. Try restarting the specific server in Octave
 
-## Monitoring Circuit Activity
+## Monitoring Octave Activity
 
 While using Claude Code, you can monitor MCP activity in real-time:
 
-1. Open Circuit → **Installed** tab
+1. Open Octave → **Installed** tab
 2. Watch the **Call Count** and **Avg Duration** metrics update
 3. Click "View Logs" on any server to see detailed execution logs
 4. Monitor server health status
 
 ## Advanced: Multiple AI Tools
 
-Circuit's proxy works with any MCP-compatible AI tool, not just Claude Code:
+Octave's proxy works with any MCP-compatible AI tool, not just Claude Code:
 
 ```bash
 # For Cursor
@@ -156,23 +156,23 @@ cursor mcp add circuit -s stdio ~/.circuit/bin/circuit-proxy
 windsurf mcp add circuit -s stdio ~/.circuit/bin/circuit-proxy
 ```
 
-All tools will share the same Circuit-managed MCP servers!
+All tools will share the same Octave-managed MCP servers!
 
 ## Benefits
 
-✅ **Unified Management**: Manage all MCP servers in one place (Circuit)
+✅ **Unified Management**: Manage all MCP servers in one place (Octave)
 ✅ **Real-time Monitoring**: See tool usage, performance metrics, and logs
 ✅ **Easy Testing**: Test tools in Playground before using in Claude
-✅ **Auto-restart**: Circuit automatically restarts failed servers
+✅ **Auto-restart**: Octave automatically restarts failed servers
 ✅ **Multi-tool Support**: Use same servers across Claude, Cursor, Windsurf, etc.
 
 ## What's Next?
 
-- **Install more MCP servers**: Circuit → Discover tab
-- **Monitor performance**: Circuit → Installed tab → View metrics
-- **Test tools safely**: Circuit → Playground tab
-- **View logs**: Circuit → Installed tab → View Logs
+- **Install more MCP servers**: Octave → Discover tab
+- **Monitor performance**: Octave → Installed tab → View metrics
+- **Test tools safely**: Octave → Playground tab
+- **View logs**: Octave → Installed tab → View Logs
 
 ---
 
-*Built with Circuit MCP Runtime - Your central hub for Model Context Protocol*
+*Built with Octave MCP Runtime - Your central hub for Model Context Protocol*
