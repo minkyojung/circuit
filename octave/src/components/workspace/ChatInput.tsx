@@ -488,7 +488,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     <div className={INPUT_STYLES.container.maxWidth}>
       {/* Input Card - Floating */}
       <div
-        className="relative w-full flex flex-col border-[0.5px] border-border rounded-2xl bg-muted p-4 gap-3 shadow-[0_-8px_40px_rgba(0,0,0,0.05),0_4px_6px_rgba(0,0,0,0.03)] dark:shadow-[0_-8px_40px_rgba(0,0,0,0.25),0_4px_6px_rgba(0,0,0,0.1)]"
+        className="relative w-full flex flex-col border-[0.5px] border-border rounded-[var(--block-radius)] bg-muted p-4 gap-3 shadow-[0_-8px_40px_rgba(0,0,0,0.05),0_4px_6px_rgba(0,0,0,0.03)] dark:shadow-[0_-8px_40px_rgba(0,0,0,0.25),0_4px_6px_rgba(0,0,0,0.1)]"
       >
         {/* Slash Command Menu */}
         <SlashCommandMenu

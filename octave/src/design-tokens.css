@@ -480,7 +480,7 @@
     --block-padding-lg: 1.25rem;     /* 20px - spacious variant */
 
     /* Block border radius */
-    --block-radius: var(--radius-lg);  /* 10.4px - matches current design */
+    --block-radius: 6px;  /* Slightly rounded corners */
 
     /* Hover pill (action buttons overlay) */
     --block-pill-bg: rgba(var(--background-rgb), 0.9);

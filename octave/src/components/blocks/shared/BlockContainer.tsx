@@ -53,8 +53,8 @@ export const BlockContainer: React.FC<BlockContainerProps> = ({
         // Border radius (unified)
         'rounded-[var(--block-radius)]',
 
-        // Border (type-specific)
-        'border',
+        // Border (type-specific, thin border)
+        'border-[0.5px]',
         blockType === 'code' && 'border-[var(--code-border)] bg-[var(--code-bg)]',
         blockType === 'command' && 'border-[var(--command-border)] bg-[var(--command-bg)]',
         blockType === 'diff' && 'border-[var(--diff-border)] bg-[var(--diff-bg)]',
