@@ -1123,7 +1123,6 @@ The plan is ready. What would you like to do?`,
                 <div
                   key={msg.id}
                   data-index={virtualItem.index}
-                  data-message-id={msg.id}
                   ref={virtualizer.measureElement}
                   style={{
                     position: 'absolute',

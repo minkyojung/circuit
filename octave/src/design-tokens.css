@@ -438,34 +438,71 @@
     --circuit-error: var(--destructive);           /* 에러 색상 */
   }
 
-  /* ===== CODE BLOCK SURFACES (APPLE HIG - MINIMAL DIFFERENTIATION) ===== */
+  /* ===== CODE BLOCK SURFACES (UNIFIED) ===== */
 
   :root {
-    /* Base code surface - 읽기 전용 코드 (CodeBlock) */
-    --code-bg: var(--background-secondary);          /* #FFFFFF - Elevated card */
-    --code-border: var(--separator-opaque);          /* rgba(0,0,0,0.1) - Clear divider */
+    /* Unified block surface - 모든 블록 타입에 동일한 배경 */
+    --code-bg: var(--background-secondary);          /* Elevated card */
+    --code-border: var(--separator-opaque);          /* Clear divider */
     --code-header: var(--fill-quaternary);           /* Subtle header background */
 
-    /* Command surface - 실행 가능한 명령어 (CommandBlock) */
-    /* Light mode: 살짝 더 어두운 elevated surface로 구별 */
-    --command-bg: var(--background-tertiary);        /* #F5F5F5 - Slightly darker */
-    --command-border: var(--separator-opaque);
-    --command-header: var(--fill-tertiary);          /* 조금 더 진한 header */
-    --command-accent: var(--label-tertiary);         /* Subtle text accent */
+    /* Command surface - CommandBlock */
+    --command-bg: var(--background-secondary);       /* 통일된 배경 */
+    --command-border: var(--separator-opaque);       /* 통일된 테두리 */
+    --command-header: var(--fill-quaternary);        /* 통일된 header */
+    --command-accent: var(--label-primary);          /* 가독성을 위한 primary 텍스트 */
 
-    /* Diff surface - 변경사항 표시 (DiffBlock) */
-    --diff-bg: var(--code-bg);                       /* 기본 코드와 동일 */
-    --diff-border: var(--code-border);
-    --diff-header: var(--code-header);
+    /* Diff surface - DiffBlock */
+    --diff-bg: var(--background-secondary);          /* 통일된 배경 */
+    --diff-border: var(--separator-opaque);          /* 통일된 테두리 */
+    --diff-header: var(--fill-quaternary);           /* 통일된 header */
     --diff-addition: var(--success);                 /* Green for additions */
     --diff-deletion: var(--destructive);             /* Red for deletions */
   }
 
   .dark {
-    /* Command surface - Dark mode에서는 더 밝은 elevated로 구별 */
-    --command-bg: var(--background-elevated-tertiary); /* #424242 - More elevated */
-    --command-header: var(--fill-secondary);           /* 더 밝은 header */
-    --command-accent: var(--label-tertiary);           /* Subtle text accent */
+    /* Dark mode - 모든 블록 타입에 동일한 배경 */
+    --code-bg: var(--background-secondary);
+    --command-bg: var(--background-secondary);
+    --diff-bg: var(--background-secondary);
+  }
+
+  /* ===== UNIFIED BLOCK SYSTEM TOKENS ===== */
+
+  :root {
+    /* Monospace font stack - Single source of truth */
+    --font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", "Source Code Pro",
+                 "SF Mono", Menlo, Consolas, Monaco, "Courier New", monospace;
+
+    /* Block spacing (consistent padding) */
+    --block-padding: 1rem;           /* 16px - uniform padding for all blocks */
+    --block-padding-sm: 0.75rem;     /* 12px - compact variant */
+    --block-padding-lg: 1.25rem;     /* 20px - spacious variant */
+
+    /* Block border radius */
+    --block-radius: var(--radius-lg);  /* 10.4px - matches current design */
+
+    /* Hover pill (action buttons overlay) */
+    --block-pill-bg: rgba(var(--background-rgb), 0.9);
+    --block-pill-border: var(--separator-opaque);
+    --block-pill-shadow: var(--shadow-lg);
+    --block-pill-gap: 0.125rem;       /* 2px - gap between pill items */
+    --block-pill-padding-x: 0.5rem;   /* 8px - horizontal padding */
+    --block-pill-padding-y: 0.25rem;  /* 4px - vertical padding */
+
+    /* Block action button sizing */
+    --block-button-size: 1.75rem;     /* 28px - button clickable area */
+    --block-icon-size: 0.75rem;       /* 12px - icon size */
+    --block-label-size: 0.625rem;     /* 10px - label font size */
+
+    /* Block state colors */
+    --block-hover-overlay: var(--state-hover);
+    --block-active-overlay: var(--state-active);
+  }
+
+  .dark {
+    /* Pill background needs proper alpha for dark mode */
+    --block-pill-bg: rgba(28, 28, 28, 0.9);
   }
 
 }
