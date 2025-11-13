@@ -1,8 +1,8 @@
-# Circuit Workspace: 워크트리 기반 채팅 + 에디터
+# Octave Workspace: 워크트리 기반 채팅 + 에디터
 
 ## 핵심 컨셉
 
-Circuit의 Workspace는 **Git Worktree 기반**으로 각 작업을 독립된 환경에서 진행하며, **채팅 + 코드 에디터**를 통해 Claude와 실시간으로 협업하는 개발 환경입니다.
+Octave의 Workspace는 **Git Worktree 기반**으로 각 작업을 독립된 환경에서 진행하며, **채팅 + 코드 에디터**를 통해 Claude와 실시간으로 협업하는 개발 환경입니다.
 
 ### 핵심 특징
 1. **워크트리 격리**: 각 작업은 독립된 Git worktree와 브랜치
@@ -42,7 +42,7 @@ Main Project: /Users/user/my-app
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ Circuit                    [feature-auth ▼] [+ New Workspace] │
+│ Octave                    [feature-auth ▼] [+ New Workspace] │
 ├────────────────────────┬─────────────────────────────────────┤
 │                        │                                     │
 │  CHAT                  │  CODE EDITOR                        │
@@ -314,7 +314,7 @@ class GitIntegration {
    → Name: "feature-auth"
    → Base: "main"
 
-2. Circuit:
+2. Octave:
    ✓ Git worktree 생성
    ✓ 브랜치 "feature-auth" 생성
    ✓ Claude 세션 시작
@@ -325,7 +325,7 @@ class GitIntegration {
 4. Claude:
    "I'll add a login button. Let me edit LoginForm.tsx..."
 
-5. Circuit:
+5. Octave:
    ✓ 채팅에 "Editing src/components/LoginForm.tsx:42" 표시
    ✓ 에디터가 자동으로 LoginForm.tsx 열기
    ✓ 42번 라인으로 스크롤
@@ -339,13 +339,13 @@ class GitIntegration {
    - 에디터에서 직접 미세 조정 가능
    - "Commit" 버튼 클릭
 
-8. Circuit:
+8. Octave:
    ✓ git commit -m "feat: add login button"
    ✓ 채팅에 커밋 확인 메시지
 
 9. 사용자: "Create PR"
 
-10. Circuit:
+10. Octave:
     ✓ git push origin feature-auth
     ✓ GitHub PR 생성 (MCP 사용)
     ✓ PR 링크 표시
@@ -421,7 +421,7 @@ class GitIntegration {
 
 ### vs Devin
 
-| Feature | Devin | Circuit Workspace |
+| Feature | Devin | Octave Workspace |
 |---------|-------|-------------------|
 | **배포** | 브라우저 (Cloud) | Electron (Local) |
 | **격리** | VM | Git Worktree |

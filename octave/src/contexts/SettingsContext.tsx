@@ -7,21 +7,21 @@
 
 import React, { createContext, useContext, type ReactNode } from 'react';
 import { useSettings } from '@/hooks/useSettings';
-import type { CircuitSettings } from '@/types/settings';
+import type { OctaveSettings } from '@/types/settings';
 
 interface SettingsContextType {
-  settings: CircuitSettings;
-  updateSettings: <K extends keyof CircuitSettings>(
+  settings: OctaveSettings;
+  updateSettings: <K extends keyof OctaveSettings>(
     category: K,
-    updates: Partial<CircuitSettings[K]>
+    updates: Partial<OctaveSettings[K]>
   ) => void;
-  updateSetting: <K extends keyof CircuitSettings, P extends keyof CircuitSettings[K]>(
+  updateSetting: <K extends keyof OctaveSettings, P extends keyof OctaveSettings[K]>(
     category: K,
     property: P,
-    value: CircuitSettings[K][P]
+    value: OctaveSettings[K][P]
   ) => void;
   resetSettings: () => void;
-  resetCategory: (category: keyof CircuitSettings) => void;
+  resetCategory: (category: keyof OctaveSettings) => void;
   exportSettings: () => string;
   importSettings: (json: string) => boolean;
 }
@@ -87,9 +87,9 @@ export const useSettingsContext = (): SettingsContextType => {
  * const contextSettings = useSettingsCategory('context');
  * console.log(contextSettings.warningThreshold); // Type-safe!
  */
-export function useSettingsCategory<K extends keyof CircuitSettings>(
+export function useSettingsCategory<K extends keyof OctaveSettings>(
   category: K
-): CircuitSettings[K] {
+): OctaveSettings[K] {
   const { settings } = useSettingsContext();
   return settings[category];
 }

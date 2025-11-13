@@ -204,7 +204,9 @@ export class IPCEventBridge {
       oldString: (milestone as any).oldString,
       newString: (milestone as any).newString,
       // ✅ Include Write tool args for diff calculation
-      content: (milestone as any).content
+      content: (milestone as any).content,
+      // ✅ Include TodoWrite tool args for task list display
+      todos: (milestone as any).todos
     };
 
     // Add to thinking steps (callback will handle state update)

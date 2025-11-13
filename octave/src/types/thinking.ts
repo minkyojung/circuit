@@ -13,6 +13,13 @@ export interface ThinkingStep {
   newString?: string;
   // Write tool args (for diff calculation)
   content?: string;
+  // TodoWrite tool args (for task list display)
+  todos?: Array<{
+    content: string;
+    activeForm: string;
+    status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'skipped';
+    description?: string;
+  }>;
 }
 
 export type StepGroupType = 'thinking' | 'tools' | 'final-thinking';

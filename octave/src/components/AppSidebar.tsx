@@ -1,12 +1,16 @@
 import * as React from 'react'
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import type { Workspace, WorkspaceCreateResult, WorkspaceListResult, WorkspaceStatus, Repository } from '@/types/workspace'
+import { useEffect } from 'react'
+import type { Workspace, WorkspaceStatus, Repository } from '@/types/workspace'
 import { Plus, GitBranch, Check, GitMerge, GitCommit, Archive, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useProjectPath } from '@/App'
 import { RepositorySwitcher } from './workspace/RepositorySwitcher'
 import { CloneRepositoryDialog } from './workspace/CloneRepositoryDialog'
 import { FileExplorer, type FileNode } from './workspace/FileExplorer'
+import { useRepositories } from '@/hooks/useRepositories'
+import { useWorkspaces } from '@/hooks/useWorkspaces'
+import { useGitStatus } from '@/hooks/useGitStatus'
+import { useFileTree } from '@/hooks/useFileTree'
 import {
   ContextMenu,
   ContextMenuContent,
@@ -88,519 +92,81 @@ const getStatusBadge = (status?: WorkspaceStatus) => {
 export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWorkspace, selectedFile, onFileSelect, onWorkspacesLoaded, onRepositoryChange, ...props }: AppSidebarProps) {
   const { projectPath } = useProjectPath()
   const { state } = useSidebar()
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
-  const [statuses, setStatuses] = useState<Record<string, WorkspaceStatus>>({})
-  const [isCreating, setIsCreating] = useState(false)
-  const [fileTree, setFileTree] = useState<FileNode[]>([])
-  const [isLoadingFiles, setIsLoadingFiles] = useState(false)
 
-  // Repository management
-  const [repositories, setRepositories] = useState<Repository[]>([])
-  const [currentRepository, setCurrentRepository] = useState<Repository | null>(null)
-  const [isCloneDialogOpen, setIsCloneDialogOpen] = useState(false)
+  // Extract workspaces management to custom hook
+  const {
+    workspaces,
+    isCreating,
+    loadWorkspaces,
+    createWorkspace: createWorkspaceAction,
+    archiveWorkspace: archiveWorkspaceAction,
+    deleteWorkspace: deleteWorkspaceAction,
+    setWorkspaces,
+  } = useWorkspaces({ onWorkspacesLoaded })
 
-  // Create a temporary repository from project path (fallback)
-  const defaultRepository: Repository = useMemo(() => {
-    const projectName = projectPath.split('/').filter(Boolean).pop() || 'Unknown Project'
-    return {
-      id: 'temp-repo-1',
-      name: projectName,
-      path: projectPath,
-      remoteUrl: null,
-      defaultBranch: 'main',
-      createdAt: new Date().toISOString(),
-    }
-  }, [projectPath])
+  // Extract repositories management to custom hook
+  const {
+    repositories,
+    currentRepository: repository,
+    isCloneDialogOpen,
+    loadRepositories,
+    createRepository: createRepositoryAction,
+    cloneRepository: cloneRepositoryAction,
+    removeRepository: removeRepositoryAction,
+    switchRepository: switchRepositoryAction,
+    openCloneDialog,
+    closeCloneDialog,
+  } = useRepositories({
+    projectPath,
+    onRepositoryChange,
+    onWorkspaceLoad: (workspaces, repositoryPath) => {
+      setWorkspaces(workspaces)
+      onWorkspacesLoaded?.(workspaces)
+    },
+  })
 
-  // Use current repository or fallback to default
-  const repository = currentRepository || defaultRepository
+  // Extract git status management to custom hook
+  const { statuses } = useGitStatus(workspaces, repository?.id)
 
-  // ===== FIX #5: Use refs to avoid stale closures =====
-  // Keep current repository in a ref to avoid stale closures in event listeners
-  const currentRepositoryRef = useRef<Repository | null>(null);
-
-  // Update ref whenever currentRepository changes
-  useEffect(() => {
-    currentRepositoryRef.current = currentRepository;
-  }, [currentRepository]);
-
-  /**
-   * ===== FIX #4: Load workspaces for a specific repository =====
-   *
-   * Accepts repository parameter to avoid stale closures.
-   * Uses explicit parameter instead of relying on state.
-   *
-   * @param repository - The repository to load workspaces for (optional, defaults to current)
-   */
-  const loadWorkspaces = useCallback(async (repository?: Repository): Promise<void> => {
-    try {
-      // Determine which repository to use
-      const targetRepo = repository ?? currentRepository;
-
-      if (!targetRepo) {
-        console.warn('[AppSidebar] No repository selected')
-        setWorkspaces([])
-        return
-      }
-
-      console.log('[AppSidebar] Loading workspaces for repository:', targetRepo.name, targetRepo.path)
-
-      // Pass repository path to backend
-      const result: WorkspaceListResult = await ipcRenderer.invoke('workspace:list', targetRepo.path)
-
-      console.log('[AppSidebar] Workspace list result:', {
-        success: result.success,
-        count: result.workspaces?.length,
-        workspaces: result.workspaces?.map(w => ({ id: w.id, name: w.name, path: w.path }))
-      })
-
-      if (result.success && result.workspaces) {
-        setWorkspaces(result.workspaces)
-        // Notify parent for keyboard shortcuts
-        onWorkspacesLoaded?.(result.workspaces)
-      } else {
-        console.error('[AppSidebar] Failed to load workspaces:', result.error)
-        setWorkspaces([])
-      }
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('[AppSidebar] Error loading workspaces:', errorMessage)
-      setWorkspaces([])
-    }
-  }, [currentRepository, onWorkspacesLoaded])
+  // Extract file tree management to custom hook
+  const { fileTree, isLoadingFiles, refresh: refreshFileTree } = useFileTree(selectedWorkspace?.path)
 
   // Load repositories on mount
   useEffect(() => {
     loadRepositories()
-  }, [])
+  }, [loadRepositories])
 
   // Load workspaces when repository changes
   useEffect(() => {
-    if (currentRepository) {
-      loadWorkspaces(currentRepository)
+    if (repository) {
+      loadWorkspaces(repository.path)
     }
-  }, [currentRepository?.id, loadWorkspaces])
+  }, [repository.id, loadWorkspaces])
 
-  // Notify parent when repository changes
-  useEffect(() => {
-    onRepositoryChange?.(repository)
-  }, [repository?.id, onRepositoryChange])
-
-  // ===== FIX #5: Listener uses ref to always access latest repository =====
-  // Listen for workspace list changes (archive/unarchive/delete)
-  useEffect(() => {
-    const handleWorkspaceListChanged = async (
-      _event: unknown,
-      changedRepositoryPath: string
-    ): Promise<void> => {
-      console.log('[AppSidebar] 🔔 Workspace list changed for:', changedRepositoryPath)
-
-      // Access latest value via ref (no stale closure)
-      const latestRepo = currentRepositoryRef.current;
-
-      if (!latestRepo) {
-        console.log('[AppSidebar] No current repository, ignoring event');
-        return;
-      }
-
-      console.log('[AppSidebar] 📂 Current repository path:', latestRepo.path)
-
-      // Only reload if the changed repository matches our current repository
-      if (changedRepositoryPath === latestRepo.path) {
-        console.log('[AppSidebar] ♻️ Reloading workspaces...')
-        try {
-          const result: WorkspaceListResult = await ipcRenderer.invoke('workspace:list', latestRepo.path)
-          if (result.success && result.workspaces) {
-            setWorkspaces(result.workspaces)
-            onWorkspacesLoaded?.(result.workspaces)
-          }
-        } catch (error: unknown) {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          console.error('[AppSidebar] Error reloading workspaces:', errorMessage)
-        }
-      }
-    }
-
-    ipcRenderer.on('workspace:list-changed', handleWorkspaceListChanged)
-
-    return () => {
-      ipcRenderer.removeListener('workspace:list-changed', handleWorkspaceListChanged)
-    }
-  }, [onWorkspacesLoaded])
-
-  // Load statuses for all workspaces
-  const loadStatuses = useCallback(async (workspaceList: Workspace[]) => {
-    const statusPromises = workspaceList.map(async (workspace) => {
-      try {
-        const result = await ipcRenderer.invoke('workspace:get-status', workspace.path)
-        if (result.success && result.status) {
-          return { id: workspace.id, status: result.status }
-        }
-      } catch (error) {
-        console.error(`Failed to get status for ${workspace.name}:`, error)
-      }
-      return null
-    })
-
-    const results = await Promise.all(statusPromises)
-    const newStatuses: Record<string, WorkspaceStatus> = {}
-    results.forEach((result) => {
-      if (result) {
-        newStatuses[result.id] = result.status
-      }
-    })
-
-    setStatuses(newStatuses)
-  }, []) // setStatuses is stable from useState
-
-  // Auto-refresh statuses every 30 seconds
-  // Consolidated from two separate intervals (5s + 30s) to reduce IPC overhead
-  // Store workspaces in a ref to avoid useEffect re-triggering on every render
-  const workspacesRef = useRef(workspaces);
-  workspacesRef.current = workspaces;
-
-  useEffect(() => {
-    const currentWorkspaces = workspacesRef.current;
-
-    if (!currentRepository || currentWorkspaces.length === 0) {
-      return
-    }
-
-    console.log('[AppSidebar] Setting up status auto-refresh (30s) for repository:', currentRepository.name)
-
-    // Load immediately on mount
-    loadStatuses(currentWorkspaces)
-
-    // Then refresh every 30 seconds
-    const interval = setInterval(() => {
-      console.log('[AppSidebar] Status auto-refresh triggered')
-      loadStatuses(workspacesRef.current)
-    }, 30000)
-
-    return () => {
-      console.log('[AppSidebar] Cleaning up status auto-refresh')
-      clearInterval(interval)
-    }
-  }, [currentRepository?.id, workspaces.length, loadStatuses]) // Use length instead of array reference
-
-  // Load file tree when workspace is selected
-  useEffect(() => {
-    if (!selectedWorkspace) {
-      setFileTree([])
-      return
-    }
-
-    const loadFileTree = async () => {
-      setIsLoadingFiles(true)
-      try {
-        const result = await ipcRenderer.invoke('workspace:get-file-tree', selectedWorkspace.path)
-
-        if (result.success && result.fileTree) {
-          setFileTree(result.fileTree)
-        } else {
-          console.error('Failed to load file tree:', result.error)
-          setFileTree([])
-        }
-      } catch (error) {
-        console.error('Error loading file tree:', error)
-        setFileTree([])
-      } finally {
-        setIsLoadingFiles(false)
-      }
-    }
-
-    loadFileTree()
-  }, [selectedWorkspace?.path])
-
-  const loadRepositories = async () => {
-    try {
-      console.log('[AppSidebar] Loading repositories...')
-      const result = await ipcRenderer.invoke('repository:list')
-      console.log('[AppSidebar] Repository list result:', result)
-
-      if (result.success && result.repositories) {
-        console.log('[AppSidebar] Setting repositories:', result.repositories.length)
-        setRepositories(result.repositories)
-
-        // Set first repository as current if none selected
-        console.log('[AppSidebar] Current repository check:', {
-          currentRepository,
-          hasRepos: result.repositories.length > 0,
-          willSet: !currentRepository && result.repositories.length > 0
-        })
-
-        if (!currentRepository && result.repositories.length > 0) {
-          console.log('[AppSidebar] Setting current repository to:', result.repositories[0].name)
-          setCurrentRepository(result.repositories[0])
-        }
-      } else {
-        console.error('[AppSidebar] Failed to load repositories:', result.error)
-        // Fallback to default repository
-        setRepositories([defaultRepository])
-        setCurrentRepository(defaultRepository)
-      }
-    } catch (error) {
-      console.error('[AppSidebar] Error loading repositories:', error)
-      // Fallback to default repository
-      setRepositories([defaultRepository])
-      setCurrentRepository(defaultRepository)
-    }
-  }
-
+  // Wrapper functions that delegate to hooks
   const createWorkspace = async () => {
-    // Check if repository is selected
-    if (!currentRepository) {
+    if (!repository) {
       alert('Please select a repository first')
       return
     }
-
-    console.log('[AppSidebar] Creating workspace for repository:', currentRepository.name, currentRepository.path)
-    setIsCreating(true)
-    try {
-      const result: WorkspaceCreateResult = await ipcRenderer.invoke('workspace:create', currentRepository.path)
-
-      console.log('[AppSidebar] Workspace create result:', result)
-
-      if (result.success && result.workspace) {
-        console.log('[AppSidebar] Workspace created:', result.workspace.name, result.workspace.id)
-        console.log('[AppSidebar] Adding to workspaces list. Current count:', workspaces.length)
-        setWorkspaces([...workspaces, result.workspace])
-        console.log('[AppSidebar] New workspaces count should be:', workspaces.length + 1)
-      } else {
-        console.error('[AppSidebar] Failed to create workspace:', result.error)
-        alert(`Failed to create workspace: ${result.error}`)
-      }
-    } catch (error) {
-      console.error('[AppSidebar] Error creating workspace:', error)
-      alert(`Error creating workspace: ${error}`)
-    } finally {
-      setIsCreating(false)
-    }
-  }
-
-  const createRepository = async () => {
-    try {
-      console.log('[AppSidebar] Opening folder selection dialog')
-
-      // Step 1: Select folder
-      const selectResult = await ipcRenderer.invoke('repository:select-folder')
-
-      if (!selectResult.success) {
-        if (selectResult.cancelled) {
-          console.log('[AppSidebar] Folder selection cancelled')
-          return
-        }
-        console.error('[AppSidebar] Failed to select folder:', selectResult.error)
-        alert(`Failed to select folder: ${selectResult.error}`)
-        return
-      }
-
-      console.log('[AppSidebar] Selected folder:', selectResult.folderPath)
-
-      // Step 2: Add repository
-      const addResult = await ipcRenderer.invoke('repository:add', selectResult.folderPath)
-
-      if (addResult.success && addResult.repository) {
-        console.log('[AppSidebar] Repository added successfully:', addResult.repository.name)
-
-        // Reload repositories to get the updated list
-        await loadRepositories()
-
-        // Set the newly added repository as current
-        setCurrentRepository(addResult.repository)
-      } else {
-        console.error('[AppSidebar] Failed to add repository:', addResult.error)
-        alert(`Failed to add repository: ${addResult.error}`)
-      }
-    } catch (error) {
-      console.error('[AppSidebar] Error adding repository:', error)
-      alert(`Error adding repository: ${error}`)
-    }
-  }
-
-  const cloneRepository = async (url: string) => {
-    try {
-      const result = await ipcRenderer.invoke('repository:clone', url)
-
-      if (result.success && result.repository) {
-        setRepositories([...repositories, result.repository])
-        setCurrentRepository(result.repository)
-        alert(`Repository cloned successfully: ${result.repository.name}`)
-      } else {
-        console.error('Failed to clone repository:', result.error)
-        alert(`Failed to clone repository: ${result.error}`)
-      }
-    } catch (error) {
-      console.error('Error cloning repository:', error)
-      alert(`Error cloning repository: ${error}`)
-    }
-  }
-
-  const openCloneDialog = () => {
-    setIsCloneDialogOpen(true)
-  }
-
-  /**
-   * ===== FIX #4: Switch to a different repository =====
-   *
-   * Strategy:
-   * 1. Load workspaces for new repository FIRST (explicit parameter)
-   * 2. Only update state if loading succeeds
-   * 3. Update repository and workspaces atomically (React batches these)
-   *
-   * This prevents stale closures by passing repository explicitly to loadWorkspaces
-   */
-  const switchRepository = async (repo: Repository): Promise<void> => {
-    try {
-      console.log('[AppSidebar] Switching to repository:', repo.name);
-
-      // Step 1: Load workspaces for the new repository (explicit parameter)
-      const workspaceResult: WorkspaceListResult = await ipcRenderer.invoke('workspace:list', repo.path);
-
-      // Step 2: Update state atomically
-      if (workspaceResult.success && workspaceResult.workspaces) {
-        // Both state updates happen in sequence - React will batch them
-        setCurrentRepository(repo);
-        setWorkspaces(workspaceResult.workspaces);
-        onWorkspacesLoaded?.(workspaceResult.workspaces);
-
-        console.log('[AppSidebar] Successfully switched to', repo.name);
-      } else {
-        console.error('[AppSidebar] Failed to load workspaces for new repository:', workspaceResult.error);
-
-        // Still switch repository but with empty workspaces
-        setCurrentRepository(repo);
-        setWorkspaces([]);
-      }
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('[AppSidebar] Error switching repository:', errorMessage);
-    }
-  }
-
-  /**
-   * ===== FIX #3: Remove repository with proper state synchronization =====
-   *
-   * Strategy:
-   * 1. Track if we're removing the current repository
-   * 2. Call IPC to remove
-   * 3. Fetch fresh repository list from backend (source of truth)
-   * 4. Use IPC response (not stale state) to determine next repository
-   * 5. Atomically switch to new repository with its workspaces
-   *
-   * This avoids race conditions by:
-   * - Not relying on stale `repositories` state
-   * - Using IPC response as source of truth
-   * - Loading workspaces explicitly for the new repository
-   */
-  const removeRepository = async (repoId: string): Promise<void> => {
-    try {
-      console.log('[AppSidebar] Removing repository:', repoId)
-
-      // Step 1: Track if we're removing the current repository
-      const wasCurrentRepo = currentRepository?.id === repoId;
-
-      // Step 2: Call backend to remove
-      const removeResult = await ipcRenderer.invoke('repository:remove', repoId);
-
-      if (!removeResult.success) {
-        console.error('Failed to remove repository:', removeResult.error);
-        alert(`Failed to remove repository: ${removeResult.error}`);
-        return;
-      }
-
-      // Step 3: Fetch fresh repository list from backend (source of truth)
-      const listResult = await ipcRenderer.invoke('repository:list');
-
-      if (!listResult.success || !listResult.repositories) {
-        console.error('[AppSidebar] Failed to reload repositories after deletion');
-
-        // Fallback: manual state cleanup
-        setRepositories(prev => prev.filter(r => r.id !== repoId));
-
-        if (wasCurrentRepo) {
-          const fallbackRepos = repositories.filter(r => r.id !== repoId);
-          if (fallbackRepos.length > 0) {
-            await switchRepository(fallbackRepos[0]);
-          } else {
-            setCurrentRepository(defaultRepository);
-            setRepositories([defaultRepository]);
-            setWorkspaces([]);
-          }
-        }
-        return;
-      }
-
-      // Step 4: Update repositories state with fresh data
-      const updatedRepositories: Repository[] = listResult.repositories;
-      setRepositories(updatedRepositories);
-
-      // Step 5: Handle repository switching if needed
-      if (wasCurrentRepo) {
-        if (updatedRepositories.length > 0) {
-          // Switch to first available repository (loads its workspaces)
-          await switchRepository(updatedRepositories[0]);
-        } else {
-          // No repositories left - fallback to default
-          setCurrentRepository(defaultRepository);
-          setRepositories([defaultRepository]);
-          setWorkspaces([]);
-        }
-      }
-
-      console.log('[AppSidebar] Repository removed successfully');
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('Error removing repository:', errorMessage);
-      alert(`Error removing repository: ${errorMessage}`);
-    }
+    await createWorkspaceAction(repository.path)
   }
 
   const archiveWorkspace = async (workspaceId: string) => {
-    if (!currentRepository) return
-
-    try {
-      const result = await ipcRenderer.invoke('workspace:archive', workspaceId, currentRepository.path)
-
-      if (result.success) {
-        // Reload workspaces to update the list
-        await loadWorkspaces()
-
-        // Clear active workspace if it was archived
-        if (selectedWorkspaceId === workspaceId) {
-          onSelectWorkspace(null)
-        }
-      } else {
-        console.error('Failed to archive workspace:', result.error)
-        alert(`Failed to archive workspace: ${result.error}`)
-      }
-    } catch (error) {
-      console.error('Error archiving workspace:', error)
-      alert(`Error archiving workspace: ${error}`)
+    if (!repository) return
+    await archiveWorkspaceAction(workspaceId, repository.path)
+    // Clear active workspace if it was archived
+    if (selectedWorkspaceId === workspaceId) {
+      onSelectWorkspace(null)
     }
   }
 
   const deleteWorkspace = async (workspaceId: string) => {
-    if (!currentRepository) return
-
-    try {
-      const result = await ipcRenderer.invoke('workspace:delete', workspaceId, currentRepository.path)
-
-      if (result.success) {
-        // Reload workspaces to update the list
-        await loadWorkspaces()
-
-        // Clear active workspace if it was deleted
-        if (selectedWorkspaceId === workspaceId) {
-          onSelectWorkspace(null)
-        }
-      } else {
-        console.error('Failed to delete workspace:', result.error)
-        alert(`Failed to delete workspace: ${result.error}`)
-      }
-    } catch (error) {
-      console.error('Error deleting workspace:', error)
-      alert(`Error deleting workspace: ${error}`)
+    if (!repository) return
+    await deleteWorkspaceAction(workspaceId, repository.path)
+    // Clear active workspace if it was deleted
+    if (selectedWorkspaceId === workspaceId) {
+      onSelectWorkspace(null)
     }
   }
 
@@ -622,19 +188,6 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
     }
   }
 
-  const handleRefreshFileTree = () => {
-    if (selectedWorkspace) {
-      setIsLoadingFiles(true)
-      ipcRenderer.invoke('workspace:get-file-tree', selectedWorkspace.path)
-        .then((result: any) => {
-          if (result.success && result.fileTree) {
-            setFileTree(result.fileTree)
-          }
-        })
-        .finally(() => setIsLoadingFiles(false))
-    }
-  }
-
   return (
     <>
     <Sidebar variant="inset" {...props}>
@@ -651,10 +204,10 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
         <RepositorySwitcher
           currentRepository={repository}
           repositories={repositories.length > 0 ? repositories : [repository]}
-          onSelectRepository={switchRepository}
-          onCreateRepository={createRepository}
+          onSelectRepository={switchRepositoryAction}
+          onCreateRepository={createRepositoryAction}
           onCloneRepository={openCloneDialog}
-          onRemoveRepository={removeRepository}
+          onRemoveRepository={removeRepositoryAction}
         />
       </SidebarHeader>
 
@@ -836,7 +389,7 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
             isLoading={isLoadingFiles}
             onFileSelect={onFileSelect}
             selectedFile={selectedFile}
-            onRefresh={handleRefreshFileTree}
+            onRefresh={refreshFileTree}
           />
         )}
       </SidebarContent>
@@ -845,8 +398,8 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
     {/* Clone Repository Dialog */}
     <CloneRepositoryDialog
       isOpen={isCloneDialogOpen}
-      onClose={() => setIsCloneDialogOpen(false)}
-      onClone={cloneRepository}
+      onClose={closeCloneDialog}
+      onClone={cloneRepositoryAction}
     />
     </>
   )

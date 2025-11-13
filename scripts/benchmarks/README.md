@@ -4,7 +4,7 @@ Performance testing tools for SharedMemoryPool optimization.
 
 ## 목적
 
-Circuit의 메모리 사용량을 측정하고 최적화하기 위한 벤치마크 스크립트입니다.
+Octave의 메모리 사용량을 측정하고 최적화하기 위한 벤치마크 스크립트입니다.
 SharedMemoryPool이 여러 conversation에서 메모리를 얼마나 절약하는지 측정합니다.
 
 ## Files

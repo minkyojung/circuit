@@ -248,7 +248,7 @@ A: Referenced in SmartCommitUI, already exist in electron handlers.
 ## Generated On
 
 Date: 2025-11-11
-Project: Circuit/Octave (React + Electron)
+Project: Octave/Octave (React + Electron)
 Focus: Right Sidebar Smart Commit UI
 Codebase Root: `/Users/williamjung/conductor/circuit/.conductor/stuttgart/octave`
 

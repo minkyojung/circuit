@@ -225,7 +225,7 @@ export const CommitDialog: React.FC<CommitDialogProps> = ({
                   </div>
                 )}
                 {gitState.ahead === 0 && gitState.behind === 0 && gitState.upstreamBranch && (
-                  <span className="text-green-600">Up to date</span>
+                  <span className="text-primary">Up to date</span>
                 )}
 
                 {/* Uncommitted changes */}

@@ -6,21 +6,17 @@
  */
 
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
-import { ArrowUp, Paperclip, X, ListChecks, ChevronDown, ListTodo, Code, Sparkles, MessageCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { useSettingsContext } from '@/contexts/SettingsContext'
 import { useClaudeMetrics } from '@/hooks/useClaudeMetrics'
-import { AnimatePresence, motion } from 'framer-motion'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { ContextGauge } from './ContextGauge'
+import { useThinkingMode as useThinkingModeHook } from '@/hooks/useThinkingMode'
+import { useArchitectMode as useArchitectModeHook } from '@/hooks/useArchitectMode'
+import { useAttachments } from '@/hooks/useAttachments'
+import { AttachmentsPills } from './ChatInput/AttachmentsPills'
+import { SlashCommandMenu } from './ChatInput/SlashCommandMenu'
+import { ChatInputControls } from './ChatInput/ChatInputControls'
 import { FEATURES } from '@/config/features'
 import type { ClaudeModel } from '@/types/settings'
-import { getArchitectMode, setArchitectMode } from '@/services/projectConfigLocal'
 
 const ipcRenderer = typeof window !== 'undefined' && (window as any).require ? (window as any).require('electron').ipcRenderer : null
 
@@ -87,7 +83,7 @@ const INPUT_STYLES = {
   },
   textarea: {
     padding: 'p-0',
-    minHeight: 'min-h-[108px]',
+    minHeight: 'min-h-[80px]',
     fontSize: 'text-base font-light',
   },
   controls: {
@@ -131,97 +127,26 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
   // Use passed contextMetrics if available, fallback to useClaudeMetrics
   const metrics = contextMetrics || fallbackMetrics
-  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
-  const [thinkingMode, setThinkingMode] = useState<ThinkingMode>('normal')
-  const [architectMode, setArchitectModeState] = useState<boolean>(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Custom hooks for state management
+  const { thinkingMode, setThinkingMode } = useThinkingModeHook()
+  const { architectMode, setArchitectMode: setArchitectModeHook } = useArchitectModeHook(workspacePath)
+  const {
+    attachedFiles,
+    handleFileSelect,
+    handleRemoveFile,
+    handleOpenFilePicker,
+    fileInputRef,
+    clearAttachments,
+    addFile,
+  } = useAttachments({
+    codeAttachment,
+    messageAttachment,
+  })
+
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // Load architect mode from workspace config
-  useEffect(() => {
-    if (!workspacePath) return;
-
-    const loadArchitectMode = async () => {
-      const enabled = await getArchitectMode(workspacePath);
-      setArchitectModeState(enabled);
-    };
-
-    loadArchitectMode();
-  }, [workspacePath]);
-
-  // Convert code attachment to AttachedFile when it changes
-  useEffect(() => {
-    if (!codeAttachment) {
-      // Remove code attachment from attachedFiles if it was removed
-      setAttachedFiles(prev => prev.filter(f => f.type !== 'code/selection'))
-      return
-    }
-
-    // Create AttachedFile from code attachment
-    const codeAttachmentId = `code-${codeAttachment.filePath}-${codeAttachment.lineStart}-${codeAttachment.lineEnd}`
-
-    // Check if this code attachment already exists (check inside setState to avoid re-triggering)
-    setAttachedFiles(prev => {
-      const exists = prev.some(f => f.id === codeAttachmentId)
-      if (exists) {
-        return prev // No change
-      }
-
-      const lineInfo = codeAttachment.lineEnd !== codeAttachment.lineStart
-        ? `${codeAttachment.lineStart}-${codeAttachment.lineEnd}`
-        : `${codeAttachment.lineStart}`
-
-      const codeFile: AttachedFile = {
-        id: codeAttachmentId,
-        name: `${codeAttachment.filePath}:${lineInfo}`,
-        type: 'code/selection',
-        size: codeAttachment.code.length,
-        url: '', // Not used for code
-        code: {
-          content: codeAttachment.code,
-          filePath: codeAttachment.filePath,
-          lineStart: codeAttachment.lineStart,
-          lineEnd: codeAttachment.lineEnd,
-        }
-      }
-
-      return [...prev, codeFile]
-    })
-  }, [codeAttachment]) // Removed attachedFiles from deps!
-
-  // Convert message attachment to AttachedFile when it changes
-  useEffect(() => {
-    if (!messageAttachment) {
-      // Remove message attachment from attachedFiles if it was removed
-      setAttachedFiles(prev => prev.filter(f => f.type !== 'message/reference'))
-      return
-    }
-
-    // Create AttachedFile from message attachment
-    const messageAttachmentId = `message-${messageAttachment.messageId}`
-
-    // Check if this message attachment already exists
-    setAttachedFiles(prev => {
-      const exists = prev.some(f => f.id === messageAttachmentId)
-      if (exists) {
-        return prev // No change
-      }
-
-      const messageFile: AttachedFile = {
-        id: messageAttachmentId,
-        name: 'Previous message',
-        type: 'message/reference',
-        size: messageAttachment.content.length,
-        url: '', // Not used for messages
-        message: {
-          id: messageAttachment.messageId,
-          content: messageAttachment.content,
-        }
-      }
-
-      return [...prev, messageFile]
-    })
-  }, [messageAttachment])
+  // Code and message attachments are now handled by useAttachments hook
 
   // Slash commands state
   const [availableCommands, setAvailableCommands] = useState<Array<{ name: string; fileName: string; description?: string }>>([])
@@ -274,14 +199,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
     try {
       const newValue = !architectMode;
-      await setArchitectMode(workspacePath, newValue);
-      setArchitectModeState(newValue);
+      await setArchitectModeHook(newValue);
       toast.success(newValue ? 'Architect Mode enabled' : 'Architect Mode disabled');
     } catch (error) {
       console.error('[ChatInput] Failed to toggle architect mode:', error);
       toast.error('Failed to toggle Architect Mode');
     }
-  }, [workspacePath, architectMode])
+  }, [workspacePath, architectMode, setArchitectModeHook])
 
   // Keyboard shortcut: Cmd/Ctrl+Shift+P for Plan mode
   useEffect(() => {
@@ -296,21 +220,21 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [togglePlanMode])
 
-  // Load slash commands when project changes
+  // Load slash commands when workspace changes
   useEffect(() => {
-    console.log('[ChatInput] 🔍 Slash Commands - projectPath:', projectPath)
+    console.log('[ChatInput] 🔍 Slash Commands - workspacePath:', workspacePath)
     console.log('[ChatInput] 🔍 Slash Commands - ipcRenderer:', !!ipcRenderer)
 
-    if (!projectPath || !ipcRenderer) {
-      console.log('[ChatInput] ⚠️ Slash Commands - Missing projectPath or ipcRenderer, clearing commands')
+    if (!workspacePath || !ipcRenderer) {
+      console.log('[ChatInput] ⚠️ Slash Commands - Missing workspacePath or ipcRenderer, clearing commands')
       setAvailableCommands([])
       return
     }
 
     const loadCommands = async () => {
       try {
-        console.log('[ChatInput] 📡 Slash Commands - Calling IPC with:', projectPath)
-        const result = await ipcRenderer.invoke('slash-commands:list', projectPath)
+        console.log('[ChatInput] 📡 Slash Commands - Calling IPC with:', workspacePath)
+        const result = await ipcRenderer.invoke('slash-commands:list', workspacePath)
         console.log('[ChatInput] 📥 Slash Commands - IPC Result:', result)
 
         if (result.success) {
@@ -325,7 +249,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }
 
     loadCommands()
-  }, [projectPath])
+  }, [workspacePath])
 
   // Detect slash command input
   useEffect(() => {
@@ -382,11 +306,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
   // Execute slash command
   const executeCommand = useCallback(async (commandName: string) => {
-    if (!projectPath || !ipcRenderer) return
+    if (!workspacePath || !ipcRenderer) return
 
     try {
       // Load command content
-      const result = await ipcRenderer.invoke('slash-commands:get', projectPath, commandName)
+      const result = await ipcRenderer.invoke('slash-commands:get', workspacePath, commandName)
 
       if (result.success) {
         // Clear input and close menu
@@ -404,75 +328,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       console.error('[ChatInput] Failed to execute command:', error)
       toast.error('Failed to execute command')
     }
-  }, [projectPath, onSubmit, attachedFiles, thinkingMode, onChange])
+  }, [workspacePath, onSubmit, attachedFiles, thinkingMode, architectMode, onChange])
 
-  // File attachment handling
-  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (!files || files.length === 0) return
-
-    const newFiles: AttachedFile[] = []
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i]
-
-      // Validate file size (max 10MB)
-      if (file.size > 10 * 1024 * 1024) {
-        toast.error(`File ${file.name} is too large (max 10MB)`)
-        continue
-      }
-
-      // Validate file type (images, PDFs, text files)
-      const allowedTypes = [
-        'image/png',
-        'image/jpeg',
-        'image/gif',
-        'image/webp',
-        'application/pdf',
-        'text/plain',
-        'text/markdown',
-      ]
-
-      if (!allowedTypes.includes(file.type)) {
-        toast.error(`File type ${file.type} is not supported`)
-        continue
-      }
-
-      // Create data URL for the file
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          newFiles.push({
-            id: `file-${Date.now()}-${i}`,
-            name: file.name,
-            type: file.type,
-            size: file.size,
-            url: event.target.result as string,
-          })
-
-          // Update state after all files are read
-          if (newFiles.length === files.length) {
-            setAttachedFiles((prev) => [...prev, ...newFiles])
-            toast.success(`${newFiles.length} file(s) attached`)
-          }
-        }
-      }
-      reader.readAsDataURL(file)
-    }
-
-    // Reset input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
-    }
-  }, [])
-
-  const handleRemoveFile = useCallback((fileId: string) => {
-    setAttachedFiles((prev) => prev.filter((f) => f.id !== fileId))
-  }, [])
-
-  const handleOpenFilePicker = useCallback(() => {
-    fileInputRef.current?.click()
-  }, [])
+  // File attachment handling is now done by useAttachments hook
 
   const handleSend = useCallback(async () => {
     if (!value.trim() && attachedFiles.length === 0) return
@@ -482,13 +340,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       // Use 'plan' mode if isPlanMode is true, otherwise use selected thinkingMode
       const effectiveMode = isPlanMode ? 'plan' : thinkingMode
       await onSubmit(value, attachedFiles, effectiveMode, architectMode)
-      setAttachedFiles([]) // Clear attachments after send
+      clearAttachments() // Clear attachments after send
       // Keep Plan Mode, Thinking Mode, and Architect Mode sticky - don't reset
     } catch (error) {
       console.error('[ChatInput] Submit error:', error)
       toast.error('Failed to send message')
     }
-  }, [value, attachedFiles, thinkingMode, isPlanMode, architectMode, disabled, onSubmit])
+  }, [value, attachedFiles, thinkingMode, isPlanMode, architectMode, disabled, onSubmit, clearAttachments])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -562,7 +420,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               url: event.target.result as string,
             }
 
-            setAttachedFiles((prev) => [...prev, newFile])
+            addFile(newFile)
             toast.success(
               `Long text (${(pastedText.length / 1000).toFixed(1)}k chars) converted to attachment`
             )
@@ -572,7 +430,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       }
       // If text is under threshold, allow normal paste (do nothing)
     },
-    [settings.attachments]
+    [settings.attachments, addFile]
   )
 
   // Auto-resize textarea
@@ -587,6 +445,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     },
     [onChange]
   )
+
+  // Reset textarea height when value is cleared
+  useEffect(() => {
+    if (value === '' && textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+    }
+  }, [value])
 
   // Handle compact action - delegates to parent component
   const handleCompact = useCallback(async () => {
@@ -623,190 +488,23 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     <div className={INPUT_STYLES.container.maxWidth}>
       {/* Input Card - Floating */}
       <div
-        className="relative w-full flex flex-col border-[0.5px] border-border rounded-2xl bg-muted p-4 gap-3 shadow-[0_-8px_40px_rgba(0,0,0,0.05),0_4px_6px_rgba(0,0,0,0.03)] dark:shadow-[0_-8px_40px_rgba(0,0,0,0.25),0_4px_6px_rgba(0,0,0,0.1)]"
+        className="relative w-full flex flex-col border-[0.5px] border-border rounded-[var(--block-radius)] bg-muted p-4 gap-3 shadow-[0_-8px_40px_rgba(0,0,0,0.05),0_4px_6px_rgba(0,0,0,0.03)] dark:shadow-[0_-8px_40px_rgba(0,0,0,0.25),0_4px_6px_rgba(0,0,0,0.1)]"
       >
         {/* Slash Command Menu */}
-        <AnimatePresence>
-          {showCommandMenu && filteredCommands.length > 0 && (
-            <motion.div
-              ref={commandMenuRef}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 10 }}
-              transition={{ duration: 0.15 }}
-              className="absolute bottom-full left-0 mb-2 w-1/2 min-w-[400px] bg-card border border-border rounded-xl shadow-lg overflow-hidden z-50"
-            >
-              <div className="p-1 max-h-64 overflow-y-auto">
-                {filteredCommands.map((command, index) => (
-                  <button
-                    key={command.name}
-                    onClick={() => executeCommand(command.name)}
-                    className={`w-full py-2 px-3 text-left cursor-pointer hover:bg-secondary/50 focus:bg-secondary/50 transition-colors rounded-md ${
-                      index === selectedCommandIndex ? 'bg-secondary' : ''
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-light flex-shrink-0">/{command.name}</span>
-                      {command.description && (
-                        <span className="text-xs text-muted-foreground/60 flex-1 truncate">
-                          {command.description}
-                        </span>
-                      )}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-          {/* Attachments - Only appears when files exist */}
-          <AnimatePresence>
-            {attachedFiles.length > 0 && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2, ease: 'easeInOut' }}
-                className="overflow-hidden"
-              >
-                <div>
-                  {/* Attachments Pills - Arc-inspired design */}
-                  <div className="flex flex-wrap gap-2">
-                    {attachedFiles.map((file) => {
-                      // Handle message reference attachments
-                      if (file.type === 'message/reference' && file.message) {
-                        return (
-                          <div
-                            key={file.id}
-                            className="group flex items-center gap-2 pl-2 pr-2 py-2 rounded-xl bg-card transition-all"
-                          >
-                            {/* Message icon - Green */}
-                            <div className="flex-shrink-0">
-                              <div className="w-6 h-[30px] rounded-md bg-green-500/20 flex items-center justify-center">
-                                <MessageCircle className="w-3 h-3 text-green-400" strokeWidth={2} />
-                              </div>
-                            </div>
-
-                            {/* Message info - Vertical layout */}
-                            <div className="flex flex-col justify-center min-w-0 gap-1">
-                              <span className="text-sm font-light text-foreground max-w-[160px] truncate leading-tight">
-                                Previous message
-                              </span>
-                              <span className="text-[10px] text-muted-foreground font-medium leading-tight">
-                                {(file.message.content.length / 1000).toFixed(1)}k chars
-                              </span>
-                            </div>
-
-                            {/* Remove button */}
-                            <button
-                              onClick={() => {
-                                handleRemoveFile(file.id)
-                                onMessageAttachmentRemove?.()
-                              }}
-                              className="ml-0.5 p-0.5 rounded-md transition-colors opacity-60 group-hover:opacity-100 hover:text-foreground hover:bg-secondary/30 dark:hover:text-white dark:hover:bg-secondary/20"
-                              aria-label="Remove message reference"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </div>
-                        )
-                      }
-
-                      // Handle code attachments differently
-                      if (file.type === 'code/selection' && file.code) {
-                        const pathParts = file.code.filePath.split('/')
-                        const fileName = pathParts[pathParts.length - 1]
-                        const lineInfo = file.code.lineEnd !== file.code.lineStart
-                          ? `${file.code.lineStart}-${file.code.lineEnd}`
-                          : `${file.code.lineStart}`
-
-                        return (
-                          <div
-                            key={file.id}
-                            className="group flex items-center gap-2 pl-2 pr-2 py-2 rounded-xl bg-card transition-all"
-                          >
-                            {/* Code icon - Purple */}
-                            <div className="flex-shrink-0">
-                              <div className="w-6 h-[30px] rounded-md bg-purple-500/20 flex items-center justify-center">
-                                <Code className="w-3 h-3 text-purple-400" strokeWidth={2} />
-                              </div>
-                            </div>
-
-                            {/* Code info - Vertical layout */}
-                            <div className="flex flex-col justify-center min-w-0 gap-1">
-                              <span className="text-sm font-light text-foreground max-w-[160px] truncate leading-tight font-mono">
-                                {fileName}
-                              </span>
-                              <span className="text-[10px] text-muted-foreground font-medium leading-tight font-mono">
-                                :{lineInfo}
-                              </span>
-                            </div>
-
-                            {/* Remove button */}
-                            <button
-                              onClick={() => {
-                                handleRemoveFile(file.id)
-                                onCodeAttachmentRemove?.()
-                              }}
-                              className="ml-0.5 p-0.5 rounded-md transition-colors opacity-60 group-hover:opacity-100 hover:text-foreground hover:bg-secondary/30 dark:hover:text-white dark:hover:bg-secondary/20"
-                              aria-label="Remove code attachment"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </div>
-                        )
-                      }
-
-                      // Regular file attachments
-                      const extension = file.name.split('.').pop()?.toUpperCase() || 'FILE';
-                      const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
-
-                      return (
-                        <div
-                          key={file.id}
-                          className="group flex items-center gap-2 pl-2 pr-2 py-2 rounded-xl bg-card transition-all"
-                        >
-                          {/* Icon/Thumbnail - Vertical rectangle */}
-                          <div className="flex-shrink-0">
-                            {file.type.startsWith('image/') ? (
-                              <img
-                                src={file.url}
-                                alt={file.name}
-                                className="w-6 h-[30px] rounded-md object-cover"
-                              />
-                            ) : (
-                              <div className="w-6 h-[30px] rounded-md bg-black flex items-center justify-center">
-                                <Paperclip className="w-3 h-3 text-muted-foreground" />
-                              </div>
-                            )}
-                          </div>
-
-                          {/* File info - Vertical layout with spacing */}
-                          <div className="flex flex-col justify-center min-w-0 gap-1">
-                            <span className="text-sm font-light text-foreground max-w-[160px] truncate leading-tight">
-                              {nameWithoutExt}
-                            </span>
-                            <span className="text-[10px] text-muted-foreground font-medium leading-tight">
-                              {extension}
-                            </span>
-                          </div>
-
-                          {/* Remove button */}
-                          <button
-                            onClick={() => handleRemoveFile(file.id)}
-                            className="ml-0.5 p-0.5 rounded-md transition-colors opacity-60 group-hover:opacity-100 hover:text-foreground hover:bg-secondary/30 dark:hover:text-white dark:hover:bg-secondary/20"
-                            aria-label="Remove attachment"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+        <SlashCommandMenu
+          showCommandMenu={showCommandMenu}
+          filteredCommands={filteredCommands}
+          selectedCommandIndex={selectedCommandIndex}
+          onExecuteCommand={executeCommand}
+          commandMenuRef={commandMenuRef}
+        />
+          {/* Attachments */}
+          <AttachmentsPills
+            attachedFiles={attachedFiles}
+            onRemoveFile={handleRemoveFile}
+            onCodeAttachmentRemove={onCodeAttachmentRemove}
+            onMessageAttachmentRemove={onMessageAttachmentRemove}
+          />
 
           {/* Textarea */}
           <textarea
@@ -823,155 +521,31 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           />
 
           {/* Control Bar */}
-          <div className="flex items-center justify-between">
-            {/* Left: Control buttons */}
-            {showControls && (
-              <div className={`flex ${INPUT_STYLES.controls.gap} items-center`}>
-                {/* Attach File Button */}
-                <button
-                  onClick={handleOpenFilePicker}
-                  disabled={disabled}
-                  className={`inline-flex items-center ${INPUT_STYLES.controls.attachButton} text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-50`}
-                  title="Attach files"
-                >
-                  <Paperclip size={INPUT_STYLES.controls.attachIconSize} strokeWidth={1.5} />
-                </button>
-
-                {/* Model Selector - Cycle through models on click */}
-                <button
-                  onClick={cycleModel}
-                  disabled={disabled}
-                  className={`inline-flex items-center ${INPUT_STYLES.controls.modelButton} text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-50`}
-                  title={`Current: ${modelLabels[settings.model.default]} (click to cycle)`}
-                >
-                  <span className="font-light">{modelLabels[settings.model.default]}</span>
-                </button>
-
-                {/* Thinking Mode Selector */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      className={`inline-flex items-center gap-1 ${INPUT_STYLES.controls.modelButton} text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors`}
-                      disabled={disabled}
-                    >
-                      <span className="font-light">{thinkingModeLabels[thinkingMode]}</span>
-                      <ChevronDown size={12} strokeWidth={1.5} />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-40 p-1">
-                    <DropdownMenuItem
-                      onClick={() => setThinkingMode('normal')}
-                      className={`py-2 px-3 cursor-pointer hover:bg-secondary/50 focus:bg-secondary/50 ${thinkingMode === 'normal' ? 'bg-secondary' : ''}`}
-                    >
-                      <span className="text-sm font-light">Normal</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => setThinkingMode('think')}
-                      className={`py-2 px-3 cursor-pointer hover:bg-secondary/50 focus:bg-secondary/50 ${thinkingMode === 'think' ? 'bg-secondary' : ''}`}
-                    >
-                      <span className="text-sm font-light">Think</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => setThinkingMode('megathink')}
-                      className={`py-2 px-3 cursor-pointer hover:bg-secondary/50 focus:bg-secondary/50 ${thinkingMode === 'megathink' ? 'bg-secondary' : ''}`}
-                    >
-                      <span className="text-sm font-light">Megathink</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => setThinkingMode('ultrathink')}
-                      className={`py-2 px-3 cursor-pointer hover:bg-secondary/50 focus:bg-secondary/50 ${thinkingMode === 'ultrathink' ? 'bg-secondary' : ''}`}
-                    >
-                      <span className="text-sm font-light">Ultrathink</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                {/* Architect Mode Toggle Button */}
-                <button
-                  onClick={toggleArchitectMode}
-                  disabled={disabled || !workspacePath}
-                  className={`inline-flex items-center justify-center ${INPUT_STYLES.controls.sourcesButton} transition-colors ${
-                    architectMode
-                      ? 'bg-[#192621] text-white hover:bg-[#223330] border border-[#2A3D35]'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
-                  }`}
-                  title={architectMode ? 'Architect Mode ON' : 'Architect Mode OFF'}
-                >
-                  <Sparkles size={INPUT_STYLES.controls.sourcesIconSize} strokeWidth={1.5} />
-                </button>
-
-                {/* Plan Mode Toggle Button - Feature Flag Controlled */}
-                {FEATURES.PLAN_MODE && (
-                  <button
-                    onClick={togglePlanMode}
-                    className={`inline-flex items-center justify-center ${INPUT_STYLES.controls.sourcesButton} transition-colors ${
-                      isPlanMode
-                        ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
-                    }`}
-                    title="Toggle Plan Mode (⌘⇧P)"
-                  >
-                    <ListChecks size={INPUT_STYLES.controls.sourcesIconSize} strokeWidth={1.5} />
-                  </button>
-                )}
-
-                {/* Add as Todo Button - DISABLED */}
-                {false && onAddTodo && value.trim() && (
-                  <button
-                    onClick={handleAddAsTodo}
-                    disabled={disabled}
-                    className={`inline-flex items-center justify-center ${INPUT_STYLES.controls.sourcesButton} text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-50`}
-                    title="Add as Task"
-                  >
-                    <ListTodo size={INPUT_STYLES.controls.sourcesIconSize} strokeWidth={1.5} />
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* Right: Context Gauge and Send or Cancel button */}
-            <div className="flex items-center gap-2">
-              {showControls && (
-                /* Context Gauge */
-                <ContextGauge
-                  percentage={metrics?.context.percentage ?? 0}
-                  current={metrics?.context.current}
-                  limit={metrics?.context.limit}
-                  onCompact={handleCompact}
-                  disabled={disabled}
-                />
-              )}
-              {isSending && onCancel ? (
-              /* Cancel button when sending */
-              <button
-                onClick={onCancel}
-                disabled={isCancelling}
-                className={`${INPUT_STYLES.sendButton.size} ${INPUT_STYLES.sendButton.borderRadius} flex items-center justify-center transition-all shrink-0 ${
-                  isCancelling
-                    ? 'bg-muted/50 text-muted-foreground/40 cursor-not-allowed'
-                    : 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
-                }`}
-                title={isCancelling ? "Cancelling..." : "Cancel message"}
-              >
-                <X size={INPUT_STYLES.sendButton.iconSize} strokeWidth={2} />
-              </button>
-            ) : (
-              /* Send button */
-              <button
-                onClick={handleSend}
-                disabled={(!value.trim() && attachedFiles.length === 0) || disabled}
-                className={`${INPUT_STYLES.sendButton.size} ${INPUT_STYLES.sendButton.borderRadius} flex items-center justify-center transition-all shrink-0 ${
-                  (!value.trim() && attachedFiles.length === 0) || disabled
-                    ? 'bg-muted/50 text-muted-foreground/40 cursor-not-allowed'
-                    : 'bg-[#192621] text-white hover:bg-[#223330] border border-[#2A3D35]'
-                }`}
-                title="Send message (Cmd/Ctrl+Enter)"
-              >
-                <ArrowUp size={INPUT_STYLES.sendButton.iconSize} strokeWidth={2} />
-              </button>
-            )}
-            </div>
-          </div>
+          <ChatInputControls
+            showControls={showControls}
+            disabled={disabled}
+            isSending={isSending}
+            isCancelling={isCancelling}
+            value={value}
+            hasAttachments={attachedFiles.length > 0}
+            onAttachFile={handleOpenFilePicker}
+            onCycleModel={cycleModel}
+            onSend={handleSend}
+            onCancel={onCancel}
+            onCompact={handleCompact}
+            currentModel={settings.model.default}
+            modelLabels={modelLabels}
+            thinkingMode={thinkingMode}
+            thinkingModeLabels={thinkingModeLabels}
+            onThinkingModeChange={setThinkingMode}
+            architectMode={architectMode}
+            onArchitectModeToggle={toggleArchitectMode}
+            workspacePath={workspacePath}
+            isPlanMode={isPlanMode}
+            onPlanModeToggle={togglePlanMode}
+            contextMetrics={metrics}
+            INPUT_STYLES={INPUT_STYLES}
+          />
         </div>
 
       {/* Hidden file input */}

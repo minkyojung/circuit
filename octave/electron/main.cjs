@@ -45,8 +45,8 @@ async function getAPIServerInstance() {
   if (!apiServerPromise) {
     apiServerPromise = (async () => {
       const mcpManager = await getMCPManagerInstance();
-      const { CircuitAPIServer } = await import('../dist-electron/api-server.js');
-      return new CircuitAPIServer(mcpManager);
+      const { OctaveAPIServer } = await import('../dist-electron/api-server.js');
+      return new OctaveAPIServer(mcpManager);
     })();
   }
   return apiServerPromise;
@@ -1721,7 +1721,7 @@ ipcMain.handle('github:send-test-webhook', async (event, eventType) => {
  * Resolves from: /path/to/project/.conductor/workspace/octave/electron
  * To: /path/to/project
  */
-ipcMain.handle('circuit:get-project-path', async () => {
+ipcMain.handle('octave:get-project-path', async () => {
   try {
     // Get the electron directory path
     // e.g., /Users/williamjung/conductor/circuit-1/.conductor/hyderabad/octave/electron
@@ -2415,7 +2415,7 @@ ipcMain.handle('typescript:get-outline', async (event, filePath) => {
 /**
  * Read MCP config from local apps (Claude Desktop, Cursor, Windsurf, etc.)
  */
-ipcMain.handle('circuit:read-mcp-config', async (event, configPath) => {
+ipcMain.handle('octave:read-mcp-config', async (event, configPath) => {
   try {
     // Expand ~ to home directory
     const expandedPath = configPath.replace(/^~/, os.homedir());
@@ -2484,7 +2484,7 @@ ipcMain.handle('circuit:read-mcp-config', async (event, configPath) => {
 /**
  * Phase 2: Detect project type from package.json
  */
-ipcMain.handle('circuit:detect-project', async (event, projectPath) => {
+ipcMain.handle('octave:detect-project', async (event, projectPath) => {
   try {
     const packageJsonPath = path.join(projectPath, 'package.json');
     const packageJsonContent = await fs.readFile(packageJsonPath, 'utf-8');
@@ -2505,7 +2505,7 @@ ipcMain.handle('circuit:detect-project', async (event, projectPath) => {
 /**
  * Phase 2: Initialize with detected strategy
  */
-ipcMain.handle('circuit:init', async (event, projectPath, strategy = 'react') => {
+ipcMain.handle('octave:init', async (event, projectPath, strategy = 'react') => {
   try {
     // 1. Create .circuit/ directory structure
     const circuitDir = path.join(projectPath, '.circuit');
@@ -2571,7 +2571,7 @@ const activeWatchers = new Map();
 /**
  * Phase 3: Start watching files in project directory
  */
-ipcMain.handle('circuit:watch-start', async (event, projectPath) => {
+ipcMain.handle('octave:watch-start', async (event, projectPath) => {
   try {
     // Stop existing watcher if any
     if (activeWatchers.has(projectPath)) {
@@ -2614,7 +2614,7 @@ ipcMain.handle('circuit:watch-start', async (event, projectPath) => {
       };
 
       // Send to renderer
-      event.sender.send('circuit:file-changed', changeEvent);
+      event.sender.send('octave:file-changed', changeEvent);
     };
 
     watcher
@@ -2640,7 +2640,7 @@ ipcMain.handle('circuit:watch-start', async (event, projectPath) => {
 /**
  * Phase 3: Stop watching files
  */
-ipcMain.handle('circuit:watch-stop', async (event, projectPath) => {
+ipcMain.handle('octave:watch-stop', async (event, projectPath) => {
   try {
     if (activeWatchers.has(projectPath)) {
       const watcher = activeWatchers.get(projectPath);
@@ -2667,7 +2667,7 @@ ipcMain.handle('circuit:watch-stop', async (event, projectPath) => {
 /**
  * Phase 4: Run tests in project directory
  */
-ipcMain.handle('circuit:run-test', async (event, projectPath) => {
+ipcMain.handle('octave:run-test', async (event, projectPath) => {
   try {
     const startTime = Date.now();
 
@@ -2770,7 +2770,7 @@ const CLAUDE_CLI_PATH = path.join(os.homedir(), '.claude/local/claude');
 /**
  * Phase 5: Get AI fix suggestion using Claude CLI (no API key needed!)
  */
-ipcMain.handle('circuit:get-ai-fix', async (event, fixRequest) => {
+ipcMain.handle('octave:get-ai-fix', async (event, fixRequest) => {
   try {
     // 1. Check if Claude CLI exists
     try {
@@ -2913,7 +2913,7 @@ IMPORTANT: In the "Fixed Code" section, provide the COMPLETE corrected file cont
 /**
  * Phase 6: Apply AI-suggested fix to file
  */
-ipcMain.handle('circuit:apply-fix', async (event, applyRequest) => {
+ipcMain.handle('octave:apply-fix', async (event, applyRequest) => {
   try {
     const { filePath, fixedCode } = applyRequest;
 
@@ -2959,8 +2959,8 @@ ipcMain.handle('circuit:apply-fix', async (event, applyRequest) => {
 /**
  * Install a new MCP server
  */
-ipcMain.handle('circuit:mcp-install', async (event, packageId, config) => {
-  console.log('[IPC] circuit:mcp-install called with:', packageId, config);
+ipcMain.handle('octave:mcp-install', async (event, packageId, config) => {
+  console.log('[IPC] octave:mcp-install called with:', packageId, config);
   try {
     console.log('[IPC] Getting MCP Manager instance...');
     const manager = await getMCPManagerInstance();
@@ -2974,12 +2974,12 @@ ipcMain.handle('circuit:mcp-install', async (event, packageId, config) => {
     return { success: false, error: error.message };
   }
 });
-console.log('[main.cjs] circuit:mcp-install handler registered');
+console.log('[main.cjs] octave:mcp-install handler registered');
 
 /**
  * Uninstall an MCP server
  */
-ipcMain.handle('circuit:mcp-uninstall', async (event, serverId) => {
+ipcMain.handle('octave:mcp-uninstall', async (event, serverId) => {
   try {
     const manager = await getMCPManagerInstance();
     await manager.uninstall(serverId);
@@ -2993,7 +2993,7 @@ ipcMain.handle('circuit:mcp-uninstall', async (event, serverId) => {
 /**
  * Start an MCP server
  */
-ipcMain.handle('circuit:mcp-start', async (event, serverId) => {
+ipcMain.handle('octave:mcp-start', async (event, serverId) => {
   try {
     const manager = await getMCPManagerInstance();
     await manager.start(serverId);
@@ -3007,7 +3007,7 @@ ipcMain.handle('circuit:mcp-start', async (event, serverId) => {
 /**
  * Stop an MCP server
  */
-ipcMain.handle('circuit:mcp-stop', async (event, serverId) => {
+ipcMain.handle('octave:mcp-stop', async (event, serverId) => {
   try {
     const manager = await getMCPManagerInstance();
     await manager.stop(serverId);
@@ -3021,7 +3021,7 @@ ipcMain.handle('circuit:mcp-stop', async (event, serverId) => {
 /**
  * Restart an MCP server
  */
-ipcMain.handle('circuit:mcp-restart', async (event, serverId) => {
+ipcMain.handle('octave:mcp-restart', async (event, serverId) => {
   try {
     const manager = await getMCPManagerInstance();
     await manager.restart(serverId);
@@ -3035,7 +3035,7 @@ ipcMain.handle('circuit:mcp-restart', async (event, serverId) => {
 /**
  * List tools from a server
  */
-ipcMain.handle('circuit:mcp-list-tools', async (event, serverId) => {
+ipcMain.handle('octave:mcp-list-tools', async (event, serverId) => {
   try {
     const manager = await getMCPManagerInstance();
     const tools = await manager.listTools(serverId);
@@ -3049,7 +3049,7 @@ ipcMain.handle('circuit:mcp-list-tools', async (event, serverId) => {
 /**
  * Call a tool
  */
-ipcMain.handle('circuit:mcp-call-tool', async (event, serverId, toolName, args) => {
+ipcMain.handle('octave:mcp-call-tool', async (event, serverId, toolName, args) => {
   try {
     const manager = await getMCPManagerInstance();
     const result = await manager.callTool(serverId, toolName, args);
@@ -3063,7 +3063,7 @@ ipcMain.handle('circuit:mcp-call-tool', async (event, serverId, toolName, args) 
 /**
  * Get status of a specific server
  */
-ipcMain.handle('circuit:mcp-get-status', async (event, serverId) => {
+ipcMain.handle('octave:mcp-get-status', async (event, serverId) => {
   try {
     const manager = await getMCPManagerInstance();
     const status = await manager.getStatus(serverId);
@@ -3077,7 +3077,7 @@ ipcMain.handle('circuit:mcp-get-status', async (event, serverId) => {
 /**
  * Get status of all servers
  */
-ipcMain.handle('circuit:mcp-get-all-status', async (event) => {
+ipcMain.handle('octave:mcp-get-all-status', async (event) => {
   try {
     const manager = await getMCPManagerInstance();
     const statuses = await manager.getAllStatuses();
@@ -3091,7 +3091,7 @@ ipcMain.handle('circuit:mcp-get-all-status', async (event) => {
 /**
  * Get logs for a server
  */
-ipcMain.handle('circuit:mcp-get-logs', async (event, serverId, lines = 100) => {
+ipcMain.handle('octave:mcp-get-logs', async (event, serverId, lines = 100) => {
   try {
     const manager = await getMCPManagerInstance();
     const logs = await manager.getLogs(serverId, lines);
@@ -3102,7 +3102,7 @@ ipcMain.handle('circuit:mcp-get-logs', async (event, serverId, lines = 100) => {
   }
 });
 
-ipcMain.handle('circuit:reload-claude-code', async (event, openVSCode = true) => {
+ipcMain.handle('octave:reload-claude-code', async (event, openVSCode = true) => {
   try {
     const { exec } = require('child_process');
     const util = require('util');

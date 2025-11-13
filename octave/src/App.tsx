@@ -2,9 +2,11 @@ import { useState, useEffect, createContext, useContext, useMemo, useRef } from 
 import { CommitDialog } from "@/components/workspace/CommitDialog"
 import { AppSidebar } from "@/components/AppSidebar"
 import { TodoPanel } from "@/components/TodoPanel"
-import { GitTestPanel } from "@/components/git/GitTestPanel"
 import { WorkspaceEmptyState } from "@/components/workspace/WorkspaceEmptyState"
 import { ChatPanel, EditorPanel } from "@/components/workspace/WorkspaceChatEditor"
+import { ChatPanelRenderer } from "@/components/panels/ChatPanelRenderer"
+import { EditorPanelRenderer } from "@/components/panels/EditorPanelRenderer"
+import { SettingsPanelRenderer } from "@/components/panels/SettingsPanelRenderer"
 import { QuickOpenSearch } from "@/components/QuickOpenSearch"
 import {
   Breadcrumb,
@@ -41,8 +43,12 @@ import {
 import type { Workspace } from "@/types/workspace"
 import { PanelLeft, PanelRight, FolderGit2, Columns2, GitBranch } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { readCircuitConfig, logCircuitStatus } from '@/core/config-reader'
+import { readOctaveConfig, logOctaveStatus } from '@/core/config-reader'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
+import { useAppKeyboardShortcuts } from '@/hooks/useAppKeyboardShortcuts'
+import { useConversationManagement } from '@/hooks/useConversationManagement'
+import { useFileNavigation } from '@/hooks/useFileNavigation'
+import { useWorkspaceNavigation } from '@/hooks/useWorkspaceNavigation'
 import { SettingsProvider } from '@/contexts/SettingsContext'
 import { TerminalProvider } from '@/contexts/TerminalContext'
 import { AgentProvider } from '@/contexts/AgentContext'
@@ -62,7 +68,7 @@ import { EditorGroupPanel } from '@/components/editor'
 import { DEFAULT_GROUP_ID, SECONDARY_GROUP_ID } from '@/types/editor'
 import { PathResolver } from '@/lib/pathResolver'
 import { SettingsPanel } from '@/components/SettingsPanel'
-import { isOnboardingComplete } from '@/lib/onboarding'
+import { isOnboardingComplete, migrateAllLocalStorageKeys } from '@/lib/onboarding'
 import './App.css'
 
 const ipcRenderer = window.electron.ipcRenderer;
@@ -196,6 +202,11 @@ function MainHeader({
 }
 
 function App() {
+  // 🔄 Run localStorage migration on app startup (once)
+  useEffect(() => {
+    migrateAllLocalStorageKeys();
+  }, []);
+
   const [showOnboarding, setShowOnboarding] = useState<boolean>(() => !isOnboardingComplete())
   const [projectPath, setProjectPath] = useState<string>('')
   const [isLoadingPath, setIsLoadingPath] = useState<boolean>(true)
@@ -203,17 +214,10 @@ function App() {
   const [showCommitDialog, setShowCommitDialog] = useState<boolean>(false)
   const [chatPrefillMessage, setChatPrefillMessage] = useState<string | null>(null)
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState<boolean>(() => {
-    const saved = localStorage.getItem('circuit-right-sidebar-state')
+    const saved = localStorage.getItem('octave-right-sidebar-state')
     return saved !== null ? JSON.parse(saved) : true // 기본값: 열림
   })
   const [currentRepository, setCurrentRepository] = useState<any>(null)
-
-  // State for conversation deletion confirmation modal
-  const [pendingDeleteConversation, setPendingDeleteConversation] = useState<{
-    conversationId: string
-    tabId: string
-    groupId: string
-  } | null>(null)
 
   // Path resolver for consistent file path normalization
   const [pathResolver, setPathResolver] = useState<PathResolver | null>(null)
@@ -287,13 +291,6 @@ function App() {
     setPathResolver(new PathResolver(projectRoot))
   }, [selectedWorkspace?.path])
 
-  // File cursor position for jumping to line
-  const [fileCursorPosition, setFileCursorPosition] = useState<{
-    filePath: string
-    lineStart: number
-    lineEnd: number
-  } | null>(null)
-
   // Code selection action for editor
   const [codeSelectionAction, setCodeSelectionAction] = useState<{
     type: 'ask' | 'explain' | 'optimize' | 'add-tests'
@@ -351,6 +348,48 @@ function App() {
   const primaryGroup = editorGroups.find(g => g.id === DEFAULT_GROUP_ID) || editorGroups[0]
   const secondaryGroup = editorGroups.find(g => g.id === SECONDARY_GROUP_ID) || editorGroups[1]
 
+  // Conversation management (extracted to custom hook)
+  const {
+    handleConversationSelect,
+    handleCreateConversation,
+    confirmDeleteConversation,
+    pendingDeleteConversation,
+    setPendingDeleteConversation,
+  } = useConversationManagement({
+    selectedWorkspace,
+    openTab,
+    closeTab,
+    focusedGroupIdRef,
+  })
+
+  // File navigation (extracted to custom hook)
+  const {
+    handleFileSelect,
+    handleUnsavedChange,
+    fileCursorPosition,
+  } = useFileNavigation({
+    pathResolver,
+    selectedWorkspace,
+    openTab,
+    findTab,
+    updateTab,
+    focusedGroupIdRef,
+  })
+
+  // Workspace navigation (extracted to custom hook)
+  const {
+    handleWorkspaceSelect,
+    handleWorkspaceSelectById,
+    workspacesRef,
+    setWorkspacesForShortcuts,
+  } = useWorkspaceNavigation({
+    setSelectedWorkspace,
+    getAllTabs,
+    findTab,
+    activateTab,
+    openTab,
+  })
+
   // Get active conversation ID for TodoPanel (from primary group's active conversation tab)
   const activeConversationId = useMemo(() => {
     const activeTab = getActiveTab(DEFAULT_GROUP_ID)
@@ -369,86 +408,45 @@ function App() {
     return null
   }, [primaryGroup.activeTabId, getActiveTab])
 
-  // Render functions for panels
-  const renderChatPanel = (conversationId: string, workspaceId: string) => {
-    if (!selectedWorkspace) return null
+  // Render functions for panels (now using dedicated components)
+  const renderChatPanel = (conversationId: string, workspaceId: string) => (
+    <ChatPanelRenderer
+      conversationId={conversationId}
+      workspaceId={workspaceId}
+      selectedWorkspace={selectedWorkspace}
+      sessionId={sessionId}
+      handleFileSelect={handleFileSelect}
+      chatPrefillMessage={chatPrefillMessage}
+      setChatPrefillMessage={setChatPrefillMessage}
+      openTab={openTab}
+      codeSelectionAction={codeSelectionAction}
+      setCodeSelectionAction={setCodeSelectionAction}
+    />
+  )
 
-    return (
-      <ChatPanel
-        workspace={selectedWorkspace}
-        sessionId={sessionId}
-        onFileEdit={handleFileSelect}
-        prefillMessage={chatPrefillMessage}
-        externalConversationId={conversationId}
-        onPrefillCleared={() => setChatPrefillMessage(null)}
-        onConversationChange={async (convId) => {
-          // Update the conversation tab when conversation changes
-          if (convId && convId !== conversationId) {
-            try {
-              // Fetch conversation to get title
-              const result = await ipcRenderer.invoke('conversation:get', convId)
-              const conversationTitle = result?.conversation?.title || 'Chat'
+  const renderEditorPanel = (filePath: string) => (
+    <EditorPanelRenderer
+      filePath={filePath}
+      selectedWorkspace={selectedWorkspace}
+      sessionId={sessionId}
+      getAllTabs={getAllTabs}
+      findTab={findTab}
+      closeTab={closeTab}
+      handleUnsavedChange={handleUnsavedChange}
+      fileCursorPosition={fileCursorPosition}
+      setCodeSelectionAction={setCodeSelectionAction}
+    />
+  )
 
-              const newTab = createConversationTab(convId, workspaceId, conversationTitle, selectedWorkspace?.name)
-              openTab(newTab)
-            } catch (error) {
-              console.error('[App] Error fetching conversation title:', error)
-              // Fallback to workspace name
-              const newTab = createConversationTab(convId, workspaceId, undefined, selectedWorkspace?.name)
-              openTab(newTab)
-            }
-          }
-        }}
-        onFileReferenceClick={handleFileSelect}
-        codeSelectionAction={codeSelectionAction}
-        onCodeSelectionHandled={() => setCodeSelectionAction(null)}
-      />
-    )
-  }
-
-  const renderEditorPanel = (filePath: string) => {
-    if (!selectedWorkspace) return null
-
-    // Get all file tabs for openFiles list
-    const fileTabs = getAllTabs().filter(t => t.type === 'file')
-    const openFilePaths = fileTabs.map(t => (t as any).data.filePath)
-
-    return (
-      <EditorPanel
-        workspace={selectedWorkspace}
-        sessionId={sessionId}
-        openFiles={openFilePaths}
-        selectedFile={filePath}
-        onCloseFile={(path) => {
-          // Find and close the file tab (using workspace-scoped ID)
-          const tabId = `file-${selectedWorkspace.id}-${path}`
-          const result = findTab(tabId)
-          if (result) {
-            closeTab(result.tab.id, result.groupId)
-          }
-        }}
-        onUnsavedChange={handleUnsavedChange}
-        fileCursorPosition={fileCursorPosition}
-        onCodeSelectionAction={setCodeSelectionAction}
-      />
-    )
-  }
-
-  const renderSettingsPanel = () => {
-    return <SettingsPanel workspacePath={selectedWorkspace?.path} />
-  }
-
-  // Workspace navigation refs (for keyboard shortcuts)
-  const workspacesRef = useRef<Workspace[]>([])
-  const setWorkspacesForShortcuts = (workspaces: Workspace[]) => {
-    workspacesRef.current = workspaces
-  }
+  const renderSettingsPanel = () => (
+    <SettingsPanelRenderer selectedWorkspace={selectedWorkspace} />
+  )
 
   // Toggle right sidebar with localStorage persistence
   const toggleRightSidebar = () => {
     setIsRightSidebarOpen(prev => {
       const newState = !prev
-      localStorage.setItem('circuit-right-sidebar-state', JSON.stringify(newState))
+      localStorage.setItem('octave-right-sidebar-state', JSON.stringify(newState))
       return newState
     })
   }
@@ -475,7 +473,7 @@ function App() {
     const loadProjectPath = async () => {
       try {
         const ipcRenderer = window.electron.ipcRenderer;
-        const result = await ipcRenderer.invoke('circuit:get-project-path')
+        const result = await ipcRenderer.invoke('octave:get-project-path')
 
         if (result.success) {
           console.log('[App] Project path loaded:', result.projectPath)
@@ -497,12 +495,12 @@ function App() {
   useEffect(() => {
     if (!projectPath) return
 
-    const checkCircuitConfig = async () => {
-      const config = await readCircuitConfig(projectPath)
-      logCircuitStatus(config)
+    const checkOctaveConfig = async () => {
+      const config = await readOctaveConfig(projectPath)
+      logOctaveStatus(config)
     }
 
-    checkCircuitConfig()
+    checkOctaveConfig()
   }, [projectPath])
 
   // Extract repository name from current repository or project path
@@ -516,72 +514,6 @@ function App() {
   // ============================================================================
   // NEW: File/Conversation Handlers (Unified Tab System)
   // ============================================================================
-
-  // Handle file selection from sidebar or file reference pills
-  const handleFileSelect = async (filePath: string, lineStart?: number, lineEnd?: number) => {
-    // Guard: PathResolver must be initialized
-    if (!pathResolver) {
-      console.error('[App] PathResolver not initialized - cannot open file');
-      toast.error('파일 경로 변환기가 초기화되지 않았습니다');
-      return;
-    }
-
-    // Guard: Workspace must be selected
-    if (!selectedWorkspace) {
-      console.error('[App] No workspace selected - cannot open file');
-      toast.error('워크스페이스가 선택되지 않았습니다');
-      return;
-    }
-
-    // ✅ STEP 1: Normalize file path using PathResolver
-    const normalizedPath = pathResolver.normalize(filePath);
-    const absolutePath = pathResolver.toAbsolute(normalizedPath);
-
-    console.log('[App] Opening file:', {
-      original: filePath,
-      normalized: normalizedPath,
-      absolute: absolutePath,
-      workspaceId: selectedWorkspace.id,
-      projectRoot: pathResolver.getProjectRoot()
-    });
-
-    // ✅ STEP 2: Validate file existence
-    try {
-      const exists = await ipcRenderer.invoke('file-exists', absolutePath);
-
-      if (!exists) {
-        console.warn('[App] File does not exist:', normalizedPath);
-        toast.error(`파일을 찾을 수 없습니다: ${normalizedPath}`);
-        return;
-      }
-    } catch (error) {
-      console.error('[App] Error checking file existence:', normalizedPath, error);
-      toast.error(`파일 확인 중 오류 발생: ${normalizedPath}`);
-      return;
-    }
-
-    // ✅ STEP 3: Create file tab with workspace-scoped identity
-    const currentFocusedGroup = focusedGroupIdRef.current;
-    const tab = createFileTab(
-      normalizedPath,
-      selectedWorkspace.id,  // ✅ Workspace-scoped tab ID
-      getFileName(normalizedPath)
-    );
-
-    // Open in currently focused group
-    openTab(tab, currentFocusedGroup);
-
-    // ✅ STEP 4: Store line selection with normalized path
-    if (lineStart) {
-      setFileCursorPosition({
-        filePath: normalizedPath,
-        lineStart,
-        lineEnd: lineEnd || lineStart
-      });
-    } else {
-      setFileCursorPosition(null);
-    }
-  }
 
   // Handle tab click with workspace synchronization
   const handleTabClick = (tabId: string, groupId: string) => {
@@ -604,112 +536,6 @@ function App() {
     }
   }
 
-  // Handle workspace selection with tab synchronization
-  const handleWorkspaceSelect = async (workspace: Workspace | null) => {
-    if (!workspace) {
-      setSelectedWorkspace(null)
-      return
-    }
-
-    // Update workspace state
-    setSelectedWorkspace(workspace)
-
-    // Track recent workspace access
-    try {
-      const stored = localStorage.getItem('circuit-recent-workspaces')
-      const recentWorkspaces = stored ? JSON.parse(stored) : []
-
-      // Remove existing entry for this workspace
-      const filtered = recentWorkspaces.filter((w: any) => w.id !== workspace.id)
-
-      // Add to front with current timestamp
-      const updated = [
-        {
-          id: workspace.id,
-          name: workspace.name,
-          path: workspace.path,
-          branch: workspace.branch,
-          lastAccessed: Date.now()
-        },
-        ...filtered
-      ].slice(0, 20) // Keep max 20 recent workspaces
-
-      localStorage.setItem('circuit-recent-workspaces', JSON.stringify(updated))
-    } catch (error) {
-      console.error('[App] Failed to update recent workspaces:', error)
-    }
-
-    // Find existing conversation tab for this workspace
-    const allTabs = getAllTabs()
-    const workspaceTab = allTabs.find(tab =>
-      tab.type === 'conversation' && tab.data.workspaceId === workspace.id
-    )
-
-    if (workspaceTab) {
-      // Activate existing tab
-      const tabLocation = findTab(workspaceTab.id)
-      if (tabLocation) {
-        activateTab(workspaceTab.id, tabLocation.groupId)
-      }
-    } else {
-      // No tab exists - load or create conversation
-      try {
-        // Try to get active conversation for this workspace
-        const activeResult = await ipcRenderer.invoke('conversation:get-active', workspace.id)
-
-        if (activeResult.success && activeResult.conversation) {
-          // Create tab with conversation title
-          const tab = createConversationTab(
-            activeResult.conversation.id,
-            workspace.id,
-            activeResult.conversation.title,
-            workspace.name
-          )
-          openTab(tab, DEFAULT_GROUP_ID)
-        } else {
-          // No active conversation - create new one
-          const createResult = await ipcRenderer.invoke('conversation:create', workspace.id, {
-            workspaceName: workspace.name
-          })
-
-          if (createResult.success && createResult.conversation) {
-            const tab = createConversationTab(
-              createResult.conversation.id,
-              workspace.id,
-              createResult.conversation.title,
-              workspace.name
-            )
-            openTab(tab, DEFAULT_GROUP_ID)
-          }
-        }
-      } catch (error) {
-        console.error('[App] Error loading conversation for workspace:', error)
-      }
-    }
-  }
-
-  // Handle workspace selection by ID (for QuickOpenSearch)
-  const handleWorkspaceSelectById = (workspaceId: string) => {
-    const workspace = workspacesRef.current.find(w => w.id === workspaceId)
-    if (workspace) {
-      handleWorkspaceSelect(workspace)
-    }
-  }
-
-  // Handle conversation selection
-  const handleConversationSelect = (conversationId: string, workspaceId: string, title?: string) => {
-    // Use ref to get latest focusedGroupId (avoid stale closure)
-    const currentFocusedGroup = focusedGroupIdRef.current
-    // Create or activate conversation tab in focused group
-    const tab = createConversationTab(
-      conversationId,
-      workspaceId,
-      title,
-      selectedWorkspace?.name
-    )
-    openTab(tab, currentFocusedGroup)
-  }
-
   // Handle opening settings
   const handleOpenSettings = () => {
     const currentFocusedGroup = focusedGroupIdRef.current
@@ -728,32 +554,6 @@ function App() {
       // Create new settings tab
       const tab = createSettingsTab()
       openTab(tab, currentFocusedGroup)
-    }
-  }
-
-  // Handle new conversation creation
-  const handleCreateConversation = async () => {
-    if (!selectedWorkspace) return
-
-    try {
-      const createResult = await ipcRenderer.invoke('conversation:create', selectedWorkspace.id, {
-        workspaceName: selectedWorkspace.name
-      })
-
-      if (createResult.success && createResult.conversation) {
-        const tab = createConversationTab(
-          createResult.conversation.id,
-          selectedWorkspace.id,
-          createResult.conversation.title,
-          selectedWorkspace.name
-        )
-        // Open in currently focused group
-        openTab(tab, focusedGroupIdRef.current)
-      } else {
-        console.error('[App] Failed to create conversation:', createResult.error)
-      }
-    } catch (error) {
-      console.error('[App] Error creating conversation:', error)
     }
   }
 
@@ -915,50 +715,6 @@ function App() {
     }
   }
 
-  // Confirm and execute conversation deletion
-  const confirmDeleteConversation = async () => {
-    if (!pendingDeleteConversation) return
-
-    const { conversationId, tabId, groupId } = pendingDeleteConversation
-
-    try {
-      console.log('[App] Confirming deletion of conversation:', conversationId)
-      const result = await ipcRenderer.invoke('conversation:delete', conversationId)
-
-      if (result.success) {
-        // Close the tab
-        closeTab(tabId, groupId)
-        console.log('[App] Conversation deleted and tab closed:', conversationId)
-      } else {
-        console.error('[App] Failed to delete conversation:', result.error)
-        alert(`Failed to delete conversation: ${result.error || 'Unknown error'}`)
-      }
-    } catch (error) {
-      console.error('[App] Error deleting conversation:', error)
-      alert(`Error deleting conversation: ${error}`)
-    } finally {
-      // Clear the pending deletion state
-      setPendingDeleteConversation(null)
-    }
-  }
-
-  // Handle unsaved changes notification from editor
-  const handleUnsavedChange = (filePath: string, hasChanges: boolean) => {
-    if (!selectedWorkspace) return;
-
-    // Find the file tab (using workspace-scoped ID)
-    const tabId = `file-${selectedWorkspace.id}-${filePath}`;
-    const result = findTab(tabId);
-    if (result) {
-      updateTab(result.tab.id, result.groupId, {
-        data: {
-          ...result.tab.data,
-          unsavedChanges: hasChanges
-        }
-      } as any);
-    }
-  }
-
   // Drag and drop handlers
   const handleTabDragStart = (tabId: string, groupId: string) => {
     setDraggedTab({ tabId, sourceGroupId: groupId })
@@ -1043,90 +799,26 @@ function App() {
   // Reset state when workspace changes (but not tabs - handled by loadDefaultConversation)
   useEffect(() => {
     setViewMode('chat')
-    setFileCursorPosition(null)
     setChatPrefillMessage(null)
     setSessionId(null)
     setCodeSelectionAction(null)
   }, [selectedWorkspace?.id])
 
-  // Keyboard shortcuts
-  useKeyboardShortcuts({
-    // Quick Open (Cmd+P) - Focus search bar
-    'cmd+p': {
-      handler: () => searchBarRef.current?.focus(),
-      description: 'Quick Open',
-      enabled: !!selectedWorkspace,
-    },
-
-    // Workspace navigation (Cmd+1 through Cmd+9)
-    'cmd+1': { handler: () => workspacesRef.current[0] && handleWorkspaceSelect(workspacesRef.current[0]), description: 'Switch to workspace 1' },
-    'cmd+2': { handler: () => workspacesRef.current[1] && handleWorkspaceSelect(workspacesRef.current[1]), description: 'Switch to workspace 2' },
-    'cmd+3': { handler: () => workspacesRef.current[2] && handleWorkspaceSelect(workspacesRef.current[2]), description: 'Switch to workspace 3' },
-    'cmd+4': { handler: () => workspacesRef.current[3] && handleWorkspaceSelect(workspacesRef.current[3]), description: 'Switch to workspace 4' },
-    'cmd+5': { handler: () => workspacesRef.current[4] && handleWorkspaceSelect(workspacesRef.current[4]), description: 'Switch to workspace 5' },
-    'cmd+6': { handler: () => workspacesRef.current[5] && handleWorkspaceSelect(workspacesRef.current[5]), description: 'Switch to workspace 6' },
-    'cmd+7': { handler: () => workspacesRef.current[6] && handleWorkspaceSelect(workspacesRef.current[6]), description: 'Switch to workspace 7' },
-    'cmd+8': { handler: () => workspacesRef.current[7] && handleWorkspaceSelect(workspacesRef.current[7]), description: 'Switch to workspace 8' },
-    'cmd+9': { handler: () => workspacesRef.current[8] && handleWorkspaceSelect(workspacesRef.current[8]), description: 'Switch to workspace 9' },
-
-    // New Workspace (Cmd+N)
-    'cmd+n': {
-      handler: handleCreateWorkspace,
-      description: 'New workspace',
-    },
-
-    // Close active tab (Cmd+W)
-    'cmd+w': {
-      handler: handleCloseActiveTab,
-      description: 'Close active tab',
-      enabled: primaryGroup.tabs.length > 0,
-    },
-
-    // Move active tab left (Cmd+Shift+[)
-    'cmd+shift+[': {
-      handler: () => handleMoveActiveTab('left'),
-      description: 'Move tab left',
-      enabled: primaryGroup.tabs.length > 0,
-    },
-
-    // Move active tab right (Cmd+Shift+])
-    'cmd+shift+]': {
-      handler: () => handleMoveActiveTab('right'),
-      description: 'Move tab right',
-      enabled: primaryGroup.tabs.length > 0,
-    },
-
-    // Close current workspace (Cmd+Shift+W)
-    'cmd+shift+w': {
-      handler: () => handleWorkspaceSelect(null),
-      description: 'Close workspace',
-      enabled: !!selectedWorkspace,
-    },
-
-    // Open Settings (Cmd+,)
-    'cmd+,': {
-      handler: handleOpenSettings,
-      description: 'Open settings',
-    },
-
-    // Commit dialog (Cmd+Enter when workspace is selected)
-    'cmd+enter': {
-      handler: () => setShowCommitDialog(true),
-      description: 'Open commit dialog',
-      enabled: !!selectedWorkspace,
-    },
-
-    // Close dialogs with Escape
-    'escape': {
-      handler: () => {
-        if (showCommitDialog) {
-          setShowCommitDialog(false)
-        }
-      },
-      description: 'Close dialog',
-      enabled: showCommitDialog,
-    },
+  // Keyboard shortcuts (extracted to custom hook)
+  const keyboardShortcuts = useAppKeyboardShortcuts({
+    selectedWorkspace,
+    primaryGroup,
+    searchBarRef,
+    showCommitDialog,
+    workspacesRef,
+    handleCreateWorkspace,
+    handleCloseActiveTab,
+    handleMoveActiveTab,
+    handleWorkspaceSelect,
+    handleOpenSettings,
+    setShowCommitDialog,
   })
+  useKeyboardShortcuts(keyboardShortcuts)
 
   // Handle unified onboarding completion
   const handleOnboardingComplete = (registeredRepoIds?: string[]) => {

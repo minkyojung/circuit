@@ -210,8 +210,8 @@ async function executeGitCommand(
     const { stdout, stderr } = await execFileAsync('git', [...args], {
       cwd: validation.normalizedPath,
       shell: false, // CRITICAL: No shell interpretation
-      timeout: 30000, // 30 seconds max
-      maxBuffer: 1024 * 1024 * 10, // 10MB max output
+      timeout: 300000, // 300 seconds (5 minutes) max for large commits
+      maxBuffer: 1024 * 1024 * 100, // 100MB max output for very large diffs
     });
 
     return { success: true, stdout: stdout || stderr };

@@ -161,7 +161,7 @@ interface GitHubOnboardingStorage {
 
 ### Problem
 
-In v0.0.4, the app was named "Circuit". LocalStorage keys used `circuit-` prefix:
+In v0.0.4, the app was named "Octave". LocalStorage keys used `circuit-` prefix:
 - `circuit-onboarding`
 - `circuit-github-onboarding`
 

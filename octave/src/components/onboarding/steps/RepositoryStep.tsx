@@ -80,7 +80,7 @@ export function RepositoryStep({ onSelect, selectedRepository }: RepositoryStepP
       <div className="space-y-2">
         <h3 className="text-lg font-semibold">Select Your Repository</h3>
         <p className="text-sm text-muted-foreground">
-          Circuit works with Git repositories. Choose a folder that contains your code.
+          Octave works with Git repositories. Choose a folder that contains your code.
         </p>
       </div>
 

@@ -1,6 +1,6 @@
-# Circuit MCP Runtime Architecture
+# Octave MCP Runtime Architecture
 
-> **Product Direction**: Circuit as MCP Package Manager, Discover Platform, Playground, and Health Monitor
+> **Product Direction**: Octave as MCP Package Manager, Discover Platform, Playground, and Health Monitor
 
 **Last Updated**: 2025-01-23
 
@@ -8,35 +8,35 @@
 
 ## Executive Summary
 
-Circuit은 **MCP 서버를 직접 실행하고 관리하는 중앙 런타임 플랫폼**입니다.
+Octave은 **MCP 서버를 직접 실행하고 관리하는 중앙 런타임 플랫폼**입니다.
 
-Claude Code, Cursor, Windsurf 등의 AI 코딩 도구가 Circuit이 실행하는 MCP 서버들을 통해 도구를 사용하도록 하여, 사용자가 **한 곳에서 모든 MCP를 관리**할 수 있게 합니다.
+Claude Code, Cursor, Windsurf 등의 AI 코딩 도구가 Octave이 실행하는 MCP 서버들을 통해 도구를 사용하도록 하여, 사용자가 **한 곳에서 모든 MCP를 관리**할 수 있게 합니다.
 
 ### Core Value Propositions
 
 1. **One-Click Installation** - "Add to Claude" 버튼 클릭만으로 MCP 설치
-2. **Unified Management** - 모든 AI 도구의 MCP를 Circuit에서 통합 관리
+2. **Unified Management** - 모든 AI 도구의 MCP를 Octave에서 통합 관리
 3. **Real-time Monitoring** - 서버 상태, 성능, 로그 실시간 확인
 4. **Instant Testing** - Playground에서 즉시 도구 테스트
 
 ---
 
-## Architecture Decision: 방식 2 (Circuit as Runtime)
+## Architecture Decision: 방식 2 (Octave as Runtime)
 
 ### Comparison with Alternative Approach
 
-| 항목 | ❌ 방식 1: CLI 래퍼 | ✅ 방식 2: Circuit Runtime |
+| 항목 | ❌ 방식 1: CLI 래퍼 | ✅ 방식 2: Octave Runtime |
 |------|-------------------|--------------------------|
-| **설치 방법** | `claude mcp add` 실행 | Circuit이 MCP 프로세스 spawn |
-| **MCP 실행 주체** | Claude Code | Circuit |
-| **Circuit 종료 시** | MCP 계속 작동 | MCP 중단 (Trade-off) |
+| **설치 방법** | `claude mcp add` 실행 | Octave이 MCP 프로세스 spawn |
+| **MCP 실행 주체** | Claude Code | Octave |
+| **Octave 종료 시** | MCP 계속 작동 | MCP 중단 (Trade-off) |
 | **상태 모니터링** | ❌ 불가능 | ✅ 완전한 가시성 |
 | **로그 수집** | ❌ 없음 | ✅ 실시간 수집 |
 | **디버깅** | ❌ 어려움 | ✅ 쉬움 |
 | **성능 메트릭** | ❌ 없음 | ✅ API 호출 수, 응답 시간 |
 | **제품 가치** | 낮음 (단순 UI) | 높음 (플랫폼) |
 
-**선택 이유**: Circuit의 핵심 가치는 "관리 및 모니터링"이므로, MCP를 직접 실행해야 합니다.
+**선택 이유**: Octave의 핵심 가치는 "관리 및 모니터링"이므로, MCP를 직접 실행해야 합니다.
 
 ---
 
@@ -44,7 +44,7 @@ Claude Code, Cursor, Windsurf 등의 AI 코딩 도구가 Circuit이 실행하는
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      Circuit Electron App                    │
+│                      Octave Electron App                    │
 ├─────────────────────────────────────────────────────────────┤
 │  Renderer Process                                            │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐         │
@@ -107,7 +107,7 @@ Claude Code, Cursor, Windsurf 등의 AI 코딩 도구가 Circuit이 실행하는
          ┌────────────────┴────────────────┐
          │ circuit-proxy (stdio)           │
          │ • MCP 프록시 서버               │
-         │ • Circuit HTTP API 호출         │
+         │ • Octave HTTP API 호출         │
          └────────┬────────────────────────┘
                   │
          ┌────────▼────────┐
@@ -246,7 +246,7 @@ ipcMain.handle('circuit:mcp-call-tool', async (event, serverId, toolName, args) 
 
 ---
 
-### 3. HTTP API Server (Circuit → Claude Code)
+### 3. HTTP API Server (Octave → Claude Code)
 
 **Location**: `circuit/electron/api-server.ts`
 
@@ -311,13 +311,13 @@ app.get('/mcp/status', async (req, res) => {
 })
 
 app.listen(3737, () => {
-  console.log('Circuit MCP API listening on http://localhost:3737')
+  console.log('Octave MCP API listening on http://localhost:3737')
 })
 ```
 
 ---
 
-### 4. Circuit Proxy (Claude Code Integration)
+### 4. Octave Proxy (Claude Code Integration)
 
 **Location**: `~/.circuit/bin/circuit-proxy`
 
@@ -339,14 +339,14 @@ const server = new Server({
   version: '1.0.0'
 })
 
-// List all tools from Circuit
+// List all tools from Octave
 server.setRequestHandler('tools/list', async () => {
   const res = await fetch(`${CIRCUIT_API}/mcp/tools`)
   const data = await res.json()
   return { tools: data.tools }
 })
 
-// Proxy tool calls to Circuit
+// Proxy tool calls to Octave
 server.setRequestHandler('tools/call', async (request) => {
   const { name, arguments: args } = request.params
 
@@ -402,13 +402,13 @@ await server.connect(transport)
    → arguments: { query: "user:me stars:>100" }
 
 3. circuit-proxy → HTTP POST to localhost:3737/mcp/call
-   → Circuit API Server receives request
+   → Octave API Server receives request
 
 4. API Server → mcpManager.callTool('github', 'search_repositories', ...)
-   → Circuit's MCP Client calls actual GitHub MCP server
+   → Octave's MCP Client calls actual GitHub MCP server
 
 5. GitHub MCP server responds
-   → Circuit records metrics (call count, duration)
+   → Octave records metrics (call count, duration)
    → Returns result to API Server
 
 6. API Server → circuit-proxy → Claude Code
@@ -420,7 +420,7 @@ await server.connect(transport)
 ### Example 3: Monitoring Server Health
 
 ```
-1. Circuit Main starts health check loop (30s interval)
+1. Octave Main starts health check loop (30s interval)
    → mcpManager.startHealthCheck('github')
 
 2. Every 30s:
@@ -452,7 +452,7 @@ await server.connect(transport)
 │   ├── github.log
 │   ├── slack.log
 │   └── notion.log.1234.gz     # Rotated logs
-├── config.json                 # Circuit configuration
+├── config.json                 # Octave configuration
 │   {
 │     "servers": {
 │       "github": {
@@ -543,7 +543,7 @@ private rotateLogs(serverId: string) {
 
 ### 5. Parallel Server Start
 ```typescript
-// Circuit 시작 시 모든 autoStart 서버 병렬 시작
+// Octave 시작 시 모든 autoStart 서버 병렬 시작
 async startAllAutoStartServers() {
   const config = this.loadConfig()
   const toStart = Object.values(config.servers)
@@ -587,16 +587,16 @@ async startAllAutoStartServers() {
 
 ## Trade-offs & Mitigations
 
-### Trade-off 1: Circuit 종료 시 MCP 중단
-**Problem**: Circuit이 꺼지면 Claude Code가 도구 사용 불가
+### Trade-off 1: Octave 종료 시 MCP 중단
+**Problem**: Octave이 꺼지면 Claude Code가 도구 사용 불가
 
 **Mitigation**:
-- Circuit을 macOS Login Items에 자동 추가
-- Circuit 백그라운드 모드 (메뉴바만 표시)
-- "Circuit이 꺼졌습니다" 알림을 Claude Code에서 표시 가능
+- Octave을 macOS Login Items에 자동 추가
+- Octave 백그라운드 모드 (메뉴바만 표시)
+- "Octave이 꺼졌습니다" 알림을 Claude Code에서 표시 가능
 
 ### Trade-off 2: 메모리 사용량 증가
-**Problem**: 모든 MCP 서버를 Circuit이 실행하면 메모리 사용
+**Problem**: 모든 MCP 서버를 Octave이 실행하면 메모리 사용
 
 **Mitigation**:
 - Lazy loading (미사용 서버는 종료)
@@ -623,9 +623,9 @@ async startAllAutoStartServers() {
 
 ### User Experience
 - [ ] "Add to Claude" → Claude Code에서 사용 가능까지 < 30초
-- [ ] Circuit UI에서 모든 서버 상태 실시간 확인
+- [ ] Octave UI에서 모든 서버 상태 실시간 확인
 - [ ] 에러 발생 시 3초 내 UI에 표시
-- [ ] Claude Code 사용 중 Circuit 투명하게 작동
+- [ ] Claude Code 사용 중 Octave 투명하게 작동
 
 ---
 

@@ -123,7 +123,7 @@ export const WorkspaceItem: React.FC<WorkspaceItemProps> = ({
                 <div className="flex items-center gap-1.5 text-sm font-mono flex-shrink-0">
                   <span className={cn(
                     status && (status.added > 0 || status.modified > 0)
-                      ? "text-green-400/60"
+                      ? "text-primary/60"
                       : "text-sidebar-foreground-muted/30"
                   )}>
                     +{status ? (status.added + status.modified) : 0}

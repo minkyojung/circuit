@@ -6,18 +6,18 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import type { CircuitSettings } from '@/types/settings';
+import type { OctaveSettings } from '@/types/settings';
 import { defaultSettings, SETTINGS_STORAGE_KEY, SETTINGS_VERSION } from '@/types/settings';
 
 interface StoredSettings {
   version: number;
-  settings: CircuitSettings;
+  settings: OctaveSettings;
 }
 
 /**
  * Load settings from localStorage with migration support
  */
-function loadSettings(): CircuitSettings {
+function loadSettings(): OctaveSettings {
   try {
     const stored = localStorage.getItem(SETTINGS_STORAGE_KEY);
     if (!stored) {
@@ -59,7 +59,7 @@ function loadSettings(): CircuitSettings {
 /**
  * Save settings to localStorage
  */
-function saveSettings(settings: CircuitSettings): void {
+function saveSettings(settings: OctaveSettings): void {
   try {
     const toStore: StoredSettings = {
       version: SETTINGS_VERSION,
@@ -84,7 +84,7 @@ function saveSettings(settings: CircuitSettings): void {
  * resetSettings();
  */
 export function useSettings() {
-  const [settings, setSettings] = useState<CircuitSettings>(() => loadSettings());
+  const [settings, setSettings] = useState<OctaveSettings>(() => loadSettings());
 
   // Persist to localStorage whenever settings change
   useEffect(() => {
@@ -96,9 +96,9 @@ export function useSettings() {
    * Type-safe: only allows updating properties that exist in the category
    */
   const updateSettings = useCallback(
-    <K extends keyof CircuitSettings>(
+    <K extends keyof OctaveSettings>(
       category: K,
-      updates: Partial<CircuitSettings[K]>
+      updates: Partial<OctaveSettings[K]>
     ) => {
       setSettings(prev => ({
         ...prev,
@@ -116,10 +116,10 @@ export function useSettings() {
    * Useful for simple toggles and single-value updates
    */
   const updateSetting = useCallback(
-    <K extends keyof CircuitSettings, P extends keyof CircuitSettings[K]>(
+    <K extends keyof OctaveSettings, P extends keyof OctaveSettings[K]>(
       category: K,
       property: P,
-      value: CircuitSettings[K][P]
+      value: OctaveSettings[K][P]
     ) => {
       setSettings(prev => ({
         ...prev,
@@ -142,7 +142,7 @@ export function useSettings() {
   /**
    * Reset a specific category to defaults
    */
-  const resetCategory = useCallback((category: keyof CircuitSettings) => {
+  const resetCategory = useCallback((category: keyof OctaveSettings) => {
     setSettings(prev => ({
       ...prev,
       [category]: defaultSettings[category],

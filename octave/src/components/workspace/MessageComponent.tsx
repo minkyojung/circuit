@@ -4,7 +4,7 @@ import type { ThinkingStep } from '@/types/thinking';
 import { Paperclip, Play, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { BlockList } from '@/components/blocks';
-import { InlineTodoProgress } from '@/components/blocks/InlineTodoProgress';
+import { TodoQueue } from '@/components/blocks/TodoQueue';
 import { UnifiedReasoningPanel } from '@/components/reasoning/UnifiedReasoningPanel';
 import { MessageActions } from './MessageActions';
 import { cn } from '@/lib/utils';
@@ -50,9 +50,35 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
 
   const isTask = metadata.isTask === true;
   const todoId = metadata.todoId;
+  const isCancelled = metadata.cancelled === true;
 
   // Get agent state for this task (using todoId)
   const agentState = isTask && todoId && agentStates ? agentStates.get(todoId) : null;
+
+  // If message is cancelled, show minimal cancelled state
+  if (isCancelled) {
+    return (
+      <div
+        data-message-id={msg.id}
+        className={`flex flex-col ${
+          msg.role === 'user' ? 'items-end' : 'items-start'
+        } ${msg.role === 'assistant' ? 'mb-2' : ''} w-full opacity-40`}
+      >
+        <div
+          className={`max-w-[75%] ${
+            msg.role === 'user'
+              ? 'bg-muted/30 px-3 py-2 rounded-xl border border-border/50'
+              : ''
+          }`}
+        >
+          <div className="text-base font-normal text-muted-foreground italic line-through leading-relaxed">
+            {msg.content || 'Message cancelled'}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       data-message-id={msg.id}
@@ -63,7 +89,7 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
       <div
         className={`max-w-[75%] ${
           msg.role === 'user'
-            ? 'bg-[#E8EEEB] dark:bg-[#1A2621] px-3 py-2 rounded-xl border border-border'
+            ? 'bg-muted/30 px-3 py-2 rounded-xl border border-border/50'
             : ''
         }`}
       >
@@ -110,35 +136,18 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
 
         {/* Plan Review moved to right sidebar TodoPanel */}
 
-        {/* TodoWrite inline display (for Normal/Think modes) */}
-        {msg.metadata?.todoWriteResult && (
-          <InlineTodoProgress
-            todos={msg.metadata.todoWriteResult.todos.map((todo: any) => ({
-              content: todo.title || todo.content,
-              activeForm: todo.activeForm || `${todo.title || todo.content}...`,
-              status: todo.status,
-              complexity: todo.complexity,
-              priority: todo.priority,
-              estimatedDuration: todo.estimatedTime,
-              description: todo.description,
-            }))}
-            defaultExpanded={true}
-            showProgressBar={true}
-            autoCollapseOnComplete={true}
-            onToggle={(expanded) => {
-              console.log('[InlineTodo] Toggled:', expanded);
-            }}
-          />
-        )}
+        {/* TodoWrite is now displayed in Reasoning Panel when TodoWrite tool is used */}
 
         {/* Block-based rendering with fallback */}
         {msg.blocks && msg.blocks.length > 0 ? (
-          <BlockList
-            blocks={msg.filteredBlocks || msg.blocks}
-            onCopy={(content) => navigator.clipboard.writeText(content)}
-            onExecute={onExecuteCommand}
-            onFileReferenceClick={onFileReferenceClick}
-          />
+          <>
+            <BlockList
+              blocks={msg.filteredBlocks || msg.blocks}
+              onCopy={(content) => navigator.clipboard.writeText(content)}
+              onExecute={onExecuteCommand}
+              onFileReferenceClick={onFileReferenceClick}
+            />
+          </>
         ) : (
           <>
             <div className="text-base font-normal text-foreground whitespace-pre-wrap leading-relaxed">
@@ -201,23 +210,16 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
               isLive={isSending && msg.id === pendingAssistantMessageId}
               fileSummaryBlock={fileSummaryBlock}
               onFileClick={onFileReferenceClick}
+              messageId={!isSending ? msg.id : undefined}
+              messageContent={!isSending ? msg.content : undefined}
+              onCopyMessage={onCopyMessage}
+              onExplainMessage={onExplainMessage}
+              copiedMessageId={copiedMessageId}
+              todoWriteResult={msg.metadata?.todoWriteResult}
             />
           </div>
         );
       })()}
-
-      {/* Message Actions - Show for assistant messages (Copy, Explain) */}
-      {msg.role === 'assistant' && !isSending && (
-        <div className="w-full">
-          <MessageActions
-            messageId={msg.id}
-            content={msg.content}
-            onCopy={onCopyMessage}
-            onExplain={onExplainMessage}
-            copiedMessageId={copiedMessageId}
-          />
-        </div>
-      )}
     </div>
   );
 };
@@ -233,6 +235,7 @@ export const MessageComponent = React.memo(
       prevProps.msg.content === nextProps.msg.content &&
       prevProps.msg.blocks === nextProps.msg.blocks &&
       prevProps.msg.filteredBlocks === nextProps.msg.filteredBlocks &&
+      prevProps.msg.metadata?.cancelled === nextProps.msg.metadata?.cancelled &&
       prevProps.isSending === nextProps.isSending &&
       prevProps.pendingAssistantMessageId === nextProps.pendingAssistantMessageId &&
       prevProps.copiedMessageId === nextProps.copiedMessageId &&

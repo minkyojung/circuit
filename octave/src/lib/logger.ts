@@ -92,7 +92,7 @@ class Logger {
     if (typeof window !== 'undefined' && (window as any).electron) {
       try {
         const { ipcRenderer } = (window as any).require('electron')
-        ipcRenderer.send('circuit:log', entry)
+        ipcRenderer.send('octave:log', entry)
       } catch (error) {
         // Ignore if Electron is not available (e.g., in tests)
       }

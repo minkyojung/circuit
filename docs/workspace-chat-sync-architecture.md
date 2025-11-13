@@ -66,12 +66,12 @@ interface Message {
 #### ✅ 이미 구현된 저장소
 
 **1. Repository Configuration**
-- 파일: `~/.config/Electron/Circuit/repositories.json`
+- 파일: `~/.config/Electron/Octave/repositories.json`
 - 핸들러: `electron/repositoryHandlers.ts`
 - 저장소 목록 관리
 
 **2. MCP Call History**
-- 파일: `~/.config/Electron/Circuit/circuit-data/history.db` (SQLite)
+- 파일: `~/.config/Electron/Octave/circuit-data/history.db` (SQLite)
 - 구현: `electron/historyStorage.ts`
 - MCP 도구 호출 이력 저장
 - **채팅 메시지 저장 안 함** ⚠️
@@ -811,7 +811,7 @@ async function initializeDatabase() {
 ### 데이터베이스 위치
 
 ```
-~/.config/Electron/Circuit/circuit-data/
+~/.config/Electron/Octave/circuit-data/
 ├─ history.db           (기존 MCP 히스토리)
 └─ conversations.db     (신규 대화 히스토리)
 ```

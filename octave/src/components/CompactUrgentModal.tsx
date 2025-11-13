@@ -106,7 +106,7 @@ export const CompactUrgentModal: React.FC<CompactUrgentModalProps> = ({
                   </code>
                 </li>
                 <li>Wait for compaction to complete (~10-30 seconds)</li>
-                <li>Return to Circuit and continue working</li>
+                <li>Return to Octave and continue working</li>
               </ol>
             </div>
 

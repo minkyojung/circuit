@@ -1,6 +1,6 @@
 # MCP Server Troubleshooting Guide
 
-Circuit 앱에 새로운 MCP 서버를 추가할 때 발생할 수 있는 문제와 해결 방법을 정리한 문서입니다.
+Octave 앱에 새로운 MCP 서버를 추가할 때 발생할 수 있는 문제와 해결 방법을 정리한 문서입니다.
 
 ---
 
@@ -349,7 +349,7 @@ Failed to start: MCP error -32000: Connection closed
 #### Step 1: 서버 로그 확인
 
 ```bash
-# Circuit 서버 로그 확인
+# Octave 서버 로그 확인
 tail -f ~/.circuit/logs/<server-id>.log
 
 # 예시
@@ -372,7 +372,7 @@ npx -y @mseep/git-mcp-server --version
 #### Step 3: 설정 확인
 
 ```bash
-# Circuit 설정 파일 확인
+# Octave 설정 파일 확인
 cat ~/.circuit/config.json
 ```
 
@@ -446,7 +446,7 @@ mv ~/.circuit/config.json.tmp ~/.circuit/config.json
 
 1. **Electron 콘솔 확인**: Developer Tools에서 상세 에러 로그 확인
 2. **서버 로그 확인**: `~/.circuit/logs/<server-id>.log`
-3. **GitHub Issues**: Circuit 저장소에 이슈 등록
+3. **GitHub Issues**: Octave 저장소에 이슈 등록
 4. **MCP 서버 저장소**: 해당 MCP 서버의 GitHub 저장소에서 이슈 확인
 
 ---

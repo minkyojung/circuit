@@ -12,14 +12,14 @@ interface UsageMetrics {
   resetTime: number;
 }
 
-export interface CircuitMetrics {
+export interface OctaveMetrics {
   usage: UsageMetrics;
   context: ContextMetrics;
   timestamp: number;
 }
 
 interface UseClaudeMetricsResult {
-  metrics: CircuitMetrics | null;
+  metrics: OctaveMetrics | null;
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
@@ -43,7 +43,7 @@ try {
  * Connects to Electron IPC for real-time metrics updates
  */
 export function useClaudeMetrics(): UseClaudeMetricsResult {
-  const [metrics, setMetrics] = useState<CircuitMetrics | null>(null);
+  const [metrics, setMetrics] = useState<OctaveMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,7 +56,7 @@ export function useClaudeMetrics(): UseClaudeMetricsResult {
     }
 
     try {
-      const result = await ipcRenderer.invoke('circuit:metrics-refresh');
+      const result = await ipcRenderer.invoke('octave:metrics-refresh');
 
       if (result.success && result.metrics) {
         setMetrics(result.metrics);
@@ -81,7 +81,7 @@ export function useClaudeMetrics(): UseClaudeMetricsResult {
     const startMonitoring = async () => {
       try {
         // Get project path first
-        const pathResult = await ipcRenderer.invoke('circuit:get-project-path');
+        const pathResult = await ipcRenderer.invoke('octave:get-project-path');
 
         if (!pathResult.success) {
           throw new Error('Failed to get project path');
@@ -89,7 +89,7 @@ export function useClaudeMetrics(): UseClaudeMetricsResult {
 
         // Start metrics monitoring
         const startResult = await ipcRenderer.invoke(
-          'circuit:metrics-start',
+          'octave:metrics-start',
           pathResult.projectPath
         );
 
@@ -98,7 +98,7 @@ export function useClaudeMetrics(): UseClaudeMetricsResult {
         }
 
         // Get initial metrics
-        const metricsResult = await ipcRenderer.invoke('circuit:metrics-get');
+        const metricsResult = await ipcRenderer.invoke('octave:metrics-get');
 
         if (mounted) {
           if (metricsResult.success && metricsResult.metrics) {
@@ -117,7 +117,7 @@ export function useClaudeMetrics(): UseClaudeMetricsResult {
     };
 
     // Listen for metrics updates
-    const handleMetricsUpdate = (_event: any, updatedMetrics: CircuitMetrics) => {
+    const handleMetricsUpdate = (_event: any, updatedMetrics: OctaveMetrics) => {
       if (mounted) {
         setMetrics(updatedMetrics);
         setError(null);
@@ -132,8 +132,8 @@ export function useClaudeMetrics(): UseClaudeMetricsResult {
     };
 
     // Set up listeners
-    ipcRenderer.on('circuit:metrics-updated', handleMetricsUpdate);
-    ipcRenderer.on('circuit:metrics-error', handleMetricsError);
+    ipcRenderer.on('octave:metrics-updated', handleMetricsUpdate);
+    ipcRenderer.on('octave:metrics-error', handleMetricsError);
 
     // Start monitoring
     startMonitoring();
@@ -142,7 +142,7 @@ export function useClaudeMetrics(): UseClaudeMetricsResult {
     const pollingInterval = setInterval(async () => {
       if (mounted) {
         try {
-          const result = await ipcRenderer.invoke('circuit:metrics-refresh');
+          const result = await ipcRenderer.invoke('octave:metrics-refresh');
           if (result.success && result.metrics) {
             setMetrics(result.metrics);
             setError(null);
@@ -162,11 +162,11 @@ export function useClaudeMetrics(): UseClaudeMetricsResult {
       clearInterval(pollingInterval);
 
       // Remove listeners
-      ipcRenderer?.removeListener('circuit:metrics-updated', handleMetricsUpdate);
-      ipcRenderer?.removeListener('circuit:metrics-error', handleMetricsError);
+      ipcRenderer?.removeListener('octave:metrics-updated', handleMetricsUpdate);
+      ipcRenderer?.removeListener('octave:metrics-error', handleMetricsError);
 
       // Stop monitoring (silently fail if not available)
-      ipcRenderer?.invoke('circuit:metrics-stop').catch(() => {
+      ipcRenderer?.invoke('octave:metrics-stop').catch(() => {
         // Silently ignore - metrics not available
       });
     };

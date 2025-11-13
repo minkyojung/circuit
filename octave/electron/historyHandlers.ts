@@ -17,7 +17,7 @@ export function registerHistoryHandlers(): void {
   /**
    * Get call history with filters
    */
-  ipcMain.handle('circuit:history-get', async (event, query: HistoryQuery = {}) => {
+  ipcMain.handle('octave:history-get', async (event, query: HistoryQuery = {}) => {
     try {
       const storage = await getHistoryStorage()
       const calls = await storage.getCalls(query)
@@ -37,7 +37,7 @@ export function registerHistoryHandlers(): void {
   /**
    * Get statistics for calls
    */
-  ipcMain.handle('circuit:history-get-stats', async (event, query: Omit<HistoryQuery, 'limit' | 'cursor'> = {}) => {
+  ipcMain.handle('octave:history-get-stats', async (event, query: Omit<HistoryQuery, 'limit' | 'cursor'> = {}) => {
     try {
       const storage = await getHistoryStorage()
       const stats = await storage.getStats(query)
@@ -52,7 +52,7 @@ export function registerHistoryHandlers(): void {
   /**
    * Clear all history
    */
-  ipcMain.handle('circuit:history-clear', async (event) => {
+  ipcMain.handle('octave:history-clear', async (event) => {
     try {
       const storage = await getHistoryStorage()
 
@@ -73,7 +73,7 @@ export function registerHistoryHandlers(): void {
   /**
    * Apply retention policy
    */
-  ipcMain.handle('circuit:history-apply-retention', async (event, days: number) => {
+  ipcMain.handle('octave:history-apply-retention', async (event, days: number) => {
     try {
       const storage = await getHistoryStorage()
       const deletedCount = await storage.applyRetention(days)
@@ -88,7 +88,7 @@ export function registerHistoryHandlers(): void {
   /**
    * Create backup
    */
-  ipcMain.handle('circuit:history-create-backup', async (event) => {
+  ipcMain.handle('octave:history-create-backup', async (event) => {
     try {
       const storage = await getHistoryStorage()
       const backupPath = await storage.createBackup()

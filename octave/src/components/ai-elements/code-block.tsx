@@ -64,11 +64,17 @@ export async function highlightCode(
       lang: language,
       theme: "one-light",
       transformers,
+      colorReplacements: {
+        '#fafafa': 'transparent', // one-light 배경색 제거
+      },
     }),
     codeToHtml(code, {
       lang: language,
       theme: "one-dark-pro",
       transformers,
+      colorReplacements: {
+        '#282c34': 'transparent', // one-dark-pro 배경색 제거
+      },
     }),
   ]);
 }

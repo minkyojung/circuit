@@ -12,6 +12,7 @@ export interface Conversation {
   updatedAt: number
   lastViewedAt?: number
   isActive?: boolean
+  planId?: string  // Optional: ID of SimpleBranchPlan this conversation belongs to
 }
 
 export interface Message {

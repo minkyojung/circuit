@@ -2,9 +2,9 @@
 
 ## Overview
 
-This documentation provides comprehensive analysis of the Circuit codebase and a detailed roadmap for integrating voice features (speech-to-text input and text-to-speech output).
+This documentation provides comprehensive analysis of the Octave codebase and a detailed roadmap for integrating voice features (speech-to-text input and text-to-speech output).
 
-**Key Insight:** Circuit's architecture is well-suited for voice features with excellent patterns for IPC communication, state management, and feature flags.
+**Key Insight:** Octave's architecture is well-suited for voice features with excellent patterns for IPC communication, state management, and feature flags.
 
 ---
 
@@ -115,7 +115,7 @@ This documentation provides comprehensive analysis of the Circuit codebase and a
    - Event broadcasting for streaming
 
 3. Settings & Configuration
-   - Extended CircuitSettings type
+   - Extended OctaveSettings type
    - Feature flags for voice
    - Audio configuration options
 
@@ -224,7 +224,7 @@ Path: `/Users/williamjung/conductor/circuit-1/.conductor/victoria/circuit/src/co
 Path: `/Users/williamjung/conductor/circuit-1/.conductor/victoria/circuit/src/config/features.ts`
 
 **settings.ts** (types)
-- CircuitSettings interface to extend
+- OctaveSettings interface to extend
 - Default values pattern
 
 Path: `/Users/williamjung/conductor/circuit-1/.conductor/victoria/circuit/src/types/settings.ts`
@@ -278,7 +278,7 @@ Path: `/Users/williamjung/conductor/circuit-1/.conductor/victoria/circuit/electr
 
 5. **Start Implementation** (Phase 1)
    - Create feature flags
-   - Extend CircuitSettings
+   - Extend OctaveSettings
    - Add voice button UI (disabled)
 
 ### For Architecture Understanding
@@ -362,7 +362,7 @@ Quick reference for implementation:
 
 ### Phase 1: Foundation
 - [ ] Create feature flags
-- [ ] Extend CircuitSettings
+- [ ] Extend OctaveSettings
 - [ ] Add VoiceContext skeleton
 - [ ] Add voice button UI (disabled)
 - [ ] Stub IPC handlers
@@ -429,7 +429,7 @@ Quick reference for implementation:
 
 ## Conclusion
 
-Circuit's codebase is excellent for voice feature integration. All necessary architecture patterns exist and can be followed. The feature flag system enables safe, gradual rollout.
+Octave's codebase is excellent for voice feature integration. All necessary architecture patterns exist and can be followed. The feature flag system enables safe, gradual rollout.
 
 Implementation can proceed in 5 phases with low risk if existing patterns are followed.
 

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Complete Circuit → Octave rebrand** - Comprehensive codebase migration (2025-11-13)
+  - All TypeScript types and interfaces renamed
+  - 46 IPC channels migrated (circuit:* → octave:*)
+  - Automatic localStorage migration system
+  - User data directory migration (Application Support/circuit/ → octave/)
+  - SQLite database migration (circuit-data/ → octave-data/)
+  - UI text and branding updated throughout
+  - Legacy /electron/ directory cleanup
+  - See root CHANGELOG.md for complete migration details
+
 ## [0.0.7] - 2025-11-11
 
 ### Fixed
@@ -255,7 +266,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sanitize all error responses in circuit-proxy
 
 ### Added
-- Circuit API Server to expose MCP servers via HTTP REST API (port 3737)
+- Octave API Server to expose MCP servers via HTTP REST API (port 3737)
 - circuit-proxy for Claude Code integration - unified MCP interface
 - API endpoints:
   - `GET /health` - Health check

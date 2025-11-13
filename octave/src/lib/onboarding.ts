@@ -15,30 +15,84 @@ const LEGACY_GITHUB_ONBOARDING_KEY = 'circuit-github-onboarding';
 
 /**
  * Migrate legacy localStorage keys from 'circuit-*' to 'octave-*'
- * This ensures users upgrading from v0.0.4 don't see onboarding again.
+ * This ensures users upgrading from earlier versions retain all their data.
  *
- * @internal Called automatically by isOnboardingComplete() and isGitHubOnboardingComplete()
+ * @internal Called automatically on app startup
  */
 function migrateLocalStorageKeys(): void {
   try {
-    // Migrate main onboarding key
-    const legacyOnboarding = localStorage.getItem(LEGACY_ONBOARDING_KEY);
-    if (legacyOnboarding && !localStorage.getItem(ONBOARDING_STORAGE_KEY)) {
-      console.log('[Onboarding] Migrating from v0.0.4: circuit-onboarding → octave-onboarding');
-      localStorage.setItem(ONBOARDING_STORAGE_KEY, legacyOnboarding);
-      localStorage.removeItem(LEGACY_ONBOARDING_KEY);
+    // Define all circuit → octave migrations
+    const migrations: Array<[string, string]> = [
+      // Onboarding
+      [LEGACY_ONBOARDING_KEY, ONBOARDING_STORAGE_KEY],
+      [LEGACY_GITHUB_ONBOARDING_KEY, GITHUB_ONBOARDING_STORAGE_KEY],
+
+      // Settings & UI state
+      ['circuit-settings', 'octave-settings'],
+      ['circuit-terminal-state', 'octave-terminal-state'],
+      ['circuit-recent-workspaces', 'octave-recent-workspaces'],
+      ['circuit-right-sidebar-state', 'octave-right-sidebar-state'],
+      ['circuit-density', 'octave-density'],
+    ];
+
+    // Perform standard migrations
+    let migratedCount = 0;
+    for (const [oldKey, newKey] of migrations) {
+      const oldValue = localStorage.getItem(oldKey);
+      if (oldValue && !localStorage.getItem(newKey)) {
+        console.log(`[Migration] ${oldKey} → ${newKey}`);
+        localStorage.setItem(newKey, oldValue);
+        localStorage.removeItem(oldKey);
+        migratedCount++;
+      }
     }
 
-    // Migrate GitHub onboarding key
-    const legacyGitHub = localStorage.getItem(LEGACY_GITHUB_ONBOARDING_KEY);
-    if (legacyGitHub && !localStorage.getItem(GITHUB_ONBOARDING_STORAGE_KEY)) {
-      console.log('[Onboarding] Migrating from v0.0.4: circuit-github-onboarding → octave-github-onboarding');
-      localStorage.setItem(GITHUB_ONBOARDING_STORAGE_KEY, legacyGitHub);
-      localStorage.removeItem(LEGACY_GITHUB_ONBOARDING_KEY);
+    // Special case: Migrate terminal history (pattern-based)
+    // Keys like 'circuit-terminal-history-${workspace.id}'
+    const allKeys = Object.keys(localStorage);
+    const terminalHistoryKeys = allKeys.filter(key => key.startsWith('circuit-terminal-history-'));
+
+    for (const oldKey of terminalHistoryKeys) {
+      const newKey = oldKey.replace('circuit-terminal-history-', 'octave-terminal-history-');
+      const oldValue = localStorage.getItem(oldKey);
+
+      if (oldValue && !localStorage.getItem(newKey)) {
+        console.log(`[Migration] ${oldKey} → ${newKey}`);
+        localStorage.setItem(newKey, oldValue);
+        localStorage.removeItem(oldKey);
+        migratedCount++;
+      }
+    }
+
+    // Special case: Migrate project configs (pattern-based)
+    // Keys like 'octave:project:${workspacePath}'
+    const projectConfigKeys = allKeys.filter(key => key.startsWith('octave:project:'));
+
+    for (const oldKey of projectConfigKeys) {
+      const newKey = oldKey.replace('octave:project:', 'octave:project:');
+      const oldValue = localStorage.getItem(oldKey);
+
+      if (oldValue && !localStorage.getItem(newKey)) {
+        console.log(`[Migration] ${oldKey} → ${newKey}`);
+        localStorage.setItem(newKey, oldValue);
+        localStorage.removeItem(oldKey);
+        migratedCount++;
+      }
+    }
+
+    if (migratedCount > 0) {
+      console.log(`[Migration] ✅ Successfully migrated ${migratedCount} localStorage keys`);
     }
   } catch (error) {
-    console.error('[Onboarding] Failed to migrate localStorage keys:', error);
+    console.error('[Migration] ❌ Failed to migrate localStorage keys:', error);
   }
+}
+
+/**
+ * Export migration function to be called from App.tsx on startup
+ */
+export function migrateAllLocalStorageKeys(): void {
+  migrateLocalStorageKeys();
 }
 
 /**

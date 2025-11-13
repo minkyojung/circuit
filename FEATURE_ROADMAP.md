@@ -1,14 +1,14 @@
-# Circuit 실제 코딩 사용을 위한 기능 분석 및 개선 로드맵
+# Octave 실제 코딩 사용을 위한 기능 분석 및 개선 로드맵
 
 > **작성일**: 2025-11-05
-> **목적**: Circuit를 실제 프로덕션 코딩 환경에서 사용 가능하도록 만들기 위한 체계적인 기능 분석 및 구현 로드맵
+> **목적**: Octave를 실제 프로덕션 코딩 환경에서 사용 가능하도록 만들기 위한 체계적인 기능 분석 및 구현 로드맵
 
 ---
 
 ## 📋 목차
 
 1. [분석 방법론](#분석-방법론)
-2. [현재 Circuit 상태 요약](#현재-circuit-상태-요약)
+2. [현재 Octave 상태 요약](#현재-circuit-상태-요약)
 3. [Phase별 필요 기능](#phase별-필요-기능)
 4. [우선순위 요약](#우선순위-요약)
 5. [구현 로드맵](#구현-로드맵)
@@ -22,7 +22,7 @@
 
 1. **Cursor 온보딩 프로세스** - 사용자가 처음 설정하는 것들
 2. **실제 개발 워크플로우** - 개발 단계별 필요 기능
-3. **현재 Circuit 대비 갭 분석** - 무엇이 부족한가
+3. **현재 Octave 대비 갭 분석** - 무엇이 부족한가
 
 ### 우선순위 정의
 
@@ -33,7 +33,7 @@
 
 ---
 
-## 🎯 현재 Circuit 상태 요약
+## 🎯 현재 Octave 상태 요약
 
 ### ✅ 잘 구현된 기능
 
@@ -143,7 +143,7 @@ interface ProjectDetection {
 
 **Cursor의 `.cursorrules` 호환**:
 - `.cursorrules` 파일 자동 읽기
-- Circuit 형식으로 변환
+- Octave 형식으로 변환
 - Git에 커밋 가능
 
 ### P1 (High) - 팀 설정 공유
@@ -164,7 +164,7 @@ interface ProjectDetection {
 
 **첫 실행 시 표시**:
 ```
-┌─ Welcome to Circuit! ─────────────────────────┐
+┌─ Welcome to Octave! ─────────────────────────┐
 │                                               │
 │ Let's set up your workspace:                  │
 │                                               │
@@ -1588,16 +1588,16 @@ Esc로 나가기
 
 ## **Phase 9: 확장성 & 커스터마이징**
 
-> **목표**: 사용자/팀이 Circuit를 자신의 워크플로우에 맞게 확장
+> **목표**: 사용자/팀이 Octave를 자신의 워크플로우에 맞게 확장
 
 ### P1 (High) - Extension System
 
-#### 1. Circuit Extension API
+#### 1. Octave Extension API
 
 **Extension 구조**:
 ```typescript
 // extension.ts
-import { CircuitExtension } from '@circuit/api';
+import { OctaveExtension } from '@circuit/api';
 
 export function activate(context: ExtensionContext) {
   // 1. Register a command
@@ -1898,7 +1898,7 @@ Enter theme name: "Andromeda"
 - ✅ Notification Center
 - ✅ Recent Files
 
-**Q1 마일스톤**: Circuit로 기본적인 코딩 작업 완전히 가능
+**Q1 마일스톤**: Octave로 기본적인 코딩 작업 완전히 가능
 
 ---
 
@@ -1934,7 +1934,7 @@ Enter theme name: "Andromeda"
 - 🔨 Extension loader
 - 🔨 기본 extension 포트
 
-**Q2 마일스톤**: Circuit가 Cursor/VS Code와 비슷한 생산성 제공
+**Q2 마일스톤**: Octave가 Cursor/VS Code와 비슷한 생산성 제공
 
 ---
 
@@ -1966,7 +1966,7 @@ Enter theme name: "Andromeda"
 - 🔮 Vim Mode
 - 🔮 Minimap
 
-**Q3 마일스톤**: Circuit가 전문 개발자 도구로 성숙
+**Q3 마일스톤**: Octave가 전문 개발자 도구로 성숙
 
 ---
 
@@ -1981,14 +1981,14 @@ Enter theme name: "Andromeda"
 - 🔮 코드 리뷰 자동화
 - 🔮 팀 설정 동기화
 
-**Q4 마일스톤**: Circuit 1.0 정식 출시
+**Q4 마일스톤**: Octave 1.0 정식 출시
 
 ---
 
 ## 📈 측정 지표 (성공 기준)
 
 ### 1. 사용자 리텐션
-- **DAU (Daily Active Users)**: Circuit를 매일 여는 사용자 수
+- **DAU (Daily Active Users)**: Octave를 매일 여는 사용자 수
 - **주 평균 세션 시간**: 하루 평균 사용 시간
 - **7-day retention**: 설치 후 1주일 후에도 사용하는 비율
 - **30-day retention**: 설치 후 1개월 후에도 사용하는 비율
@@ -2014,8 +2014,8 @@ Enter theme name: "Andromeda"
 ### 3. 생산성 지표
 
 **사용자 설문 기반 측정**:
-- "Circuit가 개발 속도를 얼마나 높였나요?" (1-10)
-- "Circuit를 주요 에디터로 사용하시나요?" (Yes/No)
+- "Octave가 개발 속도를 얼마나 높였나요?" (1-10)
+- "Octave를 주요 에디터로 사용하시나요?" (Yes/No)
 - "Cursor/VS Code 대비 만족도" (1-10)
 
 **객관적 지표**:
@@ -2050,14 +2050,14 @@ Enter theme name: "Andromeda"
 
 ---
 
-## 🎯 Circuit의 차별점 유지
+## 🎯 Octave의 차별점 유지
 
 **구현하면서 절대 잊지 말아야 할 것**:
 
 ### 1. MCP 우선 설계
 - 모든 새 기능은 MCP 서버로 확장 가능해야 함
-- Circuit = MCP 생태계의 허브
-- Cursor는 MCP 소비자, Circuit는 MCP 관리자
+- Octave = MCP 생태계의 허브
+- Cursor는 MCP 소비자, Octave는 MCP 관리자
 
 ### 2. Workspace Isolation
 - Git worktree 기반 독립 환경
@@ -2141,9 +2141,9 @@ Enter theme name: "Andromeda"
 각 기능을 구현할 때 이 순서로 고려:
 
 1. **사용 빈도**: 개발자가 하루에 몇 번 사용하나?
-2. **대체 불가능성**: 이것 없으면 Circuit를 못 쓰나?
+2. **대체 불가능성**: 이것 없으면 Octave를 못 쓰나?
 3. **구현 난이도**: ROI (투입 시간 대비 가치)
-4. **차별점 강화**: Circuit의 고유한 강점을 더 강화하나?
+4. **차별점 강화**: Octave의 고유한 강점을 더 강화하나?
 5. **의존성**: 다른 기능의 전제 조건인가?
 
 **예시**:
@@ -2175,14 +2175,14 @@ Enter theme name: "Andromeda"
 
 ## 🎉 마무리
 
-이 로드맵을 따르면 Circuit가 **2025년 말까지 실제 프로덕션 코딩에 완전히 사용 가능한 수준**이 됩니다.
+이 로드맵을 따르면 Octave가 **2025년 말까지 실제 프로덕션 코딩에 완전히 사용 가능한 수준**이 됩니다.
 
 핵심은:
 1. **Q1**: 기본 기능 (검색, 편집, 테스팅) - "사용 가능"
 2. **Q2**: 생산성 (AI, Git, 빌드) - "Cursor와 비슷"
-3. **Q3-Q4**: 고급 기능 (디버깅, 협업, 확장) - "Circuit만의 강점"
+3. **Q3-Q4**: 고급 기능 (디버깅, 협업, 확장) - "Octave만의 강점"
 
-**Circuit의 비전**: "MCP 생태계의 VS Code"
+**Octave의 비전**: "MCP 생태계의 VS Code"
 
 ---
 

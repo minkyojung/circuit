@@ -4,6 +4,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
 import FontFaceObserver from 'fontfaceobserver'
+import { useTheme } from '@/hooks/useTheme'
 
 // Use the secure Electron API exposed via preload script
 const ipcRenderer = window.electron.ipcRenderer
@@ -62,7 +63,7 @@ interface TerminalContextValue extends TerminalState {
 const TerminalContext = createContext<TerminalContextValue | null>(null)
 
 // LocalStorage keys
-const TERMINAL_STATE_KEY = 'circuit-terminal-state'
+const TERMINAL_STATE_KEY = 'octave-terminal-state'
 
 interface PersistedTerminalState {
   isOpen: boolean
@@ -98,6 +99,50 @@ interface TerminalProviderProps {
   children: ReactNode
 }
 
+/**
+ * Helper function to get CSS variable values with HSL fallback
+ */
+function getCSSVar(varName: string): string {
+  const rootStyles = getComputedStyle(document.documentElement);
+  const value = rootStyles.getPropertyValue(varName).trim();
+  // If it's HSL values without hsl(), wrap it
+  if (value && !value.startsWith('#') && !value.startsWith('rgb') && !value.startsWith('hsl')) {
+    return `hsl(${value})`;
+  }
+  return value;
+}
+
+/**
+ * Updates terminal theme colors dynamically based on current CSS variables
+ * This allows terminal colors to adapt when the app theme changes
+ */
+function updateTerminalTheme(terminal: XTermTerminal): void {
+  terminal.options.theme = {
+    // Don't set background - let CSS handle transparency with allowTransparency
+    foreground: getCSSVar('--sidebar-foreground'),
+    cursor: getCSSVar('--primary'),
+    cursorAccent: getCSSVar('--sidebar-background'),
+    selectionBackground: getCSSVar('--accent').replace(')', ' / 0.3)'), // Add 30% opacity
+    selectionForeground: getCSSVar('--sidebar-foreground'),
+    black: '#2e3436',
+    red: '#cc0000',
+    green: '#4e9a06',
+    yellow: '#c4a000',
+    blue: '#3465a4',
+    magenta: '#75507b',
+    cyan: '#06989a',
+    white: '#d3d7cf',
+    brightBlack: '#555753',
+    brightRed: '#ef2929',
+    brightGreen: '#8ae234',
+    brightYellow: '#fce94f',
+    brightBlue: '#729fcf',
+    brightMagenta: '#ad7fa8',
+    brightCyan: '#34e2e2',
+    brightWhite: '#eeeeec',
+  };
+}
+
 export function TerminalProvider({ children }: TerminalProviderProps) {
   // Use useRef for Map to avoid React re-render issues with mutable data
   const terminalsRef = useRef<Map<string, TerminalData>>(new Map())
@@ -111,10 +156,21 @@ export function TerminalProvider({ children }: TerminalProviderProps) {
   // Keep track of sessions we've created
   const createdSessions = useRef<Set<string>>(new Set())
 
+  // Watch for theme changes and update all terminal colors dynamically
+  const { resolvedTheme } = useTheme()
+
   // Persist state changes
   useEffect(() => {
     savePersistedState({ isOpen, height })
   }, [isOpen, height])
+
+  // Update all terminal colors when theme changes
+  useEffect(() => {
+    console.log('[TerminalContext] Theme changed, updating all terminal colors')
+    terminalsRef.current.forEach((terminalData) => {
+      updateTerminalTheme(terminalData.terminal)
+    })
+  }, [resolvedTheme])
 
   // Set up IPC listeners for terminal data and exit events
   useEffect(() => {
@@ -163,17 +219,6 @@ export function TerminalProvider({ children }: TerminalProviderProps) {
     console.log(`[TerminalContext] Creating new terminal for workspace: ${workspaceId}`)
 
     try {
-      // Get CSS variables for theme colors
-      const rootStyles = getComputedStyle(document.documentElement)
-      const getCSSVar = (varName: string) => {
-        const value = rootStyles.getPropertyValue(varName).trim()
-        // If it's HSL values without hsl(), wrap it
-        if (value && !value.startsWith('#') && !value.startsWith('rgb') && !value.startsWith('hsl')) {
-          return `hsl(${value})`
-        }
-        return value
-      }
-
       // Create xterm.js instance (will be attached to DOM later)
       const terminal = new XTermTerminal({
         cursorBlink: true,
@@ -181,36 +226,15 @@ export function TerminalProvider({ children }: TerminalProviderProps) {
         fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", "Source Code Pro", "SF Mono", Menlo, Consolas, Monaco, "Courier New", monospace',
         fontWeight: '300',
         fontWeightBold: '600',
-        theme: {
-          // Don't set background - let CSS handle transparency with allowTransparency
-          foreground: getCSSVar('--sidebar-foreground'),
-          cursor: getCSSVar('--primary'),
-          cursorAccent: getCSSVar('--sidebar-background'),
-          selectionBackground: getCSSVar('--accent').replace(')', ' / 0.3)'), // Add 30% opacity
-          selectionForeground: getCSSVar('--sidebar-foreground'),
-          black: '#2e3436',
-          red: '#cc0000',
-          green: '#4e9a06',
-          yellow: '#c4a000',
-          blue: '#3465a4',
-          magenta: '#75507b',
-          cyan: '#06989a',
-          white: '#d3d7cf',
-          brightBlack: '#555753',
-          brightRed: '#ef2929',
-          brightGreen: '#8ae234',
-          brightYellow: '#fce94f',
-          brightBlue: '#729fcf',
-          brightMagenta: '#ad7fa8',
-          brightCyan: '#34e2e2',
-          brightWhite: '#eeeeec',
-        },
         scrollback: 1000,
         rows: 20,
         cols: 80,
         allowTransparency: true,
         drawBoldTextInBrightColors: true,
       })
+
+      // Apply current theme colors dynamically
+      updateTerminalTheme(terminal)
 
       // Create addons
       const fitAddon = new FitAddon()

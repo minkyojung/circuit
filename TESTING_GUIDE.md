@@ -1,6 +1,6 @@
 # Testing Guide: SharedMemoryPool Integration
 
-This guide explains how to test the SharedMemoryPool integration in the Circuit Electron app.
+This guide explains how to test the SharedMemoryPool integration in the Octave Electron app.
 
 ## What Was Implemented
 

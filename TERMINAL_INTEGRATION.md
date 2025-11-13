@@ -14,7 +14,7 @@
 
 ## Overview
 
-This document describes the integrated terminal system in Circuit, which provides workspace-isolated terminal sessions within the TodoPanel. Each workspace gets its own persistent PTY (pseudo-terminal) session that survives workspace switching.
+This document describes the integrated terminal system in Octave, which provides workspace-isolated terminal sessions within the TodoPanel. Each workspace gets its own persistent PTY (pseudo-terminal) session that survives workspace switching.
 
 ### Key Features
 - **Workspace Isolation**: Each workspace has its own terminal session
@@ -696,7 +696,7 @@ Defined in `:root` for centralized control:
 
 ### Theme Integration
 
-Terminal colors sync with Circuit design tokens:
+Terminal colors sync with Octave design tokens:
 
 ```typescript
 const getCSSVar = (varName: string) => {

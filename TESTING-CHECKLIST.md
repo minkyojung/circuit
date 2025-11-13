@@ -1,6 +1,6 @@
 # Multi-Conversation System Testing Checklist
 
-실제 Circuit 앱에서 수동으로 테스트하면서 체크
+실제 Octave 앱에서 수동으로 테스트하면서 체크
 
 ## 📋 테스트 1: 기본 Conversation 관리
 

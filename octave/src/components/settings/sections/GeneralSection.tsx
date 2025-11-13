@@ -26,12 +26,6 @@ interface GeneralSectionProps {
 const THEME_OPTIONS: { value: ThemeMode; label: string }[] = [
   { value: 'light', label: 'Light' },
   { value: 'dark', label: 'Dark' },
-  { value: 'green-light', label: 'Sage' },
-  { value: 'green-dark', label: 'Forest' },
-  { value: 'warm-light', label: 'Amber' },
-  { value: 'warm-dark', label: 'Ember' },
-  { value: 'straw-light', label: 'Wheat' },
-  { value: 'slate-dark', label: 'Slate' },
   { value: 'system', label: 'System' },
 ];
 
@@ -49,7 +43,7 @@ export const GeneralSection: React.FC<GeneralSectionProps> = ({
   updateSettings
 }) => {
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Appearance */}
       <SettingsGroup title="Appearance">
         <SettingsItem

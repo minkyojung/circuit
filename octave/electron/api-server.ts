@@ -2,7 +2,7 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import type { MCPServerManager } from './mcp-manager';
 
-export class CircuitAPIServer {
+export class OctaveAPIServer {
   private app: express.Application;
   private server: any;
   private mcpManager: MCPServerManager;
@@ -371,7 +371,7 @@ export class CircuitAPIServer {
   async start(): Promise<void> {
     return new Promise((resolve) => {
       this.server = this.app.listen(this.port, '127.0.0.1', () => {
-        console.log(`[Circuit API] Server listening on http://localhost:${this.port}`);
+        console.log(`[Octave API] Server listening on http://localhost:${this.port}`);
         resolve();
       });
     });

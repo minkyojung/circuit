@@ -196,7 +196,7 @@ describe('Migration from v0.0.5', () => {
 | Version | Date | Highlights |
 |---------|------|------------|
 | v0.0.5 | 2025-01-11 | Smart Commit, Auto-staging, Onboarding migration |
-| v0.0.4 | 2025-01-10 | Initial Circuit release |
+| v0.0.4 | 2025-01-10 | Initial Octave release |
 
 ## Troubleshooting
 

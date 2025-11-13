@@ -1,4 +1,4 @@
-# Voice Features Integration Roadmap - Circuit Codebase Analysis
+# Voice Features Integration Roadmap - Octave Codebase Analysis
 
 ## Quick Reference: Where Voice Features Would Go
 
@@ -80,9 +80,9 @@ ipcMain.handle('audio:set-settings', (event, settings) => {
 
 ### 3. Settings & Configuration
 
-**Extend CircuitSettings** (circuit/src/types/settings.ts):
+**Extend OctaveSettings** (circuit/src/types/settings.ts):
 ```typescript
-export interface CircuitSettings {
+export interface OctaveSettings {
   // ... existing settings ...
   
   audio: {
@@ -310,7 +310,7 @@ try {
 To add voice features:
 
 - [ ] Create `/circuit/src/contexts/VoiceContext.tsx`
-- [ ] Extend `CircuitSettings` with audio config
+- [ ] Extend `OctaveSettings` with audio config
 - [ ] Add feature flags to `features.ts`
 - [ ] Update `ChatInput.tsx` with voice button
 - [ ] Create `VoiceButton` component

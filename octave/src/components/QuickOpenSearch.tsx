@@ -112,7 +112,7 @@ export const QuickOpenSearch = forwardRef<HTMLInputElement, QuickOpenSearchProps
       }
 
       try {
-        const stored = localStorage.getItem('circuit-recent-workspaces');
+        const stored = localStorage.getItem('octave-recent-workspaces');
         if (stored) {
           const workspaces: RecentWorkspace[] = JSON.parse(stored);
           const sorted = workspaces

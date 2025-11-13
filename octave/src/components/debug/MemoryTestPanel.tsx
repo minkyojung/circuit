@@ -38,7 +38,7 @@ export function MemoryTestPanel({ workspace, conversationId }: MemoryTestPanelPr
 
     setLoading(true)
     try {
-      const result = await ipcRenderer.invoke('circuit:memory-store', {
+      const result = await ipcRenderer.invoke('octave:memory-store', {
         projectPath: workspace.path,
         key: `${testKey}-global-${Date.now()}`,
         value: JSON.stringify({ message: testValue, type: 'global', timestamp: Date.now() }),
@@ -72,7 +72,7 @@ export function MemoryTestPanel({ workspace, conversationId }: MemoryTestPanelPr
 
     setLoading(true)
     try {
-      const result = await ipcRenderer.invoke('circuit:memory-store', {
+      const result = await ipcRenderer.invoke('octave:memory-store', {
         projectPath: workspace.path,
         key: `${testKey}-conv-${Date.now()}`,
         value: JSON.stringify({ message: testValue, type: 'conversation', timestamp: Date.now() }),
@@ -105,7 +105,7 @@ export function MemoryTestPanel({ workspace, conversationId }: MemoryTestPanelPr
     setLoading(true)
     try {
       // Load global memories
-      const globalResult = await ipcRenderer.invoke('circuit:memory-get-global', workspace.path)
+      const globalResult = await ipcRenderer.invoke('octave:memory-get-global', workspace.path)
       if (globalResult.success) {
         setGlobalMemories(globalResult.memories || [])
         console.log('📦 Global memories:', globalResult.memories?.length || 0)
@@ -113,7 +113,7 @@ export function MemoryTestPanel({ workspace, conversationId }: MemoryTestPanelPr
 
       // Load conversation memories (if conversation is selected)
       if (conversationId) {
-        const convResult = await ipcRenderer.invoke('circuit:memory-get-conversation', workspace.path, conversationId)
+        const convResult = await ipcRenderer.invoke('octave:memory-get-conversation', workspace.path, conversationId)
         if (convResult.success) {
           setConversationMemories(convResult.memories || [])
           console.log('📦 Conversation memories:', convResult.memories?.length || 0)
@@ -121,7 +121,7 @@ export function MemoryTestPanel({ workspace, conversationId }: MemoryTestPanelPr
       }
 
       // Load cache stats
-      const statsResult = await ipcRenderer.invoke('circuit:memory-pool-stats')
+      const statsResult = await ipcRenderer.invoke('octave:memory-pool-stats')
       if (statsResult.success) {
         setCacheStats(statsResult.stats)
         console.log('📊 Cache stats:', statsResult.stats)
@@ -136,7 +136,7 @@ export function MemoryTestPanel({ workspace, conversationId }: MemoryTestPanelPr
   const clearCache = async () => {
     setLoading(true)
     try {
-      const result = await ipcRenderer.invoke('circuit:memory-pool-clear')
+      const result = await ipcRenderer.invoke('octave:memory-pool-clear')
       if (result.success) {
         console.log('✅ Cache cleared')
         alert('캐시를 비웠습니다!')
@@ -156,7 +156,7 @@ export function MemoryTestPanel({ workspace, conversationId }: MemoryTestPanelPr
 
     setLoading(true)
     try {
-      const result = await ipcRenderer.invoke('circuit:memory-clear-project', workspace.path)
+      const result = await ipcRenderer.invoke('octave:memory-clear-project', workspace.path)
       if (result.success) {
         console.log('✅ Cleared', result.count, 'memories')
         alert(`${result.count}개 메모리 삭제 완료`)

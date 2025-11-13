@@ -1,4 +1,4 @@
-# Circuit Test-Fix Loop: Final Architecture
+# Octave Test-Fix Loop: Final Architecture
 
 > **최종 결정:** 단순하고 명확한 방식 채택 (하이브리드 제거)
 >
@@ -204,7 +204,7 @@ $ circuit init
 **중요: 우리는 중간에 안 끼임**
 ```
 User API Key → Anthropic API (직접 호출)
-              (Circuit은 키만 찾아줌)
+              (Octave은 키만 찾아줌)
 ```
 
 ---
@@ -325,7 +325,7 @@ Suggest a fix with:
 ### **Config File: `.circuit/circuit.config.md`**
 
 ```markdown
-# Circuit Configuration
+# Octave Configuration
 
 ## Project Info
 - Name: My React App
@@ -413,7 +413,7 @@ Override if needed:
 ### **New Tab: Test-Fix**
 
 ```
-Circuit Desktop App
+Octave Desktop App
 ├── Sidebar
 │   ├── Developer (기존)
 │   └── Test-Fix ⭐ (신규)
@@ -641,7 +641,7 @@ Circuit Desktop App
    - CI/CD pipeline
 
 4. **Pro Features**
-   - Circuit-hosted API (no key needed)
+   - Octave-hosted API (no key needed)
    - Team collaboration
    - Advanced analytics
 

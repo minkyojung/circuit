@@ -31,7 +31,7 @@ export async function analyzeChangesWithClaude(
       '--model', 'sonnet',          // Use Sonnet for better analysis
     ], {
       stdio: ['pipe', 'pipe', 'pipe'],
-      timeout: 60000,               // 60 second timeout
+      timeout: 300000,              // 300 second (5 minutes) timeout for very large diffs
       env: getNodeEnv()             // Include Node.js in PATH for cross-platform compatibility
     });
 
