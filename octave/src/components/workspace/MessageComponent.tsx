@@ -50,9 +50,35 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
 
   const isTask = metadata.isTask === true;
   const todoId = metadata.todoId;
+  const isCancelled = metadata.cancelled === true;
 
   // Get agent state for this task (using todoId)
   const agentState = isTask && todoId && agentStates ? agentStates.get(todoId) : null;
+
+  // If message is cancelled, show minimal cancelled state
+  if (isCancelled) {
+    return (
+      <div
+        data-message-id={msg.id}
+        className={`flex flex-col ${
+          msg.role === 'user' ? 'items-end' : 'items-start'
+        } ${msg.role === 'assistant' ? 'mb-2' : ''} w-full opacity-40`}
+      >
+        <div
+          className={`max-w-[75%] ${
+            msg.role === 'user'
+              ? 'bg-[#E8EEEB] dark:bg-[#1A2621] px-3 py-2 rounded-xl border border-border'
+              : ''
+          }`}
+        >
+          <div className="text-base font-normal text-muted-foreground italic line-through leading-relaxed">
+            {msg.content || 'Message cancelled'}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       data-message-id={msg.id}
@@ -207,6 +233,7 @@ export const MessageComponent = React.memo(
       prevProps.msg.content === nextProps.msg.content &&
       prevProps.msg.blocks === nextProps.msg.blocks &&
       prevProps.msg.filteredBlocks === nextProps.msg.filteredBlocks &&
+      prevProps.msg.metadata?.cancelled === nextProps.msg.metadata?.cancelled &&
       prevProps.isSending === nextProps.isSending &&
       prevProps.pendingAssistantMessageId === nextProps.pendingAssistantMessageId &&
       prevProps.copiedMessageId === nextProps.copiedMessageId &&
