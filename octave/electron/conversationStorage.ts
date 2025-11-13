@@ -114,7 +114,7 @@ export interface Todo {
 export class ConversationStorage {
   private db: Database.Database | null = null
   private dbPath: string
-  private schemaVersion = 6  // Updated to v6 for additional block types
+  private schemaVersion = 7  // Updated to v7 for SimpleBranchPlan support
 
   constructor() {
     const userData = app.getPath('userData')
@@ -504,6 +504,61 @@ export class ConversationStorage {
         console.log('[ConversationStorage] Migration v6 complete')
       } catch (error) {
         console.error('[ConversationStorage] Migration v6 error:', error)
+        throw error
+      }
+    }
+
+    // Migration v7: SimpleBranchPlan support
+    if (currentVersion < 7) {
+      console.log('[ConversationStorage] Running migration v7: SimpleBranchPlan support')
+
+      try {
+        // Create simple_branch_plans table
+        this.db.exec(`
+          CREATE TABLE simple_branch_plans (
+            id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL,
+            goal TEXT NOT NULL,
+            description TEXT,
+            conversations TEXT NOT NULL,         -- JSON array of PlanConversationDraft
+            total_conversations INTEGER NOT NULL,
+            total_todos INTEGER NOT NULL,
+            total_estimated_duration INTEGER NOT NULL,
+            status TEXT NOT NULL CHECK(status IN ('pending', 'active', 'completed', 'cancelled', 'archived')),
+            ai_analysis TEXT,                    -- JSON object with reasoning, questions, answers, confidence
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            started_at INTEGER,
+            completed_at INTEGER,
+            cancelled_at INTEGER,
+            archived_at INTEGER,
+            metadata TEXT                        -- JSON object with tags, createdBy, source
+          );
+
+          CREATE INDEX idx_plans_workspace ON simple_branch_plans(workspace_id, updated_at DESC);
+          CREATE INDEX idx_plans_status ON simple_branch_plans(workspace_id, status);
+          CREATE INDEX idx_plans_created ON simple_branch_plans(created_at DESC);
+        `)
+
+        // Add plan_id column to conversations table
+        this.db.exec(`
+          ALTER TABLE conversations ADD COLUMN plan_id TEXT;
+        `)
+
+        // Create index for plan lookups
+        this.db.exec(`
+          CREATE INDEX idx_conversations_plan ON conversations(plan_id);
+        `)
+
+        // Record migration
+        this.db.prepare(`
+          INSERT INTO schema_version (version, name, applied_at)
+          VALUES (?, ?, ?)
+        `).run(7, 'simple_branch_plan_support', Date.now())
+
+        console.log('[ConversationStorage] Migration v7 complete')
+      } catch (error) {
+        console.error('[ConversationStorage] Migration v7 error:', error)
         throw error
       }
     }
@@ -1453,6 +1508,279 @@ export class ConversationStorage {
       completed: stats.completed || 0,
       failed: stats.failed || 0,
       skipped: stats.skipped || 0
+    }
+  }
+
+  // ============================================================================
+  // SimpleBranchPlan Methods
+  // ============================================================================
+
+  /**
+   * Create a new SimpleBranchPlan
+   */
+  createPlan(plan: {
+    id: string
+    workspaceId: string
+    goal: string
+    description?: string
+    conversations: any[] // PlanConversationDraft[]
+    totalConversations: number
+    totalTodos: number
+    totalEstimatedDuration: number
+    status: string
+    aiAnalysis?: any
+    createdAt: number
+    updatedAt: number
+    metadata?: any
+  }): void {
+    if (!this.db) throw new Error('Database not initialized')
+
+    this.db
+      .prepare(
+        `
+        INSERT INTO simple_branch_plans (
+          id, workspace_id, goal, description,
+          conversations, total_conversations, total_todos, total_estimated_duration,
+          status, ai_analysis, created_at, updated_at, metadata
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `
+      )
+      .run(
+        plan.id,
+        plan.workspaceId,
+        plan.goal,
+        plan.description || null,
+        JSON.stringify(plan.conversations),
+        plan.totalConversations,
+        plan.totalTodos,
+        plan.totalEstimatedDuration,
+        plan.status,
+        plan.aiAnalysis ? JSON.stringify(plan.aiAnalysis) : null,
+        plan.createdAt,
+        plan.updatedAt,
+        plan.metadata ? JSON.stringify(plan.metadata) : null
+      )
+  }
+
+  /**
+   * Get plan by ID
+   */
+  getPlanById(planId: string): any | null {
+    if (!this.db) throw new Error('Database not initialized')
+
+    const row = this.db
+      .prepare(
+        `
+        SELECT * FROM simple_branch_plans WHERE id = ?
+      `
+      )
+      .get(planId) as any
+
+    if (!row) return null
+
+    return this.deserializePlan(row)
+  }
+
+  /**
+   * Get all plans for a workspace
+   */
+  getPlansByWorkspaceId(workspaceId: string): any[] {
+    if (!this.db) throw new Error('Database not initialized')
+
+    const rows = this.db
+      .prepare(
+        `
+        SELECT * FROM simple_branch_plans
+        WHERE workspace_id = ?
+        ORDER BY updated_at DESC
+      `
+      )
+      .all(workspaceId) as any[]
+
+    return rows.map(row => this.deserializePlan(row))
+  }
+
+  /**
+   * Get active plan for a workspace (only one active plan per workspace)
+   */
+  getActivePlanByWorkspaceId(workspaceId: string): any | null {
+    if (!this.db) throw new Error('Database not initialized')
+
+    const row = this.db
+      .prepare(
+        `
+        SELECT * FROM simple_branch_plans
+        WHERE workspace_id = ? AND status = 'active'
+        ORDER BY updated_at DESC
+        LIMIT 1
+      `
+      )
+      .get(workspaceId) as any
+
+    if (!row) return null
+
+    return this.deserializePlan(row)
+  }
+
+  /**
+   * Update plan
+   */
+  updatePlan(
+    planId: string,
+    updates: {
+      goal?: string
+      description?: string
+      conversations?: any[]
+      totalConversations?: number
+      totalTodos?: number
+      totalEstimatedDuration?: number
+      status?: string
+      aiAnalysis?: any
+      startedAt?: number
+      completedAt?: number
+      cancelledAt?: number
+      archivedAt?: number
+      metadata?: any
+    }
+  ): void {
+    if (!this.db) throw new Error('Database not initialized')
+
+    const setClauses: string[] = ['updated_at = ?']
+    const values: any[] = [Date.now()]
+
+    if (updates.goal !== undefined) {
+      setClauses.push('goal = ?')
+      values.push(updates.goal)
+    }
+    if (updates.description !== undefined) {
+      setClauses.push('description = ?')
+      values.push(updates.description)
+    }
+    if (updates.conversations !== undefined) {
+      setClauses.push('conversations = ?')
+      values.push(JSON.stringify(updates.conversations))
+    }
+    if (updates.totalConversations !== undefined) {
+      setClauses.push('total_conversations = ?')
+      values.push(updates.totalConversations)
+    }
+    if (updates.totalTodos !== undefined) {
+      setClauses.push('total_todos = ?')
+      values.push(updates.totalTodos)
+    }
+    if (updates.totalEstimatedDuration !== undefined) {
+      setClauses.push('total_estimated_duration = ?')
+      values.push(updates.totalEstimatedDuration)
+    }
+    if (updates.status !== undefined) {
+      setClauses.push('status = ?')
+      values.push(updates.status)
+    }
+    if (updates.aiAnalysis !== undefined) {
+      setClauses.push('ai_analysis = ?')
+      values.push(JSON.stringify(updates.aiAnalysis))
+    }
+    if (updates.startedAt !== undefined) {
+      setClauses.push('started_at = ?')
+      values.push(updates.startedAt)
+    }
+    if (updates.completedAt !== undefined) {
+      setClauses.push('completed_at = ?')
+      values.push(updates.completedAt)
+    }
+    if (updates.cancelledAt !== undefined) {
+      setClauses.push('cancelled_at = ?')
+      values.push(updates.cancelledAt)
+    }
+    if (updates.archivedAt !== undefined) {
+      setClauses.push('archived_at = ?')
+      values.push(updates.archivedAt)
+    }
+    if (updates.metadata !== undefined) {
+      setClauses.push('metadata = ?')
+      values.push(JSON.stringify(updates.metadata))
+    }
+
+    values.push(planId)
+
+    const sql = `UPDATE simple_branch_plans SET ${setClauses.join(', ')} WHERE id = ?`
+    this.db.prepare(sql).run(...values)
+  }
+
+  /**
+   * Delete plan
+   */
+  deletePlan(planId: string): void {
+    if (!this.db) throw new Error('Database not initialized')
+
+    // Note: This will NOT delete associated conversations (they remain independent)
+    // Only removes the plan metadata grouping
+    this.db.prepare('DELETE FROM simple_branch_plans WHERE id = ?').run(planId)
+  }
+
+  /**
+   * Get conversations associated with a plan
+   */
+  getConversationsByPlanId(planId: string): Conversation[] {
+    if (!this.db) throw new Error('Database not initialized')
+
+    const conversations = this.db
+      .prepare(
+        `
+        SELECT id, workspace_id as workspaceId, title, created_at as createdAt,
+               updated_at as updatedAt, is_active as isActive, plan_id as planId
+        FROM conversations
+        WHERE plan_id = ?
+        ORDER BY updated_at DESC
+      `
+      )
+      .all(planId) as Conversation[]
+
+    return conversations.map(c => ({
+      ...c,
+      isActive: Boolean(c.isActive)
+    }))
+  }
+
+  /**
+   * Update conversation's plan association
+   */
+  updateConversationPlanId(conversationId: string, planId: string | null): void {
+    if (!this.db) throw new Error('Database not initialized')
+
+    this.db
+      .prepare(
+        `
+        UPDATE conversations
+        SET plan_id = ?, updated_at = ?
+        WHERE id = ?
+      `
+      )
+      .run(planId, new Date().toISOString(), conversationId)
+  }
+
+  /**
+   * Deserialize plan row from database
+   */
+  private deserializePlan(row: any): any {
+    return {
+      id: row.id,
+      workspaceId: row.workspace_id,
+      goal: row.goal,
+      description: row.description,
+      conversations: JSON.parse(row.conversations),
+      totalConversations: row.total_conversations,
+      totalTodos: row.total_todos,
+      totalEstimatedDuration: row.total_estimated_duration,
+      status: row.status,
+      aiAnalysis: row.ai_analysis ? JSON.parse(row.ai_analysis) : undefined,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      startedAt: row.started_at,
+      completedAt: row.completed_at,
+      cancelledAt: row.cancelled_at,
+      archivedAt: row.archived_at,
+      metadata: row.metadata ? JSON.parse(row.metadata) : undefined
     }
   }
 }
