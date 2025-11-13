@@ -9,7 +9,6 @@ import { useSettingsContext } from '@/contexts/SettingsContext';
 import { useTheme } from '@/hooks/useTheme';
 import { SettingsSidebar, type SettingsCategory } from './settings/SettingsSidebar';
 import { GeneralSection } from './settings/sections/GeneralSection';
-import { ModelSection } from './settings/sections/ModelSection';
 import { AISection } from './settings/sections/AISection';
 import { TerminalSection } from './settings/sections/TerminalSection';
 import { RepositoriesSection } from './settings/sections/RepositoriesSection';
@@ -68,12 +67,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ workspacePath }) =
             />
           )}
 
-          {activeCategory === 'model' && (
-            <ModelSection
-              settings={settings}
-              updateSettings={updateSettings}
-            />
-          )}
+          {/* Model tab removed - model selection available in chat input */}
 
           {activeCategory === 'ai' && (
             <AISection

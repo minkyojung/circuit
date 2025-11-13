@@ -41,8 +41,8 @@ export const AISection: React.FC<AISectionProps> = ({
         <AIRulesOverview workspacePath={workspacePath || 'default-workspace'} />
       </div>
 
-      {/* Monaco Editor AI */}
-      <SettingsGroup title="Monaco Editor AI" description="AI-powered code completion and assistance">
+      {/* Monaco Editor AI - Temporarily hidden, functionality preserved */}
+      {/* <SettingsGroup title="Monaco Editor AI" description="AI-powered code completion and assistance">
         <SettingsItem
           type="toggle"
           title="AI Autocompletion"
@@ -114,10 +114,10 @@ export const AISection: React.FC<AISectionProps> = ({
           checked={settings.monaco.cacheCompletions}
           onCheckedChange={(checked) => updateSettings('monaco', { ...settings.monaco, cacheCompletions: checked })}
         />
-      </SettingsGroup>
+      </SettingsGroup> */}
 
-      {/* Response Behavior */}
-      <SettingsGroup title="Response Behavior">
+      {/* Response Behavior - Temporarily hidden, functionality preserved */}
+      {/* <SettingsGroup title="Response Behavior">
         <SettingsItem
           type="toggle"
           title="Strip Absolute Agreement"
@@ -125,10 +125,10 @@ export const AISection: React.FC<AISectionProps> = ({
           checked={settings.aiBehavior.stripAbsoluteAgreement}
           onCheckedChange={(checked) => updateSettings('aiBehavior', { stripAbsoluteAgreement: checked })}
         />
-      </SettingsGroup>
+      </SettingsGroup> */}
 
-      {/* Attachments */}
-      <SettingsGroup title="Attachments">
+      {/* Attachments - Temporarily hidden, functionality preserved */}
+      {/* <SettingsGroup title="Attachments">
         <SettingsItem
           type="toggle"
           title="Auto-Convert Long Text"
@@ -154,7 +154,7 @@ export const AISection: React.FC<AISectionProps> = ({
             />
           </div>
         </SettingsItem>
-      </SettingsGroup>
+      </SettingsGroup> */}
     </div>
   );
 };
