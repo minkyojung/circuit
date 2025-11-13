@@ -1188,7 +1188,7 @@ export function registerConversationHandlers(): void {
       try {
         if (!storage) throw new Error('Storage not initialized')
 
-        const plans = storage.getPlans(workspaceId)
+        const plans = storage.getPlansByWorkspaceId(workspaceId)
         const activePlan = plans.find(p => p.status === 'active' || p.status === 'pending')
 
         return {
@@ -1237,6 +1237,13 @@ export function registerConversationHandlers(): void {
     const { registerTodoHandlers } = require('./todoHandlers')
     registerTodoHandlers(storage)
   }
+}
+
+/**
+ * Get storage instance (for internal use by other electron modules)
+ */
+export function getConversationStorage() {
+  return storage;
 }
 
 /**

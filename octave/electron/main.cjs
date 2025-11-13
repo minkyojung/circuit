@@ -3894,6 +3894,20 @@ ipcMain.handle('workspace:create', async (event, repositoryPath) => {
     // Create worktree
     const workspace = await createWorktree(projectPath, branchName);
 
+    // Auto-create default conversation for new workspace
+    try {
+      const { getConversationStorage } = require('../dist-electron/conversationHandlers.js');
+      const storage = getConversationStorage();
+
+      if (storage) {
+        const defaultConversation = storage.create(workspace.id, `${workspace.name} Chat`);
+        console.log('[Workspace] Auto-created default conversation:', defaultConversation.id);
+      }
+    } catch (convError) {
+      console.error('[Workspace] Failed to create default conversation:', convError);
+      // Non-fatal: workspace is still created successfully
+    }
+
     return { success: true, workspace };
   } catch (error) {
     console.error('[Workspace] Create error:', error);
