@@ -158,7 +158,7 @@
     --popover-foreground: var(--label-primary);
 
     /* Brand colors */
-    --primary: oklch(0.54 0.10 162);                 /* #2D916F - Teal green */
+    --primary: oklch(0.35 0 0);                      /* Dark gray - 짙은 회색 */
     --primary-foreground: oklch(1 0 0);              /* #FFFFFF */
 
     --secondary: oklch(0.92 0 0);                    /* #EBEBEB - Light gray */
@@ -168,14 +168,14 @@
     --muted: oklch(0.96 0 0);                        /* #F5F5F5 - Subtle backgrounds */
     --muted-foreground: rgba(0, 0, 0, 0.50);         /* 50% - Apple secondaryLabelColor */
 
-    --accent: oklch(0.94 0.02 162);                  /* Very light teal tint */
-    --accent-foreground: oklch(0.54 0.10 162);       /* #2D916F - Teal green */
+    --accent: oklch(0.94 0 0);                       /* Very light gray */
+    --accent-foreground: oklch(0.35 0 0);            /* Dark gray */
 
     /* Semantic colors */
     --destructive: oklch(0.55 0.30 25);              /* Red - more vibrant */
     --destructive-foreground: oklch(1 0 0);          /* White */
 
-    --success: oklch(0.55 0.22 150);                 /* Green - more vibrant */
+    --success: oklch(0.35 0 0);                      /* Dark gray */
     --success-foreground: oklch(1 0 0);
 
     --warning: oklch(0.65 0.22 80);                  /* Yellow-orange - more vibrant */
@@ -187,7 +187,7 @@
     /* UI elements */
     --border: var(--separator-opaque);
     --input: oklch(0.92 0 0);                        /* #EBEBEB */
-    --ring: oklch(0.54 0.10 162);                    /* #2D916F - Focus ring */
+    --ring: oklch(0.35 0 0);                         /* Dark gray - Focus ring */
 
     /* Window glassmorphism */
     --window-glass: var(--material-regular);         /* Standard glass effect for window */
@@ -326,7 +326,7 @@
     --popover-foreground: var(--label-primary);
 
     /* Brand colors - slightly brightened for dark mode */
-    --primary: oklch(0.60 0.11 162);                 /* #2D916F brightened for dark mode */
+    --primary: oklch(0.75 0 0);                      /* Light gray - 연한 회색 */
     --primary-foreground: oklch(0.12 0 0);           /* Dark text on primary */
 
     --secondary: var(--background-elevated-tertiary); /* #424242 - Dark gray */
@@ -336,15 +336,15 @@
     --muted: var(--background-elevated-secondary);   /* #3A3A3A - Sidebar bg dark */
     --muted-foreground: rgba(255, 255, 255, 0.5);    /* 50% white - subtle gray like Shadcn */
 
-    --accent: oklch(0.30 0.03 162);                  /* Dark teal tint */
-    --accent-foreground: oklch(0.60 0.11 162);       /* Brightened teal */
+    --accent: oklch(0.30 0 0);                       /* Dark gray */
+    --accent-foreground: oklch(0.75 0 0);            /* Light gray */
 
     /* Semantic colors - adjusted for dark backgrounds */
     --destructive: oklch(0.60 0.33 25);              /* Brighter red - more vibrant */
     --destructive-foreground: oklch(0.98 0 0);
 
-    --success: oklch(0.60 0.25 150);                 /* Brighter green - more vibrant */
-    --success-foreground: oklch(0.98 0 0);
+    --success: oklch(0.75 0 0);                      /* Light gray */
+    --success-foreground: oklch(0.12 0 0);
 
     --warning: oklch(0.70 0.25 80);                  /* Brighter yellow - more vibrant */
     --warning-foreground: oklch(0.15 0 0);
@@ -355,7 +355,7 @@
     /* UI elements */
     --border: var(--separator-opaque);
     --input: var(--background-elevated-secondary);   /* #3A3A3A */
-    --ring: oklch(0.60 0.11 162);                    /* #2D916F brightened ring */
+    --ring: oklch(0.75 0 0);                         /* Light gray - Focus ring */
 
     /* Window glassmorphism */
     --window-glass: var(--material-regular);         /* Standard glass effect - Apple-style */
@@ -480,7 +480,7 @@
     --block-padding-lg: 1.25rem;     /* 20px - spacious variant */
 
     /* Block border radius */
-    --block-radius: 6px;  /* Slightly rounded corners */
+    --block-radius: 7px;  /* Slightly rounded corners */
 
     /* Hover pill (action buttons overlay) */
     --block-pill-bg: rgba(var(--background-rgb), 0.9);
