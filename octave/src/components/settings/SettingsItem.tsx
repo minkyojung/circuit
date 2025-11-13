@@ -53,17 +53,17 @@ export const SettingsItem: React.FC<SettingsItemProps> = (props) => {
 
   return (
     <div className={cn(
-      'flex items-start justify-between py-4 gap-4',
+      'flex items-start justify-between py-3 gap-6',
       className
     )}>
-      <div className="flex-1 space-y-1">
+      <div className="flex-1 space-y-0.5">
         <div className="text-sm font-medium text-foreground">{title}</div>
         {description && (
-          <div className="text-sm text-muted-foreground">{description}</div>
+          <div className="text-xs text-muted-foreground leading-relaxed">{description}</div>
         )}
       </div>
 
-      <div className="flex-shrink-0">
+      <div className="flex-shrink-0 flex items-start pt-0.5">
         {props.type === 'toggle' && (
           <Switch
             checked={props.checked}
@@ -108,15 +108,15 @@ export const SettingsGroup: React.FC<SettingsGroupProps> = ({
 }) => {
   return (
     <div className={cn('space-y-1', className)}>
-      <div className="mb-4">
-        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+      <div className="mb-3">
+        <h3 className="text-xs font-medium text-muted-foreground">
           {title}
         </h3>
         {description && (
-          <p className="text-sm text-muted-foreground mt-1">{description}</p>
+          <p className="text-xs text-muted-foreground/80 mt-1">{description}</p>
         )}
       </div>
-      <div className="space-y-0 divide-y divide-border/50">
+      <div className="space-y-0 divide-y divide-border/30">
         {children}
       </div>
     </div>
