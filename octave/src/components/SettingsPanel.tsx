@@ -27,7 +27,6 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ workspacePath }) =
   const { settings, updateSettings, resetSettings } = useSettingsContext();
   const { theme, setTheme } = useTheme();
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>('general');
-  const [searchQuery, setSearchQuery] = useState('');
   const [showResetDialog, setShowResetDialog] = useState(false);
 
   const handleReset = () => {
@@ -41,21 +40,10 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ workspacePath }) =
       <SettingsSidebar
         activeCategory={activeCategory}
         onCategoryChange={setActiveCategory}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
       />
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-8 py-6 border-b border-border">
-          <div>
-            <h1 className="text-2xl font-semibold text-foreground">
-              {activeCategory.charAt(0).toUpperCase() + activeCategory.slice(1)}
-            </h1>
-          </div>
-        </div>
-
         {/* Content */}
         <div className="flex-1 overflow-y-auto px-8 py-6">
           {activeCategory === 'general' && (

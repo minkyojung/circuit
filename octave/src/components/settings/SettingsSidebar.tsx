@@ -10,12 +10,10 @@ import {
   Sliders,
   Activity,
   Archive,
-  Search,
   Github,
   FolderGit2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Input } from '@/components/ui/input';
 
 export type SettingsCategory = 'general' | 'ai' | 'terminal' | 'repositories' | 'github' | 'advanced' | 'mcp' | 'archive';
 
@@ -39,39 +37,14 @@ const NAV_ITEMS: NavItem[] = [
 interface SettingsSidebarProps {
   activeCategory: SettingsCategory;
   onCategoryChange: (category: SettingsCategory) => void;
-  searchQuery?: string;
-  onSearchChange?: (query: string) => void;
 }
 
 export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({
   activeCategory,
-  onCategoryChange,
-  searchQuery,
-  onSearchChange
+  onCategoryChange
 }) => {
   return (
     <div className="w-64 h-full bg-background border-r border-border flex flex-col">
-      {/* User info placeholder */}
-      <div className="px-4 py-3 border-b border-border">
-        <div className="text-sm font-medium text-foreground">Circuit</div>
-        <div className="text-xs text-muted-foreground">Settings</div>
-      </div>
-
-      {/* Search */}
-      {onSearchChange && (
-        <div className="px-3 py-2">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search settings ⌘F"
-              value={searchQuery}
-              onChange={(e) => onSearchChange(e.target.value)}
-              className="pl-9 h-9 bg-muted/50 border-none"
-            />
-          </div>
-        </div>
-      )}
-
       {/* Navigation */}
       <nav className="flex-1 px-2 py-2 space-y-0.5 overflow-y-auto">
         {NAV_ITEMS.map((item) => {
