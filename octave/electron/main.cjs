@@ -4345,6 +4345,29 @@ Use Read, Glob, Grep tools extensively to gather context before planning.
 
 ⚠️ MANDATORY: Output your plan in JSON format within a code block.
 
+**CRITICAL FORMATTING REQUIREMENTS:**
+1. ✅ MUST wrap JSON in markdown code fence: \`\`\`json ... \`\`\`
+2. ✅ Opening fence: \`\`\`json (on its own line)
+3. ✅ JSON content: starts with { and ends with }
+4. ✅ Closing fence: \`\`\` (on its own line)
+5. ❌ DO NOT write "json" text outside the code fence
+6. ❌ DO NOT output bare JSON without code fence markers
+
+**Example of CORRECT format:**
+\`\`\`json
+{
+  "goal": "...",
+  "conversations": [...]
+}
+\`\`\`
+
+**Example of WRONG format:**
+{
+  "goal": "...",
+  "conversations": [...]
+}
+json    ← WRONG: "json" outside fence
+
 After analyzing the codebase, you MUST output a complete multi-conversation plan in the following JSON format:
 
 ### Required JSON Structure:

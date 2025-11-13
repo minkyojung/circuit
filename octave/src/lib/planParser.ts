@@ -15,9 +15,24 @@ export interface ParsedPlan {
 /**
  * Extracts JSON plan from message content
  * Looks for ```json ... ``` code blocks and validates SimpleBranchPlan structure
+ * Also supports bare JSON (without code fences) as a fallback
  */
 export function extractPlanFromMessage(content: string): ParsedPlan | null {
-  // Match ```json ... ``` blocks
+  // Strategy 1: Try to find ```json ... ``` fenced blocks (preferred)
+  const fencedPlan = tryExtractFencedJSON(content)
+  if (fencedPlan) return fencedPlan
+
+  // Strategy 2: Fallback to bare JSON detection
+  const barePlan = tryExtractBareJSON(content)
+  if (barePlan) return barePlan
+
+  return null
+}
+
+/**
+ * Extract plan from properly fenced JSON blocks
+ */
+function tryExtractFencedJSON(content: string): ParsedPlan | null {
   const jsonBlockRegex = /```json\s*\n([\s\S]*?)\n```/g
 
   let match: RegExpExecArray | null
@@ -39,8 +54,43 @@ export function extractPlanFromMessage(content: string): ParsedPlan | null {
           beforeText,
           afterText
         }
+      }
+    } catch (error) {
+      // Invalid JSON, continue searching
+      continue
+    }
+  }
 
-        // Use the last valid plan found (in case multiple JSON blocks exist)
+  return lastValidPlan
+}
+
+/**
+ * Extract plan from bare JSON (without code fences)
+ * Looks for JSON objects that contain SimpleBranchPlan required fields
+ */
+function tryExtractBareJSON(content: string): ParsedPlan | null {
+  // Pattern to find JSON objects that look like SimpleBranchPlan
+  // Must contain: "goal", "conversations", "totalConversations"
+  const bareJsonRegex = /(\{[\s\S]*?"goal"[\s\S]*?"conversations"[\s\S]*?"totalConversations"[\s\S]*?\})/g
+
+  let match: RegExpExecArray | null
+  let lastValidPlan: ParsedPlan | null = null
+
+  while ((match = bareJsonRegex.exec(content)) !== null) {
+    try {
+      const jsonContent = match[1]
+      const parsed = JSON.parse(jsonContent)
+
+      // Validate that this is a SimpleBranchPlan
+      if (isValidSimpleBranchPlan(parsed)) {
+        const beforeText = content.substring(0, match.index).trim()
+        const afterText = content.substring(match.index + match[0].length).trim()
+
+        lastValidPlan = {
+          plan: parsed as SimpleBranchPlan,
+          beforeText,
+          afterText
+        }
       }
     } catch (error) {
       // Invalid JSON, continue searching
