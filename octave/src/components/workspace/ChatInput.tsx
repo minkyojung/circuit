@@ -20,7 +20,7 @@ import type { ClaudeModel } from '@/types/settings'
 
 const ipcRenderer = typeof window !== 'undefined' && (window as any).require ? (window as any).require('electron').ipcRenderer : null
 
-export type ThinkingMode = 'normal' | 'think' | 'megathink' | 'ultrathink' | 'plan'
+export type ThinkingMode = 'normal' | 'think' | 'megathink' | 'ultrathink' | 'plan' | 'multiplan'
 
 interface ChatInputProps {
   value: string
@@ -160,6 +160,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     megathink: 'Megathink',
     ultrathink: 'Ultrathink',
     plan: 'Plan',
+    multiplan: 'Multi-Plan',
   }
 
   // Model cycling configuration
@@ -337,8 +338,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     if (disabled) return
 
     try {
-      // Use 'plan' mode if isPlanMode is true, otherwise use selected thinkingMode
-      const effectiveMode = isPlanMode ? 'plan' : thinkingMode
+      // Use 'multiplan' mode if isPlanMode is true, otherwise use selected thinkingMode
+      const effectiveMode = isPlanMode ? 'multiplan' : thinkingMode
       await onSubmit(value, attachedFiles, effectiveMode, architectMode)
       clearAttachments() // Clear attachments after send
       // Keep Plan Mode, Thinking Mode, and Architect Mode sticky - don't reset

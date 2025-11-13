@@ -109,7 +109,7 @@ export function useBranchPlan(workspaceId: string | undefined): UseBranchPlanRes
     }
 
     try {
-      const result = await ipcRenderer.invoke('plan:get-all', workspaceId);
+      const result = await ipcRenderer.invoke('plan:list', workspaceId);
 
       if (result.success) {
         setAllPlans(result.plans || []);

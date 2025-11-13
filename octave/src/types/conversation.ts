@@ -15,6 +15,30 @@ export interface Conversation {
   planId?: string  // Optional: ID of SimpleBranchPlan this conversation belongs to
 }
 
+/**
+ * SimpleBranchPlan - v1 multi-conversation plan structure
+ */
+export interface SimpleBranchPlan {
+  id: string
+  workspaceId: string
+  goal: string
+  description?: string
+  planDocument?: string  // Markdown document with full plan details
+  conversations: any[]  // PlanConversationDraft[] - Will be properly typed in v2
+  totalConversations: number
+  totalTodos: number
+  totalEstimatedDuration: number
+  status: 'active' | 'completed' | 'cancelled' | 'archived'
+  aiAnalysis?: any
+  createdAt: number
+  updatedAt: number
+  startedAt?: number
+  completedAt?: number
+  cancelledAt?: number
+  archivedAt?: number
+  metadata?: any
+}
+
 export interface Message {
   id: string
   conversationId: string

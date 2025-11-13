@@ -4098,7 +4098,7 @@ ipcMain.on('claude:send-message', async (event, sessionId, userMessage, attachme
     }
 
     // Validate thinkingMode
-    const validModes = ['normal', 'think', 'megathink', 'ultrathink', 'plan'];
+    const validModes = ['normal', 'think', 'megathink', 'ultrathink', 'plan', 'multiplan'];
     if (!validModes.includes(thinkingMode)) {
       thinkingMode = 'normal';
     }
@@ -4296,6 +4296,180 @@ Throughout execution, follow these core principles:
 - ✅ MUST follow the core development principles
 
 Plan Mode ensures structured, thoughtful development. Take your time to plan well.
+</thinking_instruction>\n\n`;
+    } else if (thinkingMode === 'multiplan') {
+      thinkingInstruction = `<thinking_instruction>
+# Multi-Conversation Plan Mode - Context-Aware Plan Generation
+
+⚠️ CRITICAL: You are in MULTI-CONVERSATION PLAN MODE. You MUST generate a comprehensive plan that breaks down the user's goal into multiple conversations.
+
+## Step 1: Context Analysis (REQUIRED FIRST STEP)
+
+Before proposing a plan, ANALYZE the codebase to gather context:
+
+### What to Analyze:
+- **Tech Stack**: Read package.json, tsconfig.json, build configs
+- **Architecture**: Scan file structure, understand patterns
+- **Existing Code**: Review relevant files to understand conventions
+- **Dependencies**: Check what libraries/frameworks are in use
+- **Current Implementation**: Understand what already exists
+
+### DO NOT Ask Obvious Questions:
+- ❌ "Are you using TypeScript?" → Check tsconfig.json
+- ❌ "What framework?" → Check package.json
+- ❌ "What's your file structure?" → Read directories
+- ❌ "What database?" → Check existing DB files/imports
+
+### ONLY Ask If Truly Ambiguous:
+- ✅ "Should this support real-time updates or batch processing?" (architectural decision)
+- ✅ "Do you want OAuth 2.0 or OAuth 1.0?" (specification ambiguity)
+- ✅ Multiple valid approaches exist with different trade-offs
+
+Use Read, Glob, Grep tools extensively to gather context before planning.
+
+## Step 2: Generate Complete Plan (REQUIRED - JSON Format)
+
+⚠️ MANDATORY: Output your plan in JSON format within a code block.
+
+After analyzing the codebase, you MUST output a complete multi-conversation plan in the following JSON format:
+
+### Required JSON Structure:
+
+\`\`\`json
+{
+  "goal": "User's original goal",
+  "description": "Brief overview of the approach",
+  "planDocument": "# Full Plan Document\\n\\n## Overview\\n...detailed markdown...",
+  "conversations": [
+    {
+      "id": "temp-1",
+      "title": "Conversation Title",
+      "goal": "Detailed description of what this conversation will accomplish",
+      "expectedOutputs": [
+        "Deliverable 1",
+        "Deliverable 2"
+      ],
+      "todos": [
+        {
+          "content": "Todo description (imperative form)",
+          "activeForm": "Doing this todo (present continuous)",
+          "complexity": "trivial" | "simple" | "moderate" | "complex" | "very_complex",
+          "estimatedDuration": 600
+        }
+      ],
+      "estimatedDuration": 1800,
+      "order": 0
+    }
+  ],
+  "totalConversations": 5,
+  "totalTodos": 23,
+  "totalEstimatedDuration": 7200,
+  "aiAnalysis": {
+    "reasoning": "Why this breakdown makes sense",
+    "confidence": 0.85
+  }
+}
+\`\`\`
+
+### Plan Document (Markdown):
+The \`planDocument\` field should contain a comprehensive markdown document with:
+- **Overview**: High-level summary of the goal
+- **Technical Approach**: How you'll implement it based on existing codebase
+- **Architecture Decisions**: Why you chose this structure
+- **Conversation Breakdown**: Detailed explanation of each conversation
+- **Dependencies**: What needs to be done in what order
+- **Potential Risks**: Edge cases or challenges to consider
+
+### Conversation Guidelines:
+- **3-8 conversations**: Reasonable granularity (not too many, not too few)
+- **Clear goals**: Each conversation has a specific, measurable objective
+- **Logical dependencies**: Order conversations by what needs to be done first
+- **Balanced workload**: Each conversation should be substantial but manageable
+- **Specific todos**: Break down each conversation into actionable steps
+
+### Time Estimates:
+- Estimate duration in SECONDS (not minutes)
+- Be realistic based on complexity
+- Consider: research, implementation, testing, debugging time
+
+## Step 3: Present Plan in Natural Language
+
+After outputting the JSON plan, EXPLAIN it to the user in natural language.
+
+IMPORTANT - Language Guidelines:
+- Always think and analyze in ENGLISH internally
+- Detect the user's input language from their prompt
+- Output your explanation in THE SAME LANGUAGE as the user's input
+  - Korean input → Korean explanation
+  - Japanese input → Japanese explanation
+  - English input → English explanation
+- The JSON structure always stays in English
+
+In your explanation, include:
+- Summary of what you analyzed from the codebase
+- Why you chose this conversation breakdown
+- Total: X conversations, Y todos, ~Z minutes
+- Key technical decisions based on existing patterns
+- Any potential risks or considerations
+- High-level overview of the approach
+
+The system will automatically detect the JSON plan and display it using PlanPreviewCard.
+
+Then STOP and WAIT for user approval. Do NOT create any conversations yet.
+
+## Step 4: Handle User Response
+
+The user will review your proposed plan and either:
+
+**If user APPROVES:**
+- You'll receive confirmation message
+- The system will automatically call plan:generate and plan:execute
+- Conversations will be created with their todos
+- You should confirm completion
+
+**If user requests EDITS:**
+- Listen to their feedback
+- Regenerate the plan with modifications
+- Output updated JSON in the same format
+- Show updated PlanPreviewCard
+- Wait for approval again
+
+**If user CANCELS:**
+- Exit Multi-Conversation Plan Mode
+- Return to normal chat mode
+- Be ready for new instructions
+
+## Step 5: Smart Context Usage Examples
+
+### Good Context-Aware Analysis:
+"I analyzed your codebase and found:
+- TypeScript + React + Express stack (from package.json, tsconfig.json)
+- Using SQLite database (from conversationStorage.ts)
+- Existing auth patterns use JWT tokens (from auth middleware)
+- UI components use shadcn/ui (from components/)
+
+Based on this, I'll implement OAuth using Passport.js (already a dependency) and follow your existing auth patterns..."
+
+### Bad Context-Unaware Questions:
+"Before I create a plan, I need to know:
+1. Are you using TypeScript? [❌ obvious from tsconfig.json]
+2. What database are you using? [❌ obvious from existing files]
+3. Do you want to use React? [❌ obvious from package.json]"
+
+## Important Rules:
+
+- ❌ CANNOT skip codebase analysis - it is MANDATORY
+- ❌ CANNOT ask questions about information available in the codebase
+- ❌ CANNOT start creating conversations before user approval
+- ❌ CANNOT output the plan in any other format (no markdown tables, no plain text lists)
+- ✅ MUST analyze codebase comprehensively using Read/Glob/Grep tools
+- ✅ MUST output plan as JSON code block with \`\`\`json wrapper
+- ✅ MUST include planDocument field with detailed markdown
+- ✅ MUST propose COMPLETE plan based on ONE user request + gathered context
+- ✅ MUST wait for explicit user approval before execution
+- ✅ MUST use existing codebase patterns and conventions
+
+${languageInstruction}
 </thinking_instruction>\n\n`;
     }
 

@@ -25,17 +25,15 @@
  * });
  */
 
-import { useState, useCallback, type RefObject } from 'react';
+import { useState, useCallback } from 'react';
 import type { Workspace } from '@/types/workspace';
-import { createConversationTab } from '@/types/editor';
 
 const ipcRenderer = window.electron.ipcRenderer;
 
 interface UseConversationManagementParams {
   selectedWorkspace: Workspace | null;
-  openTab: (tab: any, groupId: string) => void;
+  setActiveConversationId: (conversationId: string | null) => void;
   closeTab: (tabId: string, groupId: string) => void;
-  focusedGroupIdRef: RefObject<string>;
 }
 
 interface PendingDeleteConversation {
@@ -45,7 +43,7 @@ interface PendingDeleteConversation {
 }
 
 interface UseConversationManagementReturn {
-  handleConversationSelect: (conversationId: string, workspaceId: string, title?: string) => void;
+  handleConversationSelect: (conversationId: string) => void;
   handleCreateConversation: () => Promise<void>;
   confirmDeleteConversation: () => Promise<void>;
   pendingDeleteConversation: PendingDeleteConversation | null;
@@ -54,28 +52,19 @@ interface UseConversationManagementReturn {
 
 export function useConversationManagement({
   selectedWorkspace,
-  openTab,
+  setActiveConversationId,
   closeTab,
-  focusedGroupIdRef,
 }: UseConversationManagementParams): UseConversationManagementReturn {
   // State for conversation deletion confirmation modal
   const [pendingDeleteConversation, setPendingDeleteConversation] = useState<PendingDeleteConversation | null>(null);
 
-  // Handle conversation selection
+  // Handle conversation selection - simply set active conversation ID
   const handleConversationSelect = useCallback(
-    (conversationId: string, workspaceId: string, title?: string) => {
-      // Use ref to get latest focusedGroupId (avoid stale closure)
-      const currentFocusedGroup = focusedGroupIdRef.current;
-      // Create or activate conversation tab in focused group
-      const tab = createConversationTab(
-        conversationId,
-        workspaceId,
-        title,
-        selectedWorkspace?.name
-      );
-      openTab(tab, currentFocusedGroup);
+    (conversationId: string) => {
+      console.log('[useConversationManagement] Setting active conversation:', conversationId);
+      setActiveConversationId(conversationId);
     },
-    [selectedWorkspace?.name, openTab, focusedGroupIdRef]
+    [setActiveConversationId]
   );
 
   // Handle new conversation creation
@@ -88,21 +77,16 @@ export function useConversationManagement({
       });
 
       if (createResult.success && createResult.conversation) {
-        const tab = createConversationTab(
-          createResult.conversation.id,
-          selectedWorkspace.id,
-          createResult.conversation.title,
-          selectedWorkspace.name
-        );
-        // Open in currently focused group
-        openTab(tab, focusedGroupIdRef.current!);
+        // Set newly created conversation as active
+        setActiveConversationId(createResult.conversation.id);
+        console.log('[useConversationManagement] New conversation created and set as active:', createResult.conversation.id);
       } else {
         console.error('[useConversationManagement] Failed to create conversation:', createResult.error);
       }
     } catch (error) {
       console.error('[useConversationManagement] Error creating conversation:', error);
     }
-  }, [selectedWorkspace, openTab, focusedGroupIdRef]);
+  }, [selectedWorkspace, setActiveConversationId]);
 
   // Confirm and execute conversation deletion
   const confirmDeleteConversation = useCallback(async () => {

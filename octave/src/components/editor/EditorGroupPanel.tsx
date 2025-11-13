@@ -62,26 +62,22 @@ export function EditorGroupPanel({
     onTabDrop?.(tabId, targetIndex)
   }
 
-  // Filter tabs to show only current workspace's conversation tabs
+  // Filter tabs: exclude conversation tabs (now managed by left sidebar)
   const visibleTabs = useMemo(() => {
-    if (!currentWorkspaceId) return group.tabs
-
     return group.tabs.filter((tab) => {
-      // File tabs are always visible (shared across workspaces)
+      // Conversation tabs are hidden (managed by left sidebar)
+      if (isConversationTab(tab)) return false
+
+      // File tabs are visible
       if (isFileTab(tab)) return true
 
-      // Settings tabs are always visible (global)
+      // Settings tabs are visible
       if (isSettingsTab(tab)) return true
-
-      // Conversation tabs: only show those belonging to current workspace
-      if (isConversationTab(tab)) {
-        return tab.data.workspaceId === currentWorkspaceId
-      }
 
       // Default: show tab
       return true
     })
-  }, [group.tabs, currentWorkspaceId])
+  }, [group.tabs])
 
   // Get active tab from visible tabs
   const activeTab = useMemo(() => {

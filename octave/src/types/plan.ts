@@ -90,6 +90,7 @@ export interface SimpleBranchPlan {
   // Content
   goal: string                              // User's original goal
   description?: string                      // Detailed description
+  planDocument?: string                     // Markdown document with full plan details (from conversational creation)
 
   // Conversations
   conversations: PlanConversationDraft[]    // Conversation drafts

@@ -847,6 +847,338 @@ export function registerConversationHandlers(): void {
   // Statistics Handlers
   // ============================================================================
 
+  // ============================================================================
+  // SimpleBranchPlan Handlers
+  // ============================================================================
+
+  /**
+   * Get all plans for a workspace
+   */
+  ipcMain.handle(
+    'plan:list',
+    async (_event: IpcMainInvokeEvent, workspaceId: string) => {
+      try {
+        if (!storage) throw new Error('Storage not initialized')
+
+        const plans = storage.getPlansByWorkspaceId(workspaceId)
+
+        return {
+          success: true,
+          plans
+        }
+      } catch (error: any) {
+        console.error('[plan:list] Error:', error)
+        return {
+          success: false,
+          error: error.message
+        }
+      }
+    }
+  )
+
+  /**
+   * Get plan by ID
+   */
+  ipcMain.handle(
+    'plan:get',
+    async (_event: IpcMainInvokeEvent, planId: string) => {
+      try {
+        if (!storage) throw new Error('Storage not initialized')
+
+        const plan = storage.getPlanById(planId)
+
+        return {
+          success: true,
+          plan
+        }
+      } catch (error: any) {
+        console.error('[plan:get] Error:', error)
+        return {
+          success: false,
+          error: error.message
+        }
+      }
+    }
+  )
+
+  /**
+   * Get all conversations for a plan
+   */
+  ipcMain.handle(
+    'conversation:list-by-plan',
+    async (_event: IpcMainInvokeEvent, planId: string) => {
+      try {
+        if (!storage) throw new Error('Storage not initialized')
+
+        const conversations = storage.getConversationsByPlanId(planId)
+
+        return {
+          success: true,
+          conversations
+        }
+      } catch (error: any) {
+        console.error('[conversation:list-by-plan] Error:', error)
+        return {
+          success: false,
+          error: error.message
+        }
+      }
+    }
+  )
+
+  /**
+   * Analyze plan goal and generate clarifying questions
+   * Phase 4 v1: Mock implementation
+   */
+  ipcMain.handle(
+    'plan:analyze',
+    async (_event: IpcMainInvokeEvent, request: { workspaceId: string; goal: string }) => {
+      try {
+        console.log('[plan:analyze] Analyzing goal:', request.goal)
+
+        // TODO Phase 4 v2: Integrate with AI
+        // For now, return mock questions
+        const mockAnalysis = {
+          reasoning: `To create an effective plan for "${request.goal}", I need to understand a few key details about your requirements and constraints.`,
+          questions: [
+            {
+              id: 'q1',
+              type: 'single-select',
+              text: 'What is the primary goal of this task?',
+              options: ['Build new feature', 'Fix bug', 'Refactor code', 'Add tests'],
+              required: true
+            },
+            {
+              id: 'q2',
+              type: 'text',
+              text: 'Are there any specific technical constraints or requirements?',
+              placeholder: 'e.g., must use TypeScript, React, etc.',
+              required: false
+            },
+            {
+              id: 'q3',
+              type: 'number',
+              text: 'How many conversations would you like to split this into?',
+              defaultValue: 3,
+              required: true
+            }
+          ],
+          suggestedConversations: [],
+          estimatedComplexity: 'medium' as const,
+          estimatedTotalTime: 3600,
+          confidence: 0.8
+        }
+
+        return {
+          success: true,
+          analysis: mockAnalysis
+        }
+      } catch (error: any) {
+        console.error('[plan:analyze] Error:', error)
+        return {
+          success: false,
+          error: error.message
+        }
+      }
+    }
+  )
+
+  /**
+   * Generate plan from goal and user answers
+   * Phase 4 v1: Mock implementation
+   */
+  ipcMain.handle(
+    'plan:generate',
+    async (_event: IpcMainInvokeEvent, request: {
+      workspaceId: string;
+      goal: string;
+      planDocument?: string;
+      conversations?: any[];
+      totalConversations?: number;
+      totalTodos?: number;
+      totalEstimatedDuration?: number;
+      aiAnalysis?: any;
+      answers: any;
+    }) => {
+      try {
+        if (!storage) throw new Error('Storage not initialized')
+
+        console.log('[plan:generate] Generating plan for goal:', request.goal)
+        console.log('[plan:generate] User answers:', request.answers)
+
+        // If conversations are provided (from multiplan mode), use them directly
+        // Otherwise, create mock plan based on answers (legacy behavior)
+        const conversations = request.conversations || (() => {
+          const numConversations = request.answers['q3'] || 3
+          const mockConversations = []
+
+          for (let i = 0; i < numConversations; i++) {
+            mockConversations.push({
+              id: `draft-${i + 1}`,
+              title: `${request.goal} - Part ${i + 1}`,
+              goal: `Sub-task ${i + 1} for: ${request.goal}`,
+              expectedOutputs: ['Complete implementation', 'Tests added', 'Documentation updated'],
+              todos: [
+                {
+                  content: `Research and plan approach for part ${i + 1}`,
+                  activeForm: `Researching part ${i + 1}`,
+                  complexity: 'medium' as const,
+                  estimatedDuration: 600
+                },
+                {
+                  content: `Implement part ${i + 1}`,
+                  activeForm: `Implementing part ${i + 1}`,
+                  complexity: 'high' as const,
+                  estimatedDuration: 1200
+                },
+                {
+                  content: `Test part ${i + 1}`,
+                  activeForm: `Testing part ${i + 1}`,
+                  complexity: 'low' as const,
+                  estimatedDuration: 300
+                }
+              ],
+              estimatedDuration: 2100,
+              order: i
+            })
+          }
+
+          return mockConversations
+        })()
+
+        // Create plan object
+        const planId = randomUUID()
+        const planData = {
+          id: planId,
+          workspaceId: request.workspaceId,
+          goal: request.goal,
+          description: `Plan for: ${request.goal}`,
+          planDocument: request.planDocument || undefined,  // Add planDocument field from request
+          conversations,
+          totalConversations: request.totalConversations || conversations.length,
+          totalTodos: request.totalTodos || conversations.length * 3,
+          totalEstimatedDuration: request.totalEstimatedDuration || conversations.length * 2100,
+          status: 'pending',
+          aiAnalysis: request.aiAnalysis || {
+            reasoning: `Generated plan for: ${request.goal}`,
+            questions: [],
+            answers: request.answers,
+            confidence: 0.8
+          },
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        }
+
+        // Save to database
+        storage.createPlan(planData)
+
+        // Retrieve saved plan
+        const plan = storage.getPlanById(planId)
+        if (!plan) {
+          throw new Error('Failed to retrieve created plan')
+        }
+
+        console.log('[plan:generate] Plan created:', planId)
+
+        return {
+          success: true,
+          plan
+        }
+      } catch (error: any) {
+        console.error('[plan:generate] Error:', error)
+        return {
+          success: false,
+          error: error.message
+        }
+      }
+    }
+  )
+
+  /**
+   * Execute plan: Create all conversations with todos
+   * Phase 4 v1: Full implementation
+   */
+  ipcMain.handle(
+    'plan:execute',
+    async (_event: IpcMainInvokeEvent, planId: string) => {
+      try {
+        if (!storage) throw new Error('Storage not initialized')
+
+        console.log('[plan:execute] Executing plan:', planId)
+
+        const plan = storage.getPlanById(planId)
+        if (!plan) {
+          throw new Error(`Plan not found: ${planId}`)
+        }
+
+        const conversationIds: string[] = []
+        const failedConversations: Array<{ title: string; error: string }> = []
+
+        // Create each conversation
+        for (const convDraft of plan.conversations) {
+          try {
+            // Create conversation using storage.create()
+            const conversation = storage.create(plan.workspaceId, convDraft.title)
+
+            // Update conversation to link to plan
+            // Note: storage.create doesn't support planId yet, so we need to update it manually
+            // For now, just store the conversationId
+            conversationIds.push(conversation.id)
+
+            // Create todos for this conversation using saveTodo()
+            for (const todoData of convDraft.todos) {
+              const todo: any = {
+                id: randomUUID(),
+                conversationId: conversation.id,
+                content: todoData.content,
+                activeForm: todoData.activeForm || todoData.content,
+                status: 'pending',
+                order: convDraft.order * 100 + convDraft.todos.indexOf(todoData),
+                complexity: todoData.complexity || 'medium',
+                estimatedDuration: todoData.estimatedDuration || 0,
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+                completedAt: null,
+                startedAt: null,
+                messageId: null
+              }
+              storage.saveTodo(todo)
+            }
+
+            console.log('[plan:execute] Created conversation:', conversation.id)
+          } catch (error: any) {
+            console.error('[plan:execute] Failed to create conversation:', convDraft.title, error)
+            failedConversations.push({
+              title: convDraft.title,
+              error: error.message
+            })
+          }
+        }
+
+        // Update plan status to active
+        storage.updatePlan(planId, {
+          status: 'active',
+          startedAt: Date.now()
+        })
+
+        console.log('[plan:execute] Plan executed. Created conversations:', conversationIds.length)
+
+        return {
+          success: true,
+          planId,
+          conversationIds,
+          failedConversations: failedConversations.length > 0 ? failedConversations : undefined
+        }
+      } catch (error: any) {
+        console.error('[plan:execute] Error:', error)
+        return {
+          success: false,
+          error: error.message
+        }
+      }
+    }
+  )
+
   /**
    * Get database statistics
    */

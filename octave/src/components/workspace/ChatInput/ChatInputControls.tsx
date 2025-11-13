@@ -193,7 +193,7 @@ export const ChatInputControls: React.FC<ChatInputControlsProps> = ({
             <Sparkles size={INPUT_STYLES.controls.sourcesIconSize} strokeWidth={1.5} />
           </button>
 
-          {/* Plan Mode Toggle Button - Feature Flag Controlled */}
+          {/* Multi-Plan Mode Toggle Button - Feature Flag Controlled */}
           {FEATURES.PLAN_MODE && (
             <button
               onClick={onPlanModeToggle}
@@ -202,7 +202,7 @@ export const ChatInputControls: React.FC<ChatInputControlsProps> = ({
                   ? 'bg-primary text-primary-foreground hover:bg-primary/90'
                   : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
               }`}
-              title="Toggle Plan Mode (⌘⇧P)"
+              title="Toggle Multi-Conversation Plan Mode (⌘⇧P)"
             >
               <ListChecks size={INPUT_STYLES.controls.sourcesIconSize} strokeWidth={1.5} />
             </button>

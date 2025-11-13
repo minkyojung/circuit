@@ -7,6 +7,8 @@ import { BlockList } from '@/components/blocks';
 import { TodoQueue } from '@/components/blocks/TodoQueue';
 import { UnifiedReasoningPanel } from '@/components/reasoning/UnifiedReasoningPanel';
 import { MessageActions } from './MessageActions';
+import { PlanPreviewCard } from '@/components/plan/PlanPreviewCard';
+import { extractPlanFromMessage, removePlanFromContent } from '@/lib/planParser';
 import { cn } from '@/lib/utils';
 
 export interface MessageComponentProps {
@@ -22,6 +24,10 @@ export interface MessageComponentProps {
   onFileReferenceClick?: (filePath: string, lineStart?: number, lineEnd?: number) => void;
   onRunAgent?: (messageId: string) => void;
   agentStates?: Map<string, { state: 'running' | 'completed' | 'failed' | 'cancelled'; progress: number; error?: string }>;
+  // Plan approval flow callbacks
+  onPlanApprove?: (plan: any, messageId: string) => void;
+  onPlanEdit?: (plan: any, messageId: string) => void;
+  onPlanCancel?: (messageId: string) => void;
 }
 
 const MessageComponentInner: React.FC<MessageComponentProps> = ({
@@ -37,6 +43,9 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
   onFileReferenceClick,
   onRunAgent,
   agentStates,
+  onPlanApprove,
+  onPlanEdit,
+  onPlanCancel,
 }) => {
   // Parse metadata safely
   const metadata = React.useMemo(() => {
@@ -54,6 +63,14 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
 
   // Get agent state for this task (using todoId)
   const agentState = isTask && todoId && agentStates ? agentStates.get(todoId) : null;
+
+  // Extract plan from assistant message (if any)
+  const parsedPlan = React.useMemo(() => {
+    if (msg.role === 'assistant' && msg.content) {
+      return extractPlanFromMessage(msg.content);
+    }
+    return null;
+  }, [msg.role, msg.content]);
 
   // If message is cancelled, show minimal cancelled state
   if (isCancelled) {
@@ -150,9 +167,40 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
           </>
         ) : (
           <>
-            <div className="text-base font-normal text-foreground whitespace-pre-wrap leading-relaxed">
-              {msg.content}
-            </div>
+            {/* Multi-Conversation Plan Preview (if detected) */}
+            {parsedPlan && (
+              <div className="space-y-4">
+                {/* Text before plan */}
+                {parsedPlan.beforeText && (
+                  <div className="text-base font-normal text-foreground whitespace-pre-wrap leading-relaxed">
+                    {parsedPlan.beforeText}
+                  </div>
+                )}
+
+                {/* Plan Preview Card */}
+                <PlanPreviewCard
+                  plan={parsedPlan.plan}
+                  showActions={!isSending}  // Show actions only when not sending
+                  onApprove={onPlanApprove ? () => onPlanApprove(parsedPlan.plan, msg.id) : undefined}
+                  onEdit={onPlanEdit ? () => onPlanEdit(parsedPlan.plan, msg.id) : undefined}
+                  onCancel={onPlanCancel ? () => onPlanCancel(msg.id) : undefined}
+                />
+
+                {/* Text after plan */}
+                {parsedPlan.afterText && (
+                  <div className="text-base font-normal text-foreground whitespace-pre-wrap leading-relaxed">
+                    {parsedPlan.afterText}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Regular message content (no plan detected) */}
+            {!parsedPlan && (
+              <div className="text-base font-normal text-foreground whitespace-pre-wrap leading-relaxed">
+                {msg.content}
+              </div>
+            )}
 
             {/* Task controls - Show for user messages marked as task */}
             {isTask && msg.role === 'user' && onRunAgent && (

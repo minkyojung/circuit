@@ -1,7 +1,9 @@
 import * as React from 'react'
-import { useEffect } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import type { Workspace, WorkspaceStatus, Repository } from '@/types/workspace'
-import { Plus, GitBranch, Check, GitMerge, GitCommit, Archive, Trash2 } from 'lucide-react'
+import type { SimpleBranchPlan } from '@/types/plan'
+import type { Conversation } from '@/types/conversation'
+import { Plus, GitBranch, Check, GitMerge, GitCommit, Archive, Trash2, ChevronRight, ChevronDown, MessageSquare, FolderKanban } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useProjectPath } from '@/App'
 import { RepositorySwitcher } from './workspace/RepositorySwitcher'
@@ -11,6 +13,7 @@ import { useRepositories } from '@/hooks/useRepositories'
 import { useWorkspaces } from '@/hooks/useWorkspaces'
 import { useGitStatus } from '@/hooks/useGitStatus'
 import { useFileTree } from '@/hooks/useFileTree'
+import { useBranchPlan } from '@/hooks/useBranchPlan'
 import {
   ContextMenu,
   ContextMenuContent,
@@ -42,6 +45,8 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   onFileSelect: (filePath: string) => void
   onWorkspacesLoaded?: (workspaces: Workspace[]) => void
   onRepositoryChange?: (repository: Repository | null) => void
+  onSelectConversation?: (conversationId: string) => void
+  activeConversationId?: string | null
 }
 
 const getStatusBadge = (status?: WorkspaceStatus) => {
@@ -89,7 +94,7 @@ const getStatusBadge = (status?: WorkspaceStatus) => {
   }
 }
 
-export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWorkspace, selectedFile, onFileSelect, onWorkspacesLoaded, onRepositoryChange, ...props }: AppSidebarProps) {
+export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWorkspace, selectedFile, onFileSelect, onWorkspacesLoaded, onRepositoryChange, onSelectConversation, activeConversationId, ...props }: AppSidebarProps) {
   const { projectPath } = useProjectPath()
   const { state } = useSidebar()
 
@@ -103,6 +108,72 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
     deleteWorkspace: deleteWorkspaceAction,
     setWorkspaces,
   } = useWorkspaces({ onWorkspacesLoaded })
+
+  // Plans management for selected workspace
+  const {
+    allPlans,
+    loading: loadingPlans,
+    refresh: refreshPlans,
+    analyzePlan,
+    generatePlan,
+    executePlan,
+  } = useBranchPlan(selectedWorkspace?.id)
+
+  // Conversations state
+  const [conversations, setConversations] = useState<Conversation[]>([])
+  const [conversationsByPlan, setConversationsByPlan] = useState<Record<string, Conversation[]>>({})
+  const [loadingConversations, setLoadingConversations] = useState(false)
+
+  // Expanded plans state (for collapsible UI)
+  const [expandedPlans, setExpandedPlans] = useState<Set<string>>(new Set())
+
+  // Toggle plan expansion
+  const togglePlanExpansion = useCallback((planId: string) => {
+    setExpandedPlans(prev => {
+      const next = new Set(prev)
+      if (next.has(planId)) {
+        next.delete(planId)
+      } else {
+        next.add(planId)
+      }
+      return next
+    })
+  }, [])
+
+  // Handle plan creation completion
+  const handlePlanCreated = useCallback(async (planId: string, firstConversationId?: string) => {
+    // Refresh plans and conversations
+    await refreshPlans()
+
+    // Reload conversations to get newly created ones
+    if (selectedWorkspace) {
+      const result = await ipcRenderer.invoke('conversation:list', selectedWorkspace.id)
+      if (result.success && result.conversations) {
+        const allConvs: Conversation[] = result.conversations
+        const generalConvs = allConvs.filter(c => !c.planId)
+        setConversations(generalConvs)
+
+        const byPlan: Record<string, Conversation[]> = {}
+        allConvs.forEach(c => {
+          if (c.planId) {
+            if (!byPlan[c.planId]) {
+              byPlan[c.planId] = []
+            }
+            byPlan[c.planId].push(c)
+          }
+        })
+        setConversationsByPlan(byPlan)
+      }
+    }
+
+    // Auto-expand the newly created plan
+    setExpandedPlans(prev => new Set([...prev, planId]))
+
+    // Select first conversation if available
+    if (firstConversationId) {
+      onSelectConversation?.(firstConversationId)
+    }
+  }, [refreshPlans, selectedWorkspace, onSelectConversation])
 
   // Extract repositories management to custom hook
   const {
@@ -142,6 +213,50 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
       loadWorkspaces(repository.path)
     }
   }, [repository.id, loadWorkspaces])
+
+  // Load conversations when workspace changes
+  useEffect(() => {
+    const loadConversations = async () => {
+      if (!selectedWorkspace) {
+        setConversations([])
+        setConversationsByPlan({})
+        return
+      }
+
+      try {
+        setLoadingConversations(true)
+
+        // Load all conversations for workspace
+        const result = await ipcRenderer.invoke('conversation:list', selectedWorkspace.id)
+
+        if (result.success && result.conversations) {
+          const allConvs: Conversation[] = result.conversations
+
+          // Separate general conversations (planId = null) from plan conversations
+          const generalConvs = allConvs.filter(c => !c.planId)
+          setConversations(generalConvs)
+
+          // Group conversations by planId
+          const byPlan: Record<string, Conversation[]> = {}
+          allConvs.forEach(c => {
+            if (c.planId) {
+              if (!byPlan[c.planId]) {
+                byPlan[c.planId] = []
+              }
+              byPlan[c.planId].push(c)
+            }
+          })
+          setConversationsByPlan(byPlan)
+        }
+      } catch (error) {
+        console.error('[AppSidebar] Failed to load conversations:', error)
+      } finally {
+        setLoadingConversations(false)
+      }
+    }
+
+    loadConversations()
+  }, [selectedWorkspace?.id])
 
   // Wrapper functions that delegate to hooks
   const createWorkspace = async () => {
@@ -381,6 +496,136 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
             {isCreating ? 'Creating...' : 'New Workspace'}
           </Button>
         </div>
+
+        {/* Plans & Conversations Section (only when workspace selected) */}
+        {selectedWorkspace && (
+          <>
+            {/* Plans Section - Always show when workspace is selected */}
+            <SidebarGroup>
+              <div className="px-4 py-2 text-xs font-semibold text-sidebar-foreground-muted uppercase tracking-wide">
+                Plans
+              </div>
+              {allPlans.length > 0 ? (
+                <SidebarMenu>
+                  {allPlans.map((plan) => {
+                    const isExpanded = expandedPlans.has(plan.id)
+                    const planConversations = conversationsByPlan[plan.id] || []
+
+                    return (
+                      <div key={plan.id}>
+                        {/* Plan Item */}
+                        <SidebarMenuItem className="my-0">
+                          <SidebarMenuButton
+                            onClick={() => togglePlanExpansion(plan.id)}
+                            className="h-auto py-2 px-2 group transition-all duration-200 ease-out"
+                          >
+                            <div className="flex gap-3 w-full min-w-0">
+                              {/* Expand/Collapse Icon */}
+                              <div className="flex items-center pt-[3px]">
+                                {isExpanded ? (
+                                  <ChevronDown size={14} strokeWidth={1.5} className="text-sidebar-foreground-muted" />
+                                ) : (
+                                  <ChevronRight size={14} strokeWidth={1.5} className="text-sidebar-foreground-muted" />
+                                )}
+                              </div>
+
+                              {/* Plan Icon */}
+                              <div className="flex items-center pt-[3px]">
+                                <FolderKanban size={14} strokeWidth={1.5} className="text-sidebar-foreground-muted" />
+                              </div>
+
+                              {/* Plan Content */}
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm font-normal truncate text-sidebar-foreground">
+                                  {plan.goal}
+                                </div>
+                                <div className="text-xs text-sidebar-foreground opacity-50">
+                                  {planConversations.length} conversations · {plan.status}
+                                </div>
+                              </div>
+                            </div>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+
+                        {/* Plan Conversations (when expanded) */}
+                        {isExpanded && planConversations.length > 0 && (
+                          <div className="pl-8">
+                            {planConversations.map((conv) => (
+                              <SidebarMenuItem key={conv.id} className="my-0">
+                                <SidebarMenuButton
+                                  onClick={() => onSelectConversation?.(conv.id)}
+                                  isActive={activeConversationId === conv.id}
+                                  className="h-auto py-1.5 px-2 group transition-all duration-200 ease-out"
+                                >
+                                  <div className="flex gap-2 w-full min-w-0">
+                                    <MessageSquare size={12} strokeWidth={1.5} className="text-sidebar-foreground-muted mt-1" />
+                                    <span className="text-sm font-normal truncate text-sidebar-foreground">
+                                      {conv.title}
+                                    </span>
+                                  </div>
+                                </SidebarMenuButton>
+                              </SidebarMenuItem>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </SidebarMenu>
+              ) : null}
+            </SidebarGroup>
+
+            {/* General Conversations Section */}
+            <SidebarGroup>
+              <div className="px-4 py-2 text-xs font-semibold text-sidebar-foreground-muted uppercase tracking-wide">
+                General
+              </div>
+              <SidebarMenu>
+                {conversations.length === 0 ? (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="px-4 py-4 text-center"
+                    style={{ color: 'var(--sidebar-foreground-muted)' }}
+                  >
+                    <p className="text-xs">No general conversations</p>
+                  </motion.div>
+                ) : (
+                  conversations.map((conv) => (
+                    <SidebarMenuItem key={conv.id} className="my-0">
+                      <SidebarMenuButton
+                        onClick={() => onSelectConversation?.(conv.id)}
+                        isActive={activeConversationId === conv.id}
+                        className="h-auto py-2 px-2 group transition-all duration-200 ease-out"
+                      >
+                        <div className="flex gap-3 w-full min-w-0">
+                          <MessageSquare size={14} strokeWidth={1.5} className="text-sidebar-foreground-muted mt-[3px]" />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-normal truncate text-sidebar-foreground">
+                              {conv.title}
+                            </div>
+                          </div>
+                        </div>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))
+                )}
+              </SidebarMenu>
+
+              {/* New Conversation Button */}
+              <div className="px-2 pb-2">
+                <Button
+                  variant="ghost"
+                  onClick={() => console.log('Create new conversation')}
+                  className="w-full h-auto py-2 px-2 justify-start text-sm font-normal text-sidebar-foreground-muted hover:bg-sidebar-hover transition-all duration-200 ease-out"
+                >
+                  <Plus size={16} strokeWidth={1.5} />
+                  New Conversation
+                </Button>
+              </div>
+            </SidebarGroup>
+          </>
+        )}
 
         {/* Files Section (only when workspace selected) */}
         {selectedWorkspace && (

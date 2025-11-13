@@ -19,6 +19,7 @@ export interface Conversation {
   createdAt: string
   updatedAt: string
   isActive: boolean
+  planId?: string | null  // Optional: ID of SimpleBranchPlan this conversation belongs to
 }
 
 export interface Message {
@@ -114,7 +115,7 @@ export interface Todo {
 export class ConversationStorage {
   private db: Database.Database | null = null
   private dbPath: string
-  private schemaVersion = 7  // Updated to v7 for SimpleBranchPlan support
+  private schemaVersion = 8  // Updated to v8 for plan_document column
 
   constructor() {
     const userData = app.getPath('userData')
@@ -604,6 +605,30 @@ export class ConversationStorage {
         throw error
       }
     }
+
+    // Migration v8: Add plan_document column for conversational plan creation
+    if (currentVersion < 8) {
+      console.log('[ConversationStorage] Running migration v8: Add plan_document column')
+
+      try {
+        // Add plan_document column to simple_branch_plans table
+        this.db.exec(`
+          ALTER TABLE simple_branch_plans
+          ADD COLUMN plan_document TEXT;
+        `)
+
+        // Record migration
+        this.db.prepare(`
+          INSERT INTO schema_version (version, name, applied_at)
+          VALUES (?, ?, ?)
+        `).run(8, 'plan_document_column', Date.now())
+
+        console.log('[ConversationStorage] Migration v8 complete')
+      } catch (error) {
+        console.error('[ConversationStorage] Migration v8 error:', error)
+        throw error
+      }
+    }
   }
 
   /**
@@ -636,7 +661,7 @@ export class ConversationStorage {
     const conversations = this.db
       .prepare(`
         SELECT id, workspace_id as workspaceId, title, created_at as createdAt,
-               updated_at as updatedAt, is_active as isActive
+               updated_at as updatedAt, is_active as isActive, plan_id as planId
         FROM conversations
         WHERE workspace_id = ?
         ORDER BY updated_at DESC
@@ -658,7 +683,7 @@ export class ConversationStorage {
     const conversation = this.db
       .prepare(`
         SELECT id, workspace_id as workspaceId, title, created_at as createdAt,
-               updated_at as updatedAt, is_active as isActive
+               updated_at as updatedAt, is_active as isActive, plan_id as planId
         FROM conversations
         WHERE workspace_id = ? AND is_active = 1
         ORDER BY updated_at DESC
@@ -697,7 +722,8 @@ export class ConversationStorage {
       title: conversationTitle,
       createdAt: now,
       updatedAt: now,
-      isActive: true
+      isActive: true,
+      planId: null
     }
   }
 

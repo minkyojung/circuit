@@ -228,6 +228,9 @@ function App() {
   // Session ID for chat (one per workspace for now)
   const [sessionId, setSessionId] = useState<string | null>(null)
 
+  // Active conversation ID (selected from left sidebar)
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
+
   // Onboarding is now handled by unified dialog (no separate checks needed)
 
   // Initialize Claude session when workspace changes
@@ -357,9 +360,8 @@ function App() {
     setPendingDeleteConversation,
   } = useConversationManagement({
     selectedWorkspace,
-    openTab,
+    setActiveConversationId,
     closeTab,
-    focusedGroupIdRef,
   })
 
   // File navigation (extracted to custom hook)
@@ -390,14 +392,8 @@ function App() {
     openTab,
   })
 
-  // Get active conversation ID for TodoPanel (from primary group's active conversation tab)
-  const activeConversationId = useMemo(() => {
-    const activeTab = getActiveTab(DEFAULT_GROUP_ID)
-    if (activeTab && activeTab.type === 'conversation') {
-      return activeTab.data.conversationId
-    }
-    return null
-  }, [primaryGroup.activeTabId, getActiveTab])
+  // Note: activeConversationId is now managed as state (see line ~232)
+  // No longer extracted from tabs since conversation tabs are removed in Phase 2
 
   // Get active file path for symbol search
   const activeFilePath = useMemo(() => {
@@ -748,7 +744,10 @@ function App() {
 
   // Auto-load or create default conversation when workspace is selected
   useEffect(() => {
-    if (!selectedWorkspace) return
+    if (!selectedWorkspace) {
+      setActiveConversationId(null)
+      return
+    }
 
     const loadDefaultConversation = async () => {
       const ipcRenderer = window.electron.ipcRenderer;
@@ -764,14 +763,9 @@ function App() {
           )
           const defaultConversation = sortedConversations[0]
 
-          // Create and open tab for default conversation
-          const conversationTab = createConversationTab(
-            defaultConversation.id,
-            selectedWorkspace.id,
-            defaultConversation.title,
-            selectedWorkspace.name
-          )
-          openTab(conversationTab, DEFAULT_GROUP_ID)
+          // Set active conversation (no tab creation)
+          setActiveConversationId(defaultConversation.id)
+          console.log('[App] Default conversation loaded:', defaultConversation.id)
         } else {
           // No conversations exist, create a new one
           const createResult = await ipcRenderer.invoke('conversation:create', selectedWorkspace.id, {
@@ -779,13 +773,9 @@ function App() {
           })
 
           if (createResult.success && createResult.conversation) {
-            const conversationTab = createConversationTab(
-              createResult.conversation.id,
-              selectedWorkspace.id,
-              createResult.conversation.title,
-              selectedWorkspace.name
-            )
-            openTab(conversationTab, DEFAULT_GROUP_ID)
+            // Set newly created conversation as active
+            setActiveConversationId(createResult.conversation.id)
+            console.log('[App] New conversation created and set as active:', createResult.conversation.id)
           }
         }
       } catch (error) {
@@ -869,6 +859,8 @@ function App() {
           onFileSelect={handleFileSelect}
           onWorkspacesLoaded={setWorkspacesForShortcuts}
           onRepositoryChange={setCurrentRepository}
+          onSelectConversation={handleConversationSelect}
+          activeConversationId={activeConversationId}
         />
 
       <SidebarInset className="flex-1 flex flex-col overflow-hidden bg-card">
@@ -903,27 +895,23 @@ function App() {
             {selectedWorkspace ? (
               <>
                 {viewMode === 'split' ? (
-                  /* Split View: Two independent editor groups */
+                  /* Split View: ChatPanel on left, EditorGroupPanel on right */
                   <ResizablePanelGroup direction="horizontal" className="h-full">
                     <ResizablePanel defaultSize={50} minSize={30}>
-                      <EditorGroupPanel
-                        group={primaryGroup}
-                        currentWorkspaceId={selectedWorkspace?.id}
-                        isFocused={focusedGroupId === DEFAULT_GROUP_ID}
-                        onFocus={() => setFocusedGroupId(DEFAULT_GROUP_ID)}
-                        onTabClick={(tabId) => handleTabClick(tabId, DEFAULT_GROUP_ID)}
-                        onTabClose={(tabId) => handleTabClose(tabId, DEFAULT_GROUP_ID)}
-                        onTabDragStart={(tabId, sourceGroupId) => handleTabDragStart(tabId, sourceGroupId)}
-                        onTabDragEnd={handleTabDragEnd}
-                        onTabDrop={(tabId, targetIndex) => handleTabDrop(DEFAULT_GROUP_ID, targetIndex)}
-                        onCreateConversation={handleCreateConversation}
-                        renderConversation={renderChatPanel}
-                        renderFile={renderEditorPanel}
-                        renderSettings={renderSettingsPanel}
-                      />
+                      {/* Left: ChatPanel (active conversation from sidebar) */}
+                      <div className="h-full flex flex-col overflow-hidden">
+                        {activeConversationId ? (
+                          renderChatPanel(activeConversationId, selectedWorkspace.id)
+                        ) : (
+                          <div className="flex-1 flex items-center justify-center text-muted-foreground">
+                            <p>Select a conversation from the sidebar</p>
+                          </div>
+                        )}
+                      </div>
                     </ResizablePanel>
                     <ResizableHandle />
                     <ResizablePanel defaultSize={50} minSize={30}>
+                      {/* Right: EditorGroupPanel (File/Settings tabs only) */}
                       <EditorGroupPanel
                         group={secondaryGroup}
                         currentWorkspaceId={selectedWorkspace?.id}
@@ -934,27 +922,40 @@ function App() {
                         onTabDragStart={(tabId, sourceGroupId) => handleTabDragStart(tabId, sourceGroupId)}
                         onTabDragEnd={handleTabDragEnd}
                         onTabDrop={(tabId, targetIndex) => handleTabDrop(SECONDARY_GROUP_ID, targetIndex)}
-                        onCreateConversation={handleCreateConversation}
-                        renderConversation={renderChatPanel}
                         renderFile={renderEditorPanel}
                         renderSettings={renderSettingsPanel}
                       />
                     </ResizablePanel>
                   </ResizablePanelGroup>
                 ) : (
-                  /* Single View: Show primary group with tabs */
-                  <EditorGroupPanel
-                    group={primaryGroup}
-                    currentWorkspaceId={selectedWorkspace?.id}
-                    isFocused={true}
-                    onFocus={() => setFocusedGroupId(DEFAULT_GROUP_ID)}
-                    onTabClick={(tabId) => handleTabClick(tabId, DEFAULT_GROUP_ID)}
-                    onTabClose={(tabId) => handleTabClose(tabId, DEFAULT_GROUP_ID)}
-                    onCreateConversation={handleCreateConversation}
-                    renderConversation={renderChatPanel}
-                    renderFile={renderEditorPanel}
-                    renderSettings={renderSettingsPanel}
-                  />
+                  /* Single View: ChatPanel with optional EditorGroupPanel overlay */
+                  <div className="h-full flex flex-col overflow-hidden relative">
+                    {/* Base: ChatPanel (active conversation from sidebar) */}
+                    {activeConversationId ? (
+                      renderChatPanel(activeConversationId, selectedWorkspace.id)
+                    ) : (
+                      <div className="flex-1 flex items-center justify-center text-muted-foreground">
+                        <p>Select a conversation from the sidebar</p>
+                      </div>
+                    )}
+
+                    {/* Overlay: EditorGroupPanel (File/Settings tabs, when present) */}
+                    {/* Only show overlay if there are non-conversation tabs (file/settings) */}
+                    {primaryGroup.tabs.some(tab => tab.type !== 'conversation') && (
+                      <div className="absolute inset-0 bg-background">
+                        <EditorGroupPanel
+                          group={primaryGroup}
+                          currentWorkspaceId={selectedWorkspace?.id}
+                          isFocused={true}
+                          onFocus={() => setFocusedGroupId(DEFAULT_GROUP_ID)}
+                          onTabClick={(tabId) => handleTabClick(tabId, DEFAULT_GROUP_ID)}
+                          onTabClose={(tabId) => handleTabClose(tabId, DEFAULT_GROUP_ID)}
+                          renderFile={renderEditorPanel}
+                          renderSettings={renderSettingsPanel}
+                        />
+                      </div>
+                    )}
+                  </div>
                 )}
 
                 {/* Commit Dialog */}

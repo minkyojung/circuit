@@ -15,7 +15,7 @@ export const FEATURES = {
    * Environment variable: VITE_FEATURE_PLAN_MODE
    * Default: false (disabled in production)
    */
-  PLAN_MODE: import.meta.env.VITE_FEATURE_PLAN_MODE === 'true',
+  PLAN_MODE: true, // import.meta.env.VITE_FEATURE_PLAN_MODE === 'true',
 
   /**
    * Git Graph - Commit history visualization

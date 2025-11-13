@@ -546,6 +546,67 @@ Break down:
     }
   }, [messages, startAgent, workspace.id]);
 
+  // Handle plan approval - Generate and execute multi-conversation plan
+  const handlePlanApprove = useCallback(async (plan: any, messageId: string) => {
+    try {
+      console.log('[ChatPanel] Plan approved:', plan);
+      toast.loading('Creating plan...', { id: 'plan-approve' });
+
+      // Generate plan in database
+      const generateResult = await ipcRenderer.invoke('plan:generate', {
+        workspaceId: workspace.id,
+        goal: plan.goal,
+        planDocument: plan.planDocument,
+        conversations: plan.conversations,
+        totalConversations: plan.totalConversations,
+        totalTodos: plan.totalTodos,
+        totalEstimatedDuration: plan.totalEstimatedDuration,
+        aiAnalysis: plan.aiAnalysis,
+        answers: {},
+      });
+
+      if (!generateResult.success || !generateResult.plan) {
+        throw new Error(generateResult.error || 'Failed to generate plan');
+      }
+
+      const createdPlan = generateResult.plan;
+      console.log('[ChatPanel] Plan created:', createdPlan.id);
+
+      // Execute plan - create conversations
+      toast.loading('Creating conversations...', { id: 'plan-approve' });
+      const executeResult = await ipcRenderer.invoke('plan:execute', createdPlan.id);
+
+      if (!executeResult.success) {
+        throw new Error(executeResult.error || 'Failed to execute plan');
+      }
+
+      console.log('[ChatPanel] Plan executed:', executeResult);
+      toast.success(
+        `✅ Created ${executeResult.conversationIds.length} conversations!`,
+        { id: 'plan-approve', duration: 3000 }
+      );
+
+      // Optionally: Refresh conversations list in sidebar
+      // The AppSidebar should refresh automatically via IPC events
+
+    } catch (error: any) {
+      console.error('[ChatPanel] Plan approval error:', error);
+      toast.error(`Failed to create plan: ${error.message}`, { id: 'plan-approve' });
+    }
+  }, [workspace.id]);
+
+  // Handle plan edit - TODO: Implement edit flow
+  const handlePlanEdit = useCallback((plan: any, messageId: string) => {
+    console.log('[ChatPanel] Plan edit requested:', plan);
+    toast.info('Edit flow coming soon! For now, send a new message to revise the plan.');
+  }, []);
+
+  // Handle plan cancel
+  const handlePlanCancel = useCallback((messageId: string) => {
+    console.log('[ChatPanel] Plan cancelled:', messageId);
+    toast.info('Plan cancelled');
+  }, []);
+
   // Handle adding text as todo - creates a user message with todo
   const handleAddTodo = useCallback(async (content: string) => {
     if (!content.trim()) {
@@ -1146,6 +1207,9 @@ The plan is ready. What would you like to do?`,
                       onFileReferenceClick={onFileReferenceClick}
                       onRunAgent={handleRunAgentForMessage}
                       agentStates={messageAgentStates}
+                      onPlanApprove={handlePlanApprove}
+                      onPlanEdit={handlePlanEdit}
+                      onPlanCancel={handlePlanCancel}
                     />
                   </div>
                 </div>
