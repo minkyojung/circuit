@@ -11,7 +11,7 @@ export type ClaudeModel =
 
 export type SendKeyCombo = 'enter' | 'cmd-enter' | 'shift-enter';
 export type CompletionSound = 'none' | 'subtle' | 'classic' | 'modern';
-export type ThemeMode = 'light' | 'dark' | 'system' | 'green-light' | 'green-dark' | 'warm-light' | 'warm-dark' | 'straw-light' | 'slate-dark';
+export type ThemeMode = 'light' | 'dark' | 'system';
 export type CompactMode = 'immediate' | 'idle' | 'prompt';
 export type TerminalMode = 'classic' | 'modern';
 export type TerminalRenderer = 'canvas' | 'webgl' | 'dom';
