@@ -1180,6 +1180,32 @@ export function registerConversationHandlers(): void {
   )
 
   /**
+   * Get active plan for a workspace
+   */
+  ipcMain.handle(
+    'plan:get-active',
+    async (_event: IpcMainInvokeEvent, workspaceId: string) => {
+      try {
+        if (!storage) throw new Error('Storage not initialized')
+
+        const plans = storage.getPlans(workspaceId)
+        const activePlan = plans.find(p => p.status === 'active' || p.status === 'pending')
+
+        return {
+          success: true,
+          plan: activePlan || null
+        }
+      } catch (error: any) {
+        console.error('[plan:get-active] Error:', error)
+        return {
+          success: false,
+          error: error.message
+        }
+      }
+    }
+  )
+
+  /**
    * Get database statistics
    */
   ipcMain.handle(

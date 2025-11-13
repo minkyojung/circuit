@@ -370,9 +370,9 @@ export function useBranchPlan(workspaceId: string | undefined): UseBranchPlanRes
     ipcRenderer.on('plan:deleted', handlePlanDeleted);
 
     return () => {
-      ipcRenderer.off('plan:updated', handlePlanUpdate);
-      ipcRenderer.off('plan:created', handlePlanCreated);
-      ipcRenderer.off('plan:deleted', handlePlanDeleted);
+      ipcRenderer.removeListener('plan:updated', handlePlanUpdate);
+      ipcRenderer.removeListener('plan:created', handlePlanCreated);
+      ipcRenderer.removeListener('plan:deleted', handlePlanDeleted);
     };
   }, [workspaceId, activePlan]);
 

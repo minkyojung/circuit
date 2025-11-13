@@ -215,11 +215,11 @@ export function usePlanProgress(
     ipcRenderer.on('conversation:created', handleConversationUpdate);
 
     return () => {
-      ipcRenderer.off('todo:updated', handleTodoUpdate);
-      ipcRenderer.off('todo:created', handleTodoUpdate);
-      ipcRenderer.off('todo:deleted', handleTodoUpdate);
-      ipcRenderer.off('conversation:updated', handleConversationUpdate);
-      ipcRenderer.off('conversation:created', handleConversationUpdate);
+      ipcRenderer.removeListener('todo:updated', handleTodoUpdate);
+      ipcRenderer.removeListener('todo:created', handleTodoUpdate);
+      ipcRenderer.removeListener('todo:deleted', handleTodoUpdate);
+      ipcRenderer.removeListener('conversation:updated', handleConversationUpdate);
+      ipcRenderer.removeListener('conversation:created', handleConversationUpdate);
     };
   }, [plan, calculateAndSetProgress]);
 
