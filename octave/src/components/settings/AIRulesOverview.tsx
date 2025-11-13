@@ -4,17 +4,16 @@
 
 import React, { useState, useEffect } from 'react';
 import { SettingsGroup } from './SettingsItem';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { getAIRules, saveAIRule, SYSTEM_AI_RULES } from '@/services/projectConfig';
+import { getAIRules, addAIRule, updateAIRule, deleteAIRule, SYSTEM_AI_RULES } from '@/services/projectConfig';
 
 interface AIRulesOverviewProps {
   workspacePath: string;
 }
 
 export const AIRulesOverview: React.FC<AIRulesOverviewProps> = ({ workspacePath }) => {
-  const [selectedSystemRule, setSelectedSystemRule] = useState(SYSTEM_AI_RULES[0]?.id || '');
   const [codingRules, setCodingRules] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   const effectiveWorkspacePath = workspacePath || 'default-workspace';
 
@@ -35,36 +34,45 @@ export const AIRulesOverview: React.FC<AIRulesOverviewProps> = ({ workspacePath 
 
   const handleCodingRulesChange = async (value: string) => {
     setCodingRules(value);
-    // Auto-save on change
+
+    if (isLoading) return;
+    setIsLoading(true);
+
     try {
-      await saveAIRule(effectiveWorkspacePath, {
-        id: 'coding-rules',
-        title: 'Coding Rules',
-        content: value,
-        enabled: true,
-      });
+      // Delete all existing rules
+      const existingRules = await getAIRules(effectiveWorkspacePath);
+      for (const rule of existingRules) {
+        await deleteAIRule(effectiveWorkspacePath, rule.id);
+      }
+
+      // Add new rules (split by double newline)
+      const ruleLines = value.split('\n\n').filter(line => line.trim());
+      for (const ruleContent of ruleLines) {
+        await addAIRule(effectiveWorkspacePath, {
+          content: ruleContent.trim(),
+          enabled: true,
+          category: 'general',
+        });
+      }
     } catch (error) {
       console.error('Failed to save coding rules:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
     <div className="space-y-6">
-      {/* System Rules Dropdown */}
+      {/* System Rules - Read-only display */}
       <SettingsGroup title="System Rules">
         <div className="space-y-2">
-          <Select value={selectedSystemRule} onValueChange={setSelectedSystemRule}>
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {SYSTEM_AI_RULES.map((rule) => (
-                <SelectItem key={rule.id} value={rule.id}>
-                  {rule.title}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="text-xs text-muted-foreground bg-muted/30 rounded-md p-3 space-y-2 max-h-[200px] overflow-y-auto">
+            {SYSTEM_AI_RULES.map((rule, index) => (
+              <div key={index} className="leading-relaxed">
+                {index + 1}. {rule}
+              </div>
+            ))}
+          </div>
           <p className="text-xs text-muted-foreground">
             Core principles applied to every AI conversation
           </p>
