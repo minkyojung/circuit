@@ -53,7 +53,7 @@ export const SettingsItem: React.FC<SettingsItemProps> = (props) => {
 
   return (
     <div className={cn(
-      'flex items-start justify-between py-3 gap-6',
+      'flex items-start justify-between py-2.5 gap-6',
       className
     )}>
       <div className="flex-1 space-y-0.5">

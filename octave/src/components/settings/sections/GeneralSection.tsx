@@ -43,7 +43,7 @@ export const GeneralSection: React.FC<GeneralSectionProps> = ({
   updateSettings
 }) => {
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Appearance */}
       <SettingsGroup title="Appearance">
         <SettingsItem

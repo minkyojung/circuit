@@ -18,10 +18,10 @@ interface SettingCardProps {
 }
 
 const variantStyles = {
-  default: 'bg-muted/30 border-border hover:bg-muted/40',
-  primary: 'bg-blue-500/5 border-blue-500/20 hover:bg-blue-500/10',
-  accent: 'bg-purple-500/5 border-purple-500/20 hover:bg-purple-500/10',
-  muted: 'bg-muted/20 border-border/50 hover:bg-muted/30',
+  default: 'bg-background border-border/50 hover:border-border',
+  primary: 'bg-background border-border/50 hover:border-border',
+  accent: 'bg-background border-border/50 hover:border-border',
+  muted: 'bg-background border-border/50 hover:border-border',
 };
 
 export const SettingCard: React.FC<SettingCardProps> = ({
