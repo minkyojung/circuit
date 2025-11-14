@@ -781,6 +781,102 @@ Please complete this task step by step. When finished, use the TodoWrite tool to
     }
   }, [todos, executePrompt]);
 
+  // Handle todo skip from TodoQueue - Skip todo
+  const handleTodoSkip = useCallback(async (todoId: string) => {
+    const todo = todos.find(t => t.id === todoId);
+    if (!todo) {
+      console.warn('[ChatPanel] Todo not found:', todoId);
+      return;
+    }
+
+    try {
+      console.log('[ChatPanel] Skipping todo:', todoId);
+
+      // Update todo status to skipped
+      const updateResult = await ipcRenderer.invoke('todos:update-status', {
+        todoId: todo.id,
+        status: 'skipped',
+        completedAt: Date.now()
+      });
+
+      if (!updateResult.success) {
+        throw new Error(updateResult.error || 'Failed to skip todo');
+      }
+
+      toast.success(`Skipped: ${todo.content}`, { duration: 2000 });
+    } catch (error: any) {
+      console.error('[ChatPanel] Failed to skip todo:', error);
+      toast.error(`Failed to skip task: ${error.message}`);
+    }
+  }, [todos]);
+
+  // Handle todo delete from TodoQueue - Delete todo with confirmation
+  const handleTodoDelete = useCallback(async (todoId: string) => {
+    const todo = todos.find(t => t.id === todoId);
+    if (!todo) {
+      console.warn('[ChatPanel] Todo not found:', todoId);
+      return;
+    }
+
+    // Show confirmation toast with action
+    const confirmToast = toast.warning(
+      `Delete "${todo.content.slice(0, 30)}${todo.content.length > 30 ? '...' : ''}"?`,
+      {
+        duration: 5000,
+        action: {
+          label: 'Delete',
+          onClick: async () => {
+            try {
+              console.log('[ChatPanel] Deleting todo:', todoId);
+
+              const deleteResult = await ipcRenderer.invoke('todos:delete', todoId);
+
+              if (!deleteResult.success) {
+                throw new Error(deleteResult.error || 'Failed to delete todo');
+              }
+
+              toast.success('Task deleted', { duration: 2000 });
+            } catch (error: any) {
+              console.error('[ChatPanel] Failed to delete todo:', error);
+              toast.error(`Failed to delete task: ${error.message}`);
+            }
+          }
+        },
+        cancel: {
+          label: 'Cancel',
+          onClick: () => {
+            toast.dismiss(confirmToast);
+          }
+        }
+      }
+    );
+  }, [todos]);
+
+  // Handle todo copy from TodoQueue - Copy todo content to clipboard
+  const handleTodoCopy = useCallback(async (todoId: string) => {
+    const todo = todos.find(t => t.id === todoId);
+    if (!todo) {
+      console.warn('[ChatPanel] Todo not found:', todoId);
+      return;
+    }
+
+    try {
+      // Build content to copy
+      let content = todo.content;
+      if (todo.description) {
+        content += `\n\n${todo.description}`;
+      }
+
+      // Copy to clipboard
+      await navigator.clipboard.writeText(content);
+
+      toast.success('Copied to clipboard', { duration: 1500 });
+    } catch (error: any) {
+      console.error('[ChatPanel] Failed to copy todo:', error);
+      toast.error('Failed to copy to clipboard');
+    }
+  }, [todos]);
+
   // Handle plan approval - Generate and execute plan with todo queue
   const handlePlanApprove = useCallback(async (plan: any, messageId: string) => {
     // Prevent duplicate clicks
@@ -1378,7 +1474,13 @@ The plan is ready. What would you like to do?`,
       {currentConversationPlanId && todos.length > 0 && (
         <div className="absolute bottom-[120px] left-0 right-0 px-4 pointer-events-none z-40">
           <div className="pointer-events-auto mx-auto max-w-3xl">
-            <TodoQueue todos={todos} onTodoClick={handleTodoClick} />
+            <TodoQueue
+              todos={todos}
+              onTodoClick={handleTodoClick}
+              onTodoSkip={handleTodoSkip}
+              onTodoDelete={handleTodoDelete}
+              onTodoCopy={handleTodoCopy}
+            />
           </div>
         </div>
       )}

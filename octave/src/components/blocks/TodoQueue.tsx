@@ -5,15 +5,25 @@
  */
 
 import React, { useState } from 'react'
-import { Circle, Clock, Check, X, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react'
+import { Circle, Clock, Check, X, AlertCircle, ChevronDown, ChevronRight, Play, SkipForward, Edit2, Trash2, Copy } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Todo } from '@/types/todo'
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu'
 
 interface TodoQueueProps {
   todos: Todo[]
   defaultExpanded?: boolean
   showProgressBar?: boolean
   onTodoClick?: (todoId: string) => void  // Click handler for executing todos
+  onTodoSkip?: (todoId: string) => void   // Skip todo
+  onTodoDelete?: (todoId: string) => void // Delete todo
+  onTodoCopy?: (todoId: string) => void   // Copy todo content
 }
 
 // AI SDK Queue-style primitives
@@ -88,23 +98,41 @@ const QueueList = ({
 const QueueItem = ({
   children,
   onClick,
-  clickable = false
+  clickable = false,
+  contextMenu
 }: {
   children: React.ReactNode
   onClick?: () => void
   clickable?: boolean
-}) => (
-  <li
-    className={cn(
-      "flex items-start gap-2 text-sm p-2 rounded transition-colors",
-      clickable && "hover:bg-sidebar/80 cursor-pointer",
-      !clickable && "hover:bg-sidebar/50"
-    )}
-    onClick={clickable ? onClick : undefined}
-  >
-    {children}
-  </li>
-)
+  contextMenu?: React.ReactNode
+}) => {
+  const itemContent = (
+    <li
+      className={cn(
+        "flex items-start gap-2 text-sm p-2 rounded transition-colors",
+        clickable && "hover:bg-sidebar/80 cursor-pointer",
+        !clickable && "hover:bg-sidebar/50"
+      )}
+      onClick={clickable ? onClick : undefined}
+    >
+      {children}
+    </li>
+  )
+
+  // Wrap with context menu if provided
+  if (contextMenu) {
+    return (
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          {itemContent}
+        </ContextMenuTrigger>
+        {contextMenu}
+      </ContextMenu>
+    )
+  }
+
+  return itemContent
+}
 
 const QueueItemIndicator = ({ status }: { status: Todo['status'] }) => {
   const getIcon = () => {
@@ -152,6 +180,9 @@ export const TodoQueue: React.FC<TodoQueueProps> = ({
   defaultExpanded = true,
   showProgressBar = true,
   onTodoClick,
+  onTodoSkip,
+  onTodoDelete,
+  onTodoCopy,
 }) => {
   const completed = todos.filter(t => t.status === 'completed').length
   const inProgress = todos.filter(t => t.status === 'in_progress').length
@@ -210,11 +241,58 @@ export const TodoQueue: React.FC<TodoQueueProps> = ({
             const isPending = todo.status === 'pending'
             const isClickable = isPending && onTodoClick !== undefined
 
+            // Build context menu for this todo
+            const contextMenu = (
+              <ContextMenuContent className="w-48">
+                {/* Execute - only for pending todos */}
+                {isPending && onTodoClick && (
+                  <>
+                    <ContextMenuItem onClick={() => onTodoClick(todo.id)}>
+                      <Play className="mr-2 h-4 w-4" />
+                      Execute
+                    </ContextMenuItem>
+                    <ContextMenuSeparator />
+                  </>
+                )}
+
+                {/* Skip - for pending and in_progress todos */}
+                {(isPending || todo.status === 'in_progress') && onTodoSkip && (
+                  <ContextMenuItem onClick={() => onTodoSkip(todo.id)}>
+                    <SkipForward className="mr-2 h-4 w-4" />
+                    Skip
+                  </ContextMenuItem>
+                )}
+
+                {/* Copy content - always available */}
+                {onTodoCopy && (
+                  <ContextMenuItem onClick={() => onTodoCopy(todo.id)}>
+                    <Copy className="mr-2 h-4 w-4" />
+                    Copy
+                  </ContextMenuItem>
+                )}
+
+                {/* Delete - always available except for in_progress */}
+                {todo.status !== 'in_progress' && onTodoDelete && (
+                  <>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem
+                      onClick={() => onTodoDelete(todo.id)}
+                      className="text-red-600 focus:text-red-600"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete
+                    </ContextMenuItem>
+                  </>
+                )}
+              </ContextMenuContent>
+            )
+
             return (
               <QueueItem
                 key={todo.id || idx}
                 onClick={() => isClickable && onTodoClick(todo.id)}
                 clickable={isClickable}
+                contextMenu={contextMenu}
               >
                 <QueueItemIndicator status={todo.status} />
                 <div className="flex-1 min-w-0">
