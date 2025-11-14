@@ -658,7 +658,28 @@ Break down:
     // This allows Claude to understand and update the plan through conversation
     if (currentConversationPlanId && todos.length > 0) {
       console.log('[ChatPanel] 📋 Adding todos context to message (plan conversation)');
+
+      // Calculate progress statistics
+      const completed = todos.filter(t => t.status === 'completed').length;
+      const inProgress = todos.filter(t => t.status === 'in_progress').length;
+      const pending = todos.filter(t => t.status === 'pending').length;
+      const skipped = todos.filter(t => t.status === 'skipped').length;
+      const percentComplete = todos.length > 0 ? Math.round((completed / todos.length) * 100) : 0;
+
+      // Calculate time tracking
+      const totalEstimated = todos.reduce((sum, t) => sum + (t.estimatedDuration || 0), 0);
+      const completedTodos = todos.filter(t => t.status === 'completed');
+      const totalActual = completedTodos.reduce((sum, t) => sum + (t.actualDuration || 0), 0);
+      const remainingEstimated = todos
+        .filter(t => t.status === 'pending' || t.status === 'in_progress')
+        .reduce((sum, t) => sum + (t.estimatedDuration || 0), 0);
+
       const todosContext = `\n\n<current_plan_todos>
+Progress Summary:
+- Total: ${todos.length} todos (${percentComplete}% complete)
+- Completed: ${completed}, In Progress: ${inProgress}, Pending: ${pending}${skipped > 0 ? `, Skipped: ${skipped}` : ''}
+- Time: ${Math.round(totalActual / 60)}m actual / ${Math.round(totalEstimated / 60)}m estimated (${Math.round(remainingEstimated / 60)}m remaining)
+
 ${todos.map((t, i) => {
   const parts = [
     `Todo ${i + 1} (order: ${t.order}, status: ${t.status}):`,
@@ -667,18 +688,25 @@ ${todos.map((t, i) => {
   if (t.description) parts.push(`  Description: ${t.description}`);
   if (t.complexity) parts.push(`  Complexity: ${t.complexity}`);
   if (t.estimatedDuration) parts.push(`  Estimated: ${Math.round(t.estimatedDuration / 60)} minutes`);
+  if (t.actualDuration) parts.push(`  Actual: ${Math.round(t.actualDuration / 60)} minutes`);
+  if (t.startedAt) {
+    const elapsed = Date.now() - t.startedAt;
+    parts.push(`  Started: ${Math.round(elapsed / 60000)} minutes ago`);
+  }
   return parts.join('\n');
 }).join('\n\n')}
 </current_plan_todos>
 
-Note: You can update these todos by responding with an updated SimpleBranchPlan JSON in a \`\`\`json code block.
+Note: You can update this plan by responding with an updated SimpleBranchPlan JSON in a \`\`\`json code block.
 The JSON should include:
-- goal: string (the plan goal)
+- goal: string (the plan goal - you can update this!)
+- description: string (optional - detailed plan description)
 - totalTodos: number (total count)
 - totalEstimatedDuration: number (total seconds)
 - todos: array of objects with: content, activeForm, order, complexity, estimatedDuration, description (optional)
 
-Include all todos in the updated plan (not just the ones you're changing). The system will detect changes and sync automatically.`;
+To reorder todos, just change the "order" field values. The system will detect changes and sync automatically.
+Include all todos in the updated plan (not just the ones you're changing).`;
 
       content = content + todosContext;
     }
@@ -1202,9 +1230,21 @@ Then I'll proceed to the next task.`;
     if (!conversationId || !currentConversationPlanId) return;
 
     try {
-      console.log('[ChatPanel] 🔄 Syncing plan todos to database');
+      console.log('[ChatPanel] 🔄 Syncing plan to database');
       console.log('[ChatPanel] 📊 Updated plan has', updatedPlan.todos.length, 'todos');
 
+      // 1. Update plan metadata (goal, description, etc.) if changed
+      console.log('[ChatPanel] 📝 Updating plan metadata');
+      await ipcRenderer.invoke('plan:update', {
+        planId: currentConversationPlanId,
+        goal: updatedPlan.goal,
+        description: updatedPlan.description,
+        planDocument: updatedPlan.planDocument,
+        totalTodos: updatedPlan.totalTodos,
+        totalEstimatedDuration: updatedPlan.totalEstimatedDuration,
+      });
+
+      // 2. Sync todos
       // Get current todos
       const currentTodos = todos;
 
@@ -1212,14 +1252,29 @@ Then I'll proceed to the next task.`;
       let addedCount = 0;
       let updatedCount = 0;
       let deletedCount = 0;
+      let reorderedCount = 0;
+
+      // Track which todos have been matched to avoid duplicates
+      const matchedTodoIds = new Set<string>();
 
       // Compare and update each todo
       for (const updatedTodo of updatedPlan.todos) {
-        // Find matching todo by order
-        const existingTodo = currentTodos.find(t => t.order === updatedTodo.order);
+        // Find matching todo by content (exact match first, then fuzzy)
+        // This allows reordering while maintaining identity
+        let existingTodo = currentTodos.find(t =>
+          !matchedTodoIds.has(t.id) && t.content === updatedTodo.content
+        );
+
+        // Fallback: Try to find by similar content (for minor edits)
+        if (!existingTodo) {
+          existingTodo = currentTodos.find(t =>
+            !matchedTodoIds.has(t.id) &&
+            t.content.trim().toLowerCase().includes(updatedTodo.content.trim().toLowerCase().substring(0, 30))
+          );
+        }
 
         if (!existingTodo) {
-          console.log('[ChatPanel] ➕ New todo detected at order', updatedTodo.order);
+          console.log('[ChatPanel] ➕ New todo detected:', updatedTodo.content.substring(0, 50));
           addedCount++;
 
           // Create new todo
@@ -1242,23 +1297,32 @@ Then I'll proceed to the next task.`;
 
           await ipcRenderer.invoke('todos:save', newTodo);
         } else {
-          // Check for changes
-          const hasChanges =
+          // Mark as matched
+          matchedTodoIds.add(existingTodo.id);
+
+          // Check for changes (including order)
+          const orderChanged = existingTodo.order !== updatedTodo.order;
+          const contentChanged =
             existingTodo.content !== updatedTodo.content ||
             existingTodo.description !== updatedTodo.description ||
             existingTodo.activeForm !== updatedTodo.activeForm ||
             existingTodo.complexity !== updatedTodo.complexity ||
             existingTodo.estimatedDuration !== updatedTodo.estimatedDuration;
 
-          if (hasChanges) {
-            console.log('[ChatPanel] 🔄 Todo updated at order', updatedTodo.order);
-            console.log('  Old:', existingTodo.content.substring(0, 50) + '...');
-            console.log('  New:', updatedTodo.content.substring(0, 50) + '...');
-            updatedCount++;
+          if (orderChanged || contentChanged) {
+            if (orderChanged && !contentChanged) {
+              console.log('[ChatPanel] 🔄 Todo reordered:', existingTodo.content.substring(0, 50));
+              console.log(`  Order: ${existingTodo.order} → ${updatedTodo.order}`);
+              reorderedCount++;
+            } else if (contentChanged) {
+              console.log('[ChatPanel] 🔄 Todo updated:', existingTodo.content.substring(0, 50));
+              updatedCount++;
+            }
 
             // Update existing todo
             const updatedTodoData: Todo = {
               ...existingTodo,
+              order: updatedTodo.order, // Update order to support reordering
               content: updatedTodo.content,
               description: updatedTodo.description,
               activeForm: updatedTodo.activeForm || existingTodo.activeForm,
@@ -1274,9 +1338,12 @@ Then I'll proceed to the next task.`;
 
       // Check for deleted todos (todos in DB but not in updated plan)
       for (const currentTodo of currentTodos) {
-        const stillExists = updatedPlan.todos.some(t => t.order === currentTodo.order);
+        const stillExists = updatedPlan.todos.some(t =>
+          t.content === currentTodo.content ||
+          t.content.trim().toLowerCase().includes(currentTodo.content.trim().toLowerCase().substring(0, 30))
+        );
         if (!stillExists) {
-          console.log('[ChatPanel] 🗑️ Todo removed at order', currentTodo.order);
+          console.log('[ChatPanel] 🗑️ Todo removed:', currentTodo.content.substring(0, 50));
           deletedCount++;
           await ipcRenderer.invoke('todos:delete', currentTodo.id);
         }
@@ -1286,6 +1353,7 @@ Then I'll proceed to the next task.`;
       const changes = [];
       if (addedCount > 0) changes.push(`${addedCount} added`);
       if (updatedCount > 0) changes.push(`${updatedCount} updated`);
+      if (reorderedCount > 0) changes.push(`${reorderedCount} reordered`);
       if (deletedCount > 0) changes.push(`${deletedCount} deleted`);
 
       if (changes.length > 0) {

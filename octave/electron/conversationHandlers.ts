@@ -1202,6 +1202,51 @@ export function registerConversationHandlers(): void {
   )
 
   /**
+   * Update plan metadata (goal, description, etc.)
+   * Used for conversation-based plan editing
+   */
+  ipcMain.handle(
+    'plan:update',
+    async (_event: IpcMainInvokeEvent, updates: {
+      planId: string;
+      goal?: string;
+      description?: string;
+      planDocument?: string;
+      totalTodos?: number;
+      totalEstimatedDuration?: number;
+    }) => {
+      try {
+        if (!storage) throw new Error('Storage not initialized')
+
+        console.log('[plan:update] Updating plan:', updates.planId)
+        console.log('[plan:update] Updates:', updates)
+
+        storage.updatePlan(updates.planId, {
+          goal: updates.goal,
+          description: updates.description,
+          planDocument: updates.planDocument,
+          totalTodos: updates.totalTodos,
+          totalEstimatedDuration: updates.totalEstimatedDuration,
+        })
+
+        const plan = storage.getPlanById(updates.planId)
+        console.log('[plan:update] Plan updated successfully')
+
+        return {
+          success: true,
+          plan
+        }
+      } catch (error: any) {
+        console.error('[plan:update] Error:', error)
+        return {
+          success: false,
+          error: error.message
+        }
+      }
+    }
+  )
+
+  /**
    * Get active plan for a workspace
    */
   ipcMain.handle(
