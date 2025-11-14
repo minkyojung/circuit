@@ -58,6 +58,10 @@ export interface AIQuestionAnswers {
 
 /**
  * Conversation draft within a plan (before execution)
+ *
+ * @deprecated This interface is no longer used as of v2.
+ * Plan Mode now uses a flat array of todos instead of conversations.
+ * Kept for backward compatibility only.
  */
 export interface PlanConversationDraft {
   id: string                      // Temporary ID for editing
@@ -75,13 +79,13 @@ export interface PlanConversationDraft {
 }
 
 /**
- * SimpleBranchPlan (v1) - Grouping metadata for AI-generated conversations
+ * SimpleBranchPlan (v2) - Single conversation with todo queue
  *
  * Key characteristics:
  * - Workspace-scoped (one active plan per workspace)
- * - Conversations remain independent (no orchestration in v1)
- * - expectedOutputs are hints only (not verified)
- * - User executes conversations manually
+ * - Single conversation with flat todo queue
+ * - Todos execute sequentially (auto or manual mode)
+ * - Agent system handles sequential execution
  */
 export interface SimpleBranchPlan {
   id: string
@@ -92,13 +96,18 @@ export interface SimpleBranchPlan {
   description?: string                      // Detailed description
   planDocument?: string                     // Markdown document with full plan details (from conversational creation)
 
-  // Conversations
-  conversations: PlanConversationDraft[]    // Conversation drafts
-  totalConversations: number
+  // Todos (flat structure - no conversation wrapper)
+  todos: Array<{
+    content: string                         // Todo description
+    activeForm?: string                     // Present continuous form
+    complexity?: TodoComplexity
+    estimatedDuration?: number              // Seconds
+    order: number                           // Execution order
+  }>
 
   // Todos aggregation
   totalTodos: number
-  totalEstimatedDuration: number            // Total seconds across all conversations
+  totalEstimatedDuration: number            // Total seconds for all todos
 
   // Status & Progress
   status: PlanStatus
@@ -114,8 +123,8 @@ export interface SimpleBranchPlan {
   // Timestamps
   createdAt: number
   updatedAt: number
-  startedAt?: number                        // When first conversation was created
-  completedAt?: number                      // When all conversations completed
+  startedAt?: number                        // When plan execution started
+  completedAt?: number                      // When all todos completed
   cancelledAt?: number
   archivedAt?: number
 
@@ -124,6 +133,7 @@ export interface SimpleBranchPlan {
     tags?: string[]
     createdBy?: 'user' | 'ai'              // How plan was initiated
     source?: 'plan-mode' | 'chat'          // Where plan was created from
+    executionMode?: 'auto' | 'manual'      // Sequential auto-execution or manual
   }
 }
 
@@ -131,14 +141,9 @@ export interface SimpleBranchPlan {
  * Progress calculation for a plan
  */
 export interface PlanProgress {
-  // Conversations
-  totalConversations: number
-  createdConversations: number              // Actually created in workspace
-  completedConversations: number            // All todos in conversation completed
-
   // Todos
   totalTodos: number                        // Sum of all todos in plan
-  completedTodos: number                    // Completed across all conversations
+  completedTodos: number                    // Completed todos
   inProgressTodos: number
   pendingTodos: number
 
@@ -186,17 +191,14 @@ export interface PlanGenerationResult {
 }
 
 /**
- * Plan execution result (after creating conversations)
+ * Plan execution result (after creating conversation with todos)
  */
 export interface PlanExecutionResult {
   planId: string
-  conversationIds: string[]                 // IDs of created conversations
+  conversationId: string                    // ID of created conversation
+  todoIds: string[]                         // IDs of created todos
   success: boolean
   error?: string
-  failedConversations?: Array<{
-    title: string
-    error: string
-  }>
 }
 
 /**
@@ -221,7 +223,6 @@ export interface PlanSummary {
   goal: string
   status: PlanStatus
   progress: PlanProgress
-  totalConversations: number
   totalTodos: number
   createdAt: number
   updatedAt: number

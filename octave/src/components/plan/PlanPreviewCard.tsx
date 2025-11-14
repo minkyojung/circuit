@@ -6,8 +6,7 @@
 
 import { Button } from '@/components/ui/button'
 import { CheckCircle2, Edit2, XCircle, Loader2 } from 'lucide-react'
-import type { SimpleBranchPlan, PlanConversationDraft } from '@/types/plan'
-import { PlanConversationItem } from './PlanConversationItem'
+import type { SimpleBranchPlan } from '@/types/plan'
 
 export interface PlanPreviewCardProps {
   plan: SimpleBranchPlan
@@ -35,22 +34,32 @@ export function PlanPreviewCard({
           <p className="text-sm text-muted-foreground">{plan.description}</p>
         )}
         <div className="flex gap-4 text-xs text-muted-foreground">
-          <span>{plan.totalConversations} conversations</span>
           <span>{plan.totalTodos} todos</span>
           <span>~{Math.round(plan.totalEstimatedDuration / 60)} minutes</span>
         </div>
       </div>
 
-      {/* Conversations List */}
+      {/* Todo Queue Preview */}
       <div className="space-y-2">
-        <p className="text-sm font-medium">Conversations:</p>
-        <div className="space-y-2">
-          {plan.conversations.map((conv: PlanConversationDraft, idx: number) => (
-            <PlanConversationItem
-              key={conv.id}
-              conversation={conv}
-              index={idx}
-            />
+        <p className="text-sm font-medium">Todo Queue:</p>
+        <div className="space-y-1 max-h-[300px] overflow-y-auto">
+          {plan.todos.map((todo: any, idx: number) => (
+            <div
+              key={idx}
+              className="flex items-start gap-2 p-2 rounded-md bg-muted/30 text-sm"
+            >
+              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs font-medium">
+                {idx + 1}
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-foreground truncate">{todo.content}</p>
+                {todo.estimatedDuration && (
+                  <p className="text-xs text-muted-foreground">
+                    ~{Math.round(todo.estimatedDuration / 60)} min
+                  </p>
+                )}
+              </div>
+            </div>
           ))}
         </div>
       </div>

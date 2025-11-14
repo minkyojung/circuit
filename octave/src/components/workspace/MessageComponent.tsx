@@ -28,6 +28,7 @@ export interface MessageComponentProps {
   onPlanApprove?: (plan: any, messageId: string) => void;
   onPlanEdit?: (plan: any, messageId: string) => void;
   onPlanCancel?: (messageId: string) => void;
+  planExecuting?: boolean;
 }
 
 const MessageComponentInner: React.FC<MessageComponentProps> = ({
@@ -46,6 +47,7 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
   onPlanApprove,
   onPlanEdit,
   onPlanCancel,
+  planExecuting = false,
 }) => {
   // Parse metadata safely
   const metadata = React.useMemo(() => {
@@ -171,6 +173,7 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
             <PlanPreviewCard
               plan={parsedPlan.plan}
               showActions={!isSending}  // Show actions only when not sending
+              isExecuting={planExecuting}
               onApprove={onPlanApprove ? () => onPlanApprove(parsedPlan.plan, msg.id) : undefined}
               onEdit={onPlanEdit ? () => onPlanEdit(parsedPlan.plan, msg.id) : undefined}
               onCancel={onPlanCancel ? () => onPlanCancel(msg.id) : undefined}
@@ -282,6 +285,7 @@ export const MessageComponent = React.memo(
       prevProps.pendingAssistantMessageId === nextProps.pendingAssistantMessageId &&
       prevProps.copiedMessageId === nextProps.copiedMessageId &&
       prevProps.currentDuration === nextProps.currentDuration &&
+      prevProps.planExecuting === nextProps.planExecuting &&
       // Compare messageThinkingSteps for this specific message only
       prevProps.messageThinkingSteps[prevProps.msg.id] === nextProps.messageThinkingSteps[nextProps.msg.id]
     );

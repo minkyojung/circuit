@@ -16,7 +16,7 @@ export interface Conversation {
 }
 
 /**
- * SimpleBranchPlan - v1 multi-conversation plan structure
+ * SimpleBranchPlan - v2 single-conversation with todo queue
  */
 export interface SimpleBranchPlan {
   id: string
@@ -24,8 +24,7 @@ export interface SimpleBranchPlan {
   goal: string
   description?: string
   planDocument?: string  // Markdown document with full plan details
-  conversations: any[]  // PlanConversationDraft[] - Will be properly typed in v2
-  totalConversations: number
+  todos: any[]  // Flat array of todos with order field
   totalTodos: number
   totalEstimatedDuration: number
   status: 'active' | 'completed' | 'cancelled' | 'archived'

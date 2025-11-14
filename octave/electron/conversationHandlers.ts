@@ -96,6 +96,31 @@ export function registerConversationHandlers(): void {
   )
 
   /**
+   * Get conversation by ID
+   */
+  ipcMain.handle(
+    'conversation:get-by-id',
+    async (_event: IpcMainInvokeEvent, conversationId: string) => {
+      try {
+        if (!storage) throw new Error('Storage not initialized')
+
+        const conversation = storage.getById(conversationId)
+
+        return {
+          success: true,
+          conversation: conversation || null
+        }
+      } catch (error: any) {
+        console.error('[conversation:get-by-id] Error:', error)
+        return {
+          success: false,
+          error: error.message
+        }
+      }
+    }
+  )
+
+  /**
    * Create a new conversation
    * @param workspaceId - Workspace ID
    * @param options - { workspaceName?: string, title?: string }
@@ -993,8 +1018,7 @@ export function registerConversationHandlers(): void {
       workspaceId: string;
       goal: string;
       planDocument?: string;
-      conversations?: any[];
-      totalConversations?: number;
+      todos?: any[];
       totalTodos?: number;
       totalEstimatedDuration?: number;
       aiAnalysis?: any;
@@ -1006,44 +1030,23 @@ export function registerConversationHandlers(): void {
         console.log('[plan:generate] Generating plan for goal:', request.goal)
         console.log('[plan:generate] User answers:', request.answers)
 
-        // If conversations are provided (from multiplan mode), use them directly
+        // If todos are provided (from multiplan mode), use them directly
         // Otherwise, create mock plan based on answers (legacy behavior)
-        const conversations = request.conversations || (() => {
-          const numConversations = request.answers['q3'] || 3
-          const mockConversations = []
+        const todos = request.todos || (() => {
+          const numTodos = request.answers['q3'] || 5
+          const mockTodos = []
 
-          for (let i = 0; i < numConversations; i++) {
-            mockConversations.push({
-              id: `draft-${i + 1}`,
-              title: `${request.goal} - Part ${i + 1}`,
-              goal: `Sub-task ${i + 1} for: ${request.goal}`,
-              expectedOutputs: ['Complete implementation', 'Tests added', 'Documentation updated'],
-              todos: [
-                {
-                  content: `Research and plan approach for part ${i + 1}`,
-                  activeForm: `Researching part ${i + 1}`,
-                  complexity: 'medium' as const,
-                  estimatedDuration: 600
-                },
-                {
-                  content: `Implement part ${i + 1}`,
-                  activeForm: `Implementing part ${i + 1}`,
-                  complexity: 'high' as const,
-                  estimatedDuration: 1200
-                },
-                {
-                  content: `Test part ${i + 1}`,
-                  activeForm: `Testing part ${i + 1}`,
-                  complexity: 'low' as const,
-                  estimatedDuration: 300
-                }
-              ],
-              estimatedDuration: 2100,
+          for (let i = 0; i < numTodos; i++) {
+            mockTodos.push({
+              content: `Complete task ${i + 1} for: ${request.goal}`,
+              activeForm: `Working on task ${i + 1}`,
+              complexity: 'moderate' as const,
+              estimatedDuration: 600,
               order: i
             })
           }
 
-          return mockConversations
+          return mockTodos
         })()
 
         // Create plan object
@@ -1053,11 +1056,10 @@ export function registerConversationHandlers(): void {
           workspaceId: request.workspaceId,
           goal: request.goal,
           description: `Plan for: ${request.goal}`,
-          planDocument: request.planDocument || undefined,  // Add planDocument field from request
-          conversations,
-          totalConversations: request.totalConversations || conversations.length,
-          totalTodos: request.totalTodos || conversations.length * 3,
-          totalEstimatedDuration: request.totalEstimatedDuration || conversations.length * 2100,
+          planDocument: request.planDocument || undefined,
+          todos,
+          totalTodos: request.totalTodos || todos.length,
+          totalEstimatedDuration: request.totalEstimatedDuration || todos.reduce((sum, t) => sum + (t.estimatedDuration || 0), 0),
           status: 'pending',
           aiAnalysis: request.aiAnalysis || {
             reasoning: `Generated plan for: ${request.goal}`,
@@ -1095,8 +1097,8 @@ export function registerConversationHandlers(): void {
   )
 
   /**
-   * Execute plan: Create all conversations with todos
-   * Phase 4 v1: Full implementation
+   * Execute plan: Create single conversation with todo queue
+   * Phase 4 v2: Single conversation with flat todos
    */
   ipcMain.handle(
     'plan:execute',
@@ -1111,48 +1113,40 @@ export function registerConversationHandlers(): void {
           throw new Error(`Plan not found: ${planId}`)
         }
 
-        const conversationIds: string[] = []
-        const failedConversations: Array<{ title: string; error: string }> = []
+        // Create single conversation with plan goal as title
+        const conversation = storage.create(plan.workspaceId, plan.goal, planId)
+        console.log('[plan:execute] Created conversation:', conversation.id)
 
-        // Create each conversation
-        for (const convDraft of plan.conversations) {
-          try {
-            // Create conversation using storage.create()
-            const conversation = storage.create(plan.workspaceId, convDraft.title)
+        const todoIds: string[] = []
 
-            // Update conversation to link to plan
-            // Note: storage.create doesn't support planId yet, so we need to update it manually
-            // For now, just store the conversationId
-            conversationIds.push(conversation.id)
-
-            // Create todos for this conversation using saveTodo()
-            for (const todoData of convDraft.todos) {
-              const todo: any = {
-                id: randomUUID(),
-                conversationId: conversation.id,
-                content: todoData.content,
-                activeForm: todoData.activeForm || todoData.content,
-                status: 'pending',
-                order: convDraft.order * 100 + convDraft.todos.indexOf(todoData),
-                complexity: todoData.complexity || 'medium',
-                estimatedDuration: todoData.estimatedDuration || 0,
-                createdAt: Date.now(),
-                updatedAt: Date.now(),
-                completedAt: null,
-                startedAt: null,
-                messageId: null
-              }
-              storage.saveTodo(todo)
-            }
-
-            console.log('[plan:execute] Created conversation:', conversation.id)
-          } catch (error: any) {
-            console.error('[plan:execute] Failed to create conversation:', convDraft.title, error)
-            failedConversations.push({
-              title: convDraft.title,
-              error: error.message
-            })
+        // Create all todos for this conversation (flat structure)
+        for (const todoData of plan.todos) {
+          const todo: any = {
+            id: randomUUID(),
+            conversationId: conversation.id,
+            messageId: null,
+            parentId: null,
+            order: todoData.order,
+            depth: 0,  // Flat structure - all todos at depth 0
+            content: todoData.content,
+            description: null,
+            activeForm: todoData.activeForm || todoData.content,
+            status: 'pending',
+            progress: null,
+            priority: null,
+            complexity: todoData.complexity || 'medium',
+            thinkingStepIds: [],  // Empty array for new todos
+            blockIds: [],         // Empty array for new todos
+            estimatedDuration: todoData.estimatedDuration || 0,
+            actualDuration: null,
+            startedAt: null,
+            completedAt: null,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            metadata: null
           }
+          storage.saveTodo(todo)
+          todoIds.push(todo.id)
         }
 
         // Update plan status to active
@@ -1161,13 +1155,13 @@ export function registerConversationHandlers(): void {
           startedAt: Date.now()
         })
 
-        console.log('[plan:execute] Plan executed. Created conversations:', conversationIds.length)
+        console.log('[plan:execute] Plan executed. Created', todoIds.length, 'todos in conversation:', conversation.id)
 
         return {
           success: true,
           planId,
-          conversationIds,
-          failedConversations: failedConversations.length > 0 ? failedConversations : undefined
+          conversationId: conversation.id,
+          todoIds
         }
       } catch (error: any) {
         console.error('[plan:execute] Error:', error)

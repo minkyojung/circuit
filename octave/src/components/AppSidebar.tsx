@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import type { Workspace, WorkspaceStatus, Repository } from '@/types/workspace'
 import type { SimpleBranchPlan } from '@/types/plan'
 import type { Conversation } from '@/types/conversation'
@@ -124,6 +124,17 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
   const [conversationsByPlan, setConversationsByPlan] = useState<Record<string, Conversation[]>>({})
   const [loadingConversations, setLoadingConversations] = useState(false)
 
+  // All conversations (plan + general) sorted by updatedAt
+  const allConversations = useMemo(() => {
+    const planConversations = Object.values(conversationsByPlan).flat()
+    return [...planConversations, ...conversations].sort((a, b) => {
+      // Parse ISO strings or numbers
+      const aTime = typeof a.updatedAt === 'string' ? new Date(a.updatedAt).getTime() : a.updatedAt
+      const bTime = typeof b.updatedAt === 'string' ? new Date(b.updatedAt).getTime() : b.updatedAt
+      return bTime - aTime // Most recent first
+    })
+  }, [conversations, conversationsByPlan])
+
   // Expanded plans state (for collapsible UI)
   const [expandedPlans, setExpandedPlans] = useState<Set<string>>(new Set())
 
@@ -220,8 +231,12 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
       if (!selectedWorkspace) {
         setConversations([])
         setConversationsByPlan({})
+        setExpandedPlans(new Set()) // Clear expanded plans on workspace switch
         return
       }
+
+      // Clear expanded plans when switching workspaces
+      setExpandedPlans(new Set())
 
       try {
         setLoadingConversations(true)
@@ -257,6 +272,54 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
 
     loadConversations()
   }, [selectedWorkspace?.id])
+
+  // Listen for plan:created event to refresh sidebar
+  useEffect(() => {
+    const handlePlanCreated = async (event: any, data: { planId: string; workspaceId: string }) => {
+      console.log('[AppSidebar] Plan created event received:', data);
+
+      // Only refresh if it's for the current workspace
+      if (selectedWorkspace && data.workspaceId === selectedWorkspace.id) {
+        try {
+          // Reload conversations to show newly created plan conversations
+          const result = await ipcRenderer.invoke('conversation:list', selectedWorkspace.id);
+
+          if (result.success && result.conversations) {
+            const allConvs: Conversation[] = result.conversations;
+
+            // Separate general conversations from plan conversations
+            const generalConvs = allConvs.filter(c => !c.planId);
+            setConversations(generalConvs);
+
+            // Group conversations by planId
+            const byPlan: Record<string, Conversation[]> = {};
+            allConvs.forEach(c => {
+              if (c.planId) {
+                if (!byPlan[c.planId]) {
+                  byPlan[c.planId] = [];
+                }
+                byPlan[c.planId].push(c);
+              }
+            });
+            setConversationsByPlan(byPlan);
+
+            // Auto-expand the newly created plan
+            setExpandedPlans(prev => new Set([...prev, data.planId]));
+
+            console.log('[AppSidebar] Sidebar refreshed after plan creation');
+          }
+        } catch (error) {
+          console.error('[AppSidebar] Failed to refresh after plan creation:', error);
+        }
+      }
+    };
+
+    ipcRenderer.on('plan:created', handlePlanCreated);
+
+    return () => {
+      ipcRenderer.removeListener('plan:created', handlePlanCreated);
+    };
+  }, [selectedWorkspace?.id]);
 
   // Wrapper functions that delegate to hooks
   const createWorkspace = async () => {
@@ -497,118 +560,54 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
           </Button>
         </div>
 
-        {/* Plans & Conversations Section (only when workspace selected) */}
+        {/* Conversations Section (only when workspace selected) */}
         {selectedWorkspace && (
           <>
-            {/* Plans Section - Always show when workspace is selected */}
+            {/* All Conversations (plan + general) */}
             <SidebarGroup>
               <div className="px-4 py-2 text-xs font-semibold text-sidebar-foreground-muted uppercase tracking-wide">
-                Plans
-              </div>
-              {allPlans.length > 0 ? (
-                <SidebarMenu>
-                  {allPlans.map((plan) => {
-                    const isExpanded = expandedPlans.has(plan.id)
-                    const planConversations = conversationsByPlan[plan.id] || []
-
-                    return (
-                      <div key={plan.id}>
-                        {/* Plan Item */}
-                        <SidebarMenuItem className="my-0">
-                          <SidebarMenuButton
-                            onClick={() => togglePlanExpansion(plan.id)}
-                            className="h-auto py-2 px-2 group transition-all duration-200 ease-out"
-                          >
-                            <div className="flex gap-3 w-full min-w-0">
-                              {/* Expand/Collapse Icon */}
-                              <div className="flex items-center pt-[3px]">
-                                {isExpanded ? (
-                                  <ChevronDown size={14} strokeWidth={1.5} className="text-sidebar-foreground-muted" />
-                                ) : (
-                                  <ChevronRight size={14} strokeWidth={1.5} className="text-sidebar-foreground-muted" />
-                                )}
-                              </div>
-
-                              {/* Plan Icon */}
-                              <div className="flex items-center pt-[3px]">
-                                <FolderKanban size={14} strokeWidth={1.5} className="text-sidebar-foreground-muted" />
-                              </div>
-
-                              {/* Plan Content */}
-                              <div className="flex-1 min-w-0">
-                                <div className="text-sm font-normal truncate text-sidebar-foreground">
-                                  {plan.goal}
-                                </div>
-                                <div className="text-xs text-sidebar-foreground opacity-50">
-                                  {planConversations.length} conversations · {plan.status}
-                                </div>
-                              </div>
-                            </div>
-                          </SidebarMenuButton>
-                        </SidebarMenuItem>
-
-                        {/* Plan Conversations (when expanded) */}
-                        {isExpanded && planConversations.length > 0 && (
-                          <div className="pl-8">
-                            {planConversations.map((conv) => (
-                              <SidebarMenuItem key={conv.id} className="my-0">
-                                <SidebarMenuButton
-                                  onClick={() => onSelectConversation?.(conv.id)}
-                                  isActive={activeConversationId === conv.id}
-                                  className="h-auto py-1.5 px-2 group transition-all duration-200 ease-out"
-                                >
-                                  <div className="flex gap-2 w-full min-w-0">
-                                    <MessageSquare size={12} strokeWidth={1.5} className="text-sidebar-foreground-muted mt-1" />
-                                    <span className="text-sm font-normal truncate text-sidebar-foreground">
-                                      {conv.title}
-                                    </span>
-                                  </div>
-                                </SidebarMenuButton>
-                              </SidebarMenuItem>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </SidebarMenu>
-              ) : null}
-            </SidebarGroup>
-
-            {/* General Conversations Section */}
-            <SidebarGroup>
-              <div className="px-4 py-2 text-xs font-semibold text-sidebar-foreground-muted uppercase tracking-wide">
-                General
+                Conversations
               </div>
               <SidebarMenu>
-                {conversations.length === 0 ? (
+                {allConversations.length === 0 ? (
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="px-4 py-4 text-center"
                     style={{ color: 'var(--sidebar-foreground-muted)' }}
                   >
-                    <p className="text-xs">No general conversations</p>
+                    <p className="text-xs">No conversations yet</p>
                   </motion.div>
                 ) : (
-                  conversations.map((conv) => (
-                    <SidebarMenuItem key={conv.id} className="my-0">
-                      <SidebarMenuButton
-                        onClick={() => onSelectConversation?.(conv.id)}
-                        isActive={activeConversationId === conv.id}
-                        className="h-auto py-2 px-2 group transition-all duration-200 ease-out"
-                      >
-                        <div className="flex gap-3 w-full min-w-0">
-                          <MessageSquare size={14} strokeWidth={1.5} className="text-sidebar-foreground-muted mt-[3px]" />
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm font-normal truncate text-sidebar-foreground">
-                              {conv.title}
+                  allConversations.map((conv) => {
+                    // Check if this conversation belongs to a plan
+                    const isPlanConversation = !!conv.planId
+                    const Icon = isPlanConversation ? FolderKanban : MessageSquare
+
+                    return (
+                      <SidebarMenuItem key={conv.id} className="my-0">
+                        <SidebarMenuButton
+                          onClick={() => onSelectConversation?.(conv.id)}
+                          isActive={activeConversationId === conv.id}
+                          className="h-auto py-2 px-2 group transition-all duration-200 ease-out"
+                        >
+                          <div className="flex gap-3 w-full min-w-0">
+                            <Icon size={14} strokeWidth={1.5} className="text-sidebar-foreground-muted mt-[3px]" />
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-normal truncate text-sidebar-foreground">
+                                {conv.title}
+                              </div>
+                              {isPlanConversation && (
+                                <div className="text-xs text-sidebar-foreground opacity-40">
+                                  Plan
+                                </div>
+                              )}
                             </div>
                           </div>
-                        </div>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    )
+                  })
                 )}
               </SidebarMenu>
 

@@ -30,7 +30,7 @@ export type TodoPriority = 'low' | 'medium' | 'high' | 'critical'
 /**
  * Complexity estimation for a todo
  */
-export type TodoComplexity = 'trivial' | 'simple' | 'moderate' | 'medium' | 'complex' | 'very_complex'
+export type TodoComplexity = 'trivial' | 'simple' | 'medium' | 'complex' | 'very_complex'
 
 /**
  * Todo represents a single actionable task
@@ -39,7 +39,7 @@ export type TodoComplexity = 'trivial' | 'simple' | 'moderate' | 'medium' | 'com
 export interface Todo {
   id: string
   conversationId: string
-  messageId: string  // The message that generated this todo
+  messageId?: string  // The message that generated this todo (optional for plan-generated todos)
 
   // Hierarchy
   parentId?: string  // Parent todo for nested tasks

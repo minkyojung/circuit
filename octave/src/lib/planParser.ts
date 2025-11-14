@@ -187,12 +187,8 @@ function isValidSimpleBranchPlan(obj: any): boolean {
     console.log('[planParser:validate] ❌ Missing or invalid "goal" field')
     return false
   }
-  if (!Array.isArray(obj.conversations)) {
-    console.log('[planParser:validate] ❌ Missing or invalid "conversations" field')
-    return false
-  }
-  if (typeof obj.totalConversations !== 'number') {
-    console.log('[planParser:validate] ❌ Missing or invalid "totalConversations" field')
+  if (!Array.isArray(obj.todos)) {
+    console.log('[planParser:validate] ❌ Missing or invalid "todos" field')
     return false
   }
   if (typeof obj.totalTodos !== 'number') {
@@ -204,55 +200,28 @@ function isValidSimpleBranchPlan(obj: any): boolean {
     return false
   }
 
-  // Validate conversations structure
-  for (const [idx, conv] of obj.conversations.entries()) {
-    if (!conv || typeof conv !== 'object') {
-      console.log(`[planParser:validate] ❌ Conversation ${idx} is not an object`)
+  // Validate todos structure
+  for (const [idx, todo] of obj.todos.entries()) {
+    if (!todo || typeof todo !== 'object') {
+      console.log(`[planParser:validate] ❌ Todo ${idx} is not an object`)
       return false
     }
-    if (typeof conv.id !== 'string') {
-      console.log(`[planParser:validate] ❌ Conversation ${idx} missing "id"`)
+    if (typeof todo.content !== 'string') {
+      console.log(`[planParser:validate] ❌ Todo ${idx} missing "content"`)
       return false
     }
-    if (typeof conv.title !== 'string') {
-      console.log(`[planParser:validate] ❌ Conversation ${idx} missing "title"`)
+    if (typeof todo.activeForm !== 'string') {
+      console.log(`[planParser:validate] ❌ Todo ${idx} missing "activeForm"`)
       return false
     }
-    if (typeof conv.goal !== 'string') {
-      console.log(`[planParser:validate] ❌ Conversation ${idx} missing "goal"`)
+    if (typeof todo.order !== 'number') {
+      console.log(`[planParser:validate] ❌ Todo ${idx} missing "order"`)
       return false
     }
-    if (!Array.isArray(conv.todos)) {
-      console.log(`[planParser:validate] ❌ Conversation ${idx} missing "todos" array`)
+    // estimatedDuration is optional but if present should be a number
+    if (todo.estimatedDuration !== undefined && typeof todo.estimatedDuration !== 'number') {
+      console.log(`[planParser:validate] ❌ Todo ${idx} has invalid "estimatedDuration"`)
       return false
-    }
-    if (typeof conv.estimatedDuration !== 'number') {
-      console.log(`[planParser:validate] ❌ Conversation ${idx} missing "estimatedDuration"`)
-      return false
-    }
-    if (typeof conv.order !== 'number') {
-      console.log(`[planParser:validate] ❌ Conversation ${idx} missing "order"`)
-      return false
-    }
-
-    // Validate todos structure
-    for (const [todoIdx, todo] of conv.todos.entries()) {
-      if (!todo || typeof todo !== 'object') {
-        console.log(`[planParser:validate] ❌ Conversation ${idx}, todo ${todoIdx} is not an object`)
-        return false
-      }
-      if (typeof todo.content !== 'string') {
-        console.log(`[planParser:validate] ❌ Conversation ${idx}, todo ${todoIdx} missing "content"`)
-        return false
-      }
-      if (typeof todo.activeForm !== 'string') {
-        console.log(`[planParser:validate] ❌ Conversation ${idx}, todo ${todoIdx} missing "activeForm"`)
-        return false
-      }
-      if (typeof todo.estimatedDuration !== 'number') {
-        console.log(`[planParser:validate] ❌ Conversation ${idx}, todo ${todoIdx} missing "estimatedDuration"`)
-        return false
-      }
     }
   }
 

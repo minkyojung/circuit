@@ -1,12 +1,11 @@
 /**
- * usePlanProgress Hook
+ * usePlanProgress Hook (v2)
  *
  * Tracks and calculates progress for a SimpleBranchPlan.
- * Monitors todos across all plan conversations and provides real-time statistics.
+ * Monitors todos in the single plan conversation and provides real-time statistics.
  *
  * Key Features:
  * - Real-time todo progress tracking
- * - Conversation completion status
  * - Time estimates and actuals
  * - Efficiency metrics
  *
@@ -16,7 +15,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import type { SimpleBranchPlan, PlanProgress } from '@/types/plan';
-import type { Todo, Conversation } from '@/types/conversation';
+import type { Todo } from '@/types/todo';
 
 const ipcRenderer = window.electron?.ipcRenderer;
 
@@ -28,40 +27,18 @@ interface UsePlanProgressResult {
 }
 
 /**
- * Calculate plan progress from conversations and todos
+ * Calculate plan progress from todos
+ * v2: Simplified for single-conversation structure
  */
 function calculateProgress(
   plan: SimpleBranchPlan,
-  conversations: Conversation[],
   todos: Todo[]
 ): PlanProgress {
-  // Filter conversations that belong to this plan
-  const planConversations = conversations.filter((c) => c.planId === plan.id);
-  const planConversationIds = planConversations.map((c) => c.id);
-
-  // Filter todos that belong to plan conversations
-  const planTodos = todos.filter((t) => planConversationIds.includes(t.conversationId));
-
   // Calculate todo statistics
-  const totalTodos = planTodos.length;
-  const completedTodos = planTodos.filter((t) => t.status === 'completed').length;
-  const inProgressTodos = planTodos.filter((t) => t.status === 'in_progress').length;
-  const pendingTodos = planTodos.filter((t) => t.status === 'pending').length;
-
-  // Calculate conversation completion
-  // A conversation is "completed" if all its todos are completed
-  const conversationStats = planConversationIds.map((convId) => {
-    const convTodos = planTodos.filter((t) => t.conversationId === convId);
-    const convCompletedTodos = convTodos.filter((t) => t.status === 'completed').length;
-    return {
-      conversationId: convId,
-      totalTodos: convTodos.length,
-      completedTodos: convCompletedTodos,
-      isCompleted: convTodos.length > 0 && convCompletedTodos === convTodos.length,
-    };
-  });
-
-  const completedConversations = conversationStats.filter((s) => s.isCompleted).length;
+  const totalTodos = todos.length;
+  const completedTodos = todos.filter((t) => t.status === 'completed').length;
+  const inProgressTodos = todos.filter((t) => t.status === 'in_progress').length;
+  const pendingTodos = todos.filter((t) => t.status === 'pending').length;
 
   // Calculate percentage
   const percentComplete = totalTodos > 0 ? Math.round((completedTodos / totalTodos) * 100) : 0;
@@ -70,7 +47,7 @@ function calculateProgress(
   const estimatedTotalTime = plan.totalEstimatedDuration || 0;
 
   // Estimated time remaining based on incomplete todos
-  const incompleteTodos = planTodos.filter(
+  const incompleteTodos = todos.filter(
     (t) => t.status !== 'completed' && t.status !== 'skipped'
   );
   const estimatedTimeRemaining = incompleteTodos.reduce(
@@ -79,12 +56,12 @@ function calculateProgress(
   );
 
   // Actual time spent on completed todos
-  const actualTimeSpent = planTodos
+  const actualTimeSpent = todos
     .filter((t) => t.status === 'completed' && t.actualDuration)
     .reduce((sum, todo) => sum + (todo.actualDuration || 0), 0);
 
   // Efficiency ratio (if we have actual time data)
-  const completedTodosWithEstimate = planTodos.filter(
+  const completedTodosWithEstimate = todos.filter(
     (t) => t.status === 'completed' && t.estimatedDuration && t.actualDuration
   );
 
@@ -102,9 +79,6 @@ function calculateProgress(
   }
 
   return {
-    totalConversations: plan.conversations.length,
-    createdConversations: planConversations.length,
-    completedConversations,
     totalTodos,
     completedTodos,
     inProgressTodos,
@@ -129,6 +103,7 @@ export function usePlanProgress(
 
   /**
    * Load and calculate progress
+   * v2: Get todos from plan's single conversation
    */
   const calculateAndSetProgress = useCallback(async () => {
     if (!ipcRenderer || !plan) {
@@ -141,23 +116,40 @@ export function usePlanProgress(
       setLoading(true);
       setError(null);
 
-      // Get all conversations for this plan
+      // Get the conversation for this plan
       const conversationsResult = await ipcRenderer.invoke(
         'plan:get-conversations',
         plan.id
       );
 
       if (!conversationsResult.success) {
-        throw new Error(conversationsResult.error || 'Failed to load conversations');
+        throw new Error(conversationsResult.error || 'Failed to load conversation');
       }
 
-      const conversations: Conversation[] = conversationsResult.conversations || [];
+      const conversations = conversationsResult.conversations || [];
 
-      // Get all todos for plan conversations
-      const conversationIds = conversations.map((c) => c.id);
+      // v2: Should only have one conversation per plan
+      if (conversations.length === 0) {
+        // Plan not yet executed (no conversation created)
+        setProgress({
+          totalTodos: plan.totalTodos,
+          completedTodos: 0,
+          inProgressTodos: 0,
+          pendingTodos: plan.totalTodos,
+          percentComplete: 0,
+          estimatedTotalTime: plan.totalEstimatedDuration,
+          estimatedTimeRemaining: plan.totalEstimatedDuration,
+          actualTimeSpent: 0,
+        });
+        return;
+      }
+
+      const conversationId = conversations[0].id;
+
+      // Get all todos for the plan conversation
       const todosResult = await ipcRenderer.invoke(
-        'plan:get-todos',
-        conversationIds
+        'conversation:get-todos',
+        conversationId
       );
 
       if (!todosResult.success) {
@@ -167,7 +159,7 @@ export function usePlanProgress(
       const todos: Todo[] = todosResult.todos || [];
 
       // Calculate progress
-      const calculatedProgress = calculateProgress(plan, conversations, todos);
+      const calculatedProgress = calculateProgress(plan, todos);
       setProgress(calculatedProgress);
     } catch (err) {
       console.error('[usePlanProgress] Calculate error:', err);

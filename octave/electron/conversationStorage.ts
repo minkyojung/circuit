@@ -87,7 +87,7 @@ export type TodoComplexity = 'trivial' | 'simple' | 'medium' | 'complex' | 'very
 export interface Todo {
   id: string
   conversationId: string
-  messageId: string
+  messageId?: string  // Optional: plan-generated todos don't have messageId
   parentId?: string
   order: number
   depth: number
@@ -115,7 +115,7 @@ export interface Todo {
 export class ConversationStorage {
   private db: Database.Database | null = null
   private dbPath: string
-  private schemaVersion = 8  // Updated to v8 for plan_document column
+  private schemaVersion = 10  // Updated to v10 for nullable message_id in todos
 
   constructor() {
     const userData = app.getPath('userData')
@@ -563,8 +563,8 @@ export class ConversationStorage {
             workspace_id TEXT NOT NULL,
             goal TEXT NOT NULL,
             description TEXT,
-            conversations TEXT NOT NULL,         -- JSON array of PlanConversationDraft
-            total_conversations INTEGER NOT NULL,
+            plan_document TEXT,
+            todos TEXT NOT NULL,                 -- JSON array of todos (flat structure)
             total_todos INTEGER NOT NULL,
             total_estimated_duration INTEGER NOT NULL,
             status TEXT NOT NULL CHECK(status IN ('pending', 'active', 'completed', 'cancelled', 'archived')),
@@ -626,6 +626,162 @@ export class ConversationStorage {
         console.log('[ConversationStorage] Migration v8 complete')
       } catch (error) {
         console.error('[ConversationStorage] Migration v8 error:', error)
+        throw error
+      }
+    }
+
+    // Migration v9: Simplify plan structure - conversations → todos
+    if (currentVersion < 9) {
+      console.log('[ConversationStorage] Running migration v9: Simplify plan structure (conversations → todos)')
+
+      try {
+        // Step 1: Create new table with updated schema
+        this.db.exec(`
+          CREATE TABLE simple_branch_plans_new (
+            id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL,
+            goal TEXT NOT NULL,
+            description TEXT,
+            plan_document TEXT,
+            todos TEXT NOT NULL,                 -- JSON array of todos (flat structure)
+            total_todos INTEGER NOT NULL,
+            total_estimated_duration INTEGER NOT NULL,
+            status TEXT NOT NULL CHECK(status IN ('pending', 'active', 'completed', 'cancelled', 'archived')),
+            ai_analysis TEXT,                    -- JSON object with reasoning, questions, answers, confidence
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            started_at INTEGER,
+            completed_at INTEGER,
+            cancelled_at INTEGER,
+            archived_at INTEGER,
+            metadata TEXT                        -- JSON object with tags, createdBy, source
+          );
+        `)
+
+        // Step 2: Migrate existing data (conversations → todos)
+        this.db.exec(`
+          INSERT INTO simple_branch_plans_new
+          SELECT
+            id, workspace_id, goal, description, plan_document,
+            conversations as todos,              -- Rename conversations to todos
+            total_todos, total_estimated_duration,
+            status, ai_analysis,
+            created_at, updated_at, started_at, completed_at, cancelled_at, archived_at,
+            metadata
+          FROM simple_branch_plans;
+        `)
+
+        // Step 3: Drop old table
+        this.db.exec(`DROP TABLE simple_branch_plans;`)
+
+        // Step 4: Rename new table
+        this.db.exec(`ALTER TABLE simple_branch_plans_new RENAME TO simple_branch_plans;`)
+
+        // Step 5: Recreate indexes
+        this.db.exec(`
+          CREATE INDEX idx_plans_workspace ON simple_branch_plans(workspace_id, updated_at DESC);
+          CREATE INDEX idx_plans_status ON simple_branch_plans(workspace_id, status);
+          CREATE INDEX idx_plans_created ON simple_branch_plans(created_at DESC);
+        `)
+
+        // Record migration
+        this.db.prepare(`
+          INSERT INTO schema_version (version, name, applied_at)
+          VALUES (?, ?, ?)
+        `).run(9, 'simplify_plan_structure', Date.now())
+
+        console.log('[ConversationStorage] Migration v9 complete')
+      } catch (error) {
+        console.error('[ConversationStorage] Migration v9 error:', error)
+        throw error
+      }
+    }
+
+    // Migration v10: Make todos.message_id nullable for plan-generated todos
+    if (currentVersion < 10) {
+      console.log('[ConversationStorage] Running migration v10: Make todos.message_id nullable')
+
+      try {
+        // SQLite doesn't support ALTER COLUMN, so we need to recreate the table
+
+        // Step 1: Create new table with nullable message_id
+        this.db.exec(`
+          CREATE TABLE todos_new (
+            id TEXT PRIMARY KEY,
+            conversation_id TEXT NOT NULL,
+            message_id TEXT,                     -- Now nullable
+
+            -- Hierarchy
+            parent_id TEXT,
+            order_index INTEGER NOT NULL,
+            depth INTEGER NOT NULL DEFAULT 0,
+
+            -- Content
+            content TEXT NOT NULL,
+            description TEXT,
+            active_form TEXT,
+
+            -- Status & Progress
+            status TEXT NOT NULL CHECK(status IN (
+              'pending', 'in_progress', 'completed', 'failed', 'skipped'
+            )),
+            progress INTEGER,
+            priority TEXT CHECK(priority IN ('low', 'medium', 'high', 'critical')),
+            complexity TEXT CHECK(complexity IN (
+              'trivial', 'simple', 'medium', 'complex', 'very_complex'
+            )),
+
+            -- Connections
+            thinking_step_ids TEXT,
+            block_ids TEXT,
+
+            -- Timing
+            estimated_duration INTEGER,
+            actual_duration INTEGER,
+            started_at INTEGER,
+            completed_at INTEGER,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+
+            -- Metadata
+            metadata TEXT,
+
+            FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+            FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
+            FOREIGN KEY (parent_id) REFERENCES todos(id) ON DELETE CASCADE
+          );
+        `)
+
+        // Step 2: Copy data from old table
+        this.db.exec(`
+          INSERT INTO todos_new
+          SELECT * FROM todos;
+        `)
+
+        // Step 3: Drop old table
+        this.db.exec(`DROP TABLE todos;`)
+
+        // Step 4: Rename new table
+        this.db.exec(`ALTER TABLE todos_new RENAME TO todos;`)
+
+        // Step 5: Recreate indexes
+        this.db.exec(`
+          CREATE INDEX idx_todos_conversation ON todos(conversation_id, order_index);
+          CREATE INDEX idx_todos_message ON todos(message_id);
+          CREATE INDEX idx_todos_status ON todos(status);
+          CREATE INDEX idx_todos_parent ON todos(parent_id);
+          CREATE INDEX idx_todos_created ON todos(created_at DESC);
+        `)
+
+        // Record migration
+        this.db.prepare(`
+          INSERT INTO schema_version (version, name, applied_at)
+          VALUES (?, ?, ?)
+        `).run(10, 'todos_message_id_nullable', Date.now())
+
+        console.log('[ConversationStorage] Migration v10 complete')
+      } catch (error) {
+        console.error('[ConversationStorage] Migration v10 error:', error)
         throw error
       }
     }
@@ -700,9 +856,32 @@ export class ConversationStorage {
   }
 
   /**
+   * Get conversation by ID
+   */
+  getById(conversationId: string): Conversation | null {
+    if (!this.db) throw new Error('Database not initialized')
+
+    const conversation = this.db
+      .prepare(`
+        SELECT id, workspace_id as workspaceId, title, created_at as createdAt,
+               updated_at as updatedAt, is_active as isActive, plan_id as planId
+        FROM conversations
+        WHERE id = ?
+      `)
+      .get(conversationId) as Conversation | undefined
+
+    if (!conversation) return null
+
+    return {
+      ...conversation,
+      isActive: Boolean(conversation.isActive)
+    }
+  }
+
+  /**
    * Create a new conversation
    */
-  create(workspaceId: string, title?: string): Conversation {
+  create(workspaceId: string, title?: string, planId?: string | null): Conversation {
     if (!this.db) throw new Error('Database not initialized')
 
     const id = randomUUID()
@@ -711,10 +890,10 @@ export class ConversationStorage {
 
     this.db
       .prepare(`
-        INSERT INTO conversations (id, workspace_id, title, created_at, updated_at, is_active)
-        VALUES (?, ?, ?, ?, ?, 1)
+        INSERT INTO conversations (id, workspace_id, title, created_at, updated_at, is_active, plan_id)
+        VALUES (?, ?, ?, ?, ?, 1, ?)
       `)
-      .run(id, workspaceId, conversationTitle, now, now)
+      .run(id, workspaceId, conversationTitle, now, now, planId || null)
 
     return {
       id,
@@ -723,7 +902,7 @@ export class ConversationStorage {
       createdAt: now,
       updatedAt: now,
       isActive: true,
-      planId: null
+      planId: planId || null
     }
   }
 
@@ -1276,7 +1455,7 @@ export class ConversationStorage {
       .run(
         todo.id,
         todo.conversationId,
-        todo.messageId,
+        todo.messageId || null,
         todo.parentId || null,
         todo.order,
         todo.depth,
@@ -1322,7 +1501,7 @@ export class ConversationStorage {
         stmt.run(
           todo.id,
           todo.conversationId,
-          todo.messageId,
+          todo.messageId || null,
           todo.parentId || null,
           todo.order,
           todo.depth,
@@ -1591,8 +1770,8 @@ export class ConversationStorage {
     workspaceId: string
     goal: string
     description?: string
-    conversations: any[] // PlanConversationDraft[]
-    totalConversations: number
+    planDocument?: string
+    todos: any[] // Flat array of todos
     totalTodos: number
     totalEstimatedDuration: number
     status: string
@@ -1607,8 +1786,8 @@ export class ConversationStorage {
       .prepare(
         `
         INSERT INTO simple_branch_plans (
-          id, workspace_id, goal, description,
-          conversations, total_conversations, total_todos, total_estimated_duration,
+          id, workspace_id, goal, description, plan_document,
+          todos, total_todos, total_estimated_duration,
           status, ai_analysis, created_at, updated_at, metadata
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `
@@ -1618,8 +1797,8 @@ export class ConversationStorage {
         plan.workspaceId,
         plan.goal,
         plan.description || null,
-        JSON.stringify(plan.conversations),
-        plan.totalConversations,
+        plan.planDocument || null,
+        JSON.stringify(plan.todos),
         plan.totalTodos,
         plan.totalEstimatedDuration,
         plan.status,
@@ -1698,8 +1877,8 @@ export class ConversationStorage {
     updates: {
       goal?: string
       description?: string
-      conversations?: any[]
-      totalConversations?: number
+      planDocument?: string
+      todos?: any[]
       totalTodos?: number
       totalEstimatedDuration?: number
       status?: string
@@ -1724,13 +1903,13 @@ export class ConversationStorage {
       setClauses.push('description = ?')
       values.push(updates.description)
     }
-    if (updates.conversations !== undefined) {
-      setClauses.push('conversations = ?')
-      values.push(JSON.stringify(updates.conversations))
+    if (updates.planDocument !== undefined) {
+      setClauses.push('plan_document = ?')
+      values.push(updates.planDocument)
     }
-    if (updates.totalConversations !== undefined) {
-      setClauses.push('total_conversations = ?')
-      values.push(updates.totalConversations)
+    if (updates.todos !== undefined) {
+      setClauses.push('todos = ?')
+      values.push(JSON.stringify(updates.todos))
     }
     if (updates.totalTodos !== undefined) {
       setClauses.push('total_todos = ?')
@@ -1836,8 +2015,8 @@ export class ConversationStorage {
       workspaceId: row.workspace_id,
       goal: row.goal,
       description: row.description,
-      conversations: JSON.parse(row.conversations),
-      totalConversations: row.total_conversations,
+      planDocument: row.plan_document,
+      todos: JSON.parse(row.todos),
       totalTodos: row.total_todos,
       totalEstimatedDuration: row.total_estimated_duration,
       status: row.status,

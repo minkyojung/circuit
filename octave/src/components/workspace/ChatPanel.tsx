@@ -17,6 +17,7 @@ import { ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { BlockList } from '@/components/blocks';
 import { InlineTodoProgress } from '@/components/blocks/InlineTodoProgress';
+import { TodoQueue } from '@/components/blocks/TodoQueue';
 import { ChatInput, type AttachedFile } from './ChatInput';
 import { ChatMessageSkeleton } from '@/components/ui/skeleton';
 import { Shimmer } from '@/components/ai-elements/shimmer';
@@ -74,7 +75,7 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   const [messageThinkingSteps, setMessageThinkingSteps] = useState<Record<string, { steps: ThinkingStep[], duration: number }>>({});
 
   // Todo context
-  const { createTodosFromDrafts, todos } = useTodos();
+  const { createTodosFromDrafts, loadTodos, todos } = useTodos();
 
   // Agent context
   const { startAgent, agents: agentStatesByTodoId } = useAgent();
@@ -98,6 +99,12 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
     attachments: AttachedFile[];
     thinkingMode: import('./ChatInput').ThinkingMode;
   } | null>(null);
+
+  // Plan execution state (to prevent duplicate clicks)
+  const [executingPlans, setExecutingPlans] = useState<Set<string>>(new Set());
+
+  // Track current conversation's planId for Todo Queue UI
+  const [currentConversationPlanId, setCurrentConversationPlanId] = useState<string | null>(null);
 
   // Use refs for timer to avoid closure issues
   const thinkingTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -175,10 +182,15 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
 
         let conversation;
 
-        // 1. If externalConversationId is provided, use it directly
+        // 1. If externalConversationId is provided, load the full conversation object
         if (externalConversationId) {
           console.log('[ChatPanel] Using external conversation ID:', externalConversationId);
-          conversation = { id: externalConversationId };
+          const getResult = await ipcRenderer.invoke('conversation:get-by-id', externalConversationId);
+          conversation = getResult.conversation;
+
+          if (!conversation) {
+            throw new Error(`Conversation not found: ${externalConversationId}`);
+          }
         } else {
           // 2. Otherwise, get active conversation for this workspace
           const activeResult = await ipcRenderer.invoke('conversation:get-active', workspace.id);
@@ -192,8 +204,9 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
           }
         }
 
-        console.log('[ChatPanel] Loaded conversation:', conversation.id);
+        console.log('[ChatPanel] Loaded conversation:', conversation.id, 'planId:', conversation.planId);
         setConversationId(conversation.id);
+        setCurrentConversationPlanId(conversation.planId || null);
 
         // Notify parent about conversation change ONLY if we created/found a new one
         // (i.e., when externalConversationId was not provided)
@@ -230,6 +243,7 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
         console.error('[ChatPanel] Failed to load conversation:', error);
         // On error, start fresh
         setConversationId(null);
+        setCurrentConversationPlanId(null);
         setMessages([]);
       } finally {
         setIsLoadingConversation(false);
@@ -252,6 +266,14 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   useEffect(() => {
     onConversationChange?.(conversationId);
   }, [conversationId]);
+
+  // Load todos when conversation changes
+  useEffect(() => {
+    if (conversationId && currentConversationPlanId) {
+      console.log('[ChatPanel] Loading todos for conversation:', conversationId);
+      loadTodos(conversationId);
+    }
+  }, [conversationId, currentConversationPlanId, loadTodos]);
 
   // parseFileChanges removed - now handled by FileChangeDetector service
   // handleCopyMessage is now provided by useCopyMessage hook
@@ -546,8 +568,17 @@ Break down:
     }
   }, [messages, startAgent, workspace.id]);
 
-  // Handle plan approval - Generate and execute multi-conversation plan
+  // Handle plan approval - Generate and execute plan with todo queue
   const handlePlanApprove = useCallback(async (plan: any, messageId: string) => {
+    // Prevent duplicate clicks
+    if (executingPlans.has(messageId)) {
+      console.log('[ChatPanel] Plan already executing:', messageId);
+      return;
+    }
+
+    // Mark this plan as executing
+    setExecutingPlans(prev => new Set([...prev, messageId]));
+
     try {
       console.log('[ChatPanel] Plan approved:', plan);
       toast.loading('Creating plan...', { id: 'plan-approve' });
@@ -557,8 +588,7 @@ Break down:
         workspaceId: workspace.id,
         goal: plan.goal,
         planDocument: plan.planDocument,
-        conversations: plan.conversations,
-        totalConversations: plan.totalConversations,
+        todos: plan.todos,
         totalTodos: plan.totalTodos,
         totalEstimatedDuration: plan.totalEstimatedDuration,
         aiAnalysis: plan.aiAnalysis,
@@ -572,8 +602,8 @@ Break down:
       const createdPlan = generateResult.plan;
       console.log('[ChatPanel] Plan created:', createdPlan.id);
 
-      // Execute plan - create conversations
-      toast.loading('Creating conversations...', { id: 'plan-approve' });
+      // Execute plan - create single conversation with todo queue
+      toast.loading('Creating conversation with todo queue...', { id: 'plan-approve' });
       const executeResult = await ipcRenderer.invoke('plan:execute', createdPlan.id);
 
       if (!executeResult.success) {
@@ -582,18 +612,51 @@ Break down:
 
       console.log('[ChatPanel] Plan executed:', executeResult);
       toast.success(
-        `✅ Created ${executeResult.conversationIds.length} conversations!`,
+        `✅ Created plan with ${executeResult.todoIds.length} todos!`,
         { id: 'plan-approve', duration: 3000 }
       );
 
-      // Optionally: Refresh conversations list in sidebar
-      // The AppSidebar should refresh automatically via IPC events
+      // Switch to the newly created plan conversation
+      const newConversationId = executeResult.conversationId;
+      console.log('[ChatPanel] Switching to plan conversation:', newConversationId);
+
+      // Load the new conversation
+      const getResult = await ipcRenderer.invoke('conversation:get-by-id', newConversationId);
+      const conversation = getResult.conversation;
+
+      if (conversation) {
+        setConversationId(conversation.id);
+        setCurrentConversationPlanId(conversation.planId || null);
+
+        // Notify parent about conversation change
+        if (onConversationChange) {
+          onConversationChange(conversation.id);
+        }
+
+        // Load messages for this conversation
+        const messagesResult = await ipcRenderer.invoke('message:load', conversation.id);
+        const loadedMessages = messagesResult.messages || [];
+        setMessages(loadedMessages);
+
+        // Load todos for the plan conversation
+        await loadTodos(conversation.id);
+      }
+
+      // Emit IPC event to refresh sidebar
+      ipcRenderer.send('plan:created', { planId: createdPlan.id, workspaceId: workspace.id });
 
     } catch (error: any) {
       console.error('[ChatPanel] Plan approval error:', error);
       toast.error(`Failed to create plan: ${error.message}`, { id: 'plan-approve' });
+    } finally {
+      // Remove from executing set
+      setExecutingPlans(prev => {
+        const next = new Set(prev);
+        next.delete(messageId);
+        return next;
+      });
     }
-  }, [workspace.id]);
+  }, [workspace.id, executingPlans]);
 
   // Handle plan edit - TODO: Implement edit flow
   const handlePlanEdit = useCallback((plan: any, messageId: string) => {
@@ -1210,6 +1273,7 @@ The plan is ready. What would you like to do?`,
                       onPlanApprove={handlePlanApprove}
                       onPlanEdit={handlePlanEdit}
                       onPlanCancel={handlePlanCancel}
+                      planExecuting={executingPlans.has(msg.id)}
                     />
                   </div>
                 </div>
@@ -1245,6 +1309,15 @@ The plan is ready. What would you like to do?`,
           >
             <ChevronDown className="w-3 h-3" />
           </button>
+        </div>
+      )}
+
+      {/* Todo Queue - Show above input for plan conversations */}
+      {currentConversationPlanId && todos.length > 0 && (
+        <div className="absolute bottom-[120px] left-0 right-0 px-4 pointer-events-none z-40">
+          <div className="pointer-events-auto mx-auto max-w-3xl">
+            <TodoQueue todos={todos} />
+          </div>
         </div>
       )}
 
