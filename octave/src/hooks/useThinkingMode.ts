@@ -16,7 +16,7 @@
 
 import { useState } from 'react';
 
-export type ThinkingMode = 'normal' | 'think' | 'megathink' | 'ultrathink' | 'plan';
+export type ThinkingMode = 'normal' | 'think' | 'megathink' | 'ultrathink' | 'plan' | 'multiplan';
 
 interface UseThinkingModeReturn {
   thinkingMode: ThinkingMode;

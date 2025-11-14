@@ -1,7 +1,11 @@
 /**
  * PlanConversationItem - Display individual conversation in a plan
  *
- * Extracted from PlanModeModal.tsx for reuse
+ * @deprecated This component is no longer used as of v2.
+ * Plan Mode now uses a single conversation with a flat todo queue
+ * instead of multiple conversations.
+ *
+ * Kept for reference only. Can be removed in future cleanup.
  */
 
 import type { PlanConversationDraft } from '@/types/plan'

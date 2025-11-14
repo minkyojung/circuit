@@ -324,8 +324,16 @@ export function useBranchPlan(workspaceId: string | undefined): UseBranchPlanRes
    * Load plans on mount and workspace change
    */
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    // Clear state when workspace changes to prevent stale data
+    setActivePlan(null);
+    setAllPlans([]);
+    setError(null);
+
+    // Load plans for new workspace
+    if (workspaceId) {
+      refresh();
+    }
+  }, [workspaceId, refresh]);
 
   /**
    * Listen for plan updates from other sources

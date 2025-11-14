@@ -4313,9 +4313,9 @@ Plan Mode ensures structured, thoughtful development. Take your time to plan wel
 </thinking_instruction>\n\n`;
     } else if (thinkingMode === 'multiplan') {
       thinkingInstruction = `<thinking_instruction>
-# Multi-Conversation Plan Mode - Context-Aware Plan Generation
+# Plan Mode with Todo Queue - Context-Aware Planning
 
-⚠️ CRITICAL: You are in MULTI-CONVERSATION PLAN MODE. You MUST generate a comprehensive plan that breaks down the user's goal into multiple conversations.
+⚠️ CRITICAL: You are in PLAN MODE. You MUST generate a comprehensive plan with a sequential todo queue.
 
 ## Step 1: Context Analysis (REQUIRED FIRST STEP)
 
@@ -4356,7 +4356,7 @@ Use Read, Glob, Grep tools extensively to gather context before planning.
 {
   "goal": "Your goal here",
   "description": "Description here",
-  "conversations": [...]
+  "todos": [...]
 }
 \`\`\`
 
@@ -4364,7 +4364,7 @@ Use Read, Glob, Grep tools extensively to gather context before planning.
 {
   "goal": "Your goal here",
   "description": "Description here",
-  "conversations": [...]
+  "todos": [...]
 }
 
 **DETAILED REQUIREMENTS:**
@@ -4378,7 +4378,7 @@ Use Read, Glob, Grep tools extensively to gather context before planning.
 **WHY THIS MATTERS:**
 The system parser specifically looks for \`\`\`json code fences. Without them, your plan will be displayed as unformatted text instead of the interactive plan card with approval buttons.
 
-After analyzing the codebase, you MUST output a complete multi-conversation plan in the following JSON format:
+After analyzing the codebase, you MUST output a complete plan with sequential todos in the following JSON format:
 
 ### Required JSON Structure:
 
@@ -4387,32 +4387,26 @@ After analyzing the codebase, you MUST output a complete multi-conversation plan
   "goal": "User's original goal",
   "description": "Brief overview of the approach",
   "planDocument": "# Full Plan Document\\n\\n## Overview\\n...detailed markdown...",
-  "conversations": [
+  "todos": [
     {
-      "id": "temp-1",
-      "title": "Conversation Title",
-      "goal": "Detailed description of what this conversation will accomplish",
-      "expectedOutputs": [
-        "Deliverable 1",
-        "Deliverable 2"
-      ],
-      "todos": [
-        {
-          "content": "Todo description (imperative form)",
-          "activeForm": "Doing this todo (present continuous)",
-          "complexity": "trivial" | "simple" | "moderate" | "complex" | "very_complex",
-          "estimatedDuration": 600
-        }
-      ],
-      "estimatedDuration": 1800,
+      "content": "Todo description (imperative form)",
+      "activeForm": "Doing this todo (present continuous)",
+      "complexity": "trivial" | "simple" | "moderate" | "complex" | "very_complex",
+      "estimatedDuration": 600,
       "order": 0
+    },
+    {
+      "content": "Next todo in sequence",
+      "activeForm": "Doing next todo",
+      "complexity": "moderate",
+      "estimatedDuration": 900,
+      "order": 1
     }
   ],
-  "totalConversations": 5,
-  "totalTodos": 23,
+  "totalTodos": 15,
   "totalEstimatedDuration": 7200,
   "aiAnalysis": {
-    "reasoning": "Why this breakdown makes sense",
+    "reasoning": "Why this breakdown and order makes sense",
     "confidence": 0.85
   }
 }
@@ -4423,21 +4417,28 @@ The \`planDocument\` field should contain a comprehensive markdown document with
 - **Overview**: High-level summary of the goal
 - **Technical Approach**: How you'll implement it based on existing codebase
 - **Architecture Decisions**: Why you chose this structure
-- **Conversation Breakdown**: Detailed explanation of each conversation
+- **Todo Breakdown**: Detailed explanation of each major step
 - **Dependencies**: What needs to be done in what order
 - **Potential Risks**: Edge cases or challenges to consider
 
-### Conversation Guidelines:
-- **3-8 conversations**: Reasonable granularity (not too many, not too few)
-- **Clear goals**: Each conversation has a specific, measurable objective
-- **Logical dependencies**: Order conversations by what needs to be done first
-- **Balanced workload**: Each conversation should be substantial but manageable
-- **Specific todos**: Break down each conversation into actionable steps
+### Todo Guidelines:
+- **Sequential Order**: Todos are executed one after another in the \`order\` specified
+- **Atomic Tasks**: Each todo should be a clear, specific, actionable step
+- **Logical Flow**: Order todos by dependencies (foundation → features → polish)
+- **Reasonable Granularity**: Not too fine-grained (avoid 50+ todos), not too coarse (avoid 2-3 todos)
+- **Clear Actions**: Use imperative form (e.g., "Create API handler", "Update UI component")
+- **Present Continuous**: Provide activeForm for status display (e.g., "Creating API handler")
 
 ### Time Estimates:
 - Estimate duration in SECONDS (not minutes)
 - Be realistic based on complexity
 - Consider: research, implementation, testing, debugging time
+- Typical ranges:
+  - Trivial: 300-600s (5-10 min)
+  - Simple: 600-1200s (10-20 min)
+  - Moderate: 1200-2400s (20-40 min)
+  - Complex: 2400-4800s (40-80 min)
+  - Very Complex: 4800+ seconds (80+ min)
 
 ## Step 3: Present Plan in Natural Language
 
@@ -4454,15 +4455,15 @@ IMPORTANT - Language Guidelines:
 
 In your explanation, include:
 - Summary of what you analyzed from the codebase
-- Why you chose this conversation breakdown
-- Total: X conversations, Y todos, ~Z minutes
+- Why you chose this todo breakdown and order
+- Total: X todos, ~Y minutes
 - Key technical decisions based on existing patterns
 - Any potential risks or considerations
-- High-level overview of the approach
+- High-level overview of the execution flow
 
-The system will automatically detect the JSON plan and display it using PlanPreviewCard.
+The system will automatically detect the JSON plan and display it using PlanPreviewCard with a todo queue.
 
-Then STOP and WAIT for user approval. Do NOT create any conversations yet.
+Then STOP and WAIT for user approval. Do NOT start execution yet.
 
 ## Step 4: Handle User Response
 
@@ -4471,7 +4472,8 @@ The user will review your proposed plan and either:
 **If user APPROVES:**
 - You'll receive confirmation message
 - The system will automatically call plan:generate and plan:execute
-- Conversations will be created with their todos
+- A single conversation will be created with all todos
+- Todos will be executed sequentially (either auto or manual mode)
 - You should confirm completion
 
 **If user requests EDITS:**
@@ -4482,11 +4484,20 @@ The user will review your proposed plan and either:
 - Wait for approval again
 
 **If user CANCELS:**
-- Exit Multi-Conversation Plan Mode
+- Exit Plan Mode
 - Return to normal chat mode
 - Be ready for new instructions
 
-## Step 5: Smart Context Usage Examples
+## Step 5: Sequential Execution (After Approval)
+
+Once the plan is approved and created:
+- All todos are queued in a single conversation
+- The todo queue is visible above the chat input
+- Todos execute one at a time in order
+- Each todo completion triggers the next (auto mode) or waits (manual mode)
+- User can see progress in real-time via the queue UI
+
+## Step 6: Smart Context Usage Examples
 
 ### Good Context-Aware Analysis:
 "I analyzed your codebase and found:
@@ -4507,11 +4518,13 @@ Based on this, I'll implement OAuth using Passport.js (already a dependency) and
 
 - ❌ CANNOT skip codebase analysis - it is MANDATORY
 - ❌ CANNOT ask questions about information available in the codebase
-- ❌ CANNOT start creating conversations before user approval
+- ❌ CANNOT start execution before user approval
 - ❌ CANNOT output the plan in any other format (no markdown tables, no plain text lists)
+- ❌ CANNOT create multiple conversations - everything happens in ONE conversation
 - ✅ MUST analyze codebase comprehensively using Read/Glob/Grep tools
 - ✅ MUST output plan as JSON code block with \`\`\`json wrapper
 - ✅ MUST include planDocument field with detailed markdown
+- ✅ MUST create a flat array of todos with \`order\` field for sequencing
 - ✅ MUST propose COMPLETE plan based on ONE user request + gathered context
 - ✅ MUST wait for explicit user approval before execution
 - ✅ MUST use existing codebase patterns and conventions

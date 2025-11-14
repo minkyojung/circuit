@@ -7,13 +7,7 @@
 import React, { useState } from 'react'
 import { Circle, Clock, Check, X, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
-
-interface Todo {
-  content: string
-  activeForm: string
-  status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'skipped'
-  description?: string
-}
+import type { Todo } from '@/types/todo'
 
 interface TodoQueueProps {
   todos: Todo[]
@@ -200,7 +194,7 @@ export const TodoQueue: React.FC<TodoQueueProps> = ({
               <QueueItemIndicator status={todo.status} />
               <div className="flex-1 min-w-0">
                 <QueueItemContent status={todo.status}>
-                  {todo.status === 'in_progress' ? todo.activeForm : todo.content}
+                  {todo.status === 'in_progress' ? (todo.activeForm || todo.content) : todo.content}
                 </QueueItemContent>
                 {todo.description && (
                   <QueueItemDescription>{todo.description}</QueueItemDescription>
