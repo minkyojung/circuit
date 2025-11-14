@@ -55,7 +55,8 @@ const QueueSection = ({
   return (
     <div>
       {React.Children.map(children, child => {
-        if (React.isValidElement(child)) {
+        // Only pass props to function components (QueueHeader, QueueList), not DOM elements
+        if (React.isValidElement(child) && typeof child.type === 'function') {
           return React.cloneElement(child, { isOpen: open, setIsOpen: toggle } as any)
         }
         return child
