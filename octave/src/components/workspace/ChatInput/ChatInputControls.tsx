@@ -12,7 +12,7 @@
  */
 
 import React from 'react';
-import { ArrowUp, Paperclip, X, ListChecks, ChevronDown, Sparkles } from 'lucide-react';
+import { ArrowUp, Paperclip, X, ListChecks, ChevronDown } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -120,21 +120,11 @@ export const ChatInputControls: React.FC<ChatInputControlsProps> = ({
       {/* Left: Control buttons */}
       {showControls && (
         <div className={`flex ${INPUT_STYLES.controls.gap} items-center`}>
-          {/* Attach File Button */}
-          <button
-            onClick={onAttachFile}
-            disabled={disabled}
-            className={`inline-flex items-center ${INPUT_STYLES.controls.attachButton} text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-50`}
-            title="Attach files"
-          >
-            <Paperclip size={INPUT_STYLES.controls.attachIconSize} strokeWidth={1.5} />
-          </button>
-
           {/* Model Selector - Cycle through models on click */}
           <button
             onClick={onCycleModel}
             disabled={disabled}
-            className={`inline-flex items-center ${INPUT_STYLES.controls.modelButton} text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-50`}
+            className={`inline-flex items-center ${INPUT_STYLES.controls.modelButton} bg-white/5 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50`}
             title={`Current: ${modelLabels[currentModel]} (click to cycle)`}
           >
             <span className="font-light">{modelLabels[currentModel]}</span>
@@ -144,7 +134,7 @@ export const ChatInputControls: React.FC<ChatInputControlsProps> = ({
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
-                className={`inline-flex items-center gap-1 ${INPUT_STYLES.controls.modelButton} text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors`}
+                className={`inline-flex items-center gap-1 ${INPUT_STYLES.controls.modelButton} text-muted-foreground hover:text-foreground transition-colors`}
                 disabled={disabled}
               >
                 <span className="font-light">{thinkingModeLabels[thinkingMode]}</span>
@@ -179,28 +169,14 @@ export const ChatInputControls: React.FC<ChatInputControlsProps> = ({
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Architect Mode Toggle Button */}
-          <button
-            onClick={onArchitectModeToggle}
-            disabled={disabled || !workspacePath}
-            className={`inline-flex items-center justify-center ${INPUT_STYLES.controls.sourcesButton} transition-colors ${
-              architectMode
-                ? 'bg-primary text-primary-foreground hover:bg-primary/90 border border-primary/30'
-                : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
-            }`}
-            title={architectMode ? 'Architect Mode ON' : 'Architect Mode OFF'}
-          >
-            <Sparkles size={INPUT_STYLES.controls.sourcesIconSize} strokeWidth={1.5} />
-          </button>
-
           {/* Multi-Plan Mode Toggle Button - Feature Flag Controlled */}
           {FEATURES.PLAN_MODE && (
             <button
               onClick={onPlanModeToggle}
               className={`inline-flex items-center justify-center ${INPUT_STYLES.controls.sourcesButton} transition-colors ${
                 isPlanMode
-                  ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+                  ? 'text-primary hover:text-primary/80'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
               title="Toggle Multi-Conversation Plan Mode (⌘⇧P)"
             >
@@ -210,17 +186,28 @@ export const ChatInputControls: React.FC<ChatInputControlsProps> = ({
         </div>
       )}
 
-      {/* Right: Context Gauge and Send or Cancel button */}
+      {/* Right: Attach File, Context Gauge and Send or Cancel button */}
       <div className="flex items-center gap-2">
         {showControls && (
-          /* Context Gauge */
-          <ContextGauge
-            percentage={contextMetrics?.context.percentage ?? 0}
-            current={contextMetrics?.context.current}
-            limit={contextMetrics?.context.limit}
-            onCompact={onCompact}
-            disabled={disabled}
-          />
+          <>
+            {/* Attach File Button */}
+            <button
+              onClick={onAttachFile}
+              disabled={disabled}
+              className={`inline-flex items-center ${INPUT_STYLES.controls.attachButton} text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50`}
+              title="Attach files"
+            >
+              <Paperclip size={INPUT_STYLES.controls.attachIconSize} strokeWidth={1.5} />
+            </button>
+            {/* Context Gauge */}
+            <ContextGauge
+              percentage={contextMetrics?.context.percentage ?? 0}
+              current={contextMetrics?.context.current}
+              limit={contextMetrics?.context.limit}
+              onCompact={onCompact}
+              disabled={disabled}
+            />
+          </>
         )}
         {isSending && onCancel ? (
           /* Cancel button when sending */

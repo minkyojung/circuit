@@ -87,18 +87,18 @@ const INPUT_STYLES = {
     fontSize: 'text-base font-light',
   },
   controls: {
-    gap: 'gap-1',
-    attachButton: 'h-[32px] px-2 py-1.5 rounded-md',
-    attachIconSize: 16,
-    modelButton: 'h-[32px] px-2 py-1.5 text-sm rounded-md',
+    gap: 'gap-2',
+    attachButton: 'h-[24px] pl-0 pr-2 py-1 rounded-md text-sm',
+    attachIconSize: 14,
+    modelButton: 'h-[24px] pl-2 pr-2 py-1 rounded-md text-sm',
     modelIconSize: 14,
-    sourcesButton: 'h-[32px] px-2 py-1.5 text-sm rounded-md',
+    sourcesButton: 'h-[24px] pl-0 pr-2 py-1 rounded-md text-sm',
     sourcesIconSize: 14,
   },
   sendButton: {
-    size: 'w-[32px] h-[32px]',
-    borderRadius: 'rounded-full',
-    iconSize: 16,
+    size: 'w-[24px] h-[24px]',
+    borderRadius: 'rounded-md',
+    iconSize: 14,
   },
 } as const
 
@@ -489,7 +489,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     <div className={INPUT_STYLES.container.maxWidth}>
       {/* Input Card - Floating */}
       <div
-        className="relative w-full flex flex-col border-[0.5px] border-border rounded-[var(--block-radius)] bg-muted p-4 gap-3 shadow-[0_-8px_40px_rgba(0,0,0,0.05),0_4px_6px_rgba(0,0,0,0.03)] dark:shadow-[0_-8px_40px_rgba(0,0,0,0.25),0_4px_6px_rgba(0,0,0,0.1)]"
+        className="relative w-full flex flex-col border-[0.5px] border-border rounded-[var(--block-radius)] bg-muted pt-2 px-4 pb-3 gap-3 shadow-[0_-8px_40px_rgba(0,0,0,0.05),0_4px_6px_rgba(0,0,0,0.03)] dark:shadow-[0_-8px_40px_rgba(0,0,0,0.25),0_4px_6px_rgba(0,0,0,0.1)]"
       >
         {/* Slash Command Menu */}
         <SlashCommandMenu
