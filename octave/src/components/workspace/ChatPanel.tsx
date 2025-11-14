@@ -925,8 +925,10 @@ Please complete this task step by step. When finished, use the TodoWrite tool to
 
   // Execute next pending todo (helper function for auto-execution)
   const executeNextPendingTodo = useCallback(async () => {
-    // Find first pending todo
-    const pendingTodo = todos.find(t => t.status === 'pending');
+    // Find first pending todo (by order)
+    const pendingTodo = todos
+      .filter(t => t.status === 'pending')
+      .sort((a, b) => a.order - b.order)[0];
 
     if (!pendingTodo) {
       console.log('[ChatPanel] No more pending todos');
