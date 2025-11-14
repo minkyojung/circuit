@@ -442,7 +442,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       // Auto-resize
       const textarea = e.target
       textarea.style.height = 'auto'
-      textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`
+      textarea.style.height = `${Math.min(textarea.scrollHeight, 400)}px`
     },
     [onChange]
   )
@@ -489,7 +489,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     <div className={INPUT_STYLES.container.maxWidth}>
       {/* Input Card - Floating */}
       <div
-        className="relative w-full flex flex-col border-[0.5px] border-border rounded-[var(--block-radius)] bg-muted pt-2 px-4 pb-3 gap-3 shadow-[0_-8px_40px_rgba(0,0,0,0.05),0_4px_6px_rgba(0,0,0,0.03)] dark:shadow-[0_-8px_40px_rgba(0,0,0,0.25),0_4px_6px_rgba(0,0,0,0.1)]"
+        className="relative w-full flex flex-col border-[0.5px] border-border rounded-xl bg-muted pt-2 px-4 pb-3 gap-3 shadow-[0_-8px_40px_rgba(0,0,0,0.05),0_4px_6px_rgba(0,0,0,0.03)] dark:shadow-[0_-8px_40px_rgba(0,0,0,0.25),0_4px_6px_rgba(0,0,0,0.1)]"
       >
         {/* Slash Command Menu */}
         <SlashCommandMenu
@@ -518,7 +518,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             disabled={disabled}
             className={`w-full ${INPUT_STYLES.textarea.padding} bg-transparent border-none outline-none resize-none leading-relaxed text-card-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-0 ${INPUT_STYLES.textarea.fontSize} ${INPUT_STYLES.textarea.minHeight}`}
             rows={1}
-            style={{ maxHeight: '200px' }}
+            style={{ maxHeight: '400px' }}
           />
 
           {/* Control Bar */}
