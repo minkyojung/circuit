@@ -568,6 +568,219 @@ Break down:
     }
   }, [messages, startAgent, workspace.id]);
 
+  // ============================================================================
+  // Core Message Sending Functions
+  // ============================================================================
+  // NOTE: These must be defined before handleTodoClick to avoid hoisting errors
+
+  const executePrompt = useCallback(async (inputText: string, attachments: AttachedFile[], thinkingMode: import('./ChatInput').ThinkingMode, architectMode: boolean) => {
+    if (isSending || !sessionId) return;
+
+    // Track current thinking mode for plan detection
+    currentThinkingModeRef.current = thinkingMode;
+
+    // Ensure we have a conversationId
+    let activeConversationId = conversationId;
+
+    if (!activeConversationId) {
+      console.warn('[ChatPanel] No conversation ID, creating new conversation');
+      try {
+        const createResult = await ipcRenderer.invoke('conversation:create', workspace.id);
+        if (createResult.success && createResult.conversation) {
+          activeConversationId = createResult.conversation.id;
+          setConversationId(activeConversationId);
+        } else {
+          console.error('[ChatPanel] Failed to create conversation:', createResult.error);
+          alert('Failed to create conversation. Please try again.');
+          return;
+        }
+      } catch (error) {
+        console.error('[ChatPanel] Error creating conversation:', error);
+        alert('Failed to create conversation. Please check console for details.');
+        return;
+      }
+    }
+
+    // NO LONGER prepending AI rules to user message - they will be sent as system prompt instead
+    // Build content with just the user input
+    const content = inputText;
+
+    const userMessage: Message = {
+      id: `msg-${Date.now()}`,
+      conversationId: activeConversationId!,
+      role: 'user',
+      content,
+      timestamp: Date.now(),
+      metadata: {
+        attachments: attachments.map(f => ({
+          id: f.id,
+          name: f.name,
+          type: f.type,
+          size: f.size,
+        })),
+      },
+    };
+
+    // Optimistic UI update
+    setMessages((prev) => {
+      console.log('[ChatPanel] 📤 Adding user message:', {
+        messageId: userMessage.id,
+        prevLength: prev.length,
+        newLength: prev.length + 1,
+        timestamp: Date.now()
+      });
+      return [...prev, userMessage];
+    });
+
+    // Reset scroll intent when user sends message (enable auto-scroll)
+    resetScrollIntent();
+
+    setInput('');
+    setIsSending(true);
+
+    // Save user message to database and update with blocks
+    ipcRenderer.invoke('message:save', userMessage).then((result: any) => {
+      if (result.success && result.blocks) {
+        // Update the message with parsed blocks
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === userMessage.id ? { ...msg, blocks: result.blocks } : msg
+          )
+        );
+      }
+    }).catch((err: any) => {
+      console.error('[ChatPanel] Failed to save user message:', err);
+    });
+
+    // Store pending user message for response handlers
+    pendingUserMessageRef.current = userMessage;
+
+    // Load AI rules context if architect mode is enabled
+    let aiRulesSystemPrompt: string | undefined = undefined;
+    if (architectMode) {
+      try {
+        aiRulesSystemPrompt = await getAIRulesContext(workspace.path);
+        if (aiRulesSystemPrompt) {
+          console.log('[ChatPanel] 🏗️ Architect Mode enabled - AI rules will be sent as system prompt');
+        }
+      } catch (error) {
+        console.warn('[ChatPanel] Failed to load AI rules for Architect Mode:', error);
+      }
+    }
+
+    // Send message (non-blocking) - response will arrive via event listeners
+    console.log('[ChatPanel] 📨 Sending message to Claude:', {
+      sessionId,
+      messageLength: inputText.length,
+      attachmentsCount: attachments.length,
+      thinkingMode,
+      architectMode,
+      hasAIRules: !!aiRulesSystemPrompt,
+      currentSessionIdRef: sessionIdRef.current
+    });
+    ipcRenderer.send('claude:send-message', sessionId, inputText, attachments, thinkingMode, architectMode, aiRulesSystemPrompt);
+    console.log('[ChatPanel] 📨 Message sent, waiting for IPC events...');
+  }, [isSending, sessionId, conversationId, workspace.id, workspace.path, resetScrollIntent]);
+
+  const handleSend = useCallback(async (inputText: string, attachments: AttachedFile[], thinkingMode: import('./ChatInput').ThinkingMode, architectMode: boolean) => {
+    if (!inputText.trim() && attachments.length === 0) return;
+    if (!sessionId) return;
+
+    // Build final input with code attachments prepended
+    let finalInput = inputText;
+    const codeAttachments = attachments.filter(a => a.type === 'code/selection' && a.code);
+
+    if (codeAttachments.length > 0) {
+      const codeBlocks = codeAttachments.map(a => {
+        if (!a.code) return '';
+        const lineInfo = a.code.lineEnd !== a.code.lineStart
+          ? `${a.code.lineStart}-${a.code.lineEnd}`
+          : `${a.code.lineStart}`;
+        return `Code from ${a.code.filePath}:${lineInfo}:\n\`\`\`\n${a.code.content}\n\`\`\``;
+      }).join('\n\n');
+
+      finalInput = `${codeBlocks}\n\n${inputText}`;
+
+      // Clear code attachment state
+      setCodeAttachment(null);
+    }
+
+    // Append message reference attachments
+    const messageAttachments = attachments.filter(a => a.type === 'message/reference' && a.message);
+
+    if (messageAttachments.length > 0) {
+      const messageBlocks = messageAttachments.map(a => {
+        if (!a.message) return '';
+        return `\n\nPrevious response:\n${a.message.content}`;
+      }).join('\n\n');
+
+      finalInput = `${finalInput}${messageBlocks}`;
+
+      // Clear message attachment state
+      setMessageAttachment(null);
+    }
+
+    // Clear input immediately (improved UX)
+    setInput('');
+
+    // Execute prompt directly
+    await executePrompt(finalInput, attachments, thinkingMode, architectMode);
+  }, [sessionId, executePrompt, setCodeAttachment, setMessageAttachment, setInput]);
+
+  // ============================================================================
+  // End of Core Message Sending Functions
+  // ============================================================================
+
+  // Handle todo click from TodoQueue - Manual execution
+  const handleTodoClick = useCallback(async (todoId: string) => {
+    const todo = todos.find(t => t.id === todoId);
+    if (!todo) {
+      console.warn('[ChatPanel] Todo not found:', todoId);
+      return;
+    }
+
+    if (todo.status !== 'pending') {
+      console.warn('[ChatPanel] Todo is not pending:', todoId, 'status:', todo.status);
+      return;
+    }
+
+    try {
+      console.log('[ChatPanel] Executing todo:', todoId);
+
+      // Update todo status to in_progress
+      const updateResult = await ipcRenderer.invoke('todos:update-status', {
+        todoId: todo.id,
+        status: 'in_progress'
+      });
+
+      if (!updateResult.success) {
+        throw new Error(updateResult.error || 'Failed to update todo status');
+      }
+
+      // Update todo timing (startedAt)
+      await ipcRenderer.invoke('todos:update-timing', {
+        todoId: todo.id,
+        startedAt: Date.now()
+      });
+
+      // Build execution prompt for AI
+      const executionPrompt = `Execute the following task from the plan:
+
+**Task:** ${todo.content}${todo.description ? `\n**Details:** ${todo.description}` : ''}
+${todo.estimatedDuration ? `\n**Estimated Time:** ~${Math.round(todo.estimatedDuration / 60)} minutes` : ''}
+
+Please complete this task step by step. When finished, use the TodoWrite tool to update the task status to "completed".`;
+
+      // Send message to AI to execute the todo
+      await executePrompt(executionPrompt, [], 'normal', false);
+
+      toast.success(`Started: ${todo.content}`, { duration: 2000 });
+    } catch (error: any) {
+      console.error('[ChatPanel] Failed to execute todo:', error);
+      toast.error(`Failed to start task: ${error.message}`);
+    }
+  }, [todos, executePrompt]);
+
   // Handle plan approval - Generate and execute plan with todo queue
   const handlePlanApprove = useCallback(async (plan: any, messageId: string) => {
     // Prevent duplicate clicks
@@ -914,159 +1127,8 @@ Break down:
     handleSessionCompact(true);
   }, [contextMetrics, metrics?.context?.shouldCompact, conversationId, messages.length, lastAutoCompactTime, handleSessionCompact]);
 
-  const handleSend = async (inputText: string, attachments: AttachedFile[], thinkingMode: import('./ChatInput').ThinkingMode, architectMode: boolean) => {
-    if (!inputText.trim() && attachments.length === 0) return;
-    if (!sessionId) return;
-
-    // Build final input with code attachments prepended
-    let finalInput = inputText;
-    const codeAttachments = attachments.filter(a => a.type === 'code/selection' && a.code);
-
-    if (codeAttachments.length > 0) {
-      const codeBlocks = codeAttachments.map(a => {
-        if (!a.code) return '';
-        const lineInfo = a.code.lineEnd !== a.code.lineStart
-          ? `${a.code.lineStart}-${a.code.lineEnd}`
-          : `${a.code.lineStart}`;
-        return `Code from ${a.code.filePath}:${lineInfo}:\n\`\`\`\n${a.code.content}\n\`\`\``;
-      }).join('\n\n');
-
-      finalInput = `${codeBlocks}\n\n${inputText}`;
-
-      // Clear code attachment state
-      setCodeAttachment(null);
-    }
-
-    // Append message reference attachments
-    const messageAttachments = attachments.filter(a => a.type === 'message/reference' && a.message);
-
-    if (messageAttachments.length > 0) {
-      const messageBlocks = messageAttachments.map(a => {
-        if (!a.message) return '';
-        return `\n\nPrevious response:\n${a.message.content}`;
-      }).join('\n\n');
-
-      finalInput = `${finalInput}${messageBlocks}`;
-
-      // Clear message attachment state
-      setMessageAttachment(null);
-    }
-
-    // Clear input immediately (improved UX)
-    setInput('');
-
-    // Execute prompt directly
-    await executePrompt(finalInput, attachments, thinkingMode, architectMode);
-  };
-
-  const executePrompt = async (inputText: string, attachments: AttachedFile[], thinkingMode: import('./ChatInput').ThinkingMode, architectMode: boolean) => {
-    if (isSending || !sessionId) return;
-
-    // Track current thinking mode for plan detection
-    currentThinkingModeRef.current = thinkingMode;
-
-    // Ensure we have a conversationId
-    let activeConversationId = conversationId;
-
-    if (!activeConversationId) {
-      console.warn('[ChatPanel] No conversation ID, creating new conversation');
-      try {
-        const createResult = await ipcRenderer.invoke('conversation:create', workspace.id);
-        if (createResult.success && createResult.conversation) {
-          activeConversationId = createResult.conversation.id;
-          setConversationId(activeConversationId);
-        } else {
-          console.error('[ChatPanel] Failed to create conversation:', createResult.error);
-          alert('Failed to create conversation. Please try again.');
-          return;
-        }
-      } catch (error) {
-        console.error('[ChatPanel] Error creating conversation:', error);
-        alert('Failed to create conversation. Please check console for details.');
-        return;
-      }
-    }
-
-    // NO LONGER prepending AI rules to user message - they will be sent as system prompt instead
-    // Build content with just the user input
-    const content = inputText;
-
-    const userMessage: Message = {
-      id: `msg-${Date.now()}`,
-      conversationId: activeConversationId!,
-      role: 'user',
-      content,
-      timestamp: Date.now(),
-      metadata: {
-        attachments: attachments.map(f => ({
-          id: f.id,
-          name: f.name,
-          type: f.type,
-          size: f.size,
-        })),
-      },
-    };
-
-    // Optimistic UI update
-    setMessages((prev) => {
-      console.log('[ChatPanel] 📤 Adding user message:', {
-        messageId: userMessage.id,
-        prevLength: prev.length,
-        newLength: prev.length + 1,
-        timestamp: Date.now()
-      });
-      return [...prev, userMessage];
-    });
-
-    // Reset scroll intent when user sends message (enable auto-scroll)
-    resetScrollIntent();
-
-    setInput('');
-    setIsSending(true);
-
-    // Save user message to database and update with blocks
-    ipcRenderer.invoke('message:save', userMessage).then((result: any) => {
-      if (result.success && result.blocks) {
-        // Update the message with parsed blocks
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === userMessage.id ? { ...msg, blocks: result.blocks } : msg
-          )
-        );
-      }
-    }).catch((err: any) => {
-      console.error('[ChatPanel] Failed to save user message:', err);
-    });
-
-    // Store pending user message for response handlers
-    pendingUserMessageRef.current = userMessage;
-
-    // Load AI rules context if architect mode is enabled
-    let aiRulesSystemPrompt: string | undefined = undefined;
-    if (architectMode) {
-      try {
-        aiRulesSystemPrompt = await getAIRulesContext(workspace.path);
-        if (aiRulesSystemPrompt) {
-          console.log('[ChatPanel] 🏗️ Architect Mode enabled - AI rules will be sent as system prompt');
-        }
-      } catch (error) {
-        console.warn('[ChatPanel] Failed to load AI rules for Architect Mode:', error);
-      }
-    }
-
-    // Send message (non-blocking) - response will arrive via event listeners
-    console.log('[ChatPanel] 📨 Sending message to Claude:', {
-      sessionId,
-      messageLength: inputText.length,
-      attachmentsCount: attachments.length,
-      thinkingMode,
-      architectMode,
-      hasAIRules: !!aiRulesSystemPrompt,
-      currentSessionIdRef: sessionIdRef.current
-    });
-    ipcRenderer.send('claude:send-message', sessionId, inputText, attachments, thinkingMode, architectMode, aiRulesSystemPrompt);
-    console.log('[ChatPanel] 📨 Message sent, waiting for IPC events...');
-  };
+  // NOTE: handleSend and executePrompt have been moved earlier in the file (before handleTodoClick)
+  // to avoid JavaScript hoisting errors. See lines 576-728.
 
   // Handle code selection actions from editor (using useCodeSelection hook)
   // NOTE: Must be called after executePrompt is defined to avoid hoisting errors
@@ -1316,7 +1378,7 @@ The plan is ready. What would you like to do?`,
       {currentConversationPlanId && todos.length > 0 && (
         <div className="absolute bottom-[120px] left-0 right-0 px-4 pointer-events-none z-40">
           <div className="pointer-events-auto mx-auto max-w-3xl">
-            <TodoQueue todos={todos} />
+            <TodoQueue todos={todos} onTodoClick={handleTodoClick} />
           </div>
         </div>
       )}

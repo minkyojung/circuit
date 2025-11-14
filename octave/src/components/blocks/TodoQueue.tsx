@@ -13,6 +13,7 @@ interface TodoQueueProps {
   todos: Todo[]
   defaultExpanded?: boolean
   showProgressBar?: boolean
+  onTodoClick?: (todoId: string) => void  // Click handler for executing todos
 }
 
 // AI SDK Queue-style primitives
@@ -84,8 +85,23 @@ const QueueList = ({
   return <ul className="space-y-1.5 px-4 pb-4">{children}</ul>
 }
 
-const QueueItem = ({ children }: { children: React.ReactNode }) => (
-  <li className="flex items-start gap-2 text-sm p-2 rounded hover:bg-sidebar/50 transition-colors">
+const QueueItem = ({
+  children,
+  onClick,
+  clickable = false
+}: {
+  children: React.ReactNode
+  onClick?: () => void
+  clickable?: boolean
+}) => (
+  <li
+    className={cn(
+      "flex items-start gap-2 text-sm p-2 rounded transition-colors",
+      clickable && "hover:bg-sidebar/80 cursor-pointer",
+      !clickable && "hover:bg-sidebar/50"
+    )}
+    onClick={clickable ? onClick : undefined}
+  >
     {children}
   </li>
 )
@@ -135,6 +151,7 @@ export const TodoQueue: React.FC<TodoQueueProps> = ({
   todos,
   defaultExpanded = true,
   showProgressBar = true,
+  onTodoClick,
 }) => {
   const completed = todos.filter(t => t.status === 'completed').length
   const inProgress = todos.filter(t => t.status === 'in_progress').length
@@ -189,19 +206,28 @@ export const TodoQueue: React.FC<TodoQueueProps> = ({
 
         {/* Todo List */}
         <QueueList>
-          {todos.map((todo, idx) => (
-            <QueueItem key={idx}>
-              <QueueItemIndicator status={todo.status} />
-              <div className="flex-1 min-w-0">
-                <QueueItemContent status={todo.status}>
-                  {todo.status === 'in_progress' ? (todo.activeForm || todo.content) : todo.content}
-                </QueueItemContent>
-                {todo.description && (
-                  <QueueItemDescription>{todo.description}</QueueItemDescription>
-                )}
-              </div>
-            </QueueItem>
-          ))}
+          {todos.map((todo, idx) => {
+            const isPending = todo.status === 'pending'
+            const isClickable = isPending && onTodoClick !== undefined
+
+            return (
+              <QueueItem
+                key={todo.id || idx}
+                onClick={() => isClickable && onTodoClick(todo.id)}
+                clickable={isClickable}
+              >
+                <QueueItemIndicator status={todo.status} />
+                <div className="flex-1 min-w-0">
+                  <QueueItemContent status={todo.status}>
+                    {todo.status === 'in_progress' ? (todo.activeForm || todo.content) : todo.content}
+                  </QueueItemContent>
+                  {todo.description && (
+                    <QueueItemDescription>{todo.description}</QueueItemDescription>
+                  )}
+                </div>
+              </QueueItem>
+            )
+          })}
         </QueueList>
 
         {/* Failed tasks footer */}
