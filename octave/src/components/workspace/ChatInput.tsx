@@ -442,7 +442,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       // Auto-resize
       const textarea = e.target
       textarea.style.height = 'auto'
-      textarea.style.height = `${Math.min(textarea.scrollHeight, 400)}px`
+      textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`
     },
     [onChange]
   )
@@ -518,7 +518,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             disabled={disabled}
             className={`w-full ${INPUT_STYLES.textarea.padding} bg-transparent border-none outline-none resize-none leading-relaxed text-card-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-0 ${INPUT_STYLES.textarea.fontSize} ${INPUT_STYLES.textarea.minHeight}`}
             rows={1}
-            style={{ maxHeight: '400px' }}
+            style={{ maxHeight: '200px' }}
           />
 
           {/* Control Bar */}
