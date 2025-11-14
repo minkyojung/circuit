@@ -50,6 +50,9 @@ import { FEATURES } from '@/config/features';
 import { cn } from '@/lib/utils';
 import { getAIRulesContext } from '@/services/projectConfigLocal';
 import type { ChatPanelProps } from './WorkspaceChatEditor.types';
+import { extractPlanFromMessage } from '@/lib/planParser';
+import type { SimpleBranchPlan } from '@/types/plan';
+import type { Todo } from '@/types/todo';
 
 const ipcRenderer = window.electron.ipcRenderer;
 
@@ -649,7 +652,36 @@ Break down:
 
     // NO LONGER prepending AI rules to user message - they will be sent as system prompt instead
     // Build content with just the user input
-    const content = inputText;
+    let content = inputText;
+
+    // If this is a plan conversation, include current todos in context
+    // This allows Claude to understand and update the plan through conversation
+    if (currentConversationPlanId && todos.length > 0) {
+      console.log('[ChatPanel] 📋 Adding todos context to message (plan conversation)');
+      const todosContext = `\n\n<current_plan_todos>
+${todos.map((t, i) => {
+  const parts = [
+    `Todo ${i + 1} (order: ${t.order}, status: ${t.status}):`,
+    `  Content: ${t.content}`,
+  ];
+  if (t.description) parts.push(`  Description: ${t.description}`);
+  if (t.complexity) parts.push(`  Complexity: ${t.complexity}`);
+  if (t.estimatedDuration) parts.push(`  Estimated: ${Math.round(t.estimatedDuration / 60)} minutes`);
+  return parts.join('\n');
+}).join('\n\n')}
+</current_plan_todos>
+
+Note: You can update these todos by responding with an updated SimpleBranchPlan JSON in a \`\`\`json code block.
+The JSON should include:
+- goal: string (the plan goal)
+- totalTodos: number (total count)
+- totalEstimatedDuration: number (total seconds)
+- todos: array of objects with: content, activeForm, order, complexity, estimatedDuration, description (optional)
+
+Include all todos in the updated plan (not just the ones you're changing). The system will detect changes and sync automatically.`;
+
+      content = content + todosContext;
+    }
 
     const userMessage: Message = {
       id: `msg-${Date.now()}`,
@@ -726,7 +758,7 @@ Break down:
     });
     ipcRenderer.send('claude:send-message', sessionId, inputText, attachments, thinkingMode, architectMode, aiRulesSystemPrompt);
     console.log('[ChatPanel] 📨 Message sent, waiting for IPC events...');
-  }, [isSending, sessionId, conversationId, workspace.id, workspace.path, resetScrollIntent]);
+  }, [isSending, sessionId, conversationId, workspace.id, workspace.path, resetScrollIntent, currentConversationPlanId, todos]);
 
   const handleSend = useCallback(async (inputText: string, attachments: AttachedFile[], thinkingMode: import('./ChatInput').ThinkingMode, architectMode: boolean) => {
     if (!inputText.trim() && attachments.length === 0) return;
@@ -1153,10 +1185,10 @@ Then I'll proceed to the next task.`;
     }
   }, [workspace.id, executingPlans]);
 
-  // Handle plan edit - TODO: Implement edit flow
+  // Handle plan edit - Guide user to edit via conversation
   const handlePlanEdit = useCallback((plan: any, messageId: string) => {
     console.log('[ChatPanel] Plan edit requested:', plan);
-    toast.info('Edit flow coming soon! For now, send a new message to revise the plan.');
+    toast.info('Send a message to edit the plan! For example: "Make the first todo more detailed" or "Add a new todo for testing"');
   }, []);
 
   // Handle plan cancel
@@ -1164,6 +1196,139 @@ Then I'll proceed to the next task.`;
     console.log('[ChatPanel] Plan cancelled:', messageId);
     toast.info('Plan cancelled');
   }, []);
+
+  // Sync plan todos to database (update existing todos with changes)
+  const syncPlanTodos = useCallback(async (updatedPlan: SimpleBranchPlan) => {
+    if (!conversationId || !currentConversationPlanId) return;
+
+    try {
+      console.log('[ChatPanel] 🔄 Syncing plan todos to database');
+      console.log('[ChatPanel] 📊 Updated plan has', updatedPlan.todos.length, 'todos');
+
+      // Get current todos
+      const currentTodos = todos;
+
+      // Track changes for user notification
+      let addedCount = 0;
+      let updatedCount = 0;
+      let deletedCount = 0;
+
+      // Compare and update each todo
+      for (const updatedTodo of updatedPlan.todos) {
+        // Find matching todo by order
+        const existingTodo = currentTodos.find(t => t.order === updatedTodo.order);
+
+        if (!existingTodo) {
+          console.log('[ChatPanel] ➕ New todo detected at order', updatedTodo.order);
+          addedCount++;
+
+          // Create new todo
+          const newTodo: Todo = {
+            id: `todo-${Date.now()}-${updatedTodo.order}`,
+            conversationId,
+            order: updatedTodo.order,
+            depth: 0,
+            content: updatedTodo.content,
+            description: updatedTodo.description,
+            activeForm: updatedTodo.activeForm || updatedTodo.content,
+            status: 'pending',
+            complexity: updatedTodo.complexity || 'medium',
+            estimatedDuration: updatedTodo.estimatedDuration,
+            thinkingStepIds: [],
+            blockIds: [],
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          };
+
+          await ipcRenderer.invoke('todos:save', newTodo);
+        } else {
+          // Check for changes
+          const hasChanges =
+            existingTodo.content !== updatedTodo.content ||
+            existingTodo.description !== updatedTodo.description ||
+            existingTodo.activeForm !== updatedTodo.activeForm ||
+            existingTodo.complexity !== updatedTodo.complexity ||
+            existingTodo.estimatedDuration !== updatedTodo.estimatedDuration;
+
+          if (hasChanges) {
+            console.log('[ChatPanel] 🔄 Todo updated at order', updatedTodo.order);
+            console.log('  Old:', existingTodo.content.substring(0, 50) + '...');
+            console.log('  New:', updatedTodo.content.substring(0, 50) + '...');
+            updatedCount++;
+
+            // Update existing todo
+            const updatedTodoData: Todo = {
+              ...existingTodo,
+              content: updatedTodo.content,
+              description: updatedTodo.description,
+              activeForm: updatedTodo.activeForm || existingTodo.activeForm,
+              complexity: updatedTodo.complexity || existingTodo.complexity,
+              estimatedDuration: updatedTodo.estimatedDuration || existingTodo.estimatedDuration,
+              updatedAt: Date.now(),
+            };
+
+            await ipcRenderer.invoke('todos:save', updatedTodoData);
+          }
+        }
+      }
+
+      // Check for deleted todos (todos in DB but not in updated plan)
+      for (const currentTodo of currentTodos) {
+        const stillExists = updatedPlan.todos.some(t => t.order === currentTodo.order);
+        if (!stillExists) {
+          console.log('[ChatPanel] 🗑️ Todo removed at order', currentTodo.order);
+          deletedCount++;
+          await ipcRenderer.invoke('todos:delete', currentTodo.id);
+        }
+      }
+
+      // Notify user of changes
+      const changes = [];
+      if (addedCount > 0) changes.push(`${addedCount} added`);
+      if (updatedCount > 0) changes.push(`${updatedCount} updated`);
+      if (deletedCount > 0) changes.push(`${deletedCount} deleted`);
+
+      if (changes.length > 0) {
+        toast.success(`Plan synced: ${changes.join(', ')}`, { duration: 3000 });
+      } else {
+        console.log('[ChatPanel] ℹ️ No changes detected in plan update');
+      }
+
+    } catch (error: any) {
+      console.error('[ChatPanel] Failed to sync plan todos:', error);
+      toast.error('Failed to update plan: ' + error.message);
+    }
+  }, [conversationId, currentConversationPlanId, todos]);
+
+  // Handle plan updates from conversation (detect updated plan JSON in assistant responses)
+  const handlePlanUpdate = useCallback(async (assistantMessage: Message) => {
+    if (!currentConversationPlanId) return;
+
+    // Extract plan from message content
+    const parsedPlan = extractPlanFromMessage(assistantMessage.content);
+
+    if (!parsedPlan) return;
+
+    console.log('[ChatPanel] 📋 Plan update detected in conversation');
+    console.log('[ChatPanel] 📊 Updated plan has', parsedPlan.plan.todos.length, 'todos');
+
+    // Sync todos with database
+    await syncPlanTodos(parsedPlan.plan);
+  }, [currentConversationPlanId, syncPlanTodos]);
+
+  // Watch for plan updates in assistant messages
+  useEffect(() => {
+    if (!currentConversationPlanId || messages.length === 0) return;
+
+    // Get last message
+    const lastMessage = messages[messages.length - 1];
+
+    // Only process assistant messages
+    if (lastMessage.role !== 'assistant') return;
+
+    // Check if message contains a plan update
+    handlePlanUpdate(lastMessage);
+  }, [messages, currentConversationPlanId, handlePlanUpdate]);
 
   // Handle adding text as todo - creates a user message with todo
   const handleAddTodo = useCallback(async (content: string) => {
