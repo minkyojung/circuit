@@ -464,8 +464,47 @@ Break down:
   // IPC Event Handlers - Managed by useIPCEvents hook
   // ============================================================================
 
+  // Handle auto-execution cancellation (called when user cancels Claude response)
+  const handleAutoExecutionCancel = useCallback(async () => {
+    if (!isAutoExecuting) return;
+
+    console.log('[ChatPanel] Auto-execution cancelled by user');
+
+    // Find any in_progress todos and revert them to pending
+    const inProgressTodos = todos.filter(t => t.status === 'in_progress');
+
+    for (const todo of inProgressTodos) {
+      try {
+        await ipcRenderer.invoke('todos:update-status', {
+          todoId: todo.id,
+          status: 'pending',
+          completedAt: undefined
+        });
+
+        // Clear timing
+        await ipcRenderer.invoke('todos:update-timing', {
+          todoId: todo.id,
+          startedAt: undefined,
+          completedAt: undefined,
+          actualDuration: undefined
+        });
+
+        console.log('[ChatPanel] Reverted todo to pending:', todo.id);
+      } catch (error: any) {
+        console.error('[ChatPanel] Failed to revert todo:', error);
+      }
+    }
+
+    // Reset auto-execution state
+    setIsAutoExecuting(false);
+    setAutoExecutionMode(null);
+
+    // Notify user
+    toast.info('Auto-execution cancelled', { duration: 2000 });
+  }, [isAutoExecuting, todos]);
+
   // Create callbacks for IPCEventBridge
-  // Note: useMemo with empty deps because all setters are stable
+  // Note: handleAutoExecutionCancel added to deps to keep it fresh
   const ipcCallbacks: IPCEventCallbacks = useMemo(() => ({
     // Message state
     onMessagesUpdate: setMessages,
@@ -494,7 +533,10 @@ Break down:
 
     // File operations
     onFileEdit: onFileEdit,
-  }), []);
+
+    // Auto-execution
+    onAutoExecutionCancel: handleAutoExecutionCancel,
+  }), [handleAutoExecutionCancel]);
 
   // Register IPC event listeners
   useIPCEvents({

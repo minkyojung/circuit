@@ -40,6 +40,9 @@ export interface IPCEventCallbacks {
 
   // File operations
   onFileEdit: (filePath: string) => void;
+
+  // Auto-execution state
+  onAutoExecutionCancel?: () => void;
 }
 
 /**
@@ -450,6 +453,11 @@ export class IPCEventBridge {
     if (this.deps.thinkingTimerRef.current) {
       clearInterval(this.deps.thinkingTimerRef.current);
       this.deps.thinkingTimerRef.current = null;
+    }
+
+    // Cancel auto-execution if in progress
+    if (this.callbacks.onAutoExecutionCancel) {
+      this.callbacks.onAutoExecutionCancel();
     }
 
     // Add system message indicating cancellation
