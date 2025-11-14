@@ -4343,30 +4343,40 @@ Use Read, Glob, Grep tools extensively to gather context before planning.
 
 ## Step 2: Generate Complete Plan (REQUIRED - JSON Format)
 
-⚠️ MANDATORY: Output your plan in JSON format within a code block.
+🚨🚨🚨 ABSOLUTE REQUIREMENT - SYSTEM WILL FAIL WITHOUT THIS 🚨🚨🚨
 
-**CRITICAL FORMATTING REQUIREMENTS:**
-1. ✅ MUST wrap JSON in markdown code fence: \`\`\`json ... \`\`\`
-2. ✅ Opening fence: \`\`\`json (on its own line)
-3. ✅ JSON content: starts with { and ends with }
-4. ✅ Closing fence: \`\`\` (on its own line)
-5. ❌ DO NOT write "json" text outside the code fence
-6. ❌ DO NOT output bare JSON without code fence markers
+⚠️ MANDATORY: You MUST wrap your JSON plan in markdown code fences.
+⚠️ The parser CANNOT extract bare JSON without code fences.
+⚠️ If you output bare JSON, the plan will NOT be recognized and will display as raw text to the user.
 
-**Example of CORRECT format:**
+**CRITICAL FORMATTING REQUIREMENTS (NON-NEGOTIABLE):**
+
+✅ **CORRECT FORMAT (REQUIRED):**
 \`\`\`json
 {
-  "goal": "...",
+  "goal": "Your goal here",
+  "description": "Description here",
   "conversations": [...]
 }
 \`\`\`
 
-**Example of WRONG format:**
+❌ **WRONG FORMAT (WILL BREAK THE SYSTEM):**
 {
-  "goal": "...",
+  "goal": "Your goal here",
+  "description": "Description here",
   "conversations": [...]
 }
-json    ← WRONG: "json" outside fence
+
+**DETAILED REQUIREMENTS:**
+1. ✅ Opening fence: \`\`\`json (on its own line, lowercase "json")
+2. ✅ JSON object: Complete SimpleBranchPlan object
+3. ✅ Closing fence: \`\`\` (on its own line, no text after it)
+4. ❌ NO bare JSON (without code fences)
+5. ❌ NO "json" text outside or after the code fence
+6. ❌ NO extra text between the closing } and closing \`\`\`
+
+**WHY THIS MATTERS:**
+The system parser specifically looks for \`\`\`json code fences. Without them, your plan will be displayed as unformatted text instead of the interactive plan card with approval buttons.
 
 After analyzing the codebase, you MUST output a complete multi-conversation plan in the following JSON format:
 

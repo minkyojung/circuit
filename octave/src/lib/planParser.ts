@@ -18,14 +18,24 @@ export interface ParsedPlan {
  * Also supports bare JSON (without code fences) as a fallback
  */
 export function extractPlanFromMessage(content: string): ParsedPlan | null {
+  console.log('[planParser] Attempting to parse message (length:', content.length, ')')
+
   // Strategy 1: Try to find ```json ... ``` fenced blocks (preferred)
   const fencedPlan = tryExtractFencedJSON(content)
-  if (fencedPlan) return fencedPlan
+  if (fencedPlan) {
+    console.log('[planParser] ✅ Successfully extracted fenced JSON plan')
+    return fencedPlan
+  }
+  console.log('[planParser] ⚠️  No fenced JSON found, trying bare JSON...')
 
   // Strategy 2: Fallback to bare JSON detection
   const barePlan = tryExtractBareJSON(content)
-  if (barePlan) return barePlan
+  if (barePlan) {
+    console.log('[planParser] ✅ Successfully extracted bare JSON plan')
+    return barePlan
+  }
 
+  console.log('[planParser] ❌ Failed to extract any valid plan')
   return null
 }
 
@@ -66,73 +76,187 @@ function tryExtractFencedJSON(content: string): ParsedPlan | null {
 
 /**
  * Extract plan from bare JSON (without code fences)
- * Looks for JSON objects that contain SimpleBranchPlan required fields
+ * Uses brace-balancing algorithm to find complete JSON objects
  */
 function tryExtractBareJSON(content: string): ParsedPlan | null {
-  // Pattern to find JSON objects that look like SimpleBranchPlan
-  // Must contain: "goal", "conversations", "totalConversations"
-  const bareJsonRegex = /(\{[\s\S]*?"goal"[\s\S]*?"conversations"[\s\S]*?"totalConversations"[\s\S]*?\})/g
+  console.log('[planParser:bare] Searching for bare JSON...')
 
+  // Find potential JSON start points (looking for { "goal": pattern)
+  const startPattern = /\{\s*"goal"\s*:/g
   let match: RegExpExecArray | null
-  let lastValidPlan: ParsedPlan | null = null
+  let attemptCount = 0
 
-  while ((match = bareJsonRegex.exec(content)) !== null) {
+  while ((match = startPattern.exec(content)) !== null) {
+    attemptCount++
+    const startIndex = match.index
+    console.log(`[planParser:bare] Attempt ${attemptCount}: Found potential start at index ${startIndex}`)
+
+    // Use brace-balancing to find the complete JSON
+    const jsonStr = extractBalancedJSON(content, startIndex)
+
+    if (!jsonStr) {
+      console.log(`[planParser:bare] Attempt ${attemptCount}: Failed to extract balanced JSON`)
+      continue
+    }
+
+    console.log(`[planParser:bare] Attempt ${attemptCount}: Extracted ${jsonStr.length} characters, trying to parse...`)
+
     try {
-      const jsonContent = match[1]
-      const parsed = JSON.parse(jsonContent)
+      const parsed = JSON.parse(jsonStr)
 
-      // Validate that this is a SimpleBranchPlan
       if (isValidSimpleBranchPlan(parsed)) {
-        const beforeText = content.substring(0, match.index).trim()
-        const afterText = content.substring(match.index + match[0].length).trim()
-
-        lastValidPlan = {
+        console.log(`[planParser:bare] Attempt ${attemptCount}: ✅ Valid SimpleBranchPlan found!`)
+        const endIndex = startIndex + jsonStr.length
+        return {
           plan: parsed as SimpleBranchPlan,
-          beforeText,
-          afterText
+          beforeText: content.substring(0, startIndex).trim(),
+          afterText: content.substring(endIndex).trim()
         }
+      } else {
+        console.log(`[planParser:bare] Attempt ${attemptCount}: ❌ Validation failed - not a valid SimpleBranchPlan`)
       }
     } catch (error) {
-      // Invalid JSON, continue searching
-      continue
+      console.log(`[planParser:bare] Attempt ${attemptCount}: ❌ JSON.parse() failed:`, (error as Error).message)
+      console.log(`[planParser:bare] Attempt ${attemptCount}: First 200 chars:`, jsonStr.substring(0, 200))
     }
   }
 
-  return lastValidPlan
+  console.log(`[planParser:bare] No valid bare JSON found after ${attemptCount} attempts`)
+  return null
+}
+
+/**
+ * Extract balanced JSON object using brace depth tracking
+ * Handles nested objects, arrays, and escaped characters in strings
+ */
+function extractBalancedJSON(content: string, startIndex: number): string | null {
+  let depth = 0
+  let inString = false
+  let escape = false
+
+  for (let i = startIndex; i < content.length; i++) {
+    const char = content[i]
+
+    // Handle escape sequences
+    if (escape) {
+      escape = false
+      continue
+    }
+
+    if (char === '\\') {
+      escape = true
+      continue
+    }
+
+    // Handle string boundaries
+    if (char === '"' && !escape) {
+      inString = !inString
+      continue
+    }
+
+    // Only count braces outside of strings
+    if (!inString) {
+      if (char === '{' || char === '[') {
+        depth++
+      } else if (char === '}' || char === ']') {
+        depth--
+
+        // Found the matching closing brace
+        if (depth === 0) {
+          return content.substring(startIndex, i + 1)
+        }
+      }
+    }
+  }
+
+  // Reached end without finding closing brace
+  return null
 }
 
 /**
  * Validates that a parsed object matches SimpleBranchPlan structure
  */
 function isValidSimpleBranchPlan(obj: any): boolean {
-  if (!obj || typeof obj !== 'object') return false
+  if (!obj || typeof obj !== 'object') {
+    console.log('[planParser:validate] ❌ Not an object')
+    return false
+  }
 
   // Required fields
-  if (typeof obj.goal !== 'string') return false
-  if (!Array.isArray(obj.conversations)) return false
-  if (typeof obj.totalConversations !== 'number') return false
-  if (typeof obj.totalTodos !== 'number') return false
-  if (typeof obj.totalEstimatedDuration !== 'number') return false
+  if (typeof obj.goal !== 'string') {
+    console.log('[planParser:validate] ❌ Missing or invalid "goal" field')
+    return false
+  }
+  if (!Array.isArray(obj.conversations)) {
+    console.log('[planParser:validate] ❌ Missing or invalid "conversations" field')
+    return false
+  }
+  if (typeof obj.totalConversations !== 'number') {
+    console.log('[planParser:validate] ❌ Missing or invalid "totalConversations" field')
+    return false
+  }
+  if (typeof obj.totalTodos !== 'number') {
+    console.log('[planParser:validate] ❌ Missing or invalid "totalTodos" field')
+    return false
+  }
+  if (typeof obj.totalEstimatedDuration !== 'number') {
+    console.log('[planParser:validate] ❌ Missing or invalid "totalEstimatedDuration" field')
+    return false
+  }
 
   // Validate conversations structure
-  for (const conv of obj.conversations) {
-    if (!conv || typeof conv !== 'object') return false
-    if (typeof conv.id !== 'string') return false
-    if (typeof conv.title !== 'string') return false
-    if (typeof conv.goal !== 'string') return false
-    if (!Array.isArray(conv.todos)) return false
-    if (typeof conv.estimatedDuration !== 'number') return false
-    if (typeof conv.order !== 'number') return false
+  for (const [idx, conv] of obj.conversations.entries()) {
+    if (!conv || typeof conv !== 'object') {
+      console.log(`[planParser:validate] ❌ Conversation ${idx} is not an object`)
+      return false
+    }
+    if (typeof conv.id !== 'string') {
+      console.log(`[planParser:validate] ❌ Conversation ${idx} missing "id"`)
+      return false
+    }
+    if (typeof conv.title !== 'string') {
+      console.log(`[planParser:validate] ❌ Conversation ${idx} missing "title"`)
+      return false
+    }
+    if (typeof conv.goal !== 'string') {
+      console.log(`[planParser:validate] ❌ Conversation ${idx} missing "goal"`)
+      return false
+    }
+    if (!Array.isArray(conv.todos)) {
+      console.log(`[planParser:validate] ❌ Conversation ${idx} missing "todos" array`)
+      return false
+    }
+    if (typeof conv.estimatedDuration !== 'number') {
+      console.log(`[planParser:validate] ❌ Conversation ${idx} missing "estimatedDuration"`)
+      return false
+    }
+    if (typeof conv.order !== 'number') {
+      console.log(`[planParser:validate] ❌ Conversation ${idx} missing "order"`)
+      return false
+    }
 
     // Validate todos structure
-    for (const todo of conv.todos) {
-      if (!todo || typeof todo !== 'object') return false
-      if (typeof todo.content !== 'string') return false
-      if (typeof todo.activeForm !== 'string') return false
-      if (typeof todo.estimatedDuration !== 'number') return false
+    for (const [todoIdx, todo] of conv.todos.entries()) {
+      if (!todo || typeof todo !== 'object') {
+        console.log(`[planParser:validate] ❌ Conversation ${idx}, todo ${todoIdx} is not an object`)
+        return false
+      }
+      if (typeof todo.content !== 'string') {
+        console.log(`[planParser:validate] ❌ Conversation ${idx}, todo ${todoIdx} missing "content"`)
+        return false
+      }
+      if (typeof todo.activeForm !== 'string') {
+        console.log(`[planParser:validate] ❌ Conversation ${idx}, todo ${todoIdx} missing "activeForm"`)
+        return false
+      }
+      if (typeof todo.estimatedDuration !== 'number') {
+        console.log(`[planParser:validate] ❌ Conversation ${idx}, todo ${todoIdx} missing "estimatedDuration"`)
+        return false
+      }
     }
   }
 
+  console.log('[planParser:validate] ✅ Valid SimpleBranchPlan structure')
   return true
 }
 

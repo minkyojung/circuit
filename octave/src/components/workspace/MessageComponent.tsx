@@ -157,8 +157,33 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
 
         {/* TodoWrite is now displayed in Reasoning Panel when TodoWrite tool is used */}
 
-        {/* Block-based rendering with fallback */}
-        {msg.blocks && msg.blocks.length > 0 ? (
+        {/* Render PlanPreviewCard if plan detected (highest priority) */}
+        {parsedPlan ? (
+          <div className="space-y-4">
+            {/* Text before plan */}
+            {parsedPlan.beforeText && (
+              <div className="text-base font-normal text-foreground whitespace-pre-wrap leading-relaxed">
+                {parsedPlan.beforeText}
+              </div>
+            )}
+
+            {/* Plan Preview Card */}
+            <PlanPreviewCard
+              plan={parsedPlan.plan}
+              showActions={!isSending}  // Show actions only when not sending
+              onApprove={onPlanApprove ? () => onPlanApprove(parsedPlan.plan, msg.id) : undefined}
+              onEdit={onPlanEdit ? () => onPlanEdit(parsedPlan.plan, msg.id) : undefined}
+              onCancel={onPlanCancel ? () => onPlanCancel(msg.id) : undefined}
+            />
+
+            {/* Text after plan */}
+            {parsedPlan.afterText && (
+              <div className="text-base font-normal text-foreground whitespace-pre-wrap leading-relaxed">
+                {parsedPlan.afterText}
+              </div>
+            )}
+          </div>
+        ) : msg.blocks && msg.blocks.length > 0 ? (
           <>
             <BlockList
               blocks={msg.filteredBlocks || msg.blocks}
@@ -166,43 +191,6 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
               onExecute={onExecuteCommand}
               onFileReferenceClick={onFileReferenceClick}
             />
-          </>
-        ) : (
-          <>
-            {/* Multi-Conversation Plan Preview (if detected) */}
-            {parsedPlan && (
-              <div className="space-y-4">
-                {/* Text before plan */}
-                {parsedPlan.beforeText && (
-                  <div className="text-base font-normal text-foreground whitespace-pre-wrap leading-relaxed">
-                    {parsedPlan.beforeText}
-                  </div>
-                )}
-
-                {/* Plan Preview Card */}
-                <PlanPreviewCard
-                  plan={parsedPlan.plan}
-                  showActions={!isSending}  // Show actions only when not sending
-                  onApprove={onPlanApprove ? () => onPlanApprove(parsedPlan.plan, msg.id) : undefined}
-                  onEdit={onPlanEdit ? () => onPlanEdit(parsedPlan.plan, msg.id) : undefined}
-                  onCancel={onPlanCancel ? () => onPlanCancel(msg.id) : undefined}
-                />
-
-                {/* Text after plan */}
-                {parsedPlan.afterText && (
-                  <div className="text-base font-normal text-foreground whitespace-pre-wrap leading-relaxed">
-                    {parsedPlan.afterText}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Regular message content (no plan detected) */}
-            {!parsedPlan && (
-              <div className="text-base font-normal text-foreground whitespace-pre-wrap leading-relaxed">
-                {msg.content}
-              </div>
-            )}
 
             {/* Task controls - Show for user messages marked as task */}
             {isTask && msg.role === 'user' && onRunAgent && (
@@ -239,6 +227,10 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
               </div>
             )}
           </>
+        ) : (
+          <div className="text-base font-normal text-foreground whitespace-pre-wrap leading-relaxed">
+            {msg.content}
+          </div>
         )}
 
       </div>
