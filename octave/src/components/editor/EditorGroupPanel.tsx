@@ -7,8 +7,8 @@
  */
 
 import { useMemo } from 'react'
-import type { EditorGroup, Tab } from '@/types/editor'
-import { isConversationTab, isFileTab, isSettingsTab } from '@/types/editor'
+import type { EditorGroup, Tab, ModifiedFileTabData } from '@/types/editor'
+import { isConversationTab, isFileTab, isModifiedFileTab, isSettingsTab } from '@/types/editor'
 import { UniversalTabBar } from './UniversalTabBar'
 import { cn } from '@/lib/utils'
 
@@ -28,6 +28,7 @@ interface EditorGroupPanelProps {
   // Content renderers
   renderConversation?: (conversationId: string, workspaceId: string) => React.ReactNode
   renderFile?: (filePath: string) => React.ReactNode
+  renderModifiedFile?: (modifiedFileData: ModifiedFileTabData) => React.ReactNode
   renderSettings?: () => React.ReactNode
   renderEmpty?: () => React.ReactNode
 
@@ -48,6 +49,7 @@ export function EditorGroupPanel({
   onCreateConversation,
   renderConversation,
   renderFile,
+  renderModifiedFile,
   renderSettings,
   renderEmpty,
   className,
@@ -67,6 +69,9 @@ export function EditorGroupPanel({
     return group.tabs.filter((tab) => {
       // Conversation tabs are hidden (managed by left sidebar)
       if (isConversationTab(tab)) return false
+
+      // Modified file tabs are visible
+      if (isModifiedFileTab(tab)) return true
 
       // File tabs are visible
       if (isFileTab(tab)) return true
@@ -92,11 +97,8 @@ export function EditorGroupPanel({
         return renderEmpty()
       }
       return (
-        <div className="flex-1 flex items-center justify-center text-muted-foreground">
-          <div className="text-center">
-            <p>No tabs open</p>
-            <p className="text-xs mt-2">Open a conversation or file to get started</p>
-          </div>
+        <div className="h-full flex items-center justify-center text-muted-foreground">
+          <p className="text-sm font-normal">Start new conversation or select file</p>
         </div>
       )
     }
@@ -114,6 +116,18 @@ export function EditorGroupPanel({
         activeTab.data.conversationId,
         activeTab.data.workspaceId
       )
+    }
+
+    // Modified file tab (AI-edited files)
+    if (isModifiedFileTab(activeTab)) {
+      if (!renderModifiedFile) {
+        return (
+          <div className="flex-1 flex items-center justify-center text-muted-foreground">
+            <p>Modified file renderer not provided</p>
+          </div>
+        )
+      }
+      return renderModifiedFile(activeTab.data)
     }
 
     // File tab

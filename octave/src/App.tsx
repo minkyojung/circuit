@@ -7,6 +7,7 @@ import { ChatPanel, EditorPanel } from "@/components/workspace/WorkspaceChatEdit
 import { ChatPanelRenderer } from "@/components/panels/ChatPanelRenderer"
 import { EditorPanelRenderer } from "@/components/panels/EditorPanelRenderer"
 import { SettingsPanelRenderer } from "@/components/panels/SettingsPanelRenderer"
+import { ModifiedFileRenderer } from "@/components/panels/ModifiedFileRenderer"
 import { QuickOpenSearch } from "@/components/QuickOpenSearch"
 import {
   Breadcrumb,
@@ -61,7 +62,7 @@ import { Toaster, toast } from 'sonner'
 import { FEATURES } from '@/config/features'
 import { useEditorGroups } from '@/hooks/useEditorGroups'
 import { useWorkspaceContext } from '@/hooks/useWorkspaceContext'
-import { createConversationTab, createFileTab, createSettingsTab } from '@/types/editor'
+import { createConversationTab, createFileTab, createModifiedFileTab, createSettingsTab } from '@/types/editor'
 import type { Tab } from '@/types/editor'
 import { getFileName } from '@/lib/fileUtils'
 import { EditorGroupPanel } from '@/components/editor'
@@ -215,7 +216,7 @@ function App() {
   const [chatPrefillMessage, setChatPrefillMessage] = useState<string | null>(null)
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState<boolean>(() => {
     const saved = localStorage.getItem('octave-right-sidebar-state')
-    return saved !== null ? JSON.parse(saved) : true // 기본값: 열림
+    return saved !== null ? JSON.parse(saved) : false // 기본값: 닫힘 (Content Area를 위해)
   })
   const [currentRepository, setCurrentRepository] = useState<any>(null)
 
@@ -364,6 +365,68 @@ function App() {
     closeTab,
   })
 
+  // ============================================================================
+  // Auto-create modified-file tabs when AI edits files
+  // ============================================================================
+  useEffect(() => {
+    if (!activeConversationId || !selectedWorkspace) return
+
+    const handleMessageAdded = async () => {
+      try {
+        // Fetch latest messages
+        const result = await ipcRenderer.invoke('message:list', activeConversationId)
+        if (!result.success || !result.messages) return
+
+        // Find the last assistant message with file-summary block
+        const messages = result.messages.reverse() // Most recent first
+        let latestFileSummary: any = null
+
+        for (const message of messages) {
+          if (message.role !== 'assistant' || !message.blocks) continue
+
+          const fileSummaryBlock = message.blocks.find((b: any) => b.type === 'file-summary')
+          if (fileSummaryBlock && fileSummaryBlock.metadata?.files) {
+            latestFileSummary = fileSummaryBlock.metadata
+            break
+          }
+        }
+
+        if (!latestFileSummary || !latestFileSummary.files) return
+
+        // Create modified-file tabs for each file
+        console.log('[App] Creating modified-file tabs for', latestFileSummary.files.length, 'files')
+        for (const fileChange of latestFileSummary.files) {
+          const tab = createModifiedFileTab(
+            fileChange.filePath,
+            selectedWorkspace.id,
+            activeConversationId,
+            fileChange.changeType || 'modified',
+            fileChange.additions || 0,
+            fileChange.deletions || 0,
+            fileChange.diffLines,
+            fileChange.oldContent,
+            fileChange.newContent
+          )
+
+          // Open tab in focused group
+          openTab(tab, focusedGroupId)
+        }
+      } catch (error) {
+        console.error('[App] Error creating modified-file tabs:', error)
+      }
+    }
+
+    // Listen for new messages
+    ipcRenderer.on(`conversation:${activeConversationId}:message-added`, handleMessageAdded)
+
+    // Also run once on conversation change
+    handleMessageAdded()
+
+    return () => {
+      ipcRenderer.removeListener(`conversation:${activeConversationId}:message-added`, handleMessageAdded)
+    }
+  }, [activeConversationId, selectedWorkspace, openTab, focusedGroupId])
+
   // File navigation (extracted to custom hook)
   const {
     handleFileSelect,
@@ -436,6 +499,13 @@ function App() {
 
   const renderSettingsPanel = () => (
     <SettingsPanelRenderer selectedWorkspace={selectedWorkspace} />
+  )
+
+  const renderModifiedFilePanel = (modifiedFileData: import('@/types/editor').ModifiedFileTabData) => (
+    <ModifiedFileRenderer
+      modifiedFileData={modifiedFileData}
+      workspacePath={selectedWorkspace.path}
+    />
   )
 
   // Toggle right sidebar with localStorage persistence
@@ -895,10 +965,10 @@ function App() {
             {selectedWorkspace ? (
               <>
                 {viewMode === 'split' ? (
-                  /* Split View: ChatPanel on left, EditorGroupPanel on right */
+                  /* Split View: ChatPanel (left 30%) + EditorGroupPanel (right 70%) */
                   <ResizablePanelGroup direction="horizontal" className="h-full">
-                    <ResizablePanel defaultSize={50} minSize={30}>
-                      {/* Left: ChatPanel (active conversation from sidebar) */}
+                    {/* Left: ChatPanel */}
+                    <ResizablePanel defaultSize={30} minSize={20}>
                       <div className="h-full flex flex-col overflow-hidden">
                         {activeConversationId ? (
                           renderChatPanel(activeConversationId, selectedWorkspace.id)
@@ -909,9 +979,11 @@ function App() {
                         )}
                       </div>
                     </ResizablePanel>
-                    <ResizableHandle />
-                    <ResizablePanel defaultSize={50} minSize={30}>
-                      {/* Right: EditorGroupPanel (File/Settings tabs only) */}
+
+                    <ResizableHandle withHandle />
+
+                    {/* Right: EditorGroupPanel (File/Modified-file/Settings tabs) */}
+                    <ResizablePanel defaultSize={70} minSize={50}>
                       <EditorGroupPanel
                         group={secondaryGroup}
                         currentWorkspaceId={selectedWorkspace?.id}
@@ -923,39 +995,44 @@ function App() {
                         onTabDragEnd={handleTabDragEnd}
                         onTabDrop={(tabId, targetIndex) => handleTabDrop(SECONDARY_GROUP_ID, targetIndex)}
                         renderFile={renderEditorPanel}
+                        renderModifiedFile={renderModifiedFilePanel}
                         renderSettings={renderSettingsPanel}
                       />
                     </ResizablePanel>
                   </ResizablePanelGroup>
                 ) : (
-                  /* Single View: ChatPanel with optional EditorGroupPanel overlay */
-                  <div className="h-full flex flex-col overflow-hidden relative">
-                    {/* Base: ChatPanel (active conversation from sidebar) */}
-                    {activeConversationId ? (
-                      renderChatPanel(activeConversationId, selectedWorkspace.id)
-                    ) : (
-                      <div className="flex-1 flex items-center justify-center text-muted-foreground">
-                        <p>Select a conversation from the sidebar</p>
+                  /* Single View: Horizontal split - Chat (left 30%) + EditorGroupPanel (right 70%) */
+                  <ResizablePanelGroup direction="horizontal" className="h-full">
+                    {/* Left: ChatPanel */}
+                    <ResizablePanel defaultSize={30} minSize={20}>
+                      <div className="h-full flex flex-col overflow-hidden">
+                        {activeConversationId ? (
+                          renderChatPanel(activeConversationId, selectedWorkspace.id)
+                        ) : (
+                          <div className="flex-1 flex items-center justify-center text-muted-foreground">
+                            <p>Select a conversation from the sidebar</p>
+                          </div>
+                        )}
                       </div>
-                    )}
+                    </ResizablePanel>
 
-                    {/* Overlay: EditorGroupPanel (File/Settings tabs, when present) */}
-                    {/* Only show overlay if there are non-conversation tabs (file/settings) */}
-                    {primaryGroup.tabs.some(tab => tab.type !== 'conversation') && (
-                      <div className="absolute inset-0 bg-background">
-                        <EditorGroupPanel
-                          group={primaryGroup}
-                          currentWorkspaceId={selectedWorkspace?.id}
-                          isFocused={true}
-                          onFocus={() => setFocusedGroupId(DEFAULT_GROUP_ID)}
-                          onTabClick={(tabId) => handleTabClick(tabId, DEFAULT_GROUP_ID)}
-                          onTabClose={(tabId) => handleTabClose(tabId, DEFAULT_GROUP_ID)}
-                          renderFile={renderEditorPanel}
-                          renderSettings={renderSettingsPanel}
-                        />
-                      </div>
-                    )}
-                  </div>
+                    <ResizableHandle withHandle />
+
+                    {/* Right: EditorGroupPanel (File/Modified-file/Settings tabs) */}
+                    <ResizablePanel defaultSize={70} minSize={50}>
+                      <EditorGroupPanel
+                        group={primaryGroup}
+                        currentWorkspaceId={selectedWorkspace?.id}
+                        isFocused={focusedGroupId === DEFAULT_GROUP_ID}
+                        onFocus={() => setFocusedGroupId(DEFAULT_GROUP_ID)}
+                        onTabClick={(tabId) => handleTabClick(tabId, DEFAULT_GROUP_ID)}
+                        onTabClose={(tabId) => handleTabClose(tabId, DEFAULT_GROUP_ID)}
+                        renderFile={renderEditorPanel}
+                        renderModifiedFile={renderModifiedFilePanel}
+                        renderSettings={renderSettingsPanel}
+                      />
+                    </ResizablePanel>
+                  </ResizablePanelGroup>
                 )}
 
                 {/* Commit Dialog */}

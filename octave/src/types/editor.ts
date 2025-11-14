@@ -8,7 +8,7 @@
 // Tab Types
 // ============================================================================
 
-export type TabType = 'conversation' | 'file' | 'settings'
+export type TabType = 'conversation' | 'file' | 'settings' | 'modified-file'
 
 // Conversation-specific data
 export interface ConversationTabData {
@@ -26,6 +26,22 @@ export interface FileTabData {
   workspaceId: string      // Workspace identifier (e.g., "duck", "swan")
   unsavedChanges?: boolean
   language?: string
+}
+
+// Modified file-specific data (AI-edited files)
+export interface ModifiedFileTabData {
+  filePath: string                // Workspace-relative path
+  workspaceId: string             // Workspace identifier
+  conversationId: string          // Which conversation modified this file
+  changeType: 'created' | 'modified' | 'deleted'
+  additions: number               // Number of lines added
+  deletions: number               // Number of lines deleted
+  diffLines?: Array<{            // Line-by-line diff data
+    type: 'add' | 'remove' | 'unchanged'
+    content: string
+  }>
+  oldContent?: string             // Original content (for diff)
+  newContent?: string             // Modified content
 }
 
 // Settings-specific data (empty for now)
@@ -52,6 +68,12 @@ export interface FileTab extends BaseTab {
   data: FileTabData
 }
 
+// Modified file tab (AI-edited files)
+export interface ModifiedFileTab extends BaseTab {
+  type: 'modified-file'
+  data: ModifiedFileTabData
+}
+
 // Settings tab
 export interface SettingsTab extends BaseTab {
   type: 'settings'
@@ -59,7 +81,7 @@ export interface SettingsTab extends BaseTab {
 }
 
 // Union type for all tabs
-export type Tab = ConversationTab | FileTab | SettingsTab
+export type Tab = ConversationTab | FileTab | ModifiedFileTab | SettingsTab
 
 // ============================================================================
 // Editor Group Types
@@ -109,6 +131,10 @@ export function isConversationTab(tab: Tab): tab is ConversationTab {
 
 export function isFileTab(tab: Tab): tab is FileTab {
   return tab.type === 'file'
+}
+
+export function isModifiedFileTab(tab: Tab): tab is ModifiedFileTab {
+  return tab.type === 'modified-file'
 }
 
 export function isSettingsTab(tab: Tab): tab is SettingsTab {
@@ -177,6 +203,49 @@ export function createSettingsTab(): SettingsTab {
     type: 'settings',
     title: 'Settings',
     data: {},
+  }
+}
+
+/**
+ * Create a modified file tab (AI-edited file)
+ *
+ * @param filePath - Workspace-relative path
+ * @param workspaceId - Workspace identifier
+ * @param conversationId - Conversation that modified this file
+ * @param changeType - Type of change (created/modified/deleted)
+ * @param additions - Number of lines added
+ * @param deletions - Number of lines deleted
+ * @param diffLines - Line-by-line diff data
+ */
+export function createModifiedFileTab(
+  filePath: string,
+  workspaceId: string,
+  conversationId: string,
+  changeType: 'created' | 'modified' | 'deleted',
+  additions: number,
+  deletions: number,
+  diffLines?: Array<{ type: 'add' | 'remove' | 'unchanged'; content: string }>,
+  oldContent?: string,
+  newContent?: string
+): ModifiedFileTab {
+  // Extract filename from path
+  const fileName = filePath.split('/').pop() || filePath
+
+  return {
+    id: `modified-file-${workspaceId}-${conversationId}-${filePath}`,
+    type: 'modified-file',
+    title: fileName,
+    data: {
+      filePath,
+      workspaceId,
+      conversationId,
+      changeType,
+      additions,
+      deletions,
+      diffLines,
+      oldContent,
+      newContent,
+    },
   }
 }
 

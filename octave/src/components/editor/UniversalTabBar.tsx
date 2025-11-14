@@ -6,10 +6,10 @@
  */
 
 import { useState } from 'react'
-import { X, Circle, MessageCircle, Plus, Settings } from 'lucide-react'
+import { X, Circle, MessageCircle, Plus, Settings, FileCode } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Tab, ConversationTab, FileTab } from '@/types/editor'
-import { isConversationTab, isFileTab, isSettingsTab } from '@/types/editor'
+import { isConversationTab, isFileTab, isModifiedFileTab, isSettingsTab } from '@/types/editor'
 import { getIconForFile } from 'vscode-material-icon-theme-js'
 
 // Import Material Icon Theme SVGs
@@ -126,9 +126,7 @@ export function UniversalTabBar({
 
   if (tabs.length === 0) {
     return (
-      <div className="flex items-center h-10 border-b border-border bg-card px-2 py-1">
-        <div className="text-xs text-muted-foreground">No tabs open</div>
-      </div>
+      <div className="flex items-center h-10 bg-card px-2 py-1" />
     )
   }
 
@@ -201,12 +199,15 @@ function TabItem({
 }: TabItemProps) {
   const isConversation = isConversationTab(tab)
   const isFile = isFileTab(tab)
+  const isModifiedFile = isModifiedFileTab(tab)
   const isSettings = isSettingsTab(tab)
 
   // Get icon based on tab type
   let Icon: React.ComponentType<React.SVGProps<SVGSVGElement>> = DefaultIcon
   if (isConversation) {
     Icon = MessageCircle as any
+  } else if (isModifiedFile) {
+    Icon = FileCode as any  // AI-modified file icon
   } else if (isFile) {
     Icon = getFileIconComponent(tab.data.filePath)
   } else if (isSettings) {
@@ -231,7 +232,8 @@ function TabItem({
         isActive
           ? 'bg-secondary text-secondary-foreground'
           : 'bg-transparent text-muted-foreground hover:bg-secondary/50 hover:text-secondary-foreground',
-        showDropIndicator && 'border-l-2 border-primary'
+        showDropIndicator && 'border-l-2 border-primary',
+        isModifiedFile && 'border-l-2 border-orange-500'  // AI-modified file indicator
       )}
     >
       {/* Icon */}

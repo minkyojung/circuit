@@ -12,9 +12,10 @@ import type {
   TabAction,
   ConversationTab,
   FileTab,
+  ModifiedFileTab,
   createDefaultEditorGroups,
 } from '@/types/editor'
-import { DEFAULT_GROUP_ID } from '@/types/editor'
+import { DEFAULT_GROUP_ID, isFileTab, isModifiedFileTab } from '@/types/editor'
 
 export function useEditorGroups(initialGroups?: EditorGroup[]) {
   const [editorGroups, setEditorGroups] = useState<EditorGroup[]>(
@@ -30,6 +31,9 @@ export function useEditorGroups(initialGroups?: EditorGroup[]) {
   /**
    * Open a tab in the specified group (or default group)
    * If tab already exists in the group, activate it
+   *
+   * Priority logic: If opening a file tab, check if a modified-file tab
+   * exists for the same file. If so, activate the modified-file tab instead.
    */
   const openTab = useCallback((tab: Tab, groupId?: string) => {
     setEditorGroups((prev) => {
@@ -45,6 +49,24 @@ export function useEditorGroups(initialGroups?: EditorGroup[]) {
           return {
             ...group,
             activeTabId: tab.id,
+          }
+        }
+
+        // Priority logic: If opening a file tab, check for modified-file tab
+        if (isFileTab(tab)) {
+          const existingModifiedFile = group.tabs.find((t) =>
+            isModifiedFileTab(t) &&
+            t.data.filePath === tab.data.filePath &&
+            t.data.workspaceId === tab.data.workspaceId
+          )
+
+          if (existingModifiedFile) {
+            // Modified-file tab exists for this file - activate it instead
+            console.log('[useEditorGroups] Modified-file tab exists for', tab.data.filePath, '- activating it instead')
+            return {
+              ...group,
+              activeTabId: existingModifiedFile.id,
+            }
           }
         }
 

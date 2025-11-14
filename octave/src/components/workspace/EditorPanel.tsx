@@ -16,6 +16,7 @@ import Editor, { loader } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
 import { toast } from 'sonner';
 import { useSettingsContext } from '@/contexts/SettingsContext';
+import { useLanguageService } from '@/hooks/useLanguageService';
 import { FloatingCodeActions } from './FloatingCodeActions';
 import { getLanguageFromFilePath } from '@/lib/fileUtils';
 import { cn } from '@/lib/utils';

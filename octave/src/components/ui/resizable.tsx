@@ -27,15 +27,11 @@ const ResizableHandle = ({
 }) => (
   <ResizablePrimitive.PanelResizeHandle
     className={cn(
-      "relative flex w-px items-center justify-center bg-border focus-visible:outline-none data-[panel-group-direction=vertical]:h-px data-[panel-group-direction=vertical]:w-full [&[data-panel-group-direction=vertical]>div]:rotate-90",
+      "relative flex w-px items-center justify-center bg-border focus-visible:outline-none",
+      "data-[panel-group-direction=vertical]:h-px data-[panel-group-direction=vertical]:w-full",
+      "[&[data-panel-group-direction=vertical]>div]:rotate-90",
       className
     )}
-    style={{
-      backgroundColor: 'transparent',
-      borderColor: 'transparent',
-      outline: 'none',
-      boxShadow: 'none',
-    }}
     {...props}
   >
     {withHandle && (
