@@ -1040,7 +1040,7 @@ export function registerConversationHandlers(): void {
             mockTodos.push({
               content: `Complete task ${i + 1} for: ${request.goal}`,
               activeForm: `Working on task ${i + 1}`,
-              complexity: 'moderate' as const,
+              complexity: 'medium' as const,
               estimatedDuration: 600,
               order: i
             })
@@ -1121,6 +1121,11 @@ export function registerConversationHandlers(): void {
 
         // Create all todos for this conversation (flat structure)
         for (const todoData of plan.todos) {
+          // Map 'moderate' to 'medium' for DB compatibility
+          const normalizedComplexity = todoData.complexity === 'moderate'
+            ? 'medium'
+            : (todoData.complexity || 'medium');
+
           const todo: any = {
             id: randomUUID(),
             conversationId: conversation.id,
@@ -1134,7 +1139,7 @@ export function registerConversationHandlers(): void {
             status: 'pending',
             progress: null,
             priority: null,
-            complexity: todoData.complexity || 'medium',
+            complexity: normalizedComplexity,
             thinkingStepIds: [],  // Empty array for new todos
             blockIds: [],         // Empty array for new todos
             estimatedDuration: todoData.estimatedDuration || 0,

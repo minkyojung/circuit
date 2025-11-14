@@ -1653,9 +1653,9 @@ The plan is ready. What would you like to do?`,
         </div>
       )}
 
-      {/* Todo Queue - Show above input for plan conversations */}
+      {/* Todo Queue - Show at top for plan conversations (temp for development) */}
       {currentConversationPlanId && todos.length > 0 && (
-        <div className="absolute bottom-[120px] left-0 right-0 px-4 pointer-events-none z-40">
+        <div className="absolute top-[80px] left-0 right-0 px-4 pointer-events-none z-40">
           <div className="pointer-events-auto mx-auto max-w-3xl">
             <TodoQueue
               todos={todos}
