@@ -1029,6 +1029,10 @@ export function registerConversationHandlers(): void {
 
         console.log('[plan:generate] Generating plan for goal:', request.goal)
         console.log('[plan:generate] User answers:', request.answers)
+        console.log('[plan:generate] 📊 Received request.todos:', request.todos ? request.todos.length : 'null')
+        if (request.todos) {
+          console.log('[plan:generate] 📊 First 3 todos from request:', request.todos.slice(0, 3).map(t => t.content))
+        }
 
         // If todos are provided (from multiplan mode), use them directly
         // Otherwise, create mock plan based on answers (legacy behavior)
@@ -1048,6 +1052,8 @@ export function registerConversationHandlers(): void {
 
           return mockTodos
         })()
+
+        console.log('[plan:generate] 📊 Final todos array:', todos.length, 'items')
 
         // Create plan object
         const planId = randomUUID()
@@ -1071,8 +1077,12 @@ export function registerConversationHandlers(): void {
           updatedAt: Date.now()
         }
 
+        console.log('[plan:generate] 📊 About to save plan with', planData.todos.length, 'todos')
+
         // Save to database
         storage.createPlan(planData)
+
+        console.log('[plan:generate] 📊 Plan saved to database')
 
         // Retrieve saved plan
         const plan = storage.getPlanById(planId)
@@ -1081,6 +1091,9 @@ export function registerConversationHandlers(): void {
         }
 
         console.log('[plan:generate] Plan created:', planId)
+        console.log('[plan:generate] 📊 Retrieved plan has', plan.todos.length, 'todos')
+        console.log('[plan:generate] 📊 Retrieved plan totalTodos:', plan.totalTodos)
+        console.log('[plan:generate] 📊 First 3 todos from DB:', plan.todos.slice(0, 3).map((t: any) => t.content))
 
         return {
           success: true,
@@ -1113,6 +1126,12 @@ export function registerConversationHandlers(): void {
           throw new Error(`Plan not found: ${planId}`)
         }
 
+        console.log('[plan:execute] 📊 Retrieved plan has', plan.todos?.length || 0, 'todos')
+        console.log('[plan:execute] 📊 Plan totalTodos:', plan.totalTodos)
+        if (plan.todos && plan.todos.length > 0) {
+          console.log('[plan:execute] 📊 First 3 todos:', plan.todos.slice(0, 3).map((t: any) => t.content))
+        }
+
         // Create single conversation with plan goal as title
         const conversation = storage.create(plan.workspaceId, plan.goal, planId)
         console.log('[plan:execute] Created conversation:', conversation.id)
@@ -1120,6 +1139,7 @@ export function registerConversationHandlers(): void {
         const todoIds: string[] = []
 
         // Create all todos for this conversation (flat structure)
+        console.log('[plan:execute] 📊 Starting to create', plan.todos.length, 'todos in DB')
         for (const todoData of plan.todos) {
           // Map 'moderate' to 'medium' for DB compatibility
           const normalizedComplexity = todoData.complexity === 'moderate'
@@ -1153,6 +1173,9 @@ export function registerConversationHandlers(): void {
           storage.saveTodo(todo)
           todoIds.push(todo.id)
         }
+
+        console.log('[plan:execute] 📊 Created', todoIds.length, 'todos in database')
+        console.log('[plan:execute] 📊 Todo IDs:', todoIds)
 
         // Update plan status to active
         storage.updatePlan(planId, {

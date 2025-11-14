@@ -24,6 +24,8 @@ export function extractPlanFromMessage(content: string): ParsedPlan | null {
   const fencedPlan = tryExtractFencedJSON(content)
   if (fencedPlan) {
     console.log('[planParser] ✅ Successfully extracted fenced JSON plan')
+    console.log('[planParser] 📊 Plan has', fencedPlan.plan.todos.length, 'todos')
+    console.log('[planParser] 📊 Plan totalTodos:', fencedPlan.plan.totalTodos)
     return fencedPlan
   }
   console.log('[planParser] ⚠️  No fenced JSON found, trying bare JSON...')
@@ -32,6 +34,8 @@ export function extractPlanFromMessage(content: string): ParsedPlan | null {
   const barePlan = tryExtractBareJSON(content)
   if (barePlan) {
     console.log('[planParser] ✅ Successfully extracted bare JSON plan')
+    console.log('[planParser] 📊 Plan has', barePlan.plan.todos.length, 'todos')
+    console.log('[planParser] 📊 Plan totalTodos:', barePlan.plan.totalTodos)
     return barePlan
   }
 

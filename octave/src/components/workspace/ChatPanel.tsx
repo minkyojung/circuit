@@ -1073,6 +1073,9 @@ Then I'll proceed to the next task.`;
 
     try {
       console.log('[ChatPanel] Plan approved:', plan);
+      console.log('[ChatPanel] 📊 Plan has', plan.todos?.length || 0, 'todos');
+      console.log('[ChatPanel] 📊 Plan totalTodos:', plan.totalTodos);
+      console.log('[ChatPanel] 📊 First 3 todos:', plan.todos?.slice(0, 3).map((t: any) => t.content));
       toast.loading('Creating plan...', { id: 'plan-approve' });
 
       // Generate plan in database
