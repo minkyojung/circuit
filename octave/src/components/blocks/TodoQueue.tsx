@@ -5,7 +5,7 @@
  */
 
 import React, { useState } from 'react'
-import { Circle, Clock, Check, X, AlertCircle, ChevronDown, ChevronRight, Play, SkipForward, Edit2, Trash2, Copy } from 'lucide-react'
+import { Circle, Clock, Check, X, AlertCircle, ChevronDown, ChevronRight, Play, SkipForward, Edit2, Trash2, Copy, PlayCircle, ListChecks } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Todo } from '@/types/todo'
 import {
@@ -15,6 +15,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
+import { Button } from '@/components/ui/button'
 
 interface TodoQueueProps {
   todos: Todo[]
@@ -24,6 +25,9 @@ interface TodoQueueProps {
   onTodoSkip?: (todoId: string) => void   // Skip todo
   onTodoDelete?: (todoId: string) => void // Delete todo
   onTodoCopy?: (todoId: string) => void   // Copy todo content
+  onExecuteAll?: () => void               // Execute all pending todos automatically
+  onExecute1by1?: () => void              // Execute todos one by one with reporting
+  isAutoExecuting?: boolean               // Whether auto-execution is in progress
 }
 
 // AI SDK Queue-style primitives
@@ -183,12 +187,17 @@ export const TodoQueue: React.FC<TodoQueueProps> = ({
   onTodoSkip,
   onTodoDelete,
   onTodoCopy,
+  onExecuteAll,
+  onExecute1by1,
+  isAutoExecuting = false,
 }) => {
   const completed = todos.filter(t => t.status === 'completed').length
   const inProgress = todos.filter(t => t.status === 'in_progress').length
+  const pending = todos.filter(t => t.status === 'pending').length
   const failed = todos.filter(t => t.status === 'failed').length
   const progress = Math.round((completed / todos.length) * 100)
   const isComplete = completed === todos.length
+  const hasPendingTodos = pending > 0
 
   return (
     <Queue>
@@ -212,9 +221,46 @@ export const TodoQueue: React.FC<TodoQueueProps> = ({
               : `${todos.length} task${todos.length > 1 ? 's' : ''} planned`}
           </span>
 
+          {/* Auto-Execution Buttons */}
+          {hasPendingTodos && !isAutoExecuting && (onExecuteAll || onExecute1by1) && (
+            <div className="flex items-center gap-1 ml-auto mr-2" onClick={(e) => e.stopPropagation()}>
+              {onExecute1by1 && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={onExecute1by1}
+                  className="h-6 px-2 text-xs gap-1"
+                  title="Execute todos one by one with reporting"
+                >
+                  <ListChecks size={14} />
+                  <span className="hidden sm:inline">1 by 1</span>
+                </Button>
+              )}
+              {onExecuteAll && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={onExecuteAll}
+                  className="h-6 px-2 text-xs gap-1"
+                  title="Execute all pending todos automatically"
+                >
+                  <PlayCircle size={14} />
+                  <span className="hidden sm:inline">Execute All</span>
+                </Button>
+              )}
+            </div>
+          )}
+
+          {/* Auto-executing indicator */}
+          {isAutoExecuting && (
+            <span className="text-xs text-blue-500 ml-auto mr-2 animate-pulse">
+              Auto-executing...
+            </span>
+          )}
+
           {/* Progress percentage */}
           {showProgressBar && (
-            <span className="text-xs text-muted-foreground font-mono ml-auto">
+            <span className="text-xs text-muted-foreground font-mono">
               {progress}%
             </span>
           )}

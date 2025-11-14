@@ -106,6 +106,10 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   // Track current conversation's planId for Todo Queue UI
   const [currentConversationPlanId, setCurrentConversationPlanId] = useState<string | null>(null);
 
+  // Auto-execution state
+  const [isAutoExecuting, setIsAutoExecuting] = useState(false);
+  const [autoExecutionMode, setAutoExecutionMode] = useState<'all' | '1by1' | null>(null);
+
   // Use refs for timer to avoid closure issues
   const thinkingTimerRef = useRef<NodeJS.Timeout | null>(null);
   const thinkingStartTimeRef = useRef<number>(0);
@@ -877,6 +881,141 @@ Please complete this task step by step. When finished, use the TodoWrite tool to
     }
   }, [todos]);
 
+  // Execute next pending todo (helper function for auto-execution)
+  const executeNextPendingTodo = useCallback(async () => {
+    // Find first pending todo
+    const pendingTodo = todos.find(t => t.status === 'pending');
+
+    if (!pendingTodo) {
+      console.log('[ChatPanel] No more pending todos');
+      setIsAutoExecuting(false);
+      setAutoExecutionMode(null);
+      toast.success('All todos completed!', { duration: 3000 });
+      return null;
+    }
+
+    try {
+      console.log('[ChatPanel] Auto-executing todo:', pendingTodo.id, pendingTodo.content);
+
+      // Update todo status to in_progress
+      const updateResult = await ipcRenderer.invoke('todos:update-status', {
+        todoId: pendingTodo.id,
+        status: 'in_progress'
+      });
+
+      if (!updateResult.success) {
+        throw new Error(updateResult.error || 'Failed to update todo status');
+      }
+
+      // Update todo timing (startedAt)
+      await ipcRenderer.invoke('todos:update-timing', {
+        todoId: pendingTodo.id,
+        startedAt: Date.now()
+      });
+
+      // Build execution prompt for AI
+      const executionPrompt = `Execute the following task from the plan:
+
+**Task:** ${pendingTodo.content}${pendingTodo.description ? `\n**Details:** ${pendingTodo.description}` : ''}
+${pendingTodo.estimatedDuration ? `\n**Estimated Time:** ~${Math.round(pendingTodo.estimatedDuration / 60)} minutes` : ''}
+
+Please complete this task step by step. When finished, use the TodoWrite tool to update the task status to "completed".`;
+
+      // Send message to AI to execute the todo
+      await executePrompt(executionPrompt, [], 'normal', false);
+
+      return pendingTodo.id;
+    } catch (error: any) {
+      console.error('[ChatPanel] Failed to auto-execute todo:', error);
+      toast.error(`Failed to execute task: ${error.message}`);
+      setIsAutoExecuting(false);
+      setAutoExecutionMode(null);
+      return null;
+    }
+  }, [todos, executePrompt]);
+
+  // Handle execute all - Auto-execute all pending todos without reporting
+  const handleExecuteAll = useCallback(async () => {
+    console.log('[ChatPanel] Starting Execute All mode');
+    setIsAutoExecuting(true);
+    setAutoExecutionMode('all');
+
+    const pendingCount = todos.filter(t => t.status === 'pending').length;
+    toast.success(`Starting auto-execution of ${pendingCount} todos...`, { duration: 2000 });
+
+    // Execute first pending todo
+    await executeNextPendingTodo();
+  }, [todos, executeNextPendingTodo]);
+
+  // Handle execute 1 by 1 - Auto-execute todos with reporting after each completion
+  const handleExecute1by1 = useCallback(async () => {
+    console.log('[ChatPanel] Starting 1 by 1 mode');
+    setIsAutoExecuting(true);
+    setAutoExecutionMode('1by1');
+
+    const pendingCount = todos.filter(t => t.status === 'pending').length;
+    toast.success(`Starting 1 by 1 execution of ${pendingCount} todos...`, { duration: 2000 });
+
+    // Execute first pending todo
+    await executeNextPendingTodo();
+  }, [todos, executeNextPendingTodo]);
+
+  // Auto-execution: Watch for todo completions and continue execution
+  useEffect(() => {
+    if (!isAutoExecuting || !autoExecutionMode) return;
+
+    // Check if there's a recently completed todo (status changed from in_progress to completed)
+    const completedTodos = todos.filter(t => t.status === 'completed');
+    const inProgressTodos = todos.filter(t => t.status === 'in_progress');
+    const pendingTodos = todos.filter(t => t.status === 'pending');
+
+    // If no todos are in progress and there are pending todos, execute next
+    if (inProgressTodos.length === 0 && pendingTodos.length > 0) {
+      console.log('[ChatPanel] Auto-execution: Todo completed, executing next...');
+
+      // For 1by1 mode, request a summary first
+      if (autoExecutionMode === '1by1' && completedTodos.length > 0) {
+        const lastCompleted = completedTodos[completedTodos.length - 1];
+        console.log('[ChatPanel] 1by1 mode: Requesting summary for completed todo:', lastCompleted.id);
+
+        // Small delay to let AI finish responding
+        setTimeout(async () => {
+          // Request summary
+          const summaryPrompt = `Please provide a brief summary of what you just accomplished in the previous task: "${lastCompleted.content}"
+
+Keep it concise (2-3 sentences) highlighting:
+- What was done
+- Any important outcomes or changes
+
+Then I'll proceed to the next task.`;
+
+          try {
+            await executePrompt(summaryPrompt, [], 'normal', false);
+          } catch (error) {
+            console.error('[ChatPanel] Failed to request summary:', error);
+          }
+
+          // Execute next todo after summary (with delay)
+          setTimeout(() => {
+            executeNextPendingTodo();
+          }, 2000);
+        }, 1000);
+      } else {
+        // Execute All mode: just execute next without summary
+        setTimeout(() => {
+          executeNextPendingTodo();
+        }, 500);
+      }
+    }
+
+    // If no pending todos left, stop auto-execution
+    if (pendingTodos.length === 0 && inProgressTodos.length === 0) {
+      console.log('[ChatPanel] Auto-execution complete');
+      setIsAutoExecuting(false);
+      setAutoExecutionMode(null);
+    }
+  }, [todos, isAutoExecuting, autoExecutionMode, executeNextPendingTodo, executePrompt]);
+
   // Handle plan approval - Generate and execute plan with todo queue
   const handlePlanApprove = useCallback(async (plan: any, messageId: string) => {
     // Prevent duplicate clicks
@@ -1480,6 +1619,9 @@ The plan is ready. What would you like to do?`,
               onTodoSkip={handleTodoSkip}
               onTodoDelete={handleTodoDelete}
               onTodoCopy={handleTodoCopy}
+              onExecuteAll={handleExecuteAll}
+              onExecute1by1={handleExecute1by1}
+              isAutoExecuting={isAutoExecuting}
             />
           </div>
         </div>
