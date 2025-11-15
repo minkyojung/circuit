@@ -114,7 +114,8 @@ export const RepositorySwitcher: React.FC<RepositorySwitcherProps> = ({
           className={cn(
             "w-full flex items-center justify-between gap-2 px-2 py-2 rounded-md",
             "transition-all duration-200 ease-out",
-            "hover:bg-sidebar-hover active:bg-sidebar-hover",
+            "bg-transparent",
+            "hover:bg-sidebar/20",
             "group min-w-0"
           )}
         >
@@ -156,7 +157,7 @@ export const RepositorySwitcher: React.FC<RepositorySwitcherProps> = ({
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -10, scale: 0.95 }}
                 transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
-                className="absolute top-full left-0 right-0 mt-2 z-20 bg-card border border-border rounded-md shadow-lg overflow-hidden"
+                className="absolute top-full left-0 right-0 mt-2 z-20 bg-sidebar border border-border rounded-lg shadow-2xl overflow-hidden"
               >
                 {/* Search bar (only show when many repos) */}
                 {repositories.length > 3 && (

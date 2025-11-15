@@ -36,6 +36,109 @@ export async function initializeConversationStorage(): Promise<void> {
 }
 
 /**
+ * Detect design changes from file summary block
+ * MVP: Only detects Tailwind spacing class changes (p-*, m-*, gap-*, space-*)
+ */
+function detectDesignChanges(fileSummaryBlock: any, messageId: string): any[] {
+  const changes: any[] = []
+  const files = fileSummaryBlock.metadata?.files || []
+
+  // Tailwind spacing map
+  const tailwindSpacingMap: Record<string, number> = {
+    '0': 0, '1': 4, '2': 8, '3': 12, '4': 16, '5': 20, '6': 24,
+    '7': 28, '8': 32, '9': 36, '10': 40, '11': 44, '12': 48,
+    '14': 56, '16': 64, '20': 80, '24': 96, '28': 112, '32': 128
+  }
+
+  for (const file of files) {
+    if (file.changeType !== 'modified') continue
+
+    const diffLines = file.diffLines || []
+
+    // Look for remove/add pairs (modifications)
+    for (let i = 0; i < diffLines.length; i++) {
+      const line = diffLines[i]
+
+      if (line.type === 'add') {
+        const prevLine = diffLines[i - 1]
+
+        if (prevLine && prevLine.type === 'remove') {
+          // Extract className attributes
+          const oldClasses = extractClassNames(prevLine.content)
+          const newClasses = extractClassNames(line.content)
+
+          if (oldClasses.length > 0 && newClasses.length > 0) {
+            // Detect spacing class changes
+            const spacingChanges = findSpacingChanges(oldClasses, newClasses, file.filePath, tailwindSpacingMap)
+            changes.push(...spacingChanges)
+          }
+        }
+      }
+    }
+  }
+
+  return deduplicateChanges(changes)
+}
+
+function extractClassNames(line: string): string[] {
+  const classNameMatch = line.match(/className=["']([^"']+)["']/)
+  if (!classNameMatch) return []
+  return classNameMatch[1].split(/\s+/).filter(Boolean)
+}
+
+function findSpacingChanges(
+  oldClasses: string[],
+  newClasses: string[],
+  filePath: string,
+  tailwindMap: Record<string, number>
+): any[] {
+  const changes: any[] = []
+  const spacingPrefixes = ['p', 'px', 'py', 'pt', 'pr', 'pb', 'pl', 'm', 'mx', 'my', 'mt', 'mr', 'mb', 'ml', 'gap', 'gap-x', 'gap-y', 'space-x', 'space-y']
+
+  for (const prefix of spacingPrefixes) {
+    const oldClass = oldClasses.find(c => c.startsWith(prefix + '-'))
+    const newClass = newClasses.find(c => c.startsWith(prefix + '-'))
+
+    if (oldClass && newClass && oldClass !== newClass) {
+      const oldValue = oldClass.match(/-(\d+)$/)?.[1]
+      const newValue = newClass.match(/-(\d+)$/)?.[1]
+
+      if (oldValue && newValue) {
+        changes.push({
+          id: `dc_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+          type: 'spacing',
+          property: prefix.startsWith('p') ? 'padding' :
+                    prefix.startsWith('m') ? 'margin' :
+                    prefix.startsWith('gap') ? 'gap' : 'space',
+          oldValue: oldClass,
+          newValue: newClass,
+          filePath,
+          oldValuePx: tailwindMap[oldValue] || parseInt(oldValue) * 4,
+          newValuePx: tailwindMap[newValue] || parseInt(newValue) * 4
+        })
+      }
+    }
+  }
+
+  return changes
+}
+
+function deduplicateChanges(changes: any[]): any[] {
+  const seen = new Set<string>()
+  const unique: any[] = []
+
+  for (const change of changes) {
+    const key = `${change.filePath}:${change.property}:${change.oldValue}`
+    if (!seen.has(key)) {
+      seen.add(key)
+      unique.push(change)
+    }
+  }
+
+  return unique
+}
+
+/**
  * Register all conversation-related IPC handlers
  */
 export function registerConversationHandlers(): void {
@@ -405,6 +508,26 @@ export function registerConversationHandlers(): void {
             if (summaryBlock) {
               console.log('[message:save] 📊 Adding file summary block with', fileAggregator.getFileCount(), 'files')
               allBlocks.push(summaryBlock as any)
+
+              // Detect design changes from file summary block for inline design controls
+              try {
+                const designChanges = detectDesignChanges(summaryBlock, message.id)
+                if (designChanges.length > 0) {
+                  console.log('[message:save] 🎨 Detected', designChanges.length, 'design changes')
+
+                  // Add to message metadata
+                  const metadata = typeof message.metadata === 'string'
+                    ? JSON.parse(message.metadata)
+                    : (message.metadata || {})
+
+                  metadata.designChanges = designChanges
+
+                  // Update normalized message
+                  normalizedMessage.metadata = JSON.stringify(metadata)
+                }
+              } catch (e) {
+                console.warn('[message:save] Failed to detect design changes:', e)
+              }
             }
           }
         }

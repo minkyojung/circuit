@@ -1873,9 +1873,6 @@ The plan is ready. What would you like to do?`,
         )}
       </div>
 
-      {/* Gradient Fade to hide content behind floating input */}
-      <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-card from-20% via-card via-60% to-transparent pointer-events-none" />
-
       {/* Scroll to Bottom Button */}
       {!isAtBottom && messages.length > 0 && (
         <div className="absolute bottom-[260px] left-1/2 -translate-x-1/2 pointer-events-none z-50">
@@ -1889,10 +1886,13 @@ The plan is ready. What would you like to do?`,
         </div>
       )}
 
-      {/* Todo Queue - Show at top for plan conversations (temp for development) */}
-      {currentConversationPlanId && todos.length > 0 && (
-        <div className="absolute top-[80px] left-0 right-0 px-4 pointer-events-none z-40">
-          <div className="pointer-events-auto mx-auto max-w-3xl">
+      {/* Gradient Fade to hide content behind floating input - z-30 */}
+      <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-card from-20% via-card via-60% to-transparent pointer-events-none z-30" />
+
+      {/* Todo Queue - Fixed above ChatInput, below messages (z-40) */}
+      {todos.length > 0 && (
+        <div className="absolute bottom-[140px] left-0 right-0 px-4 pointer-events-none z-40">
+          <div className="pointer-events-auto mx-auto w-[90%]">
             <TodoQueue
               todos={todos}
               onTodoClick={handleTodoClick}

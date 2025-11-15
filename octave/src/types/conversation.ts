@@ -74,6 +74,8 @@ export interface Message {
     // Plan mode retry
     planRetryAttempt?: number
     planGenerationFailed?: boolean
+    // Design changes (for inline design controls)
+    designChanges?: DesignChange[]
   }
   blocks?: Block[]  // New: Block-based message structure
 }
@@ -216,4 +218,25 @@ export interface BlockExecution {
   exitCode?: number
   output?: string
   durationMs?: number
+}
+
+/**
+ * Design change detection for inline design controls
+ * MVP: Spacing changes only (Tailwind classes like p-*, m-*, gap-*)
+ */
+export type DesignChangeType = 'spacing'  // Will expand: 'color' | 'typography' | etc.
+
+export type SpacingProperty = 'padding' | 'margin' | 'gap' | 'space'
+
+export interface DesignChange {
+  id: string
+  type: DesignChangeType
+  property: SpacingProperty
+  oldValue: string  // e.g., "p-3" or "0.75rem"
+  newValue: string  // e.g., "p-4" or "1rem"
+  filePath: string
+  lineNumber?: number
+  // Parsed values for UI controls
+  oldValuePx?: number  // e.g., 12
+  newValuePx?: number  // e.g., 16
 }

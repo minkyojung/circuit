@@ -10,6 +10,7 @@ import { MessageActions } from './MessageActions';
 import { PlanPreviewCard } from '@/components/plan/PlanPreviewCard';
 import { extractPlanFromMessage, removePlanFromContent } from '@/lib/planParser';
 import { cn } from '@/lib/utils';
+import { DesignControlPanel } from '@/components/design/DesignControlPanel';
 
 export interface MessageComponentProps {
   msg: Message & { filteredBlocks?: any[] };
@@ -265,6 +266,11 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
           </div>
         );
       })()}
+
+      {/* Design Control Panel - Show for assistant messages with design changes */}
+      {msg.role === 'assistant' && metadata.designChanges && metadata.designChanges.length > 0 && (
+        <DesignControlPanel changes={metadata.designChanges} />
+      )}
     </div>
   );
 };

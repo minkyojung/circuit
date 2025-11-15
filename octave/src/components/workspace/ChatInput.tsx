@@ -75,6 +75,17 @@ export interface AttachedFile {
     id: string
     content: string
   }
+  // For browser console logs
+  browserLogs?: {
+    browserId: string
+    logs: Array<{
+      level: 'log' | 'warn' | 'error' | 'info' | 'debug'
+      message: string
+      timestamp: number
+      source?: string
+      lineNumber?: number
+    }>
+  }
 }
 
 const INPUT_STYLES = {
@@ -490,64 +501,54 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }
   }, [value, onAddTodo, onChange])
 
-  // Handle browser debug - fetch console logs and inject into input
+  // Handle browser debug - fetch console logs and add as attachment
   const handleBrowserDebug = useCallback(async () => {
-    console.log('[ChatInput] 🐛 Browser debug button clicked')
-
     const ipcRenderer = getIpcRenderer()
     if (!ipcRenderer) {
-      console.error('[ChatInput] ipcRenderer not available')
       toast.error('Browser debugging not available')
       return
     }
 
     try {
       // Get list of active browsers
-      console.log('[ChatInput] Fetching browser list...')
       const listResult = await ipcRenderer.invoke('browser:list')
-      console.log('[ChatInput] Browser list result:', listResult)
 
       if (!listResult.success || !listResult.browserIds || listResult.browserIds.length === 0) {
-        console.warn('[ChatInput] No active browsers found')
         toast.error('No active browser tabs found')
         return
       }
 
       // For MVP, use the first browser
       const browserId = listResult.browserIds[0]
-      console.log('[ChatInput] Using browser:', browserId)
 
       // Fetch console logs
-      console.log('[ChatInput] Fetching console logs...')
       const logsResult = await ipcRenderer.invoke('browser:get-console-logs', browserId)
-      console.log('[ChatInput] Console logs result:', logsResult)
 
       if (!logsResult.success || !logsResult.logs || logsResult.logs.length === 0) {
-        console.warn('[ChatInput] No console logs available')
         toast.error('No console logs available')
         return
       }
 
-      // Format console logs
-      const formattedLogs = logsResult.logs
-        .map((log: any) => {
-          const timestamp = new Date(log.timestamp).toLocaleTimeString()
-          const location = log.source ? ` (${log.source}:${log.lineNumber})` : ''
-          return `[${timestamp}] ${log.level.toUpperCase()}${location}: ${log.message}`
-        })
-        .join('\n')
+      // Add browser logs as attachment
+      const browserLogsAttachment: AttachedFile = {
+        id: `browser-logs-${Date.now()}`,
+        name: 'Browser Console Logs',
+        type: 'browser/logs',
+        size: logsResult.logs.length,
+        url: '',
+        browserLogs: {
+          browserId,
+          logs: logsResult.logs,
+        },
+      }
 
-      // Inject into input
-      const contextMessage = `Browser Console Logs (${logsResult.logs.length} entries):\n\`\`\`\n${formattedLogs}\n\`\`\`\n\n${value}`
-      onChange(contextMessage)
-
-      console.log('[ChatInput] ✅ Successfully injected console logs')
-      toast.success(`Injected ${logsResult.logs.length} console logs`)
+      addFile(browserLogsAttachment)
+      toast.success(`Added ${logsResult.logs.length} console logs`)
     } catch (error) {
       console.error('[ChatInput] Failed to fetch browser logs:', error)
       toast.error('Failed to fetch browser logs')
     }
-  }, [value, onChange])
+  }, [addFile])
 
   return (
     <div className={INPUT_STYLES.container.maxWidth}>

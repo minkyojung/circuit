@@ -10,7 +10,6 @@ import {
 import { cn } from '@/lib/utils';
 import { Shimmer } from '@/components/ai-elements/shimmer';
 import { motion, AnimatePresence } from 'motion/react';
-import { TodoQueue } from '@/components/blocks/TodoQueue';
 
 interface ReasoningAccordionProps {
   steps: ThinkingStep[];
@@ -192,24 +191,14 @@ function renderStepDetail(step: ThinkingStep, todoWriteResult?: any) {
       );
 
     case 'TodoWrite':
-      // Use step.todos first (from milestone), fallback to todoWriteResult (from metadata)
+      // TodoQueue is now displayed at the bottom of the chat (above ChatInput)
+      // Show a simple indicator here instead
       const todosData = step.todos || (todoWriteResult?.todos);
-      console.log('[ReasoningAccordion] TodoWrite case - step.todos:', step.todos, 'todoWriteResult:', todoWriteResult);
+      const todoCount = todosData?.length || 0;
 
-      return todosData && todosData.length > 0 ? (
-        <TodoQueue
-          todos={todosData.map((todo: any) => ({
-            content: todo.title || todo.content,
-            activeForm: todo.activeForm || `${todo.title || todo.content}...`,
-            status: todo.status,
-            description: todo.description,
-          }))}
-          defaultExpanded={true}
-          showProgressBar={true}
-        />
-      ) : (
+      return (
         <div className="text-sm font-light opacity-60 px-4 py-2 italic">
-          📋 Task list created (data not available)
+          📋 {todoCount > 0 ? `Created ${todoCount} task${todoCount === 1 ? '' : 's'}` : 'Task list created'}
         </div>
       );
 

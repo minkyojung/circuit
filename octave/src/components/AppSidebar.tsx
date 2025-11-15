@@ -368,25 +368,28 @@ export function AppSidebar({ selectedWorkspaceId, selectedWorkspace, onSelectWor
 
   return (
     <>
-    <Sidebar variant="inset" {...props}>
+    <Sidebar variant="inset" {...props} className="relative">
       <SidebarHeader className={cn(
+        "flex flex-row items-center gap-0",
         state === "collapsed" && "pl-16"
       )}>
         {/* Traffic Lights Area (Fully Draggable) */}
         <div
-          className="h-[36px] -m-2 mb-0 -ml-2"
+          className="h-[36px] w-[80px] flex-shrink-0 -m-2 mb-0 -ml-2"
           style={{ WebkitAppRegion: 'drag' } as any}
         />
 
-        {/* Repository Switcher */}
-        <RepositorySwitcher
-          currentRepository={repository}
-          repositories={repositories.length > 0 ? repositories : [repository]}
-          onSelectRepository={switchRepositoryAction}
-          onCreateRepository={createRepositoryAction}
-          onCloneRepository={openCloneDialog}
-          onRemoveRepository={removeRepositoryAction}
-        />
+        {/* Repository Switcher next to traffic lights */}
+        <div className="flex-1 pr-2">
+          <RepositorySwitcher
+            repositories={repositories}
+            currentRepository={repository}
+            onSelectRepository={switchRepositoryAction}
+            onCreateRepository={createRepositoryAction}
+            onCloneRepository={openCloneDialog}
+            onRemoveRepository={removeRepositoryAction}
+          />
+        </div>
       </SidebarHeader>
 
       <SidebarContent>

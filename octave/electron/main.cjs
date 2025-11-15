@@ -658,6 +658,12 @@ app.whenReady().then(async () => {
     const { registerBrowserHandlers } = require('../dist-electron/browserHandlers.js');
     registerBrowserHandlers();
     console.log('[main.cjs] ✅ Browser handlers registered successfully');
+
+    // Register design control handlers
+    console.log('[main.cjs] Registering design control handlers...');
+    const { registerDesignHandlers } = require('../dist-electron/designHandlers.js');
+    registerDesignHandlers();
+    console.log('[main.cjs] ✅ Design control handlers registered successfully');
   } catch (error) {
     console.error('[main.cjs] ❌ CRITICAL: Failed to register handlers:', error);
     console.error('[main.cjs] Error stack:', error.stack);
@@ -4618,6 +4624,44 @@ ${languageInstruction}
           });
           console.log('[Claude] Added text file attachment:', file.name);
         }
+
+      } else if (file.type === 'browser/logs' && file.browserLogs) {
+        // Browser console logs - format for Claude
+        const { browserId, logs } = file.browserLogs;
+
+        // Format logs into readable text
+        const formattedLogs = logs.map((log, index) => {
+          const timestamp = new Date(log.timestamp).toISOString();
+          const level = log.level.toUpperCase().padEnd(5);
+          const source = log.source ? ` [${log.source}:${log.lineNumber}]` : '';
+          return `${index + 1}. [${timestamp}] ${level}${source}\n   ${log.message}`;
+        }).join('\n\n');
+
+        // Count logs by level
+        const errorCount = logs.filter(l => l.level === 'error').length;
+        const warnCount = logs.filter(l => l.level === 'warn').length;
+        const infoCount = logs.filter(l => l.level === 'info').length;
+        const logCount = logs.filter(l => l.level === 'log').length;
+        const debugCount = logs.filter(l => l.level === 'debug').length;
+
+        const summary = [
+          `Total: ${logs.length} logs`,
+          errorCount > 0 ? `${errorCount} errors` : null,
+          warnCount > 0 ? `${warnCount} warnings` : null,
+          infoCount > 0 ? `${infoCount} info` : null,
+          logCount > 0 ? `${logCount} logs` : null,
+          debugCount > 0 ? `${debugCount} debug` : null
+        ].filter(Boolean).join(', ');
+
+        content.push({
+          type: 'text',
+          text: `\n\n<browser_console_logs browser="${browserId}">
+Summary: ${summary}
+
+${formattedLogs}
+</browser_console_logs>`
+        });
+        console.log('[Claude] Added browser console logs:', summary);
       }
     }
 

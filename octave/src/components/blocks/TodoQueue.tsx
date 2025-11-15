@@ -75,7 +75,7 @@ const QueueHeader = ({
   setIsOpen?: (open: boolean) => void;
 }) => (
   <div
-    className="flex items-center justify-between p-2 cursor-pointer hover:bg-secondary/20 transition-colors"
+    className="flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-secondary/20 transition-colors"
     onClick={() => setIsOpen?.(!isOpen)}
   >
     <div className="flex items-center gap-1 flex-1">
@@ -105,7 +105,7 @@ const QueueList = ({
           animate={{ height: 'auto', opacity: 1 }}
           exit={{ height: 0, opacity: 0 }}
           transition={{ duration: 0.2, ease: 'easeInOut' }}
-          className="space-y-2 px-2 pb-3 max-h-[100px] overflow-y-auto overflow-hidden"
+          className="space-y-2 px-3 pb-3 max-h-[100px] overflow-y-auto overflow-hidden"
         >
           {children}
         </motion.ul>
@@ -328,7 +328,7 @@ export const TodoQueue: React.FC<TodoQueueProps> = ({
 
         {/* Failed tasks footer */}
         {failed > 0 && (
-          <div className="px-4 pb-3 pt-2.5 border-t border-border/50">
+          <div className="px-3 pb-3 pt-2.5 border-t border-border/50">
             <span className="text-xs text-red-500">
               {failed} task{failed > 1 ? 's' : ''} failed
             </span>

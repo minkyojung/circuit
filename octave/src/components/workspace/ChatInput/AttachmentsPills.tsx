@@ -9,7 +9,7 @@
  */
 
 import React from 'react';
-import { MessageCircle, Code, X, Paperclip } from 'lucide-react';
+import { MessageCircle, Code, X, Paperclip, Bug } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { AttachedFile } from '../ChatInput';
 
@@ -73,6 +73,50 @@ export const AttachmentsPills: React.FC<AttachmentsPillsProps> = ({
                       }}
                       className="ml-0.5 p-0.5 rounded-md transition-colors opacity-60 group-hover:opacity-100 hover:text-foreground hover:bg-secondary/30 dark:hover:text-white dark:hover:bg-secondary/20"
                       aria-label="Remove message reference"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                );
+              }
+
+              // Handle browser console logs
+              if (file.type === 'browser/logs' && file.browserLogs) {
+                const errorCount = file.browserLogs.logs.filter(log => log.level === 'error').length
+                const warnCount = file.browserLogs.logs.filter(log => log.level === 'warn').length
+                const totalCount = file.browserLogs.logs.length
+
+                return (
+                  <div
+                    key={file.id}
+                    className="group flex items-center gap-2 pl-2 pr-2 py-2 rounded-xl bg-card transition-all"
+                  >
+                    {/* Bug icon - Red/Orange based on errors */}
+                    <div className="flex-shrink-0">
+                      <div className={`w-6 h-[30px] rounded-md flex items-center justify-center ${
+                        errorCount > 0 ? 'bg-red-500/20' : 'bg-orange-500/20'
+                      }`}>
+                        <Bug className={`w-3 h-3 ${
+                          errorCount > 0 ? 'text-red-400' : 'text-orange-400'
+                        }`} strokeWidth={2} />
+                      </div>
+                    </div>
+
+                    {/* Browser logs info - Vertical layout */}
+                    <div className="flex flex-col justify-center min-w-0 gap-1">
+                      <span className="text-sm font-light text-foreground max-w-[160px] truncate leading-tight">
+                        Browser Console
+                      </span>
+                      <span className="text-[10px] text-muted-foreground font-medium leading-tight">
+                        {totalCount} logs{errorCount > 0 ? `, ${errorCount} errors` : warnCount > 0 ? `, ${warnCount} warns` : ''}
+                      </span>
+                    </div>
+
+                    {/* Remove button */}
+                    <button
+                      onClick={() => onRemoveFile(file.id)}
+                      className="ml-0.5 p-0.5 rounded-md transition-colors opacity-60 group-hover:opacity-100 hover:text-foreground hover:bg-secondary/30 dark:hover:text-white dark:hover:bg-secondary/20"
+                      aria-label="Remove browser logs"
                     >
                       <X className="w-3 h-3" />
                     </button>
