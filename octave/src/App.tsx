@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext, useMemo, useRef } from 'react'
+import { useState, useEffect, createContext, useContext, useMemo, useRef, useCallback } from 'react'
 import { CommitDialog } from "@/components/workspace/CommitDialog"
 import { AppSidebar } from "@/components/AppSidebar"
 import { TodoPanel } from "@/components/TodoPanel"
