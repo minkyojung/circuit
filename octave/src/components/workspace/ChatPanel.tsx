@@ -56,7 +56,113 @@ import type { Todo } from '@/types/todo';
 
 const ipcRenderer = window.electron.ipcRenderer;
 
-const ChatPanelInner: React.FC<ChatPanelProps> = ({
+/**
+ * ChatPanelInner - Handles conversation loading and TodoProvider setup
+ */
+const ChatPanelInner: React.FC<ChatPanelProps> = (props) => {
+  const { workspace, externalConversationId, onConversationChange } = props;
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [currentConversationPlanId, setCurrentConversationPlanId] = useState<string | null>(null);
+  const [isLoadingConversation, setIsLoadingConversation] = useState(true);
+
+  // Use ref to avoid circular dependency in useEffect
+  const conversationIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    conversationIdRef.current = conversationId;
+  }, [conversationId]);
+
+  // Load conversation when workspace or externalConversationId changes
+  useEffect(() => {
+    const loadConversation = async () => {
+      // Early return: Skip if we're already on the correct conversation
+      if (externalConversationId && conversationIdRef.current === externalConversationId) {
+        console.log('[ChatPanel] Already loaded conversation:', externalConversationId, '- skipping reload');
+        return;
+      }
+
+      setIsLoadingConversation(true);
+
+      try {
+        console.log('[ChatPanel] Loading conversation for workspace:', workspace.id);
+        console.log('[ChatPanel] External conversation ID:', externalConversationId);
+
+        let conversation;
+
+        // 1. If externalConversationId is provided, load the full conversation object
+        if (externalConversationId) {
+          console.log('[ChatPanel] Using external conversation ID:', externalConversationId);
+          const getResult = await ipcRenderer.invoke('conversation:get-by-id', externalConversationId);
+          conversation = getResult.conversation;
+
+          if (!conversation) {
+            throw new Error(`Conversation not found: ${externalConversationId}`);
+          }
+        } else {
+          // 2. Otherwise, get active conversation for this workspace
+          const activeResult = await ipcRenderer.invoke('conversation:get-active', workspace.id);
+          conversation = activeResult.conversation;
+
+          // 3. If no active conversation, create a new one
+          if (!conversation) {
+            console.log('[ChatPanel] No active conversation found, creating new one');
+            const createResult = await ipcRenderer.invoke('conversation:create', workspace.id);
+            conversation = createResult.conversation;
+          }
+        }
+
+        console.log('[ChatPanel] Loaded conversation:', conversation.id, 'planId:', conversation.planId);
+        setConversationId(conversation.id);
+        setCurrentConversationPlanId(conversation.planId || null);
+
+        // Notify parent about conversation change ONLY if we created/found a new one
+        if (onConversationChange && !externalConversationId) {
+          onConversationChange(conversation.id);
+        }
+      } catch (error) {
+        console.error('[ChatPanel] Failed to load conversation:', error);
+        setConversationId(null);
+        setCurrentConversationPlanId(null);
+      } finally {
+        setIsLoadingConversation(false);
+      }
+    };
+
+    loadConversation();
+  }, [workspace.id, externalConversationId, onConversationChange]);
+
+  // Notify parent when conversationId changes
+  useEffect(() => {
+    onConversationChange?.(conversationId);
+  }, [conversationId, onConversationChange]);
+
+  return (
+    <TodoProvider conversationId={currentConversationPlanId ? conversationId : undefined}>
+      <ChatPanelContent
+        {...props}
+        conversationId={conversationId}
+        setConversationId={setConversationId}
+        currentConversationPlanId={currentConversationPlanId}
+        setCurrentConversationPlanId={setCurrentConversationPlanId}
+        isLoadingConversation={isLoadingConversation}
+        setIsLoadingConversation={setIsLoadingConversation}
+      />
+    </TodoProvider>
+  );
+};
+
+/**
+ * ChatPanelContent - Main chat UI component with TodoProvider context
+ */
+interface ChatPanelContentProps extends ChatPanelProps {
+  conversationId: string | null;
+  setConversationId: (id: string | null) => void;
+  currentConversationPlanId: string | null;
+  setCurrentConversationPlanId: (id: string | null) => void;
+  isLoadingConversation: boolean;
+  setIsLoadingConversation: (loading: boolean) => void;
+}
+
+const ChatPanelContent: React.FC<ChatPanelContentProps> = ({
   workspace,
   sessionId,
   onFileEdit,
@@ -66,18 +172,22 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
   onConversationChange,
   onFileReferenceClick,
   codeSelectionAction,
-  onCodeSelectionHandled
+  onCodeSelectionHandled,
+  conversationId,
+  setConversationId,
+  currentConversationPlanId,
+  setCurrentConversationPlanId,
+  isLoadingConversation,
+  setIsLoadingConversation
 }) => {
-  const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
-  const [isLoadingConversation, setIsLoadingConversation] = useState(true);
   const [thinkingSteps, setThinkingSteps] = useState<ThinkingStep[]>([]);
   const [messageThinkingSteps, setMessageThinkingSteps] = useState<Record<string, { steps: ThinkingStep[], duration: number }>>({});
 
-  // Todo context
+  // Todo context (now inside TodoProvider!)
   const { createTodosFromDrafts, loadTodos, todos } = useTodos();
 
   // Agent context
@@ -171,68 +281,26 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
     content: string
   } | null>(null);
 
-  // Load conversation when workspace or externalConversationId changes
+  // Load messages when conversationId changes
   useEffect(() => {
-    const loadConversation = async () => {
-      // Early return: Skip if we're already on the correct conversation
-      // Use ref to avoid circular dependency in useEffect
-      if (externalConversationId && conversationIdRef.current === externalConversationId) {
-        console.log('[ChatPanel] Already loaded conversation:', externalConversationId, '- skipping reload');
+    const loadMessages = async () => {
+      if (!conversationId) {
+        setMessages([]);
+        setMessageThinkingSteps({});
         return;
       }
 
-      setIsLoadingConversation(true);
-
       try {
-        console.log('[ChatPanel] Loading conversation for workspace:', workspace.id);
-        console.log('[ChatPanel] External conversation ID:', externalConversationId);
-
-        let conversation;
-
-        // 1. If externalConversationId is provided, load the full conversation object
-        if (externalConversationId) {
-          console.log('[ChatPanel] Using external conversation ID:', externalConversationId);
-          const getResult = await ipcRenderer.invoke('conversation:get-by-id', externalConversationId);
-          conversation = getResult.conversation;
-
-          if (!conversation) {
-            throw new Error(`Conversation not found: ${externalConversationId}`);
-          }
-        } else {
-          // 2. Otherwise, get active conversation for this workspace
-          const activeResult = await ipcRenderer.invoke('conversation:get-active', workspace.id);
-          conversation = activeResult.conversation;
-
-          // 3. If no active conversation, create a new one
-          if (!conversation) {
-            console.log('[ChatPanel] No active conversation found, creating new one');
-            const createResult = await ipcRenderer.invoke('conversation:create', workspace.id);
-            conversation = createResult.conversation;
-          }
-        }
-
-        console.log('[ChatPanel] Loaded conversation:', conversation.id, 'planId:', conversation.planId);
-        setConversationId(conversation.id);
-        setCurrentConversationPlanId(conversation.planId || null);
-
-        // Notify parent about conversation change ONLY if we created/found a new one
-        // (i.e., when externalConversationId was not provided)
-        if (onConversationChange && !externalConversationId) {
-          onConversationChange(conversation.id);
-        }
-
-        // 4. Load messages for this conversation
-        const messagesResult = await ipcRenderer.invoke('message:load', conversation.id);
+        const messagesResult = await ipcRenderer.invoke('message:load', conversationId);
         const loadedMessages = messagesResult.messages || [];
 
-        console.log('[ChatPanel] Loaded', loadedMessages.length, 'messages');
+        console.log('[ChatPanel] Loaded', loadedMessages.length, 'messages for conversation:', conversationId);
         setMessages(loadedMessages);
 
-        // 5. Restore thinking steps from message metadata
+        // Restore thinking steps from message metadata
         const restoredSteps: Record<string, { steps: ThinkingStep[], duration: number }> = {};
         loadedMessages.forEach((msg: Message) => {
           if (msg.role === 'assistant' && msg.metadata) {
-            // Parse metadata if it's a string
             const metadata = typeof msg.metadata === 'string' ? JSON.parse(msg.metadata) : msg.metadata;
 
             if (metadata.thinkingSteps && metadata.thinkingDuration) {
@@ -240,25 +308,18 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
                 steps: metadata.thinkingSteps,
                 duration: metadata.thinkingDuration
               };
-              console.log('[ChatPanel] Restored thinking steps for message:', msg.id, metadata.duration, 's');
             }
           }
         });
         setMessageThinkingSteps(restoredSteps);
-        console.log('[ChatPanel] Restored', Object.keys(restoredSteps).length, 'thinking step sets');
       } catch (error) {
-        console.error('[ChatPanel] Failed to load conversation:', error);
-        // On error, start fresh
-        setConversationId(null);
-        setCurrentConversationPlanId(null);
+        console.error('[ChatPanel] Failed to load messages:', error);
         setMessages([]);
-      } finally {
-        setIsLoadingConversation(false);
       }
     };
 
-    loadConversation();
-  }, [workspace.id, externalConversationId]);  // conversationId removed to prevent circular dependency
+    loadMessages();
+  }, [conversationId]);
 
   // Handle input prefilling from external sources
   usePrefillMessage({
@@ -266,18 +327,6 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
     setInput,
     onPrefillCleared,
   });
-
-  // Notify parent when conversationId changes
-  // Note: onConversationChange is intentionally NOT in deps to avoid infinite loop
-  // (it's an inline function in App.tsx that gets recreated on every render)
-  useEffect(() => {
-    onConversationChange?.(conversationId);
-  }, [conversationId]);
-
-  // NOTE: Todo loading is now handled by TodoProvider based on currentConversationPlanId
-  // TodoProvider receives: currentConversationPlanId ? conversationId : undefined
-  // - If planId exists: loads todos for conversationId
-  // - If planId is null: clears todos (conversationId = undefined)
 
   // parseFileChanges removed - now handled by FileChangeDetector service
   // handleCopyMessage is now provided by useCopyMessage hook
@@ -1793,8 +1842,7 @@ The plan is ready. What would you like to do?`,
   // Auto-scroll is disabled - users can manually scroll using the "Scroll to Bottom" button
 
   return (
-    <TodoProvider conversationId={currentConversationPlanId ? conversationId : undefined}>
-      <div className="h-full bg-card relative">
+    <div className="h-full bg-card relative">
       {/* Messages Area - with space for floating input */}
       <div
         ref={scrollContainerRef}
@@ -1938,8 +1986,7 @@ The plan is ready. What would you like to do?`,
         onConfirm={handleTodoConfirm}
         onCancel={handleTodoCancel}
       />
-      </div>
-    </TodoProvider>
+    </div>
   );
 };
 
