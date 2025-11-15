@@ -216,9 +216,6 @@ const ChatPanelContent: React.FC<ChatPanelContentProps> = ({
   // Plan execution state (to prevent duplicate clicks)
   const [executingPlans, setExecutingPlans] = useState<Set<string>>(new Set());
 
-  // Track current conversation's planId for Todo Queue UI
-  const [currentConversationPlanId, setCurrentConversationPlanId] = useState<string | null>(null);
-
   // Auto-execution state
   const [isAutoExecuting, setIsAutoExecuting] = useState(false);
   const [autoExecutionMode, setAutoExecutionMode] = useState<'all' | '1by1' | null>(null);
