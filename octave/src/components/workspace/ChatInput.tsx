@@ -18,7 +18,10 @@ import { ChatInputControls } from './ChatInput/ChatInputControls'
 import { FEATURES } from '@/config/features'
 import type { ClaudeModel } from '@/types/settings'
 
-const ipcRenderer = typeof window !== 'undefined' && (window as any).require ? (window as any).require('electron').ipcRenderer : null
+const getIpcRenderer = () => {
+  if (typeof window === 'undefined') return null
+  return (window as any).electron?.ipcRenderer || null
+}
 
 export type ThinkingMode = 'normal' | 'think' | 'megathink' | 'ultrathink' | 'plan' | 'multiplan'
 
@@ -223,6 +226,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
   // Load slash commands when workspace changes
   useEffect(() => {
+    const ipcRenderer = getIpcRenderer()
     console.log('[ChatInput] 🔍 Slash Commands - workspacePath:', workspacePath)
     console.log('[ChatInput] 🔍 Slash Commands - ipcRenderer:', !!ipcRenderer)
 
@@ -307,6 +311,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
   // Execute slash command
   const executeCommand = useCallback(async (commandName: string) => {
+    const ipcRenderer = getIpcRenderer()
     if (!workspacePath || !ipcRenderer) return
 
     try {
@@ -485,6 +490,65 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }
   }, [value, onAddTodo, onChange])
 
+  // Handle browser debug - fetch console logs and inject into input
+  const handleBrowserDebug = useCallback(async () => {
+    console.log('[ChatInput] 🐛 Browser debug button clicked')
+
+    const ipcRenderer = getIpcRenderer()
+    if (!ipcRenderer) {
+      console.error('[ChatInput] ipcRenderer not available')
+      toast.error('Browser debugging not available')
+      return
+    }
+
+    try {
+      // Get list of active browsers
+      console.log('[ChatInput] Fetching browser list...')
+      const listResult = await ipcRenderer.invoke('browser:list')
+      console.log('[ChatInput] Browser list result:', listResult)
+
+      if (!listResult.success || !listResult.browserIds || listResult.browserIds.length === 0) {
+        console.warn('[ChatInput] No active browsers found')
+        toast.error('No active browser tabs found')
+        return
+      }
+
+      // For MVP, use the first browser
+      const browserId = listResult.browserIds[0]
+      console.log('[ChatInput] Using browser:', browserId)
+
+      // Fetch console logs
+      console.log('[ChatInput] Fetching console logs...')
+      const logsResult = await ipcRenderer.invoke('browser:get-console-logs', browserId)
+      console.log('[ChatInput] Console logs result:', logsResult)
+
+      if (!logsResult.success || !logsResult.logs || logsResult.logs.length === 0) {
+        console.warn('[ChatInput] No console logs available')
+        toast.error('No console logs available')
+        return
+      }
+
+      // Format console logs
+      const formattedLogs = logsResult.logs
+        .map((log: any) => {
+          const timestamp = new Date(log.timestamp).toLocaleTimeString()
+          const location = log.source ? ` (${log.source}:${log.lineNumber})` : ''
+          return `[${timestamp}] ${log.level.toUpperCase()}${location}: ${log.message}`
+        })
+        .join('\n')
+
+      // Inject into input
+      const contextMessage = `Browser Console Logs (${logsResult.logs.length} entries):\n\`\`\`\n${formattedLogs}\n\`\`\`\n\n${value}`
+      onChange(contextMessage)
+
+      console.log('[ChatInput] ✅ Successfully injected console logs')
+      toast.success(`Injected ${logsResult.logs.length} console logs`)
+    } catch (error) {
+      console.error('[ChatInput] Failed to fetch browser logs:', error)
+      toast.error('Failed to fetch browser logs')
+    }
+  }, [value, onChange])
+
   return (
     <div className={INPUT_STYLES.container.maxWidth}>
       {/* Input Card - Floating */}
@@ -534,6 +598,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             onSend={handleSend}
             onCancel={onCancel}
             onCompact={handleCompact}
+            onBrowserDebug={handleBrowserDebug}
             currentModel={settings.model.default}
             modelLabels={modelLabels}
             thinkingMode={thinkingMode}

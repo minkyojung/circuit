@@ -12,7 +12,7 @@
  */
 
 import React from 'react';
-import { ArrowUp, Paperclip, X, ListChecks, ChevronDown } from 'lucide-react';
+import { ArrowUp, Paperclip, X, ListChecks, ChevronDown, Bug } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,6 +43,7 @@ interface ChatInputControlsProps {
   onSend: () => void;
   onCancel?: () => void;
   onCompact: () => Promise<void>;
+  onBrowserDebug: () => Promise<void>;
 
   // Model state
   currentModel: ClaudeModel;
@@ -102,6 +103,7 @@ export const ChatInputControls: React.FC<ChatInputControlsProps> = ({
   onSend,
   onCancel,
   onCompact,
+  onBrowserDebug,
   currentModel,
   modelLabels,
   thinkingMode,
@@ -183,6 +185,16 @@ export const ChatInputControls: React.FC<ChatInputControlsProps> = ({
               <ListChecks size={INPUT_STYLES.controls.sourcesIconSize} strokeWidth={1.5} />
             </button>
           )}
+
+          {/* Browser Debug Button - Inject console logs */}
+          <button
+            onClick={onBrowserDebug}
+            disabled={disabled}
+            className={`inline-flex items-center justify-center ${INPUT_STYLES.controls.sourcesButton} text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50`}
+            title="Inject browser console logs for debugging"
+          >
+            <Bug size={INPUT_STYLES.controls.sourcesIconSize} strokeWidth={1.5} />
+          </button>
         </div>
       )}
 

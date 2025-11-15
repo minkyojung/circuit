@@ -7,8 +7,21 @@
 
 import { ipcMain, BrowserWindow, WebContentsView } from 'electron'
 
+// Console log interface
+interface ConsoleLog {
+  level: 'log' | 'warn' | 'error' | 'info' | 'debug'
+  message: string
+  timestamp: number
+  source?: string
+  lineNumber?: number
+}
+
 // Store active WebContentsViews by browser ID
 const browserViews = new Map<string, WebContentsView>()
+
+// Store console logs by browser ID (keep last 100 logs per browser)
+const consoleLogs = new Map<string, ConsoleLog[]>()
+const MAX_LOGS_PER_BROWSER = 100
 
 // Store main window reference
 let mainWindowRef: BrowserWindow | null = null
@@ -54,11 +67,39 @@ export function registerBrowserHandlers(): void {
         // Store reference
         browserViews.set(browserId, webContentsView)
 
+        // Initialize console logs array for this browser
+        consoleLogs.set(browserId, [])
+
         // Add to main window
         mainWindowRef.contentView.addChildView(webContentsView)
 
         // Set initial bounds (will be updated by renderer)
         webContentsView.setBounds({ x: 0, y: 0, width: 800, height: 600 })
+
+        // Listen for console messages
+        webContentsView.webContents.on('console-message', (event, level, message, line, sourceId) => {
+          const logs = consoleLogs.get(browserId) || []
+
+          const logEntry: ConsoleLog = {
+            level: ['log', 'warn', 'error', 'info', 'debug'][level] as ConsoleLog['level'] || 'log',
+            message,
+            timestamp: Date.now(),
+            source: sourceId,
+            lineNumber: line,
+          }
+
+          logs.push(logEntry)
+
+          // Keep only last MAX_LOGS_PER_BROWSER logs
+          if (logs.length > MAX_LOGS_PER_BROWSER) {
+            logs.shift()
+          }
+
+          consoleLogs.set(browserId, logs)
+
+          // Log to main process console for debugging
+          console.log(`[Browser ${browserId}] ${logEntry.level.toUpperCase()}: ${message}`)
+        })
 
         // Load URL
         await webContentsView.webContents.loadURL(url)
@@ -194,6 +235,54 @@ export function registerBrowserHandlers(): void {
     }
   )
 
+  // Get console logs for a browser
+  ipcMain.handle(
+    'browser:get-console-logs',
+    async (
+      event,
+      browserId: string
+    ): Promise<{ success: boolean; logs?: ConsoleLog[]; error?: string }> => {
+      try {
+        const logs = consoleLogs.get(browserId) || []
+        console.log(`[BrowserHandlers] Retrieved ${logs.length} console logs for browser ${browserId}`)
+        return { success: true, logs }
+      } catch (error: any) {
+        console.error(`[BrowserHandlers] Error getting console logs for browser ${browserId}:`, error)
+        return { success: false, error: error.message }
+      }
+    }
+  )
+
+  // Clear console logs for a browser
+  ipcMain.handle(
+    'browser:clear-console-logs',
+    async (event, browserId: string): Promise<{ success: boolean; error?: string }> => {
+      try {
+        consoleLogs.set(browserId, [])
+        console.log(`[BrowserHandlers] Cleared console logs for browser ${browserId}`)
+        return { success: true }
+      } catch (error: any) {
+        console.error(`[BrowserHandlers] Error clearing console logs for browser ${browserId}:`, error)
+        return { success: false, error: error.message }
+      }
+    }
+  )
+
+  // List all active browser IDs
+  ipcMain.handle(
+    'browser:list',
+    async (event): Promise<{ success: boolean; browserIds?: string[]; error?: string }> => {
+      try {
+        const browserIds = Array.from(browserViews.keys())
+        console.log(`[BrowserHandlers] Listed ${browserIds.length} active browsers`)
+        return { success: true, browserIds }
+      } catch (error: any) {
+        console.error(`[BrowserHandlers] Error listing browsers:`, error)
+        return { success: false, error: error.message }
+      }
+    }
+  )
+
   console.log('[BrowserHandlers] Browser handlers registered')
 }
 
@@ -213,8 +302,9 @@ async function destroyBrowser(browserId: string): Promise<void> {
       mainWindowRef.contentView.removeChildView(view)
     }
 
-    // Remove from map
+    // Remove from maps
     browserViews.delete(browserId)
+    consoleLogs.delete(browserId)
 
     console.log(`[BrowserHandlers] Browser ${browserId} destroyed successfully`)
   } catch (error: any) {
@@ -240,5 +330,6 @@ export function cleanupBrowserViews(): void {
   }
 
   browserViews.clear()
+  consoleLogs.clear()
   console.log('[BrowserHandlers] All browser views cleaned up')
 }
