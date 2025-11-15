@@ -274,13 +274,10 @@ const ChatPanelInner: React.FC<ChatPanelProps> = ({
     onConversationChange?.(conversationId);
   }, [conversationId]);
 
-  // Load todos when conversation changes
-  useEffect(() => {
-    if (conversationId && currentConversationPlanId) {
-      console.log('[ChatPanel] Loading todos for conversation:', conversationId);
-      loadTodos(conversationId);
-    }
-  }, [conversationId, currentConversationPlanId, loadTodos]);
+  // NOTE: Todo loading is now handled by TodoProvider based on currentConversationPlanId
+  // TodoProvider receives: currentConversationPlanId ? conversationId : undefined
+  // - If planId exists: loads todos for conversationId
+  // - If planId is null: clears todos (conversationId = undefined)
 
   // parseFileChanges removed - now handled by FileChangeDetector service
   // handleCopyMessage is now provided by useCopyMessage hook
@@ -1796,7 +1793,8 @@ The plan is ready. What would you like to do?`,
   // Auto-scroll is disabled - users can manually scroll using the "Scroll to Bottom" button
 
   return (
-    <div className="h-full bg-card relative">
+    <TodoProvider conversationId={currentConversationPlanId ? conversationId : undefined}>
+      <div className="h-full bg-card relative">
       {/* Messages Area - with space for floating input */}
       <div
         ref={scrollContainerRef}
@@ -1940,17 +1938,14 @@ The plan is ready. What would you like to do?`,
         onConfirm={handleTodoConfirm}
         onCancel={handleTodoCancel}
       />
-    </div>
+      </div>
+    </TodoProvider>
   );
 };
 
-// Wrapper component with TodoProvider
+// Wrapper component
 const ChatPanel: React.FC<ChatPanelProps> = (props) => {
-  return (
-    <TodoProvider conversationId={undefined}>
-      <ChatPanelInner {...props} />
-    </TodoProvider>
-  );
+  return <ChatPanelInner {...props} />;
 };
 
 export { ChatPanel };
