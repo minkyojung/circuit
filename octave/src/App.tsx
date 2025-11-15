@@ -8,6 +8,7 @@ import { ChatPanelRenderer } from "@/components/panels/ChatPanelRenderer"
 import { EditorPanelRenderer } from "@/components/panels/EditorPanelRenderer"
 import { SettingsPanelRenderer } from "@/components/panels/SettingsPanelRenderer"
 import { ModifiedFileRenderer } from "@/components/panels/ModifiedFileRenderer"
+import { SimpleBrowserTab } from "@/components/browser/SimpleBrowserTab"
 import { QuickOpenSearch } from "@/components/QuickOpenSearch"
 import {
   Breadcrumb,
@@ -62,7 +63,7 @@ import { Toaster, toast } from 'sonner'
 import { FEATURES } from '@/config/features'
 import { useEditorGroups } from '@/hooks/useEditorGroups'
 import { useWorkspaceContext } from '@/hooks/useWorkspaceContext'
-import { createConversationTab, createFileTab, createModifiedFileTab, createSettingsTab } from '@/types/editor'
+import { createConversationTab, createFileTab, createModifiedFileTab, createSettingsTab, createBrowserTab } from '@/types/editor'
 import type { Tab } from '@/types/editor'
 import { getFileName } from '@/lib/fileUtils'
 import { EditorGroupPanel } from '@/components/editor'
@@ -427,6 +428,24 @@ function App() {
     }
   }, [activeConversationId, selectedWorkspace, openTab, focusedGroupId])
 
+  // ============================================================================
+  // TEST: Auto-create browser tab for quick validation
+  // ============================================================================
+  useEffect(() => {
+    if (!selectedWorkspace) return
+
+    // Check if a browser tab already exists
+    const allTabs = getAllTabs()
+    const hasBrowserTab = allTabs.some(tab => tab.type === 'browser')
+
+    if (!hasBrowserTab) {
+      // Create a test browser tab pointing to localhost:3000
+      const browserTab = createBrowserTab('http://localhost:3000', selectedWorkspace.id)
+      openTab(browserTab, focusedGroupId)
+      console.log('[App] Test browser tab created: localhost:3000')
+    }
+  }, [selectedWorkspace, openTab, focusedGroupId, getAllTabs])
+
   // File navigation (extracted to custom hook)
   const {
     handleFileSelect,
@@ -506,6 +525,10 @@ function App() {
       modifiedFileData={modifiedFileData}
       workspacePath={selectedWorkspace.path}
     />
+  )
+
+  const renderBrowserPanel = (url: string, browserId: string, isActive: boolean) => (
+    <SimpleBrowserTab browserId={browserId} url={url} isActive={isActive} />
   )
 
   // Toggle right sidebar with localStorage persistence
@@ -997,6 +1020,7 @@ function App() {
                         renderFile={renderEditorPanel}
                         renderModifiedFile={renderModifiedFilePanel}
                         renderSettings={renderSettingsPanel}
+                        renderBrowser={renderBrowserPanel}
                       />
                     </ResizablePanel>
                   </ResizablePanelGroup>
@@ -1030,6 +1054,7 @@ function App() {
                         renderFile={renderEditorPanel}
                         renderModifiedFile={renderModifiedFilePanel}
                         renderSettings={renderSettingsPanel}
+                        renderBrowser={renderBrowserPanel}
                       />
                     </ResizablePanel>
                   </ResizablePanelGroup>

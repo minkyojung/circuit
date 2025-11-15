@@ -652,6 +652,12 @@ app.whenReady().then(async () => {
     const { registerFileSystemHandlers } = require('../dist-electron/fileSystemHandlers.js');
     registerFileSystemHandlers();
     console.log('[main.cjs] ✅ File system handlers registered successfully');
+
+    // Register browser handlers
+    console.log('[main.cjs] Registering browser handlers...');
+    const { registerBrowserHandlers } = require('../dist-electron/browserHandlers.js');
+    registerBrowserHandlers();
+    console.log('[main.cjs] ✅ Browser handlers registered successfully');
   } catch (error) {
     console.error('[main.cjs] ❌ CRITICAL: Failed to register handlers:', error);
     console.error('[main.cjs] Error stack:', error.stack);
@@ -659,6 +665,12 @@ app.whenReady().then(async () => {
 
   console.log('[main.cjs] Creating windows...');
   createWindow();
+
+  // Initialize browser handlers with main window
+  console.log('[main.cjs] Initializing browser handlers...');
+  const { initializeBrowserHandlers } = require('../dist-electron/browserHandlers.js');
+  initializeBrowserHandlers(mainWindow);
+  console.log('[main.cjs] ✅ Browser handlers initialized');
 
   // Initialize auto-updater
   console.log('[main.cjs] Initializing auto-updater...');
@@ -3286,6 +3298,10 @@ app.on('before-quit', async () => {
     const apiServer = await getAPIServerInstance();
     await apiServer.stop();
     console.log('Circuit API Server stopped');
+
+    // Cleanup browser views
+    const { cleanupBrowserViews } = require('../dist-electron/browserHandlers.js');
+    cleanupBrowserViews();
 
     // Cleanup MCP manager
     const manager = await getMCPManagerInstance();

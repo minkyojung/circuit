@@ -8,7 +8,7 @@
 
 import { useMemo } from 'react'
 import type { EditorGroup, Tab, ModifiedFileTabData } from '@/types/editor'
-import { isConversationTab, isFileTab, isModifiedFileTab, isSettingsTab } from '@/types/editor'
+import { isConversationTab, isFileTab, isModifiedFileTab, isSettingsTab, isBrowserTab } from '@/types/editor'
 import { UniversalTabBar } from './UniversalTabBar'
 import { cn } from '@/lib/utils'
 
@@ -30,6 +30,7 @@ interface EditorGroupPanelProps {
   renderFile?: (filePath: string) => React.ReactNode
   renderModifiedFile?: (modifiedFileData: ModifiedFileTabData) => React.ReactNode
   renderSettings?: () => React.ReactNode
+  renderBrowser?: (url: string, browserId: string, isActive: boolean) => React.ReactNode
   renderEmpty?: () => React.ReactNode
 
   // Optional styling
@@ -51,6 +52,7 @@ export function EditorGroupPanel({
   renderFile,
   renderModifiedFile,
   renderSettings,
+  renderBrowser,
   renderEmpty,
   className,
 }: EditorGroupPanelProps) {
@@ -79,6 +81,9 @@ export function EditorGroupPanel({
       // Settings tabs are visible
       if (isSettingsTab(tab)) return true
 
+      // Browser tabs are visible
+      if (isBrowserTab(tab)) return true
+
       // Default: show tab
       return true
     })
@@ -89,6 +94,11 @@ export function EditorGroupPanel({
     if (!group.activeTabId) return null
     return visibleTabs.find((t) => t.id === group.activeTabId) || null
   }, [visibleTabs, group.activeTabId])
+
+  // Get all browser tabs (keep them mounted for WebContentsView persistence)
+  const browserTabs = useMemo(() => {
+    return visibleTabs.filter(isBrowserTab)
+  }, [visibleTabs])
 
   // Render content based on active tab type
   const renderContent = () => {
@@ -154,6 +164,11 @@ export function EditorGroupPanel({
       return renderSettings()
     }
 
+    // Browser tab - handled separately (always mounted)
+    if (isBrowserTab(activeTab)) {
+      return null // Browser tabs are rendered separately below
+    }
+
     // Unknown tab type (should never reach here)
     return (
       <div className="flex-1 flex items-center justify-center text-muted-foreground">
@@ -187,8 +202,32 @@ export function EditorGroupPanel({
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 min-h-0">
-        {renderContent()}
+      <div className="flex-1 min-h-0 relative">
+        {/* Non-browser active tab content */}
+        {activeTab && !isBrowserTab(activeTab) && (
+          <div className="h-full w-full">
+            {renderContent()}
+          </div>
+        )}
+
+        {/* All browser tabs (always mounted for WebContentsView persistence) */}
+        {browserTabs.map((tab) => (
+          <div
+            key={tab.id}
+            className="h-full w-full absolute inset-0 flex flex-col"
+            style={{
+              display: tab.id === group.activeTabId ? 'flex' : 'none',
+            }}
+          >
+            {renderBrowser ? (
+              renderBrowser(tab.data.url, tab.id, tab.id === group.activeTabId)
+            ) : (
+              <div className="flex-1 flex items-center justify-center text-muted-foreground">
+                <p>Browser renderer not provided</p>
+              </div>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   )

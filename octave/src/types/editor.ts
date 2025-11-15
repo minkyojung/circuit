@@ -8,7 +8,7 @@
 // Tab Types
 // ============================================================================
 
-export type TabType = 'conversation' | 'file' | 'settings' | 'modified-file'
+export type TabType = 'conversation' | 'file' | 'settings' | 'modified-file' | 'browser'
 
 // Conversation-specific data
 export interface ConversationTabData {
@@ -49,6 +49,13 @@ export interface SettingsTabData {
   // No additional data needed for settings tab
 }
 
+// Browser-specific data
+export interface BrowserTabData {
+  url: string              // The URL to display (e.g., "http://localhost:3000")
+  workspaceId?: string     // Optional workspace association
+  title?: string           // Page title (updated dynamically)
+}
+
 // Base tab interface
 export interface BaseTab {
   id: string
@@ -80,8 +87,14 @@ export interface SettingsTab extends BaseTab {
   data: SettingsTabData
 }
 
+// Browser tab
+export interface BrowserTab extends BaseTab {
+  type: 'browser'
+  data: BrowserTabData
+}
+
 // Union type for all tabs
-export type Tab = ConversationTab | FileTab | ModifiedFileTab | SettingsTab
+export type Tab = ConversationTab | FileTab | ModifiedFileTab | SettingsTab | BrowserTab
 
 // ============================================================================
 // Editor Group Types
@@ -139,6 +152,10 @@ export function isModifiedFileTab(tab: Tab): tab is ModifiedFileTab {
 
 export function isSettingsTab(tab: Tab): tab is SettingsTab {
   return tab.type === 'settings'
+}
+
+export function isBrowserTab(tab: Tab): tab is BrowserTab {
+  return tab.type === 'browser'
 }
 
 // ============================================================================
@@ -203,6 +220,39 @@ export function createSettingsTab(): SettingsTab {
     type: 'settings',
     title: 'Settings',
     data: {},
+  }
+}
+
+/**
+ * Create a browser tab
+ *
+ * @param url - The URL to display (e.g., "http://localhost:3000")
+ * @param workspaceId - Optional workspace identifier
+ * @param title - Display title (defaults to URL hostname)
+ */
+export function createBrowserTab(
+  url: string,
+  workspaceId?: string,
+  title?: string
+): BrowserTab {
+  // Extract hostname from URL for default title
+  let defaultTitle = 'Browser'
+  try {
+    const urlObj = new URL(url)
+    defaultTitle = urlObj.hostname + (urlObj.port ? `:${urlObj.port}` : '')
+  } catch {
+    defaultTitle = url
+  }
+
+  return {
+    id: `browser-${Date.now()}`,
+    type: 'browser',
+    title: title || defaultTitle,
+    data: {
+      url,
+      workspaceId,
+      title: title || defaultTitle,
+    },
   }
 }
 
