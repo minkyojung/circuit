@@ -24,6 +24,7 @@ interface EditorGroupPanelProps {
   onTabDragEnd?: () => void
   onTabDrop?: (tabId: string, targetIndex?: number) => void
   onCreateConversation?: () => void
+  onCreateBrowser?: () => void
 
   // Content renderers
   renderConversation?: (conversationId: string, workspaceId: string) => React.ReactNode
@@ -48,6 +49,7 @@ export function EditorGroupPanel({
   onTabDragEnd,
   onTabDrop,
   onCreateConversation,
+  onCreateBrowser,
   renderConversation,
   renderFile,
   renderModifiedFile,
@@ -197,6 +199,7 @@ export function EditorGroupPanel({
           onTabDragEnd={onTabDragEnd}
           onTabDrop={handleTabDrop}
           onCreateConversation={onCreateConversation}
+          onCreateBrowser={onCreateBrowser}
           showCreateButton={!!currentWorkspaceId}
         />
       </div>

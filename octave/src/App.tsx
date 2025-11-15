@@ -367,6 +367,23 @@ function App() {
   })
 
   // ============================================================================
+  // Browser tab creation
+  // ============================================================================
+  const handleCreateBrowser = useCallback(() => {
+    if (!selectedWorkspace) {
+      console.warn('[App] Cannot create browser: no workspace selected')
+      return
+    }
+
+    // Create browser tab with default URL
+    // User can change URL in the browser's address bar
+    const url = 'http://localhost:3000'
+    const browserTab = createBrowserTab(url, selectedWorkspace.id)
+    openTab(browserTab, focusedGroupId)
+    console.log('[App] Browser tab created:', url)
+  }, [selectedWorkspace, openTab, focusedGroupId])
+
+  // ============================================================================
   // Auto-create modified-file tabs when AI edits files
   // ============================================================================
   useEffect(() => {
@@ -430,21 +447,20 @@ function App() {
 
   // ============================================================================
   // TEST: Auto-create browser tab for quick validation
+  // DISABLED: Only create browser tab when explicitly requested by user
   // ============================================================================
-  useEffect(() => {
-    if (!selectedWorkspace) return
-
-    // Check if a browser tab already exists
-    const allTabs = getAllTabs()
-    const hasBrowserTab = allTabs.some(tab => tab.type === 'browser')
-
-    if (!hasBrowserTab) {
-      // Create a test browser tab pointing to localhost:3000
-      const browserTab = createBrowserTab('http://localhost:3000', selectedWorkspace.id)
-      openTab(browserTab, focusedGroupId)
-      console.log('[App] Test browser tab created: localhost:3000')
-    }
-  }, [selectedWorkspace, openTab, focusedGroupId, getAllTabs])
+  // useEffect(() => {
+  //   if (!selectedWorkspace) return
+  //   // Check if a browser tab already exists
+  //   const allTabs = getAllTabs()
+  //   const hasBrowserTab = allTabs.some(tab => tab.type === 'browser')
+  //   if (!hasBrowserTab) {
+  //     // Create a test browser tab pointing to localhost:3000
+  //     const browserTab = createBrowserTab('http://localhost:3000', selectedWorkspace.id)
+  //     openTab(browserTab, focusedGroupId)
+  //     console.log('[App] Test browser tab created: localhost:3000')
+  //   }
+  // }, [selectedWorkspace, openTab, focusedGroupId, getAllTabs])
 
   // File navigation (extracted to custom hook)
   const {
@@ -1038,6 +1054,7 @@ function App() {
                         onTabDragStart={(tabId, sourceGroupId) => handleTabDragStart(tabId, sourceGroupId)}
                         onTabDragEnd={handleTabDragEnd}
                         onTabDrop={(tabId, targetIndex) => handleTabDrop(SECONDARY_GROUP_ID, targetIndex)}
+                        onCreateBrowser={handleCreateBrowser}
                         renderFile={renderEditorPanel}
                         renderModifiedFile={renderModifiedFilePanel}
                         renderSettings={renderSettingsPanel}
@@ -1072,6 +1089,7 @@ function App() {
                         onFocus={() => setFocusedGroupId(DEFAULT_GROUP_ID)}
                         onTabClick={(tabId) => handleTabClick(tabId, DEFAULT_GROUP_ID)}
                         onTabClose={(tabId) => handleTabClose(tabId, DEFAULT_GROUP_ID)}
+                        onCreateBrowser={handleCreateBrowser}
                         renderFile={renderEditorPanel}
                         renderModifiedFile={renderModifiedFilePanel}
                         renderSettings={renderSettingsPanel}

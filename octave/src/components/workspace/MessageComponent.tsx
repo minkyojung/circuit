@@ -87,7 +87,7 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
         <div
           className={`max-w-[75%] ${
             msg.role === 'user'
-              ? 'bg-muted/30 px-3 py-2 rounded-xl border border-border/50'
+              ? 'bg-muted/30 px-3 py-2 rounded-xl'
               : ''
           }`}
         >
@@ -109,7 +109,7 @@ const MessageComponentInner: React.FC<MessageComponentProps> = ({
       <div
         className={`max-w-[75%] ${
           msg.role === 'user'
-            ? 'bg-muted/30 px-3 py-2 rounded-xl border border-border/50'
+            ? 'bg-muted/30 px-3 py-2 rounded-xl'
             : parsedPlan
             ? 'bg-primary/5 px-4 py-3 rounded-xl border border-primary/20'
             : ''

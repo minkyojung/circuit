@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { RefreshCw, ExternalLink } from 'lucide-react'
+import { RefreshCw, Lock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface SimpleBrowserTabProps {
@@ -19,7 +19,7 @@ interface SimpleBrowserTabProps {
  */
 export function SimpleBrowserTab({ browserId, url, isActive = true, onUrlChange }: SimpleBrowserTabProps) {
   const [inputUrl, setInputUrl] = useState(url)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
   const [hasError, setHasError] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const toolbarRef = useRef<HTMLDivElement>(null)
@@ -49,8 +49,8 @@ export function SimpleBrowserTab({ browserId, url, isActive = true, onUrlChange 
         setIsLoading(false)
         console.log(`[SimpleBrowserTab] Browser created: ${browserId}`)
 
-        // Update bounds after creation
-        updateBrowserBounds()
+        // Update bounds after creation (with delay to ensure toolbar is rendered)
+        setTimeout(() => updateBrowserBounds(), 100)
       } catch (error) {
         console.error('[SimpleBrowserTab] Error creating browser:', error)
         setHasError(true)
@@ -76,24 +76,33 @@ export function SimpleBrowserTab({ browserId, url, isActive = true, onUrlChange 
     const ipcRenderer = (window as any).electron?.ipcRenderer
     if (!ipcRenderer) return
 
-    // Get parent container's bounds (actual content area)
-    const parentRect = containerRef.current.parentElement?.getBoundingClientRect()
+    // Get container's bounds (SimpleBrowserTab div itself, NOT parent)
+    const containerRect = containerRef.current.getBoundingClientRect()
     const toolbarRect = toolbarRef.current.getBoundingClientRect()
 
-    if (!parentRect) {
-      console.warn('[SimpleBrowserTab] Parent element not found for bounds calculation')
-      return
-    }
-
-    // Calculate bounds using parent's dimensions (actual content area)
+    // Calculate bounds: WebContentsView should fill the container BELOW the toolbar
     const bounds = {
-      x: Math.round(parentRect.left),
+      x: Math.round(containerRect.left),
       y: Math.round(toolbarRect.bottom), // Start after toolbar
-      width: Math.round(parentRect.width),
-      height: Math.round(parentRect.height - toolbarRect.height),
+      width: Math.round(containerRect.width),
+      height: Math.round(containerRect.bottom - toolbarRect.bottom), // From toolbar bottom to container bottom
     }
 
-    console.log(`[SimpleBrowserTab] Updating bounds for ${browserId}:`, bounds)
+    console.log(`[SimpleBrowserTab] Updating bounds for ${browserId}:`, {
+      containerRect: {
+        left: containerRect.left,
+        top: containerRect.top,
+        width: containerRect.width,
+        height: containerRect.height,
+        bottom: containerRect.bottom
+      },
+      toolbarRect: {
+        top: toolbarRect.top,
+        bottom: toolbarRect.bottom,
+        height: toolbarRect.height
+      },
+      calculatedBounds: bounds
+    })
 
     ipcRenderer.invoke('browser:set-bounds', browserId, bounds).catch((err: any) => {
       console.error('[SimpleBrowserTab] Error setting bounds:', err)
@@ -190,75 +199,84 @@ export function SimpleBrowserTab({ browserId, url, isActive = true, onUrlChange 
     }
   }
 
+  // Check if URL is HTTPS
+  const isSecure = inputUrl.startsWith('https://')
+
   return (
-    <div ref={containerRef} className="flex flex-col h-full bg-background">
-      {/* Browser Toolbar */}
-      <div ref={toolbarRef} className="flex items-center gap-2 p-2 border-b border-border bg-muted/30">
-        {/* Refresh Button */}
-        <button
-          onClick={handleRefresh}
-          disabled={isLoading}
-          className="p-1.5 rounded hover:bg-secondary disabled:opacity-50 transition-colors"
-          title="Refresh"
+    <div ref={containerRef} className="flex flex-col h-full bg-white dark:bg-white">
+      {/* Browser Toolbar - Minimalist Design */}
+      <div
+        ref={toolbarRef}
+        className="flex items-center gap-3 px-4 py-2.5 relative"
+        style={{ backgroundColor: '#f5f5f5', zIndex: 1000 }}
+      >
+        {/* URL Input Container - Full width with lock icon and refresh */}
+        <div
+          className="flex items-center gap-2 flex-1 px-3 py-1.5 rounded-lg transition-colors"
+          style={{ backgroundColor: '#ffffff' }}
+          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#fafafa'}
+          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#ffffff'}
         >
-          <RefreshCw
-            size={16}
-            className={cn(
-              'text-muted-foreground',
-              isLoading && 'animate-spin'
-            )}
+          {/* Lock Icon (for HTTPS) */}
+          {isSecure && (
+            <Lock
+              size={14}
+              className="flex-shrink-0"
+              style={{ color: '#9ca3af' }}
+            />
+          )}
+
+          {/* URL Input - SF Pro Regular */}
+          <input
+            type="text"
+            value={inputUrl}
+            onChange={(e) => setInputUrl(e.target.value)}
+            onKeyDown={handleKeyDown}
+            className="flex-1 text-sm border-none focus:outline-none transition-colors bg-transparent"
+            placeholder="Search or enter website name"
+            style={{
+              fontFamily: '-apple-system, "SF Pro", system-ui, sans-serif',
+              fontWeight: 400,
+              color: '#6b7280'
+            }}
+            onFocus={(e) => e.currentTarget.style.color = '#111827'}
+            onBlur={(e) => e.currentTarget.style.color = '#6b7280'}
           />
-        </button>
 
-        {/* URL Input */}
-        <input
-          type="text"
-          value={inputUrl}
-          onChange={(e) => setInputUrl(e.target.value)}
-          onKeyDown={handleKeyDown}
-          className="flex-1 px-3 py-1.5 text-sm bg-background rounded border border-border focus:outline-none focus:ring-2 focus:ring-primary transition-all"
-          placeholder="https://example.com"
-        />
-
-        {/* Open in External Browser */}
-        <button
-          onClick={handleExternalOpen}
-          className="p-1.5 rounded hover:bg-secondary transition-colors"
-          title="Open in external browser"
-        >
-          <ExternalLink size={16} className="text-muted-foreground" />
-        </button>
-      </div>
-
-      {/* Error State */}
-      {hasError && (
-        <div className="flex items-center gap-2 p-3 bg-destructive/10 text-destructive text-sm border-b border-destructive/20">
-          <span className="font-medium">⚠ Failed to load</span>
-          <span className="text-muted-foreground">{inputUrl}</span>
+          {/* Refresh Button */}
           <button
-            onClick={handleNavigate}
-            className="ml-auto px-3 py-1 text-xs bg-destructive/20 hover:bg-destructive/30 rounded transition-colors"
+            onClick={handleRefresh}
+            disabled={isLoading}
+            className="p-1 rounded-md disabled:opacity-50 transition-colors flex-shrink-0"
+            title="Refresh"
+            style={{ color: '#9ca3af' }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
           >
-            Retry
+            <RefreshCw
+              size={16}
+              className={cn(isLoading && 'animate-spin')}
+            />
           </button>
         </div>
-      )}
-
-      {/* Loading State */}
-      {isLoading && !hasError && (
-        <div className="flex items-center gap-2 p-2 bg-blue-500/10 text-blue-600 text-sm border-b border-blue-500/20">
-          <RefreshCw size={14} className="animate-spin" />
-          <span>Loading...</span>
-        </div>
-      )}
+      </div>
 
       {/* Browser Content Area (WebContentsView will be positioned here) */}
-      <div className="flex-1 relative bg-white">
-        {/* Placeholder - WebContentsView is managed by Electron Main Process */}
-        <div className="absolute inset-0 flex items-center justify-center text-muted-foreground text-sm">
-          {isLoading && !hasError && 'Initializing browser...'}
-          {hasError && 'Browser initialization failed'}
-        </div>
+      <div className="flex-1 relative bg-white" style={{ minHeight: '200px' }}>
+        {/* Error State - Minimal */}
+        {hasError && (
+          <div className="absolute inset-0 flex items-center justify-center bg-background">
+            <div className="text-center space-y-3">
+              <p className="text-sm text-muted-foreground">Failed to load {inputUrl}</p>
+              <button
+                onClick={handleNavigate}
+                className="px-4 py-2 text-sm bg-primary/10 hover:bg-primary/20 text-primary rounded-lg transition-colors"
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

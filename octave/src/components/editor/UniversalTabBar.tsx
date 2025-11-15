@@ -6,7 +6,7 @@
  */
 
 import { useState } from 'react'
-import { X, Circle, MessageCircle, Plus, Settings, FileCode } from 'lucide-react'
+import { X, Circle, MessageCircle, Plus, Settings, FileCode, Globe } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Tab, ConversationTab, FileTab } from '@/types/editor'
 import { isConversationTab, isFileTab, isModifiedFileTab, isSettingsTab } from '@/types/editor'
@@ -67,6 +67,7 @@ interface UniversalTabBarProps {
   onTabDragEnd?: () => void
   onTabDrop?: (tabId: string, targetGroupId: string, targetIndex?: number) => void
   onCreateConversation?: () => void
+  onCreateBrowser?: () => void
   showCreateButton?: boolean
 }
 
@@ -84,6 +85,7 @@ export function UniversalTabBar({
   onTabDragEnd,
   onTabDrop,
   onCreateConversation,
+  onCreateBrowser,
   showCreateButton = false,
 }: UniversalTabBarProps) {
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
@@ -124,12 +126,6 @@ export function UniversalTabBar({
     }
   }
 
-  if (tabs.length === 0) {
-    return (
-      <div className="flex items-center h-10 bg-card px-2 py-1" />
-    )
-  }
-
   return (
     <div
       className="flex items-center gap-0 overflow-x-auto scrollbar-thin border-b border-border bg-card px-2 py-1"
@@ -164,6 +160,23 @@ export function UniversalTabBar({
           title="New conversation (Cmd+T)"
         >
           <Plus size={16} className="group-hover:scale-110 transition-transform" />
+        </button>
+      )}
+
+      {/* New Browser Button */}
+      {showCreateButton && onCreateBrowser && (
+        <button
+          onClick={onCreateBrowser}
+          className={cn(
+            "ml-1 flex items-center justify-center",
+            "w-7 h-7 rounded-md transition-all flex-shrink-0",
+            "text-muted-foreground hover:text-foreground",
+            "hover:bg-secondary/50",
+            "group"
+          )}
+          title="Open browser (Cmd+B)"
+        >
+          <Globe size={16} className="group-hover:scale-110 transition-transform" />
         </button>
       )}
     </div>
