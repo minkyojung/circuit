@@ -516,7 +516,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             onPaste={handlePaste}
             placeholder={placeholder}
             disabled={disabled}
-            className={`w-full ${INPUT_STYLES.textarea.padding} bg-transparent border-none outline-none resize-none leading-relaxed text-card-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-0 ${INPUT_STYLES.textarea.fontSize} ${INPUT_STYLES.textarea.minHeight}`}
+            className={`w-full ${INPUT_STYLES.textarea.padding} bg-transparent border-none outline-none resize-none leading-relaxed text-card-foreground placeholder:[color:#9A9A9A] focus:outline-none focus:ring-0 ${INPUT_STYLES.textarea.fontSize} ${INPUT_STYLES.textarea.minHeight}`}
             rows={1}
             style={{ maxHeight: '200px' }}
           />

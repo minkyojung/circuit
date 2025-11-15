@@ -5,7 +5,8 @@
  */
 
 import React, { useState } from 'react'
-import { Circle, Clock, Check, X, AlertCircle, ChevronDown, ChevronRight, Play, SkipForward, Edit2, Trash2, Copy, PlayCircle, ListChecks } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Square, Clock, Check, X, AlertCircle, ChevronRight, Play, SkipForward, Edit2, Trash2, Copy } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Todo } from '@/types/todo'
 import {
@@ -15,7 +16,6 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
-import { Button } from '@/components/ui/button'
 
 interface TodoQueueProps {
   todos: Todo[]
@@ -32,7 +32,7 @@ interface TodoQueueProps {
 
 // AI SDK Queue-style primitives
 const Queue = ({ children, className }: { children: React.ReactNode; className?: string }) => (
-  <div className={cn("border border-border rounded-lg bg-sidebar/50 my-2", className)}>
+  <div className={cn("border border-border rounded-t-lg bg-card my-2", className)}>
     {children}
   </div>
 )
@@ -75,15 +75,16 @@ const QueueHeader = ({
   setIsOpen?: (open: boolean) => void;
 }) => (
   <div
-    className="flex items-center justify-between p-3 cursor-pointer hover:bg-secondary/20 transition-colors"
+    className="flex items-center justify-between p-2 cursor-pointer hover:bg-secondary/20 transition-colors"
     onClick={() => setIsOpen?.(!isOpen)}
   >
-    <div className="flex items-center gap-2 flex-1">
-      {isOpen ? (
-        <ChevronDown size={16} className="text-muted-foreground shrink-0" />
-      ) : (
-        <ChevronRight size={16} className="text-muted-foreground shrink-0" />
-      )}
+    <div className="flex items-center gap-1 flex-1">
+      <motion.div
+        animate={{ rotate: isOpen ? 90 : 0 }}
+        transition={{ duration: 0.2, ease: 'easeInOut' }}
+      >
+        <ChevronRight size={14} className="text-muted-foreground shrink-0" />
+      </motion.div>
       {children}
     </div>
   </div>
@@ -96,8 +97,21 @@ const QueueList = ({
   children: React.ReactNode;
   isOpen?: boolean;
 }) => {
-  if (!isOpen) return null
-  return <ul className="space-y-1.5 px-4 pb-4">{children}</ul>
+  return (
+    <AnimatePresence initial={false}>
+      {isOpen && (
+        <motion.ul
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: 'auto', opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          transition={{ duration: 0.2, ease: 'easeInOut' }}
+          className="space-y-2 px-2 pb-3 max-h-[100px] overflow-y-auto overflow-hidden"
+        >
+          {children}
+        </motion.ul>
+      )}
+    </AnimatePresence>
+  )
 }
 
 const QueueItem = ({
@@ -114,9 +128,8 @@ const QueueItem = ({
   const itemContent = (
     <li
       className={cn(
-        "flex items-start gap-2 text-sm p-2 rounded transition-colors",
-        clickable && "hover:bg-sidebar/80 cursor-pointer",
-        !clickable && "hover:bg-sidebar/50"
+        "group flex items-start gap-2 text-xs py-2.5 rounded transition-colors hover:bg-secondary/10",
+        clickable && "cursor-pointer hover:bg-secondary/20"
       )}
       onClick={clickable ? onClick : undefined}
     >
@@ -143,15 +156,15 @@ const QueueItemIndicator = ({ status }: { status: Todo['status'] }) => {
   const getIcon = () => {
     switch (status) {
       case 'pending':
-        return <Circle size={14} className="text-muted-foreground mt-0.5 shrink-0" />
+        return <div className="w-[13px] h-[13px] border border-muted-foreground group-hover:border-foreground rounded-[4px] shrink-0 transition-colors" />
       case 'in_progress':
-        return <Clock size={14} className="text-blue-500 mt-0.5 animate-pulse shrink-0" />
+        return <Clock size={13} className="text-blue-500 group-hover:text-blue-400 shrink-0 animate-pulse transition-colors" />
       case 'completed':
-        return <Check size={14} className="text-green-500 mt-0.5 shrink-0" />
+        return <Check size={13} className="text-green-500 group-hover:text-green-400 shrink-0 transition-colors" />
       case 'failed':
-        return <X size={14} className="text-red-500 mt-0.5 shrink-0" />
+        return <X size={13} className="text-red-500 group-hover:text-red-400 shrink-0 transition-colors" />
       case 'skipped':
-        return <AlertCircle size={14} className="text-yellow-500 mt-0.5 shrink-0" />
+        return <AlertCircle size={13} className="text-yellow-500 group-hover:text-yellow-400 shrink-0 transition-colors" />
     }
   }
   return <>{getIcon()}</>
@@ -165,9 +178,8 @@ const QueueItemContent = ({
   status: Todo['status'];
 }) => (
   <span className={cn(
-    'text-foreground',
-    status === 'completed' && 'line-through text-muted-foreground',
-    status === 'in_progress' && 'font-medium'
+    'inline-block text-muted-foreground font-light group-hover:text-foreground transition-colors leading-[14px]',
+    status === 'completed' && 'line-through opacity-60'
   )}>
     {children}
   </span>
@@ -192,6 +204,7 @@ export const TodoQueue: React.FC<TodoQueueProps> = ({
   onExecute1by1,
   isAutoExecuting = false,
 }) => {
+  const [isOpen, setIsOpen] = useState(defaultExpanded)
   const completed = todos.filter(t => t.status === 'completed').length
   const inProgress = todos.filter(t => t.status === 'in_progress').length
   const pending = todos.filter(t => t.status === 'pending').length
@@ -200,91 +213,49 @@ export const TodoQueue: React.FC<TodoQueueProps> = ({
   const isComplete = completed === todos.length
   const hasPendingTodos = pending > 0
 
+  // Sort todos: pending/in_progress first, completed/failed/skipped last
+  const sortedTodos = [...todos].sort((a, b) => {
+    const aIsComplete = a.status === 'completed' || a.status === 'skipped'
+    const bIsComplete = b.status === 'completed' || b.status === 'skipped'
+    if (aIsComplete && !bIsComplete) return 1
+    if (!aIsComplete && bIsComplete) return -1
+    return 0
+  })
+
+  const handleDone = () => {
+    setIsOpen(false)
+  }
+
   return (
     <Queue>
-      <QueueSection defaultOpen={defaultExpanded}>
+      <QueueSection defaultOpen={defaultExpanded} isOpen={isOpen} setIsOpen={setIsOpen}>
         <QueueHeader>
-          {/* Status Icon */}
-          {isComplete ? (
-            <Check size={16} className="text-green-500 shrink-0" />
-          ) : inProgress > 0 ? (
-            <Clock size={16} className="text-blue-500 shrink-0 animate-pulse" />
-          ) : (
-            <Circle size={16} className="text-muted-foreground shrink-0" />
-          )}
-
-          {/* Summary Text */}
-          <span className="text-sm font-medium text-foreground">
-            {isComplete
-              ? `✓ Completed ${todos.length} task${todos.length > 1 ? 's' : ''}`
-              : inProgress > 0
-              ? `Working... (${completed}/${todos.length})`
-              : `${todos.length} task${todos.length > 1 ? 's' : ''} planned`}
+          {/* Summary Text: "n tasks planned" on left, "m/n" on right */}
+          <span className="text-xs font-light text-muted-foreground">
+            {todos.length} task{todos.length === 1 ? '' : 's'} planned
           </span>
-
-          {/* Auto-Execution Buttons */}
-          {hasPendingTodos && !isAutoExecuting && (onExecuteAll || onExecute1by1) && (
-            <div className="flex items-center gap-1 ml-auto mr-2" onClick={(e) => e.stopPropagation()}>
-              {onExecute1by1 && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={onExecute1by1}
-                  className="h-6 px-2 text-xs gap-1"
-                  title="Execute todos one by one with reporting"
-                >
-                  <ListChecks size={14} />
-                  <span className="hidden sm:inline">1 by 1</span>
-                </Button>
-              )}
-              {onExecuteAll && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={onExecuteAll}
-                  className="h-6 px-2 text-xs gap-1"
-                  title="Execute all pending todos automatically"
-                >
-                  <PlayCircle size={14} />
-                  <span className="hidden sm:inline">Execute All</span>
-                </Button>
-              )}
-            </div>
+          {isComplete && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                handleDone()
+              }}
+              className="text-xs font-light text-muted-foreground hover:text-foreground transition-colors ml-auto mr-2"
+            >
+              done
+            </button>
           )}
-
-          {/* Auto-executing indicator */}
-          {isAutoExecuting && (
-            <span className="text-xs text-blue-500 ml-auto mr-2 animate-pulse">
-              Auto-executing...
-            </span>
-          )}
-
-          {/* Progress percentage */}
-          {showProgressBar && (
-            <span className="text-xs text-muted-foreground font-mono">
-              {progress}%
-            </span>
-          )}
+          <span className={cn(
+            "text-xs text-muted-foreground font-light",
+            !isComplete && "ml-auto"
+          )}>
+            {completed}/{todos.length}
+          </span>
         </QueueHeader>
-
-        {/* Progress Bar */}
-        {showProgressBar && (
-          <div className="px-4 pb-3">
-            <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-              <div
-                className={cn(
-                  'h-full transition-all duration-500',
-                  isComplete ? 'bg-green-500' : 'bg-primary'
-                )}
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-          </div>
-        )}
 
         {/* Todo List */}
         <QueueList>
-          {todos.map((todo, idx) => {
+          {sortedTodos.map((todo, idx) => {
             const isPending = todo.status === 'pending'
             const isClickable = isPending && onTodoClick !== undefined
 
@@ -357,7 +328,7 @@ export const TodoQueue: React.FC<TodoQueueProps> = ({
 
         {/* Failed tasks footer */}
         {failed > 0 && (
-          <div className="px-4 pb-3 pt-2 border-t border-border/50">
+          <div className="px-4 pb-3 pt-2.5 border-t border-border/50">
             <span className="text-xs text-red-500">
               {failed} task{failed > 1 ? 's' : ''} failed
             </span>
