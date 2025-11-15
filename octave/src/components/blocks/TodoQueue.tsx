@@ -32,7 +32,7 @@ interface TodoQueueProps {
 
 // AI SDK Queue-style primitives
 const Queue = ({ children, className }: { children: React.ReactNode; className?: string }) => (
-  <div className={cn("border border-border rounded-t-lg bg-card my-2 w-full", className)}>
+  <div className={cn("border border-border rounded-t-lg bg-card my-2 w-[90%]", className)}>
     {children}
   </div>
 )
