@@ -465,7 +465,7 @@ function App() {
     handleWorkspaceSelect,
     handleWorkspaceSelectById,
     workspacesRef,
-    setWorkspacesForShortcuts,
+    setWorkspacesForShortcuts: originalSetWorkspacesForShortcuts,
   } = useWorkspaceNavigation({
     setSelectedWorkspace,
     getAllTabs,
@@ -473,6 +473,27 @@ function App() {
     activateTab,
     openTab,
   })
+
+  // Wrap setWorkspacesForShortcuts to validate selectedWorkspace when workspaces change
+  const setWorkspacesForShortcuts = useCallback((workspaces: Workspace[]) => {
+    // Update workspaces ref
+    originalSetWorkspacesForShortcuts(workspaces)
+
+    // Validate selectedWorkspace against new workspaces list
+    if (selectedWorkspace) {
+      const isValid = workspaces.some(w => w.id === selectedWorkspace.id)
+
+      if (!isValid) {
+        console.log('[App] Selected workspace not found in current repository workspaces, clearing selection:', {
+          selectedWorkspaceId: selectedWorkspace.id,
+          selectedWorkspaceName: selectedWorkspace.name,
+          currentWorkspacesCount: workspaces.length
+        })
+        setSelectedWorkspace(null)
+        setActiveConversationId(null)
+      }
+    }
+  }, [selectedWorkspace, originalSetWorkspacesForShortcuts, setSelectedWorkspace, setActiveConversationId])
 
   // Note: activeConversationId is now managed as state (see line ~232)
   // No longer extracted from tabs since conversation tabs are removed in Phase 2
