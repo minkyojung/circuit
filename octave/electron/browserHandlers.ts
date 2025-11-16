@@ -291,7 +291,7 @@ export function registerBrowserHandlers(): void {
  *
  * This function ensures complete cleanup of WebContentsView resources:
  * 1. Removes view from main window's contentView
- * 2. Explicitly destroys WebContents to free memory
+ * 2. Explicitly closes WebContents to free memory (using documented close() API)
  * 3. Removes references from internal maps
  *
  * Even if errors occur, maps are cleaned to prevent zombie references
@@ -313,11 +313,14 @@ async function destroyBrowser(browserId: string): Promise<void> {
       console.error(`[BrowserHandlers] Cannot remove browser ${browserId}: mainWindowRef or contentView unavailable`)
     }
 
-    // Step 2: Explicitly destroy WebContents to free memory
-    // This is critical to prevent the browser tab from persisting in memory
+    // Step 2: Close WebContents to free memory
+    // webContents.close() is the documented API (available since Electron v15)
+    // This has the same effect as calling window.close() in the page
+    // Note: removeChildView() alone may be sufficient as it triggers automatic cleanup,
+    // but we explicitly close() here to ensure immediate memory release
     if (view.webContents && !view.webContents.isDestroyed()) {
-      console.log(`[BrowserHandlers] Destroying WebContents for browser ${browserId}`)
-      view.webContents.destroy()
+      console.log(`[BrowserHandlers] Closing WebContents for browser ${browserId}`)
+      view.webContents.close()
     }
 
     // Step 3: Remove from internal maps
