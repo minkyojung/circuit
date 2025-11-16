@@ -564,9 +564,57 @@ function App() {
     />
   )
 
-  const renderBrowserPanel = (url: string, browserId: string, isActive: boolean) => (
-    <SimpleBrowserTab browserId={browserId} url={url} isActive={isActive} />
-  )
+  const renderBrowserPanel = (url: string, browserId: string, isActive: boolean) => {
+    // Handle URL changes from the browser tab
+    const handleUrlChange = (newUrl: string) => {
+      // Find which group and tab this belongs to
+      let targetGroupId: string | null = null
+      let currentTab: Tab | null = null
+
+      for (const group of editorGroups) {
+        const tab = group.tabs.find(t => t.id === browserId)
+        if (tab) {
+          targetGroupId = group.id
+          currentTab = tab
+          break
+        }
+      }
+
+      if (!targetGroupId || !currentTab) {
+        console.warn(`[App] Could not find group for browser tab: ${browserId}`)
+        return
+      }
+
+      // Extract hostname from URL for title
+      let newTitle = 'Browser'
+      try {
+        const urlObj = new URL(newUrl)
+        newTitle = urlObj.hostname + (urlObj.port ? `:${urlObj.port}` : '')
+      } catch {
+        newTitle = newUrl
+      }
+
+      // Update tab title and URL, preserving other data fields
+      console.log(`[App] Updating browser tab ${browserId} title to: ${newTitle}`)
+      updateTab(browserId, targetGroupId, {
+        title: newTitle,
+        data: {
+          ...currentTab.data,
+          url: newUrl,
+          title: newTitle
+        }
+      })
+    }
+
+    return (
+      <SimpleBrowserTab
+        browserId={browserId}
+        url={url}
+        isActive={isActive}
+        onUrlChange={handleUrlChange}
+      />
+    )
+  }
 
   // Toggle right sidebar with localStorage persistence
   const toggleRightSidebar = () => {
