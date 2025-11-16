@@ -23,8 +23,10 @@ export function SimpleBrowserTab({ browserId, url, isActive = true, onUrlChange 
   const [hasError, setHasError] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const toolbarRef = useRef<HTMLDivElement>(null)
+  const isInitialMount = useRef(true)
 
-  // Initialize WebContentsView
+  // Effect 1: Browser lifecycle management (only depends on browserId)
+  // Creates browser on mount, destroys on unmount or browserId change
   useEffect(() => {
     const ipcRenderer = (window as any).electron?.ipcRenderer
 
@@ -34,7 +36,7 @@ export function SimpleBrowserTab({ browserId, url, isActive = true, onUrlChange 
       return
     }
 
-    // Create browser view
+    // Create browser view with initial URL
     const createBrowser = async () => {
       try {
         console.log(`[SimpleBrowserTab] Creating browser: ${browserId}`)
@@ -60,14 +62,54 @@ export function SimpleBrowserTab({ browserId, url, isActive = true, onUrlChange 
 
     createBrowser()
 
-    // Cleanup: destroy browser view when component unmounts
+    // Cleanup: destroy browser view when component unmounts or browserId changes
     return () => {
       console.log(`[SimpleBrowserTab] Destroying browser: ${browserId}`)
       ipcRenderer.invoke('browser:destroy', browserId).catch((err: any) => {
         console.error('[SimpleBrowserTab] Error destroying browser:', err)
       })
     }
-  }, [browserId, url])
+  }, [browserId])  // ✅ Only recreate when browserId changes, not URL
+
+  // Effect 2: URL navigation (when URL prop changes externally)
+  // Skips initial mount since browser:create already loads the URL
+  useEffect(() => {
+    // Skip on initial mount - browser:create already loaded the initial URL
+    if (isInitialMount.current) {
+      isInitialMount.current = false
+      return
+    }
+
+    const ipcRenderer = (window as any).electron?.ipcRenderer
+    if (!ipcRenderer || !browserId) return
+
+    // Navigate to new URL without recreating the browser
+    const navigateToUrl = async () => {
+      try {
+        console.log(`[SimpleBrowserTab] Navigating browser ${browserId} to: ${url}`)
+        setIsLoading(true)
+        setHasError(false)
+
+        const result = await ipcRenderer.invoke('browser:navigate', browserId, url)
+
+        if (!result.success) {
+          console.error('[SimpleBrowserTab] Navigation failed:', result.error)
+          setHasError(true)
+        } else {
+          // Update input URL to match the navigated URL
+          setInputUrl(url)
+        }
+
+        setIsLoading(false)
+      } catch (error) {
+        console.error('[SimpleBrowserTab] Error navigating:', error)
+        setHasError(true)
+        setIsLoading(false)
+      }
+    }
+
+    navigateToUrl()
+  }, [url, browserId])  // ✅ Navigate when URL prop changes (without recreation)
 
   // Update browser bounds when container size changes
   const updateBrowserBounds = () => {
