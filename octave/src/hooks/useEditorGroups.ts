@@ -87,10 +87,18 @@ export function useEditorGroups(initialGroups?: EditorGroup[]) {
    * With type-priority: prefers to focus next tab of the same type
    */
   const closeTab = useCallback((tabId: string, groupId: string) => {
+    console.log(`[useEditorGroups] Closing tab: ${tabId} in group: ${groupId}`)
+
     setEditorGroups((prev) => {
       // Find the tab to close and check its type
       const targetGroup = prev.find((g) => g.id === groupId)
       const tabToClose = targetGroup?.tabs.find((t) => t.id === tabId)
+
+      // Debug logging for browser tabs
+      if (tabToClose?.type === 'browser') {
+        console.log(`[useEditorGroups] Closing browser tab: ${tabId}`)
+        console.log(`[useEditorGroups] Browser tab data:`, tabToClose.data)
+      }
 
       // If closing a conversation tab, ensure at least one conversation tab remains
       if (tabToClose?.type === 'conversation') {

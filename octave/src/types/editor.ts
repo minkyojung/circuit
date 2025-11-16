@@ -244,8 +244,12 @@ export function createBrowserTab(
     defaultTitle = url
   }
 
+  // Generate globally unique ID using crypto.randomUUID()
+  // This prevents React key collisions when tabs are created rapidly
+  const uniqueId = crypto.randomUUID()
+
   return {
-    id: `browser-${Date.now()}`,
+    id: `browser-${uniqueId}`,
     type: 'browser',
     title: title || defaultTitle,
     data: {

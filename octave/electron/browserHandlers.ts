@@ -288,27 +288,52 @@ export function registerBrowserHandlers(): void {
 
 /**
  * Helper function to destroy a browser view
+ *
+ * This function ensures complete cleanup of WebContentsView resources:
+ * 1. Removes view from main window's contentView
+ * 2. Explicitly destroys WebContents to free memory
+ * 3. Removes references from internal maps
+ *
+ * Even if errors occur, maps are cleaned to prevent zombie references
  */
 async function destroyBrowser(browserId: string): Promise<void> {
   const view = browserViews.get(browserId)
+
   if (!view) {
-    console.warn(`[BrowserHandlers] Browser ${browserId} not found for destruction`)
+    console.warn(`[BrowserHandlers] Browser ${browserId} not found for destruction (may be already destroyed)`)
     return
   }
 
   try {
-    // Remove from main window
+    // Step 1: Remove from main window's contentView
     if (mainWindowRef && mainWindowRef.contentView) {
+      console.log(`[BrowserHandlers] Removing browser ${browserId} from window's contentView`)
       mainWindowRef.contentView.removeChildView(view)
+    } else {
+      console.error(`[BrowserHandlers] Cannot remove browser ${browserId}: mainWindowRef or contentView unavailable`)
     }
 
-    // Remove from maps
+    // Step 2: Explicitly destroy WebContents to free memory
+    // This is critical to prevent the browser tab from persisting in memory
+    if (view.webContents && !view.webContents.isDestroyed()) {
+      console.log(`[BrowserHandlers] Destroying WebContents for browser ${browserId}`)
+      view.webContents.destroy()
+    }
+
+    // Step 3: Remove from internal maps
     browserViews.delete(browserId)
     consoleLogs.delete(browserId)
 
-    console.log(`[BrowserHandlers] Browser ${browserId} destroyed successfully`)
+    console.log(`[BrowserHandlers] Browser ${browserId} destroyed completely`)
   } catch (error: any) {
-    console.error(`[BrowserHandlers] Error during browser destruction:`, error)
+    console.error(`[BrowserHandlers] Error during browser ${browserId} destruction:`, error)
+
+    // Critical: Even if error occurs, remove from maps to prevent zombie references
+    // This ensures the Map doesn't hold references to destroyed/invalid views
+    browserViews.delete(browserId)
+    consoleLogs.delete(browserId)
+    console.log(`[BrowserHandlers] Browser ${browserId} removed from maps despite error`)
+
     throw error
   }
 }
